@@ -1,0 +1,15 @@
+{
+  "name": "kcal-photo-mobile",
+  "version": "1.0.0",
+  "main": "index.js",
+  "private": true,
+  "scripts": {
+    "start": "expo start"
+  },
+  "dependencies": {
+    "react": "18.3.1",
+    "react-native": "0.76.0",
+    "expo-camera": "~15.0.0",
+    "expo-file-system": "~17.0.0"
+  }
+}
