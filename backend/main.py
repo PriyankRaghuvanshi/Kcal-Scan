@@ -30,11 +30,11 @@ async def log_requests(request: Request, call_next):
 
 @app.get("/")
 def root():
-    return {"service": "kcal-scan", "status": "running"}
+    return {"service": "kcal-scan", "version": "railway-v1"}
 
 @app.get("/health")
 def health():
-    return {"status": "ok"}
+    return {"status": "ok", "version": "railway-v1"}
 
 # (Optional) Explicit OPTIONS handler for debugging
 @app.options("/analyze")
