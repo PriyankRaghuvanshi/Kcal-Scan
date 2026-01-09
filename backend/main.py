@@ -1,49 +1,62 @@
-from fastapi import FastAPI, File, UploadFile
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
-from PIL import Image
 import io
+import logging
+from PIL import Image
+
+from fastapi import FastAPI, File, UploadFile, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse, PlainTextResponse
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("kcal")
 
 app = FastAPI(title="Kcal Scan API")
 
-# ✅ CORS FIX (required for Expo / iOS / multipart uploads)
+# ✅ CORS (keep wide for now; lock down later)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # later restrict to your app domain
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# ---------- Health Check ----------
+# ✅ Log EVERY request so we can see what iPhone is calling
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    logger.info(f"INCOMING {request.method} {request.url.path}")
+    resp = await call_next(request)
+    logger.info(f"RESPONSE {request.method} {request.url.path} -> {resp.status_code}")
+    return resp
+
+@app.get("/")
+def root():
+    return {"service": "kcal-scan", "status": "running"}
+
 @app.get("/health")
 def health():
     return {"status": "ok"}
 
-# ---------- Analyze Endpoint ----------
+# (Optional) Explicit OPTIONS handler for debugging
+@app.options("/analyze")
+def analyze_options():
+    return PlainTextResponse("ok", status_code=200)
+
 @app.post("/analyze")
-async def analyze_image(file: UploadFile = File(...)):
+async def analyze(file: UploadFile = File(...)):
     try:
         contents = await file.read()
-        image = Image.open(io.BytesIO(contents)).convert("RGB")
+        _ = Image.open(io.BytesIO(contents)).convert("RGB")
 
-        # 🔮 Placeholder AI logic (replace later)
+        # Placeholder result
         items = [
             {"name": "dal", "grams": 200, "kcal": 220, "confidence": 0.88},
             {"name": "apple", "grams": 150, "kcal": 78, "confidence": 0.91},
             {"name": "salad", "grams": 100, "kcal": 58, "confidence": 0.85},
         ]
-
         total_kcal = sum(i["kcal"] for i in items)
 
-        return {
-            "total_kcal": total_kcal,
-            "items": items,
-        }
+        return {"total_kcal": total_kcal, "items": items}
 
     except Exception as e:
-        return JSONResponse(
-            status_code=500,
-            content={"error": str(e)},
-        )
+        return JSONResponse(status_code=500, content={"error": str(e)})
 
