@@ -1,88 +1,49 @@
 from fastapi import FastAPI, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-from typing import List, Optional
+from fastapi.responses import JSONResponse
 from PIL import Image
 import io
-import random
 
-app = FastAPI(title="Kcal Photo API", version="0.1.0")
+app = FastAPI(title="Kcal Scan API")
 
+# ✅ CORS FIX (required for Expo / iOS / multipart uploads)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"],  # later restrict to your app domain
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-KCAL_PER_100G = {
-    "rice": 130,
-    "chicken curry": 160,
-    "butter chicken": 220,
-    "dal": 110,
-    "naan": 290,
-    "salad": 20,
-    "banana": 89,
-    "apple": 52,
-}
-
-DEFAULT_PORTION_G = {
-    "rice": 180,
-    "chicken curry": 220,
-    "butter chicken": 220,
-    "dal": 200,
-    "naan": 90,
-    "salad": 120,
-    "banana": 120,
-    "apple": 150,
-}
-
-class FoodItem(BaseModel):
-    name: str
-    grams: int
-    kcal: int
-    confidence: float
-
-class AnalyzeResponse(BaseModel):
-    items: List[FoodItem]
-    total_kcal: int
-    note: Optional[str] = None
-
-def mock_recognize_food(img: Image.Image) -> List[str]:
-    w, h = img.size
-    seed = (w * 31 + h * 17) % 10_000
-    random.seed(seed)
-    candidates = list(KCAL_PER_100G.keys())
-    k = random.choice([2, 3, 3, 4])
-    random.shuffle(candidates)
-    return candidates[:k]
-
-def kcal_for(name: str, grams: int) -> int:
-    per100 = KCAL_PER_100G.get(name, 150)
-    return int(round(per100 * grams / 100))
-
+# ---------- Health Check ----------
 @app.get("/health")
 def health():
-    return {"ok": True}
+    return {"status": "ok"}
 
-@app.post("/analyze", response_model=AnalyzeResponse)
-async def analyze(image: UploadFile = File(...)):
-    raw = await image.read()
+# ---------- Analyze Endpoint ----------
+@app.post("/analyze")
+async def analyze_image(file: UploadFile = File(...)):
     try:
-        img = Image.open(io.BytesIO(raw)).convert("RGB")
-    except Exception:
-        return AnalyzeResponse(items=[], total_kcal=0, note="Could not read image")
+        contents = await file.read()
+        image = Image.open(io.BytesIO(contents)).convert("RGB")
 
-    names = mock_recognize_food(img)
+        # 🔮 Placeholder AI logic (replace later)
+        items = [
+            {"name": "dal", "grams": 200, "kcal": 220, "confidence": 0.88},
+            {"name": "apple", "grams": 150, "kcal": 78, "confidence": 0.91},
+            {"name": "salad", "grams": 100, "kcal": 58, "confidence": 0.85},
+        ]
 
-    items: List[FoodItem] = []
-    total = 0
-    for n in names:
-        grams = DEFAULT_PORTION_G.get(n, 200)
-        kcal = kcal_for(n, grams)
-        conf = float(round(random.uniform(0.65, 0.92), 2))
-        items.append(FoodItem(name=n, grams=grams, kcal=kcal, confidence=conf))
-        total += kcal
+        total_kcal = sum(i["kcal"] for i in items)
 
-    return AnalyzeResponse(items=items, total_kcal=total, note="Estimates only. Adjust portions for better accuracy.")
+        return {
+            "total_kcal": total_kcal,
+            "items": items,
+        }
+
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={"error": str(e)},
+        )
+
