@@ -4,5 +4,5 @@ python-multipart
 pydantic
 pillow
 requests
-google-generativeai
+google-generativeai>=0.8.0
 

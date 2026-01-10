@@ -160,7 +160,7 @@ def gemini_extract_food_items(img: Image.Image):
     genai.configure(api_key=GEMINI_API_KEY)
 
     # You can switch to gemini-1.5-flash for speed/cost, pro for accuracy
-    model = genai.GenerativeModel("gemini-1.5-flash")
+    model = genai.GenerativeModel("gemini-3-flash-preview")
 
     prompt = """
 You are a nutrition assistant.
