@@ -1,5 +1,6 @@
 import io
 import os
+import json
 import logging
 import requests
 from PIL import Image
@@ -7,6 +8,8 @@ from PIL import Image
 from fastapi import FastAPI, File, UploadFile, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import PlainTextResponse
+
+import google.generativeai as genai
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("kcal")
@@ -23,6 +26,10 @@ app.add_middleware(
 
 USDA_API_KEY = os.getenv("USDA_API_KEY", "").strip()
 USDA_BASE = "https://api.nal.usda.gov/fdc/v1"
+
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "").strip()
+if GEMINI_API_KEY:
+    genai.configure(api_key=GEMINI_API_KEY)
 
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
@@ -50,32 +57,40 @@ def _require_usda_key():
             detail="USDA_API_KEY is not set on the server (Railway Variables)."
         )
 
-def usda_search(query: str):
+def _require_gemini_key():
+    if not GEMINI_API_KEY:
+        raise HTTPException(
+            status_code=500,
+            detail="GEMINI_API_KEY is not set on the server (Railway Variables)."
+        )
+
+def usda_search_best(query: str):
     _require_usda_key()
 
-    # Prefer higher-quality data types first; include branded as needed.
     payload = {
         "query": query,
-        "pageSize": 5,
+        "pageSize": 8,
         "pageNumber": 1,
         "dataType": ["Foundation", "SR Legacy", "Survey (FNDDS)", "Branded"],
-        # You can also restrict with "sortBy": "dataType.keyword", but not required.
+        "requireAllWords": False,
     }
 
     r = requests.post(
         f"{USDA_BASE}/foods/search",
         params={"api_key": USDA_API_KEY},
         json=payload,
-        timeout=20,
+        timeout=25,
     )
     if r.status_code != 200:
         raise HTTPException(status_code=502, detail=f"USDA search failed: {r.text}")
 
-    data = r.json()
-    foods = data.get("foods", [])
+    foods = (r.json() or {}).get("foods", []) or []
     if not foods:
         return None
-    return foods[0]  # pick best match (we can improve ranking later)
+
+    # Prefer non-branded first (usually cleaner nutrients); fallback to top result
+    non_branded = [f for f in foods if f.get("dataType") != "Branded"]
+    return (non_branded[0] if non_branded else foods[0])
 
 def usda_food_details(fdc_id: int):
     _require_usda_key()
@@ -83,83 +98,48 @@ def usda_food_details(fdc_id: int):
     r = requests.get(
         f"{USDA_BASE}/food/{fdc_id}",
         params={"api_key": USDA_API_KEY},
-        timeout=20,
+        timeout=25,
     )
     if r.status_code != 200:
         raise HTTPException(status_code=502, detail=f"USDA food details failed: {r.text}")
     return r.json()
 
-def extract_macros_from_usda(food_details: dict):
+def extract_macros_per_100g(food_details: dict):
     """
-    Returns kcal, protein_g, carbs_g, fat_g per 100g — USDA only.
-    Supports both:
-      - foodNutrients[].nutrient.number + amount
-      - labelNutrients (branded)
+    Returns kcal, protein_g, carbs_g, fat_g per 100g based on foodNutrients nutrient numbers:
+      208 Energy (kcal)
+      203 Protein
+      205 Carbohydrate, by difference
+      204 Total lipid (fat)
+    USDA-only. No guessing.
     """
-
-    # 1) Branded label nutrients (often easiest)
-    label = food_details.get("labelNutrients") or {}
-    # label keys typically: calories, protein, carbohydrates, fat (units vary; calories is kcal)
-    if label:
-        kcal = label.get("calories", {}).get("value")
-        protein = label.get("protein", {}).get("value")
-        carbs = label.get("carbohydrates", {}).get("value")
-        fat = label.get("fat", {}).get("value")
-        # If these exist, treat them as per serving on label, NOT per 100g.
-        # For USDA-only accuracy, we should use foodNutrients per 100g when available.
-        # We'll only use labelNutrients if foodNutrients is missing macros entirely.
-    else:
-        kcal = protein = carbs = fat = None
-
-    # 2) Standard nutrients per 100g (Foundation/Survey/SR Legacy commonly)
-    kcal2 = protein2 = carbs2 = fat2 = None
+    kcal = protein = carbs = fat = None
 
     for n in food_details.get("foodNutrients", []) or []:
         nutrient = n.get("nutrient") or {}
         number = str(nutrient.get("number") or "")
         name = (nutrient.get("name") or "").lower()
         amount = n.get("amount")
-
         if amount is None:
             continue
 
-        # Nutrient numbers are the most stable:
-        # 208 Energy (kcal), 203 Protein, 205 Carbs, 204 Total lipid (fat)
-        if number == "208" or "energy" in name:
-            kcal2 = float(amount)
+        if number == "208" or ("energy" in name and "kcal" in (nutrient.get("unitName") or "").lower()):
+            kcal = float(amount)
         elif number == "203" or name == "protein":
-            protein2 = float(amount)
+            protein = float(amount)
         elif number == "205" or "carbohydrate" in name:
-            carbs2 = float(amount)
-        elif number == "204" or "total lipid" in name or ("fat" in name and "saturated" not in name):
-            fat2 = float(amount)
+            carbs = float(amount)
+        elif number == "204" or "total lipid" in name:
+            fat = float(amount)
 
-    # Prefer per-100g foodNutrients when available
-    kcal_final = kcal2 if kcal2 is not None else kcal
-    protein_final = protein2 if protein2 is not None else protein
-    carbs_final = carbs2 if carbs2 is not None else carbs
-    fat_final = fat2 if fat2 is not None else fat
-
-    # Hard fail if missing: USDA-only, no guessing
     missing = [k for k, v in {
-        "kcal": kcal_final,
-        "protein_g": protein_final,
-        "carbs_g": carbs_final,
-        "fat_g": fat_final
+        "kcal": kcal,
+        "protein_g": protein,
+        "carbs_g": carbs,
+        "fat_g": fat
     }.items() if v is None]
 
     if missing:
-        # Provide debugging info so we can adjust filters / result choice
-        nutrient_numbers = []
-        for n in food_details.get("foodNutrients", []) or []:
-            nutrient = n.get("nutrient") or {}
-            nutrient_numbers.append({
-                "number": nutrient.get("number"),
-                "name": nutrient.get("name"),
-                "amount": n.get("amount"),
-                "unit": nutrient.get("unitName"),
-            })
-
         raise HTTPException(
             status_code=502,
             detail={
@@ -168,69 +148,124 @@ def extract_macros_from_usda(food_details: dict):
                 "fdcId": food_details.get("fdcId"),
                 "description": food_details.get("description"),
                 "dataType": food_details.get("dataType"),
-                "hint": "Try a different USDA match or adjust dataType filters/ranking.",
-                "availableNutrientsSample": nutrient_numbers[:25],
-                "labelNutrients": food_details.get("labelNutrients"),
             },
         )
 
     return {
-        "kcal_per_100g": float(kcal_final),
-        "protein_g_per_100g": float(protein_final),
-        "carbs_g_per_100g": float(carbs_final),
-        "fat_g_per_100g": float(fat_final),
+        "kcal_per_100g": kcal,
+        "protein_g_per_100g": protein,
+        "carbs_g_per_100g": carbs,
+        "fat_g_per_100g": fat,
     }
+
+def gemini_detect_foods(image_bytes: bytes):
+    """
+    Returns list of:
+      { "name": str, "grams": number, "confidence": number }
+    """
+    _require_gemini_key()
+
+    model = genai.GenerativeModel("gemini-3-flash-preview")
+
+    prompt = """
+You are a food recognition assistant.
+From the image, detect the foods visible and estimate grams for each item.
+
+Return ONLY valid JSON (no markdown) in this format:
+{
+  "items": [
+    { "name": "chicken biryani", "grams": 280, "confidence": 0.72 },
+    ...
+  ]
+}
+
+Rules:
+- Use common, USDA-friendly names.
+- grams must be a number.
+- confidence from 0 to 1.
+- If you are unsure, still return best guess; do NOT return empty.
+"""
+
+    # Provide the image as inline data
+    img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+
+    resp = model.generate_content([prompt, img])
+    text = (resp.text or "").strip()
+
+    # Attempt to parse JSON safely
+    try:
+        data = json.loads(text)
+        items = data.get("items", [])
+        if not isinstance(items, list) or not items:
+            raise ValueError("No items list")
+        cleaned = []
+        for it in items:
+            name = str(it.get("name", "")).strip()
+            grams = float(it.get("grams", 0) or 0)
+            conf = float(it.get("confidence", 0) or 0)
+            if name and grams > 0:
+                cleaned.append({"name": name, "grams": grams, "confidence": conf})
+        if not cleaned:
+            raise ValueError("No usable items")
+        return cleaned
+    except Exception as e:
+        raise HTTPException(status_code=502, detail={"error": "Gemini returned invalid JSON", "raw": text, "exception": str(e)})
 
 @app.post("/analyze")
 async def analyze(file: UploadFile = File(...)):
     contents = await file.read()
-    _ = Image.open(io.BytesIO(contents)).convert("RGB")
+    if not contents:
+        raise HTTPException(status_code=400, detail="Empty file")
 
-    # -------------------------
-    # TODO: Replace this list with your Gemini detection output:
-    # Each item should be: { "name": str, "grams": float/int, "confidence": float }
-    detected_items = [
-        {"name": "cucumber", "grams": 250, "confidence": 0.85},
-    ]
-    # -------------------------
+    # Validate image
+    try:
+        _ = Image.open(io.BytesIO(contents)).convert("RGB")
+    except Exception:
+        raise HTTPException(status_code=400, detail="Uploaded file is not a valid image")
 
+    # 1) Detect foods (Gemini)
+    detected_items = gemini_detect_foods(contents)
+    logger.info(f"Detected items: {detected_items}")
+
+    # 2) USDA macro lookup + totals
     results = []
     total_kcal = 0.0
     total_p = total_c = total_f = 0.0
 
     for d in detected_items:
         name = d["name"]
-        grams = float(d.get("grams") or 0)
-        conf = float(d.get("confidence") or 0)
+        grams = float(d["grams"])
+        conf = float(d.get("confidence", 0))
 
-        best = usda_search(name)
+        best = usda_search_best(name)
         if not best:
             raise HTTPException(status_code=404, detail=f"No USDA match for '{name}'")
 
         fdc_id = int(best["fdcId"])
         details = usda_food_details(fdc_id)
-        macros = extract_macros_from_usda(details)
+        macros100 = extract_macros_per_100g(details)
 
         factor = grams / 100.0
-
-        kcal = macros["kcal_per_100g"] * factor
-        p = macros["protein_g_per_100g"] * factor
-        c = macros["carbs_g_per_100g"] * factor
-        f = macros["fat_g_per_100g"] * factor
+        kcal = macros100["kcal_per_100g"] * factor
+        p = macros100["protein_g_per_100g"] * factor
+        c = macros100["carbs_g_per_100g"] * factor
+        f = macros100["fat_g_per_100g"] * factor
 
         results.append({
             "name": name,
-            "grams": grams,
-            "confidence": conf,
+            "grams": round(grams, 1),
+            "confidence": round(conf, 2),
+            "kcal": round(kcal, 1),
+            "macros": {
+                "protein_g": round(p, 1),
+                "carbs_g": round(c, 1),
+                "fat_g": round(f, 1),
+            },
             "usda": {
                 "fdcId": fdc_id,
                 "description": details.get("description"),
                 "dataType": details.get("dataType"),
-            },
-            "kcal": round(kcal, 1),
-            "protein_g": round(p, 1),
-            "carbs_g": round(c, 1),
-            "fat_g": round(f, 1),
+            }
         })
 
         total_kcal += kcal
@@ -240,9 +275,11 @@ async def analyze(file: UploadFile = File(...)):
 
     return {
         "total_kcal": round(total_kcal, 1),
-        "protein_g": round(total_p, 1),
-        "carbs_g": round(total_c, 1),
-        "fat_g": round(total_f, 1),
+        "totals": {
+            "protein_g": round(total_p, 1),
+            "carbs_g": round(total_c, 1),
+            "fat_g": round(total_f, 1),
+        },
         "items": results,
     }
 
