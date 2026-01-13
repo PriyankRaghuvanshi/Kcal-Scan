@@ -24,3 +24,4 @@ mobile/.env
 # Supabase local (if used)
 supabase/.temp/
 mobile/.env
+backend/*bk*.py
