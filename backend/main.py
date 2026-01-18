@@ -235,9 +235,14 @@ def get_or_init_usage(user_id: str) -> Dict[str, Any]:
 def normalize_resets(row: Dict[str, Any]) -> Dict[str, Any]:
     """
     If day/month changed, reset counters to plan limits.
+    BUT: If plan is 'free', do not reset (total lifetime limit).
     """
     user_id = row["user_id"]
     plan = (row.get("plan") or DEFAULT_PLAN).lower()
+
+    # --- CRITICAL: Free plan has NO RESETS (Lifetime 25) ---
+    if plan == "free":
+        return row
 
     today = _today_date()
     mstart = _month_start(today)
@@ -343,7 +348,7 @@ def require_user_id(x_user_id: Optional[str], user_id: Optional[str]) -> str:
 @app.get("/usage")
 def usage(
     user_id: Optional[str] = None,
-    x_user_id: Optional[str] = Header(default=None, convert_underscores=False),
+    x_user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
 ):
     uid = require_user_id(x_user_id, user_id)
     row = get_or_init_usage(uid)
@@ -362,7 +367,7 @@ def usage(
 def plan_sync(
     payload: Dict[str, Any] = Body(...),
     user_id: Optional[str] = None,
-    x_user_id: Optional[str] = Header(default=None, convert_underscores=False),
+    x_user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
 ):
     """
     Call from mobile after RevenueCat purchase/restore.
@@ -473,7 +478,6 @@ def gemini_detect_foods(image_bytes: bytes) -> List[Dict[str, Any]]:
     prompt = """
 You are a food recognition assistant.
 From the image, detect the foods visible and estimate grams for each item.
-
 Return ONLY valid JSON (no markdown) in this format:
 {
   "items": [
@@ -590,7 +594,7 @@ def supabase_upsert_barcode(row: Dict[str, Any]) -> Dict[str, Any]:
 def barcode_lookup(
     code: str,
     user_id: Optional[str] = None,
-    x_user_id: Optional[str] = Header(default=None, convert_underscores=False),
+    x_user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
 ):
     uid = require_user_id(x_user_id, user_id)
 
@@ -654,7 +658,7 @@ def barcode_lookup(
 def barcode_manual(
     payload: Dict[str, Any] = Body(...),
     user_id: Optional[str] = None,
-    x_user_id: Optional[str] = Header(default=None, convert_underscores=False),
+    x_user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
 ):
     """
     Manual add when barcode not found.
@@ -720,7 +724,7 @@ def barcode_manual(
 async def analyze(
     file: UploadFile = File(...),
     user_id: Optional[str] = None,
-    x_user_id: Optional[str] = Header(default=None, convert_underscores=False),
+    x_user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
 ):
     uid = require_user_id(x_user_id, user_id)
 
@@ -799,4 +803,3 @@ async def analyze(
             "remaining_month": int(usage_row.get("remaining_month") or 0),
         },
     }
-
