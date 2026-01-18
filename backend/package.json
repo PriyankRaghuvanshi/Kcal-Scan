@@ -1,0 +1,6 @@
+{
+  "dependencies": {
+    "@supabase/supabase-js": "^2.90.1",
+    "react-native-purchases": "^9.7.0"
+  }
+}

@@ -1,8 +1,10 @@
-fastapi
-uvicorn[standard]
-python-multipart
-pydantic
-pillow
-requests
-google-generativeai>=0.8.0
+fastapi==0.115.6
+uvicorn[standard]==0.30.6
+pydantic==2.9.2
+requests==2.32.3
+python-multipart==0.0.9
+google-generativeai==0.7.2
+Pillow==10.4.0
 
+uvicorn[standard]
+fastapi
