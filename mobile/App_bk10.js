@@ -1,5 +1,5 @@
 // mobile/App.js
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -25,10 +25,7 @@ import { createClient } from "@supabase/supabase-js";
 import Purchases from "react-native-purchases";
 
 // ===================== CONFIG =====================
-// Prefer env override so you can swap prod/staging easily.
-const API_BASE =
-  process.env.EXPO_PUBLIC_API_BASE?.trim() ||
-  "https://kcal-scan-production.up.railway.app";
+const API_BASE = "https://kcal-scan-production.up.railway.app";
 
 // History (local)
 const HISTORY_KEY = "kcal_scan_history_v3";
@@ -46,7 +43,7 @@ const RC_ANDROID_KEY = "goog_REPLACE_WITH_ANDROID_KEY"; // <-- put your Android 
 
 // RevenueCat offering + entitlement identifiers
 const OFFERING_ID = "main";
-const ENTITLEMENTS = ["elite", "advanced", "pro", "infinite"];
+const ENTITLEMENTS = ["elite", "advanced", "pro", "infinite"]; // your entitlements
 
 // barcode scan guard
 const BARCODE_COOLDOWN_MS = 1800;
@@ -64,16 +61,7 @@ function nowISO() {
   return new Date().toISOString();
 }
 
-// IMPORTANT: send both header variants to avoid FastAPI header parsing edge cases.
-function backendHeaders(userId, extra = {}) {
-  if (!userId) return { ...extra };
-  return {
-    "X-User-Id": userId,
-    "x-user-id": userId,
-    ...extra,
-  };
-}
-
+// Accept totals/macros from different key styles
 function pickMacros(obj) {
   if (!obj) return { protein_g: 0, carbs_g: 0, fat_g: 0 };
   const protein =
@@ -83,6 +71,7 @@ function pickMacros(obj) {
   return { protein_g: num(protein), carbs_g: num(carbs), fat_g: num(fat) };
 }
 
+// Normalize /analyze response to the structure your UI expects
 function normalizeAnalyzeResponse(json) {
   const total_kcal = num(json?.total_kcal ?? json?.totalKcal ?? 0);
 
@@ -109,6 +98,7 @@ function normalizeAnalyzeResponse(json) {
     };
   });
 
+  // If totals missing, compute from items
   if (
     totals.protein_g === 0 &&
     totals.carbs_g === 0 &&
@@ -131,11 +121,13 @@ function normalizeAnalyzeResponse(json) {
   return { ...json, total_kcal: computedKcal, totals, items };
 }
 
+// Normalize barcode response (/barcode/{code}) into "scan result" shape for history + UI
 function normalizeBarcodeResponse(json) {
   const per = json?.per_100g || {};
   const name = json?.name || "Unknown product";
   const brand = json?.brand || null;
 
+  // For UI consistency we create a single "item" of 100g
   const item = {
     name: brand ? `${name} (${brand})` : name,
     grams: 100,
@@ -163,6 +155,7 @@ function normalizeBarcodeResponse(json) {
   };
 }
 
+// RevenueCat: pick active entitlement
 function getActiveEntitlement(customerInfo) {
   const active = customerInfo?.entitlements?.active || {};
   for (const k of ENTITLEMENTS) {
@@ -194,7 +187,6 @@ export default function App() {
   // Barcode mode
   const [mode, setMode] = useState("photo"); // "photo" | "barcode"
   const lastBarcodeRef = useRef({ code: null, t: 0 });
-  const barcodeBusyRef = useRef(false);
 
   // Manual add modal
   const [manualOpen, setManualOpen] = useState(false);
@@ -334,22 +326,17 @@ export default function App() {
       setResult(null);
       setPhotoUri(null);
       setMode("photo");
-      setOffering(null);
-      setRcReady(false);
-      setUsage(null);
-      setPlan("free");
-      setCustomerInfo(null);
     } catch (e) {
       Alert.alert("Sign out error", e.message);
     }
   };
 
-  // -------------------- USAGE (BACKEND) --------------------
+  // -------------------- REVENUECAT --------------------
   const fetchUsage = async () => {
     if (!userId) return;
     try {
       const res = await fetch(`${API_BASE}/usage`, {
-        headers: backendHeaders(userId),
+        headers: { "X-User-Id": userId },
       });
       const json = await res.json();
       if (!res.ok) return;
@@ -362,7 +349,10 @@ export default function App() {
     try {
       await fetch(`${API_BASE}/plan/sync`, {
         method: "POST",
-        headers: backendHeaders(userId, { "Content-Type": "application/json" }),
+        headers: {
+          "Content-Type": "application/json",
+          "X-User-Id": userId,
+        },
         body: JSON.stringify({ entitlement }),
       });
       await fetchUsage();
@@ -371,16 +361,8 @@ export default function App() {
     }
   };
 
-  // -------------------- REVENUECAT --------------------
-  const loadOfferings = async () => {
-    const offers = await Purchases.getOfferings();
-    const main = offers?.all?.[OFFERING_ID] || offers?.current || null;
-    setOffering(main);
-    setRcReady(Boolean(main));
-    return main;
-  };
-
   useEffect(() => {
+    // when user logs in/out: init RC + load offering + set plan
     (async () => {
       try {
         setRcReady(false);
@@ -390,50 +372,56 @@ export default function App() {
 
         if (!userId) return;
 
+        // Configure Purchases with appUserID = Supabase user id
         const apiKey = Platform.OS === "ios" ? RC_IOS_KEY : RC_ANDROID_KEY;
         if (!apiKey || apiKey.includes("REPLACE_WITH_ANDROID_KEY")) {
           console.log("RevenueCat key missing for this platform.");
-          await fetchUsage();
-          return;
+        } else {
+          Purchases.setDebugLogsEnabled(true);
+          await Purchases.configure({ apiKey, appUserID: userId });
+          setRcReady(true);
+
+          const info = await Purchases.getCustomerInfo();
+          setCustomerInfo(info);
+          const active = getActiveEntitlement(info);
+          setPlan(active);
+          await syncPlanToBackend(active);
+
+          const offers = await Purchases.getOfferings();
+          const main = offers?.all?.[OFFERING_ID] || offers?.current || null;
+          setOffering(main);
         }
 
-        Purchases.setDebugLogsEnabled(true);
-        await Purchases.configure({ apiKey, appUserID: userId });
-
-        const info = await Purchases.getCustomerInfo();
-        setCustomerInfo(info);
-
-        const active = getActiveEntitlement(info);
-        setPlan(active);
-        await syncPlanToBackend(active);
-
-        await loadOfferings();
         await fetchUsage();
       } catch (e) {
         console.log("RC init error:", e?.message);
-        await fetchUsage();
       }
     })();
   }, [userId]);
 
   const buy = async (packageId) => {
     try {
-      if (!rcReady || !offering) throw new Error("Offerings not loaded yet. Tap Refresh.");
-      const pkg =
-        (offering.availablePackages || []).find((p) => p.identifier === packageId) || null;
+      if (!rcReady) throw new Error("Billing not ready yet.");
+      if (!offering) throw new Error("Offering not loaded yet.");
 
-      if (!pkg) throw new Error(`Package not found in offering: ${packageId}`);
+      // Find package by identifier (elite/advanced/pro/infinite)
+      const pkg =
+        (offering.availablePackages || []).find((p) => p.identifier === packageId) ||
+        null;
+
+      if (!pkg) {
+        throw new Error(`Package not found in offering: ${packageId}`);
+      }
 
       setLoading(true);
       const { customerInfo: info } = await Purchases.purchasePackage(pkg);
       setCustomerInfo(info);
-
       const active = getActiveEntitlement(info);
       setPlan(active);
       await syncPlanToBackend(active);
-
       Alert.alert("Subscribed", `Plan: ${active}`);
     } catch (e) {
+      // User cancel is not an error
       const msg = String(e?.message || e);
       if (msg.toLowerCase().includes("cancel")) return;
       Alert.alert("Purchase failed", msg);
@@ -444,32 +432,16 @@ export default function App() {
 
   const restore = async () => {
     try {
+      if (!rcReady) throw new Error("Billing not ready yet.");
       setLoading(true);
       const info = await Purchases.restorePurchases();
       setCustomerInfo(info);
-
       const active = getActiveEntitlement(info);
       setPlan(active);
       await syncPlanToBackend(active);
-
       Alert.alert("Restored", `Plan: ${active}`);
     } catch (e) {
       Alert.alert("Restore failed", e.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const refreshOfferings = async () => {
-    try {
-      setLoading(true);
-      const main = await loadOfferings();
-      Alert.alert(
-        main ? "Offerings loaded ✅" : "No offerings yet",
-        main ? "You can purchase now." : "Check Apple IAP setup / agreements, then try again."
-      );
-    } catch (e) {
-      Alert.alert("Refresh failed", e.message);
     } finally {
       setLoading(false);
     }
@@ -480,11 +452,6 @@ export default function App() {
     checkServer();
     loadHistory();
   }, []);
-
-  useEffect(() => {
-    // whenever user logs in, fetch usage immediately
-    if (userId) fetchUsage();
-  }, [userId]);
 
   // -------------------- CAMERA ACTIONS --------------------
   const snapPhoto = async () => {
@@ -515,7 +482,7 @@ export default function App() {
 
       const res = await fetch(`${API_BASE}/analyze`, {
         method: "POST",
-        headers: backendHeaders(userId), // DO NOT set multipart content-type manually
+        headers: { "X-User-Id": userId },
         body: form,
       });
 
@@ -528,6 +495,7 @@ export default function App() {
       }
 
       if (!res.ok) {
+        // Plan limit
         if (res.status === 402) {
           Alert.alert(
             "Limit reached",
@@ -545,6 +513,7 @@ export default function App() {
       setResult(enriched);
       await addToHistory(enriched);
 
+      // Update usage if backend returns it
       await fetchUsage();
     } catch (e) {
       Alert.alert("Analyze failed", e.message);
@@ -553,30 +522,7 @@ export default function App() {
     }
   };
 
-  // -------------------- BARCODE (NO SPAM) --------------------
-  const onBarcodeDetected = (event) => {
-    if (manualOpen) return;
-    if (barcodeBusyRef.current) return;
-
-    const raw = event?.data ?? "";
-    const clean = String(raw).replace(/[^\d]/g, "");
-    if (!clean) return;
-
-    const now = Date.now();
-    const last = lastBarcodeRef.current;
-
-    if (last.code === clean && now - last.t < BARCODE_COOLDOWN_MS) return;
-
-    barcodeBusyRef.current = true;
-    lastBarcodeRef.current = { code: clean, t: now };
-
-    barcodeLookup(clean).finally(() => {
-      setTimeout(() => {
-        barcodeBusyRef.current = false;
-      }, 1200);
-    });
-  };
-
+  // -------------------- BARCODE LOOKUP --------------------
   const openManualAdd = (barcode) => {
     setManualBarcode(barcode || "");
     setManualName("");
@@ -588,7 +534,9 @@ export default function App() {
     setManualOpen(true);
   };
 
-  const closeManualAdd = () => setManualOpen(false);
+  const closeManualAdd = () => {
+    setManualOpen(false);
+  };
 
   const barcodeLookup = async (code) => {
     if (!userId) {
@@ -599,13 +547,20 @@ export default function App() {
     const clean = String(code || "").replace(/[^\d]/g, "");
     if (!clean) return;
 
+    // Cooldown + same-code guard
+    const now = Date.now();
+    const last = lastBarcodeRef.current;
+    if (manualOpen) return;
+    if (last.code === clean && now - last.t < BARCODE_COOLDOWN_MS) return;
+    lastBarcodeRef.current = { code: clean, t: now };
+
     setLoading(true);
     setResult(null);
     setSelected(null);
 
     try {
-      const res = await fetch(`${API_BASE}/barcode/${encodeURIComponent(clean)}`, {
-        headers: backendHeaders(userId),
+      const res = await fetch(`${API_BASE}/barcode/${clean}`, {
+        headers: { "X-User-Id": userId },
       });
 
       const text = await res.text();
@@ -617,15 +572,19 @@ export default function App() {
       }
 
       if (!res.ok) {
+        // Plan limit
         if (res.status === 402) {
           Alert.alert("Limit reached", "No scans left for your plan.");
           await fetchUsage();
           return;
         }
+
+        // Not found -> manual add
         if (res.status === 404) {
           openManualAdd(clean);
           return;
         }
+
         throw new Error(json?.detail?.error || json?.detail || text || "Barcode lookup failed");
       }
 
@@ -665,7 +624,10 @@ export default function App() {
     try {
       const res = await fetch(`${API_BASE}/barcode/manual`, {
         method: "POST",
-        headers: backendHeaders(userId, { "Content-Type": "application/json" }),
+        headers: {
+          "Content-Type": "application/json",
+          "X-User-Id": userId,
+        },
         body: JSON.stringify(payload),
       });
 
@@ -686,33 +648,38 @@ export default function App() {
         throw new Error(json?.detail?.error || json?.detail || text || "Manual add failed");
       }
 
-      const stored = {
-        source: "barcode",
-        barcode: payload.barcode,
-        total_kcal: payload.kcal_per_100g,
-        totals: {
-          protein_g: payload.protein_g_per_100g,
-          carbs_g: payload.carbs_g_per_100g,
-          fat_g: payload.fat_g_per_100g,
-        },
-        items: [
-          {
-            name: payload.brand ? `${payload.name} (${payload.brand})` : payload.name,
-            grams: 100,
-            confidence: 1,
-            kcal: payload.kcal_per_100g,
-            macros: {
+      // convert the stored per_100g into history scan shape
+      const stored = json?.stored
+        ? {
+            source: "barcode",
+            barcode: payload.barcode,
+            total_kcal: payload.kcal_per_100g,
+            totals: {
               protein_g: payload.protein_g_per_100g,
               carbs_g: payload.carbs_g_per_100g,
               fat_g: payload.fat_g_per_100g,
             },
-            barcode: payload.barcode,
-          },
-        ],
-      };
+            items: [
+              {
+                name: payload.brand ? `${payload.name} (${payload.brand})` : payload.name,
+                grams: 100,
+                confidence: 1,
+                kcal: payload.kcal_per_100g,
+                macros: {
+                  protein_g: payload.protein_g_per_100g,
+                  carbs_g: payload.carbs_g_per_100g,
+                  fat_g: payload.fat_g_per_100g,
+                },
+                barcode: payload.barcode,
+              },
+            ],
+          }
+        : null;
 
-      setResult(stored);
-      await addToHistory(stored);
+      if (stored) {
+        setResult(stored);
+        await addToHistory(stored);
+      }
 
       closeManualAdd();
       await fetchUsage();
@@ -724,6 +691,8 @@ export default function App() {
     }
   };
 
+  // -------------------- DISPLAY PICK --------------------
+  // IMPORTANT: show latest result first (prevents “stuck”)
   const display = result || selected;
 
   // -------------------- RENDER --------------------
@@ -736,6 +705,7 @@ export default function App() {
     );
   }
 
+  // If Supabase not configured, block early (prevents invisible auth issues)
   if (!HAS_SUPABASE) {
     return (
       <View style={[styles.center, { backgroundColor: "#000" }]}>
@@ -749,6 +719,7 @@ export default function App() {
     );
   }
 
+  // Auth screen
   if (!session) {
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: "#000" }}>
@@ -803,6 +774,7 @@ export default function App() {
     );
   }
 
+  // Camera permissions
   if (!permission) return <View style={{ flex: 1, backgroundColor: "#000" }} />;
   if (!permission.granted) {
     return (
@@ -819,8 +791,6 @@ export default function App() {
       </View>
     );
   }
-
-  const purchaseDisabled = loading || !rcReady || !offering;
 
   return (
     <View style={styles.container}>
@@ -846,8 +816,11 @@ export default function App() {
         <CameraView
           style={styles.camera}
           ref={cameraRef}
+          // Barcode scanning mode:
           onBarcodeScanned={
-            mode === "barcode" && !manualOpen ? (event) => onBarcodeDetected(event) : undefined
+            mode === "barcode" && !manualOpen
+              ? (event) => barcodeLookup(event?.data)
+              : undefined
           }
         />
       </View>
@@ -858,8 +831,7 @@ export default function App() {
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>Barcode not found</Text>
             <Text style={styles.modalSub}>
-              Add nutrition per 100g for:{" "}
-              <Text style={{ fontWeight: "900" }}>{manualBarcode}</Text>
+              Add nutrition per 100g for: <Text style={{ fontWeight: "900" }}>{manualBarcode}</Text>
             </Text>
 
             <TextInput
@@ -987,7 +959,9 @@ export default function App() {
           </>
         ) : (
           <View style={{ marginTop: 12 }}>
-            <Text style={{ color: "#ddd", fontWeight: "800" }}>Barcode mode ON</Text>
+            <Text style={{ color: "#ddd", fontWeight: "800" }}>
+              Barcode mode ON
+            </Text>
             <Text style={{ color: "#888", marginTop: 4 }}>
               Point camera at barcode. If not found, Manual Add will pop up.
             </Text>
@@ -997,7 +971,9 @@ export default function App() {
         {loading ? (
           <View style={styles.loadingRow}>
             <ActivityIndicator color="white" />
-            <Text style={{ color: "white", marginLeft: 10 }}>Working…</Text>
+            <Text style={{ color: "white", marginLeft: 10 }}>
+              Working…
+            </Text>
           </View>
         ) : null}
 
@@ -1037,48 +1013,36 @@ export default function App() {
         {/* SUBSCRIPTIONS */}
         <View style={[styles.row, { marginTop: 14, alignItems: "center" }]}>
           <Text style={styles.historyTitle}>Upgrade</Text>
-
-          <TouchableOpacity onPress={refreshOfferings} style={styles.smallBtn} disabled={loading}>
-            <Text style={styles.smallBtnText}>Refresh</Text>
-          </TouchableOpacity>
-
           <TouchableOpacity onPress={restore} style={styles.smallBtn} disabled={loading}>
             <Text style={styles.smallBtnText}>Restore</Text>
           </TouchableOpacity>
         </View>
 
         <Text style={{ color: "#888", marginTop: 6 }}>
-          Packages come from RevenueCat Offering:{" "}
-          <Text style={{ fontWeight: "900" }}>{OFFERING_ID}</Text>
+          Packages come from RevenueCat Offering: <Text style={{ fontWeight: "900" }}>{OFFERING_ID}</Text>
         </Text>
 
         <View style={styles.row}>
-          <TouchableOpacity style={styles.btn} onPress={() => buy("elite")} disabled={purchaseDisabled}>
+          <TouchableOpacity style={styles.btn} onPress={() => buy("elite")} disabled={loading}>
             <Text style={styles.btnText}>Elite</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.btn} onPress={() => buy("advanced")} disabled={purchaseDisabled}>
+          <TouchableOpacity style={styles.btn} onPress={() => buy("advanced")} disabled={loading}>
             <Text style={styles.btnText}>Advanced</Text>
           </TouchableOpacity>
         </View>
 
         <View style={styles.row}>
-          <TouchableOpacity style={styles.btn} onPress={() => buy("pro")} disabled={purchaseDisabled}>
+          <TouchableOpacity style={styles.btn} onPress={() => buy("pro")} disabled={loading}>
             <Text style={styles.btnText}>Pro</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.btn} onPress={() => buy("infinite")} disabled={purchaseDisabled}>
+          <TouchableOpacity style={styles.btn} onPress={() => buy("infinite")} disabled={loading}>
             <Text style={styles.btnText}>Infinite</Text>
           </TouchableOpacity>
         </View>
 
-        {!rcReady ? (
-          <Text style={{ color: "#ffcc00", marginTop: 8, fontSize: 12 }}>
-            ⚠️ Offerings not loaded yet. Tap Refresh. If still missing, finish Apple Paid Apps Agreement + banking/tax.
-          </Text>
-        ) : (
-          <Text style={{ color: "#777", marginTop: 8, fontSize: 12 }}>
-            ✅ Auto-renews monthly • Cancel anytime
-          </Text>
-        )}
+        <Text style={{ color: "#777", marginTop: 8, fontSize: 12 }}>
+          ✅ Auto-renews monthly • Cancel anytime
+        </Text>
 
         {/* HISTORY HEADER */}
         <View style={[styles.row, { marginTop: 16, alignItems: "center" }]}>
@@ -1099,8 +1063,8 @@ export default function App() {
             </Text>
           }
           renderItem={({ item }) => {
-            const dtt = new Date(item.createdAt);
-            const label = `${dtt.toLocaleDateString()} ${dtt.toLocaleTimeString([], {
+            const dt = new Date(item.createdAt);
+            const label = `${dt.toLocaleDateString()} ${dt.toLocaleTimeString([], {
               hour: "2-digit",
               minute: "2-digit",
             })}`;
@@ -1130,7 +1094,10 @@ export default function App() {
                   <Text style={styles.historySub2}>{label}</Text>
                 </View>
 
-                <TouchableOpacity onPress={() => deleteHistoryItem(item.id)} style={styles.deleteBtn}>
+                <TouchableOpacity
+                  onPress={() => deleteHistoryItem(item.id)}
+                  style={styles.deleteBtn}
+                >
                   <Text style={{ color: "white", fontWeight: "700" }}>Del</Text>
                 </TouchableOpacity>
               </TouchableOpacity>
@@ -1182,7 +1149,6 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 10,
     borderRadius: 10,
-    marginLeft: 8,
   },
   smallBtnText: { color: "white", fontWeight: "700" },
 
@@ -1241,6 +1207,7 @@ const styles = StyleSheet.create({
 
   center: { flex: 1, justifyContent: "center", alignItems: "center", padding: 20 },
 
+  // Modal
   modalBackdrop: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.75)",

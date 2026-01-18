@@ -1,0 +1,54 @@
+{
+  "expo": {
+    "name": "CalorieClick AI",
+    "slug": "calorieclick-ai",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "ios": {
+      "bundleIdentifier": "com.priyank.calorieclick",
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": true
+        },
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "package": "com.priyank.calorieclick",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "edgeToEdgeEnabled": true,
+      "permissions": ["android.permission.CAMERA"]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "bade0b52-fdda-452c-b6f3-76247faf377d"
+      },
+
+      "API_BASE": "https://kcal-scan-production.up.railway.app",
+      "ANALYZE_URL": "https://kcal-scan-production.up.railway.app/analyze",
+      "BARCODE_LOOKUP_URL": "https://kcal-scan-production.up.railway.app/barcode",
+      "ENTITLEMENT_URL": "https://kcal-scan-production.up.railway.app/entitlement/upsert",
+      "USAGE_URL": "https://kcal-scan-production.up.railway.app/usage",
+
+      "REVENUECAT_OFFERING": "main",
+      "REVENUECAT_IOS_API_KEY": "appl_SoteCFCeVzvTTQWIpwbClzFnBdq"
+    },
+    "plugins": ["expo-barcode-scanner"]
+  }
+}
+

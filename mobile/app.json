@@ -5,41 +5,30 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "dark",
     "newArchEnabled": true,
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#000000"
     },
     "ios": {
       "bundleIdentifier": "com.priyank.calorieclick",
       "supportsTablet": true,
       "infoPlist": {
-        "NSAppTransportSecurity": {
-          "NSAllowsArbitraryLoads": true
-        },
+        "NSCameraUsageDescription": "We need camera access to scan meals and barcodes.",
+        "NSAppTransportSecurity": { "NSAllowsArbitraryLoads": true },
         "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
       "package": "com.priyank.calorieclick",
-      "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
-      },
-      "edgeToEdgeEnabled": true,
-      "permissions": [
-        "android.permission.CAMERA"
-      ]
-    },
-    "web": {
-      "favicon": "./assets/favicon.png"
+      "permissions": ["android.permission.CAMERA"]
     },
     "extra": {
-      "eas": {
-        "projectId": "bade0b52-fdda-452c-b6f3-76247faf377d"
-      }
-    }
+      "eas": { "projectId": "bade0b52-fdda-452c-b6f3-76247faf377d" }
+    },
+    "plugins": ["expo-camera"]
   }
 }
+
