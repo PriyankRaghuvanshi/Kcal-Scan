@@ -166,10 +166,17 @@ function normalizeBarcodeResponse(json) {
   };
 }
 
+/**
+ * UPDATED: pick highest plan if multiple entitlements are active.
+ * (infinite > pro > advanced > elite > free)
+ */
 function getActiveEntitlement(customerInfo) {
   const active = customerInfo?.entitlements?.active || {};
-  for (const k of ENTITLEMENTS) {
-    if (active[k]) return k;
+  const keys = Object.keys(active).map((k) => k.toLowerCase());
+
+  const order = ["infinite", "pro", "advanced", "elite"];
+  for (const p of order) {
+    if (keys.includes(p)) return p;
   }
   return "free";
 }
@@ -182,11 +189,47 @@ function formatPrice(pkg) {
   }
 }
 
-function pkgTitle(pkg) {
+/**
+ * UPDATED: show Elite/Advanced/Pro/Infinite instead of "Monthly"
+ * using identifier/title matching (works with your current RC setup).
+ */
+function pkgPlanKey(pkg) {
   const id = (pkg?.identifier || "").toLowerCase();
-  if (id.includes("monthly")) return "Monthly";
-  if (id.includes("year")) return "Yearly";
+  const prodId = (pkg?.product?.identifier || "").toLowerCase();
+  const title = (pkg?.product?.title || "").toLowerCase();
+  const s = `${id} ${prodId} ${title}`;
+
+  if (s.includes("infinite")) return "infinite";
+  if (s.includes("pro")) return "pro";
+  if (s.includes("advanced")) return "advanced";
+  if (s.includes("elite")) return "elite";
+  return "free";
+}
+
+function pkgTitle(pkg) {
+  const key = pkgPlanKey(pkg);
+  if (key === "elite") return "Elite";
+  if (key === "advanced") return "Advanced";
+  if (key === "pro") return "Pro";
+  if (key === "infinite") return "Infinite";
   return pkg?.product?.title || "Plan";
+}
+
+function pkgDescFromKey(key) {
+  if (key === "elite") return "Starter plan • daily + monthly scans";
+  if (key === "advanced") return "More daily limit • more monthly scans";
+  if (key === "pro") return "Power plan • very high monthly scans";
+  if (key === "infinite") return "Unlimited scans (fair use)";
+  return "";
+}
+
+function sortPackages(pkgs) {
+  const rank = { elite: 1, advanced: 2, pro: 3, infinite: 4, free: 999 };
+  return [...pkgs].sort((a, b) => {
+    const ka = pkgPlanKey(a);
+    const kb = pkgPlanKey(b);
+    return (rank[ka] || 999) - (rank[kb] || 999);
+  });
 }
 
 // ===================== APP =====================
@@ -788,19 +831,22 @@ export default function App() {
                 Current plan: <Text style={{ fontWeight: "900" }}>{activePlan}</Text>
               </Text>
 
-              {(offering.availablePackages || []).map((pkg) => (
-                <TouchableOpacity
-                  key={pkg.identifier}
-                  style={styles.planCard}
-                  onPress={() => buyPackage(pkg)}
-                  disabled={rcLoading}
-                >
-                  <Text style={styles.h2}>
-                    {pkgTitle(pkg)} • {formatPrice(pkg)}
-                  </Text>
-                  <Text style={styles.small}>{pkg.product?.description || ""}</Text>
-                </TouchableOpacity>
-              ))}
+              {sortPackages(offering.availablePackages || []).map((pkg) => {
+                const key = pkgPlanKey(pkg);
+                return (
+                  <TouchableOpacity
+                    key={pkg.identifier}
+                    style={styles.planCard}
+                    onPress={() => buyPackage(pkg)}
+                    disabled={rcLoading}
+                  >
+                    <Text style={styles.h2}>
+                      {pkgTitle(pkg)} • {formatPrice(pkg)}
+                    </Text>
+                    <Text style={styles.small}>{pkgDescFromKey(key)}</Text>
+                  </TouchableOpacity>
+                );
+              })}
 
               <TouchableOpacity style={[styles.btn, { marginTop: 14 }]} onPress={restorePurchases}>
                 <Text style={styles.btnText}>Restore Purchases</Text>
