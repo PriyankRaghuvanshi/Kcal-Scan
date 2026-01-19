@@ -18,37 +18,40 @@ import {
 } from "react-native";
 
 import { CameraView, useCameraPermissions } from "expo-camera";
+import * as FileSystem from "expo-file-system";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { createClient } from "@supabase/supabase-js";
+import "react-native-url-polyfill/auto";
 
 // RevenueCat
 import Purchases from "react-native-purchases";
 
 // ===================== CONFIG =====================
-// Prefer env override so you can swap prod/staging easily.
 const API_BASE =
   process.env.EXPO_PUBLIC_API_BASE?.trim() ||
   "https://kcal-scan-production.up.railway.app";
 
-// History (local)
 const HISTORY_KEY = "kcal_scan_history_v3";
 const MAX_HISTORY = 50;
 
-// Supabase (mobile/.env)
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL || "";
 const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || "";
 const HAS_SUPABASE = Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
 const supabase = HAS_SUPABASE ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
 
-// RevenueCat keys
-const RC_IOS_KEY = "appl_SoteCFCeVzvTTQWIpwbClzFnBdq"; // your iOS key
-const RC_ANDROID_KEY = "goog_REPLACE_WITH_ANDROID_KEY"; // <-- put your Android key here
+// RevenueCat keys (env preferred)
+const RC_IOS_KEY =
+  process.env.EXPO_PUBLIC_RC_IOS_KEY || "appl_SoteCFCeVzvTTQWIpwbClzFnBdq";
+const RC_ANDROID_KEY =
+  process.env.EXPO_PUBLIC_RC_ANDROID_KEY || "goog_XXXXXXXXXXXXXXXX";
 
-// RevenueCat offering + entitlement identifiers
-const OFFERING_ID = "main";
-const ENTITLEMENTS = ["elite", "advanced", "pro", "infinite"];
+// Offering + entitlements
+const OFFERING_ID = process.env.EXPO_PUBLIC_RC_OFFERING || "main";
+const ENTITLEMENTS = (process.env.EXPO_PUBLIC_RC_ENTITLEMENTS || "elite,advanced,pro,infinite")
+  .split(",")
+  .map((x) => x.trim())
+  .filter(Boolean);
 
-// barcode scan guard
 const BARCODE_COOLDOWN_MS = 1800;
 
 // ===================== HELPERS =====================
@@ -64,7 +67,6 @@ function nowISO() {
   return new Date().toISOString();
 }
 
-// IMPORTANT: send both header variants to avoid FastAPI header parsing edge cases.
 function backendHeaders(userId, extra = {}) {
   if (!userId) return { ...extra };
   return {
@@ -78,7 +80,8 @@ function pickMacros(obj) {
   if (!obj) return { protein_g: 0, carbs_g: 0, fat_g: 0 };
   const protein =
     obj.protein_g ?? obj.protein ?? obj.p ?? obj.proteinG ?? obj.protein_gm ?? 0;
-  const carbs = obj.carbs_g ?? obj.carbs ?? obj.c ?? obj.carbsG ?? obj.carbs_gm ?? 0;
+  const carbs =
+    obj.carbs_g ?? obj.carbs ?? obj.c ?? obj.carbsG ?? obj.carbs_gm ?? 0;
   const fat = obj.fat_g ?? obj.fat ?? obj.f ?? obj.fatG ?? obj.fat_gm ?? 0;
   return { protein_g: num(protein), carbs_g: num(carbs), fat_g: num(fat) };
 }
@@ -171,12 +174,27 @@ function getActiveEntitlement(customerInfo) {
   return "free";
 }
 
+function formatPrice(pkg) {
+  try {
+    return pkg?.product?.priceString || "";
+  } catch {
+    return "";
+  }
+}
+
+function pkgTitle(pkg) {
+  const id = (pkg?.identifier || "").toLowerCase();
+  if (id.includes("monthly")) return "Monthly";
+  if (id.includes("year")) return "Yearly";
+  return pkg?.product?.title || "Plan";
+}
+
 // ===================== APP =====================
 export default function App() {
   const cameraRef = useRef(null);
   const [permission, requestPermission] = useCameraPermissions();
 
-  // Supabase Auth UI
+  // Supabase Auth
   const [authLoading, setAuthLoading] = useState(true);
   const [session, setSession] = useState(null);
   const [email, setEmail] = useState("");
@@ -191,1080 +209,741 @@ export default function App() {
   const [history, setHistory] = useState([]);
   const [selected, setSelected] = useState(null);
 
-  // Barcode mode
+  // Mode
   const [mode, setMode] = useState("photo"); // "photo" | "barcode"
   const lastBarcodeRef = useRef({ code: null, t: 0 });
   const barcodeBusyRef = useRef(false);
 
-  // Manual add modal
-  const [manualOpen, setManualOpen] = useState(false);
-  const [manualBarcode, setManualBarcode] = useState("");
-  const [manualName, setManualName] = useState("");
-  const [manualBrand, setManualBrand] = useState("");
-  const [manualKcal, setManualKcal] = useState("");
-  const [manualP, setManualP] = useState("");
-  const [manualC, setManualC] = useState("");
-  const [manualF, setManualF] = useState("");
+  // Usage
+  const [usage, setUsage] = useState(null);
 
-  // RevenueCat
-  const [rcReady, setRcReady] = useState(false);
+  // RevenueCat paywall
+  const [paywallOpen, setPaywallOpen] = useState(false);
+  const [rcLoading, setRcLoading] = useState(false);
   const [offering, setOffering] = useState(null);
   const [customerInfo, setCustomerInfo] = useState(null);
-  const [plan, setPlan] = useState("free");
-
-  // Usage from backend
-  const [usage, setUsage] = useState(null);
+  const [activePlan, setActivePlan] = useState("free");
 
   const userId = session?.user?.id || null;
 
-  // -------------------- HISTORY --------------------
-  const loadHistory = async () => {
-    try {
-      const raw = await AsyncStorage.getItem(HISTORY_KEY);
-      if (!raw) return;
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) setHistory(parsed);
-    } catch (e) {
-      console.log("loadHistory error:", e);
-    }
-  };
+  // ===================== INIT =====================
+  useEffect(() => {
+    (async () => {
+      try {
+        const raw = await AsyncStorage.getItem(HISTORY_KEY);
+        const arr = raw ? JSON.parse(raw) : [];
+        if (Array.isArray(arr)) setHistory(arr);
+      } catch {}
+    })();
+  }, []);
 
-  const saveHistory = async (items) => {
-    try {
-      await AsyncStorage.setItem(HISTORY_KEY, JSON.stringify(items));
-    } catch (e) {
-      console.log("saveHistory error:", e);
-    }
-  };
-
-  const addToHistory = async (scan) => {
-    const entry = {
-      id: `${Date.now()}`,
-      createdAt: nowISO(),
-      total_kcal: round1(scan?.total_kcal),
-      totals: scan?.totals || { protein_g: 0, carbs_g: 0, fat_g: 0 },
-      items: scan?.items || [],
-      photoUri: scan?.photoUri || null,
-      source: scan?.source || "photo",
-      barcode: scan?.barcode || null,
-    };
-    const next = [entry, ...history].slice(0, MAX_HISTORY);
-    setHistory(next);
-    await saveHistory(next);
-  };
-
-  const deleteHistoryItem = async (id) => {
-    const next = history.filter((h) => h.id !== id);
-    setHistory(next);
-    if (selected?.id === id) setSelected(null);
-    await saveHistory(next);
-  };
-
-  const clearHistory = async () => {
-    Alert.alert("Clear history?", "This will remove all saved scans.", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Clear",
-        style: "destructive",
-        onPress: async () => {
-          setHistory([]);
-          setSelected(null);
-          await AsyncStorage.removeItem(HISTORY_KEY);
-        },
-      },
-    ]);
-  };
-
-  // -------------------- SERVER HEALTH --------------------
-  const checkServer = async () => {
-    try {
-      const res = await fetch(`${API_BASE}/health`);
-      const json = await res.json();
-      setServerOk(json.status === "ok");
-    } catch {
-      setServerOk(false);
-    }
-  };
-
-  // -------------------- AUTH --------------------
   useEffect(() => {
     if (!HAS_SUPABASE) {
       setAuthLoading(false);
       return;
     }
 
-    (async () => {
-      const { data } = await supabase.auth.getSession();
-      setSession(data.session ?? null);
+    supabase.auth.getSession().then(({ data }) => {
+      setSession(data?.session || null);
       setAuthLoading(false);
-    })();
-
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, newSession) => {
-      setSession(newSession ?? null);
     });
 
-    return () => sub?.subscription?.unsubscribe?.();
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, s) => {
+      setSession(s);
+      setAuthLoading(false);
+    });
+
+    return () => {
+      listener?.subscription?.unsubscribe?.();
+    };
   }, []);
 
-  const signUp = async () => {
-    try {
-      if (!supabase) throw new Error("Supabase not configured.");
-      const { error } = await supabase.auth.signUp({ email, password });
-      if (error) throw error;
-      Alert.alert("Check your email", "Confirm your email, then log in.");
-    } catch (e) {
-      Alert.alert("Sign up error", e.message);
-    }
-  };
+  // Health check
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch(`${API_BASE}/health`);
+        setServerOk(res.ok);
+      } catch {
+        setServerOk(false);
+      }
+    })();
+  }, []);
 
-  const signIn = async () => {
-    try {
-      if (!supabase) throw new Error("Supabase not configured.");
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) throw error;
-    } catch (e) {
-      Alert.alert("Login error", e.message);
-    }
-  };
+  // Setup camera permission
+  useEffect(() => {
+    if (!permission?.granted) requestPermission();
+  }, [permission]);
 
-  const signOut = async () => {
-    try {
-      if (supabase) await supabase.auth.signOut();
-      setSelected(null);
-      setResult(null);
-      setPhotoUri(null);
-      setMode("photo");
-      setOffering(null);
-      setRcReady(false);
-      setUsage(null);
-      setPlan("free");
-      setCustomerInfo(null);
-    } catch (e) {
-      Alert.alert("Sign out error", e.message);
-    }
-  };
+  // ===================== REVENUECAT SETUP =====================
+  useEffect(() => {
+    if (!userId) return;
 
-  // -------------------- USAGE (BACKEND) --------------------
-  const fetchUsage = async () => {
+    (async () => {
+      try {
+        const apiKey = Platform.OS === "ios" ? RC_IOS_KEY : RC_ANDROID_KEY;
+
+        Purchases.setLogLevel(Purchases.LOG_LEVEL.INFO);
+        await Purchases.configure({ apiKey, appUserID: userId });
+
+        const info = await Purchases.getCustomerInfo();
+        setCustomerInfo(info);
+        setActivePlan(getActiveEntitlement(info));
+
+        // preload offerings
+        const offerings = await Purchases.getOfferings();
+        const off = offerings?.current || offerings?.all?.[OFFERING_ID];
+        setOffering(off || null);
+      } catch (e) {
+        console.log("RevenueCat init error:", e?.message || e);
+      }
+    })();
+  }, [userId]);
+
+  // ===================== BACKEND USAGE =====================
+  async function fetchUsage() {
     if (!userId) return;
     try {
       const res = await fetch(`${API_BASE}/usage`, {
         headers: backendHeaders(userId),
       });
+      if (!res.ok) {
+        const t = await res.text();
+        throw new Error(t);
+      }
       const json = await res.json();
-      if (!res.ok) return;
       setUsage(json);
-    } catch {}
-  };
+    } catch (e) {
+      console.log("usage fetch error:", e?.message || e);
+    }
+  }
 
-  const syncPlanToBackend = async (entitlement) => {
+  // pull usage on login + after purchase
+  useEffect(() => {
+    if (userId) fetchUsage();
+  }, [userId]);
+
+  // ===================== PLAN SYNC =====================
+  async function syncPlanToBackend(entitlement) {
     if (!userId) return;
     try {
-      await fetch(`${API_BASE}/plan/sync`, {
+      const res = await fetch(`${API_BASE}/plan/sync?user_id=${encodeURIComponent(userId)}`, {
         method: "POST",
         headers: backendHeaders(userId, { "Content-Type": "application/json" }),
         body: JSON.stringify({ entitlement }),
       });
+      const json = await res.json();
+      console.log("plan/sync:", json);
       await fetchUsage();
     } catch (e) {
-      console.log("syncPlanToBackend error:", e?.message);
+      console.log("plan/sync error:", e?.message || e);
     }
-  };
+  }
 
-  // -------------------- REVENUECAT --------------------
-  const loadOfferings = async () => {
-    const offers = await Purchases.getOfferings();
-    const main = offers?.all?.[OFFERING_ID] || offers?.current || null;
-    setOffering(main);
-    setRcReady(Boolean(main));
-    return main;
-  };
-
-  useEffect(() => {
-    (async () => {
-      try {
-        setRcReady(false);
-        setOffering(null);
-        setCustomerInfo(null);
-        setPlan("free");
-
-        if (!userId) return;
-
-        const apiKey = Platform.OS === "ios" ? RC_IOS_KEY : RC_ANDROID_KEY;
-        if (!apiKey || apiKey.includes("REPLACE_WITH_ANDROID_KEY")) {
-          console.log("RevenueCat key missing for this platform.");
-          await fetchUsage();
-          return;
-        }
-
-        Purchases.setDebugLogsEnabled(true);
-        await Purchases.configure({ apiKey, appUserID: userId });
-
-        const info = await Purchases.getCustomerInfo();
-        setCustomerInfo(info);
-
-        const active = getActiveEntitlement(info);
-        setPlan(active);
-        await syncPlanToBackend(active);
-
-        await loadOfferings();
-        await fetchUsage();
-      } catch (e) {
-        console.log("RC init error:", e?.message);
-        await fetchUsage();
-      }
-    })();
-  }, [userId]);
-
-  const buy = async (packageId) => {
+  // ===================== PURCHASE / RESTORE =====================
+  async function openPaywall() {
+    setPaywallOpen(true);
+    setRcLoading(true);
     try {
-      if (!rcReady || !offering) throw new Error("Offerings not loaded yet. Tap Refresh.");
-      const pkg =
-        (offering.availablePackages || []).find((p) => p.identifier === packageId) || null;
+      const offerings = await Purchases.getOfferings();
+      const off = offerings?.current || offerings?.all?.[OFFERING_ID];
+      setOffering(off || null);
 
-      if (!pkg) throw new Error(`Package not found in offering: ${packageId}`);
-
-      setLoading(true);
-      const { customerInfo: info } = await Purchases.purchasePackage(pkg);
+      const info = await Purchases.getCustomerInfo();
       setCustomerInfo(info);
-
-      const active = getActiveEntitlement(info);
-      setPlan(active);
-      await syncPlanToBackend(active);
-
-      Alert.alert("Subscribed", `Plan: ${active}`);
+      setActivePlan(getActiveEntitlement(info));
     } catch (e) {
-      const msg = String(e?.message || e);
+      console.log("open paywall error:", e?.message || e);
+    } finally {
+      setRcLoading(false);
+    }
+  }
+
+  async function buyPackage(pkg) {
+    if (!pkg) return;
+    setRcLoading(true);
+    try {
+      const { customerInfo } = await Purchases.purchasePackage(pkg);
+      setCustomerInfo(customerInfo);
+      const plan = getActiveEntitlement(customerInfo);
+      setActivePlan(plan);
+
+      // 🔥 sync to backend
+      await syncPlanToBackend(plan);
+
+      Alert.alert("✅ Purchase successful", `Plan activated: ${plan}`);
+      setPaywallOpen(false);
+    } catch (e) {
+      const msg = e?.message || String(e);
       if (msg.toLowerCase().includes("cancel")) return;
       Alert.alert("Purchase failed", msg);
     } finally {
-      setLoading(false);
+      setRcLoading(false);
     }
-  };
+  }
 
-  const restore = async () => {
+  async function restorePurchases() {
+    setRcLoading(true);
     try {
-      setLoading(true);
       const info = await Purchases.restorePurchases();
       setCustomerInfo(info);
+      const plan = getActiveEntitlement(info);
+      setActivePlan(plan);
 
-      const active = getActiveEntitlement(info);
-      setPlan(active);
-      await syncPlanToBackend(active);
+      // 🔥 sync to backend
+      await syncPlanToBackend(plan);
 
-      Alert.alert("Restored", `Plan: ${active}`);
+      Alert.alert("✅ Restored", `Active plan: ${plan}`);
+      setPaywallOpen(false);
     } catch (e) {
-      Alert.alert("Restore failed", e.message);
+      Alert.alert("Restore failed", e?.message || String(e));
     } finally {
-      setLoading(false);
+      setRcLoading(false);
     }
-  };
+  }
 
-  const refreshOfferings = async () => {
+  // ===================== SUPABASE AUTH UI =====================
+  async function signUp() {
+    if (!supabase) return;
     try {
-      setLoading(true);
-      const main = await loadOfferings();
-      Alert.alert(
-        main ? "Offerings loaded ✅" : "No offerings yet",
-        main ? "You can purchase now." : "Check Apple IAP setup / agreements, then try again."
-      );
+      setAuthLoading(true);
+      const { error } = await supabase.auth.signUp({ email, password });
+      if (error) throw error;
+      Alert.alert("✅ Signup success", "Now login.");
     } catch (e) {
-      Alert.alert("Refresh failed", e.message);
+      Alert.alert("Signup failed", e?.message || String(e));
+    } finally {
+      setAuthLoading(false);
+    }
+  }
+
+  async function signIn() {
+    if (!supabase) return;
+    try {
+      setAuthLoading(true);
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) throw error;
+    } catch (e) {
+      Alert.alert("Login failed", e?.message || String(e));
+    } finally {
+      setAuthLoading(false);
+    }
+  }
+
+  async function signOut() {
+    if (!supabase) return;
+    await supabase.auth.signOut();
+    setSession(null);
+    setUsage(null);
+    setResult(null);
+    setPhotoUri(null);
+  }
+
+  // ===================== SCAN FUNCTIONS =====================
+  async function takePhoto() {
+    try {
+      if (!cameraRef.current) return;
+      setLoading(true);
+      const photo = await cameraRef.current.takePictureAsync({ quality: 0.7 });
+      setPhotoUri(photo?.uri || null);
+      setResult(null);
+    } catch (e) {
+      Alert.alert("Camera error", e?.message || String(e));
     } finally {
       setLoading(false);
     }
-  };
+  }
 
-  // -------------------- APP INIT --------------------
-  useEffect(() => {
-    checkServer();
-    loadHistory();
-  }, []);
-
-  useEffect(() => {
-    // whenever user logs in, fetch usage immediately
-    if (userId) fetchUsage();
-  }, [userId]);
-
-  // -------------------- CAMERA ACTIONS --------------------
-  const snapPhoto = async () => {
-    if (!cameraRef.current) return;
-    const photo = await cameraRef.current.takePictureAsync({ quality: 0.7 });
-    setPhotoUri(photo.uri);
-    setResult(null);
-    setSelected(null);
-  };
-
-  const doAnalyze = async () => {
-    if (!photoUri) {
-      Alert.alert("Take a photo first");
-      return;
-    }
-    if (!userId) {
-      Alert.alert("Login required", "Please login to use scans (plan limits).");
-      return;
-    }
-
+  async function analyzePhoto() {
+    if (!photoUri || !userId) return;
     setLoading(true);
-    setResult(null);
-    setSelected(null);
 
     try {
       const form = new FormData();
-      form.append("file", { uri: photoUri, name: "food.jpg", type: "image/jpeg" });
+      form.append("file", {
+        uri: photoUri,
+        name: "photo.jpg",
+        type: "image/jpeg",
+      });
 
       const res = await fetch(`${API_BASE}/analyze`, {
         method: "POST",
-        headers: backendHeaders(userId), // DO NOT set multipart content-type manually
+        headers: backendHeaders(userId), // DO NOT set content-type for multipart
         body: form,
       });
 
-      const text = await res.text();
-      let json = null;
-      try {
-        json = JSON.parse(text);
-      } catch {
-        throw new Error(text || `HTTP ${res.status}`);
-      }
-
+      const json = await res.json();
       if (!res.ok) {
-        if (res.status === 402) {
-          Alert.alert(
-            "Limit reached",
-            `No scans left. Remaining today: ${json?.detail?.remaining_day ?? "0"}`
-          );
-          await fetchUsage();
-          return;
-        }
-        throw new Error(json?.detail?.error || json?.detail || text);
+        throw new Error(json?.detail ? JSON.stringify(json.detail) : JSON.stringify(json));
       }
 
       const normalized = normalizeAnalyzeResponse(json);
-      const enriched = { ...normalized, photoUri, source: "photo" };
+      setResult(normalized);
 
-      setResult(enriched);
-      await addToHistory(enriched);
+      const entry = {
+        id: nowISO(),
+        ts: nowISO(),
+        mode: "photo",
+        total_kcal: normalized.total_kcal,
+        totals: normalized.totals,
+        items: normalized.items,
+      };
+
+      const newHist = [entry, ...history].slice(0, MAX_HISTORY);
+      setHistory(newHist);
+      await AsyncStorage.setItem(HISTORY_KEY, JSON.stringify(newHist));
 
       await fetchUsage();
     } catch (e) {
-      Alert.alert("Analyze failed", e.message);
+      Alert.alert("Analyze failed", e?.message || String(e));
     } finally {
       setLoading(false);
     }
-  };
+  }
 
-  // -------------------- BARCODE (NO SPAM) --------------------
-  const onBarcodeDetected = (event) => {
-    if (manualOpen) return;
-    if (barcodeBusyRef.current) return;
-
-    const raw = event?.data ?? "";
-    const clean = String(raw).replace(/[^\d]/g, "");
-    if (!clean) return;
+  async function barcodeLookup(code) {
+    if (!code || !userId) return;
 
     const now = Date.now();
     const last = lastBarcodeRef.current;
+    if (last.code === code && now - last.t < BARCODE_COOLDOWN_MS) return;
 
-    if (last.code === clean && now - last.t < BARCODE_COOLDOWN_MS) return;
-
+    if (barcodeBusyRef.current) return;
     barcodeBusyRef.current = true;
-    lastBarcodeRef.current = { code: clean, t: now };
-
-    barcodeLookup(clean).finally(() => {
-      setTimeout(() => {
-        barcodeBusyRef.current = false;
-      }, 1200);
-    });
-  };
-
-  const openManualAdd = (barcode) => {
-    setManualBarcode(barcode || "");
-    setManualName("");
-    setManualBrand("");
-    setManualKcal("");
-    setManualP("");
-    setManualC("");
-    setManualF("");
-    setManualOpen(true);
-  };
-
-  const closeManualAdd = () => setManualOpen(false);
-
-  const barcodeLookup = async (code) => {
-    if (!userId) {
-      Alert.alert("Login required", "Please login to use barcode scans (plan limits).");
-      return;
-    }
-
-    const clean = String(code || "").replace(/[^\d]/g, "");
-    if (!clean) return;
-
-    setLoading(true);
-    setResult(null);
-    setSelected(null);
+    lastBarcodeRef.current = { code, t: now };
 
     try {
-      const res = await fetch(`${API_BASE}/barcode/${encodeURIComponent(clean)}`, {
+      setLoading(true);
+      const res = await fetch(`${API_BASE}/barcode/${encodeURIComponent(code)}`, {
         headers: backendHeaders(userId),
       });
-
-      const text = await res.text();
-      let json = null;
-      try {
-        json = JSON.parse(text);
-      } catch {
-        json = { raw: text };
-      }
-
+      const json = await res.json();
       if (!res.ok) {
-        if (res.status === 402) {
-          Alert.alert("Limit reached", "No scans left for your plan.");
-          await fetchUsage();
-          return;
-        }
-        if (res.status === 404) {
-          openManualAdd(clean);
-          return;
-        }
-        throw new Error(json?.detail?.error || json?.detail || text || "Barcode lookup failed");
+        throw new Error(json?.detail ? JSON.stringify(json.detail) : JSON.stringify(json));
       }
 
       const normalized = normalizeBarcodeResponse(json);
-      const enriched = { ...normalized, source: "barcode", barcode: clean };
+      setResult(normalized);
 
-      setResult(enriched);
-      await addToHistory(enriched);
-
-      await fetchUsage();
-    } catch (e) {
-      Alert.alert("Barcode lookup failed", e.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const submitManualAdd = async () => {
-    if (!userId) return;
-
-    const payload = {
-      barcode: manualBarcode,
-      name: manualName,
-      brand: manualBrand || null,
-      kcal_per_100g: Number(manualKcal),
-      protein_g_per_100g: Number(manualP || 0),
-      carbs_g_per_100g: Number(manualC || 0),
-      fat_g_per_100g: Number(manualF || 0),
-    };
-
-    if (!payload.barcode || !payload.name || !payload.kcal_per_100g || payload.kcal_per_100g <= 0) {
-      Alert.alert("Missing fields", "Barcode, Name, and kcal/100g are required.");
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const res = await fetch(`${API_BASE}/barcode/manual`, {
-        method: "POST",
-        headers: backendHeaders(userId, { "Content-Type": "application/json" }),
-        body: JSON.stringify(payload),
-      });
-
-      const text = await res.text();
-      let json = null;
-      try {
-        json = JSON.parse(text);
-      } catch {
-        json = { raw: text };
-      }
-
-      if (!res.ok) {
-        if (res.status === 402) {
-          Alert.alert("Limit reached", "No scans left for your plan.");
-          await fetchUsage();
-          return;
-        }
-        throw new Error(json?.detail?.error || json?.detail || text || "Manual add failed");
-      }
-
-      const stored = {
-        source: "barcode",
-        barcode: payload.barcode,
-        total_kcal: payload.kcal_per_100g,
-        totals: {
-          protein_g: payload.protein_g_per_100g,
-          carbs_g: payload.carbs_g_per_100g,
-          fat_g: payload.fat_g_per_100g,
-        },
-        items: [
-          {
-            name: payload.brand ? `${payload.name} (${payload.brand})` : payload.name,
-            grams: 100,
-            confidence: 1,
-            kcal: payload.kcal_per_100g,
-            macros: {
-              protein_g: payload.protein_g_per_100g,
-              carbs_g: payload.carbs_g_per_100g,
-              fat_g: payload.fat_g_per_100g,
-            },
-            barcode: payload.barcode,
-          },
-        ],
+      const entry = {
+        id: nowISO(),
+        ts: nowISO(),
+        mode: "barcode",
+        barcode: normalized.barcode,
+        total_kcal: normalized.total_kcal,
+        totals: normalized.totals,
+        items: normalized.items,
       };
 
-      setResult(stored);
-      await addToHistory(stored);
+      const newHist = [entry, ...history].slice(0, MAX_HISTORY);
+      setHistory(newHist);
+      await AsyncStorage.setItem(HISTORY_KEY, JSON.stringify(newHist));
 
-      closeManualAdd();
       await fetchUsage();
-      Alert.alert("Saved", "Added product and saved to history.");
     } catch (e) {
-      Alert.alert("Manual add failed", e.message);
+      Alert.alert("Barcode failed", e?.message || String(e));
     } finally {
       setLoading(false);
+      barcodeBusyRef.current = false;
     }
-  };
+  }
 
-  const display = result || selected;
-
-  // -------------------- RENDER --------------------
+  // ===================== UI =====================
   if (authLoading) {
     return (
-      <View style={[styles.center, { backgroundColor: "#000" }]}>
-        <ActivityIndicator color="white" />
-        <Text style={{ color: "white", marginTop: 10 }}>Loading…</Text>
-      </View>
+      <SafeAreaView style={styles.center}>
+        <ActivityIndicator size="large" />
+        <Text style={{ marginTop: 10 }}>Loading…</Text>
+      </SafeAreaView>
     );
   }
 
   if (!HAS_SUPABASE) {
     return (
-      <View style={[styles.center, { backgroundColor: "#000" }]}>
-        <Text style={{ color: "white", fontSize: 18, fontWeight: "900" }}>
-          Missing Supabase config
+      <SafeAreaView style={styles.center}>
+        <Text style={styles.h1}>Kcal Scan</Text>
+        <Text style={styles.sub}>
+          Supabase env missing. Please set EXPO_PUBLIC_SUPABASE_URL & EXPO_PUBLIC_SUPABASE_ANON_KEY.
         </Text>
-        <Text style={{ color: "#aaa", marginTop: 10, textAlign: "center" }}>
-          Set EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY in mobile/.env and restart Expo.
-        </Text>
-      </View>
+      </SafeAreaView>
     );
   }
 
-  if (!session) {
+  // AUTH SCREEN
+  if (!session?.user) {
     return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: "#000" }}>
+      <SafeAreaView style={styles.container}>
         <KeyboardAvoidingView
-          style={{ flex: 1, padding: 18, justifyContent: "center" }}
           behavior={Platform.OS === "ios" ? "padding" : undefined}
+          style={{ flex: 1 }}
         >
-          <Text style={{ color: "white", fontSize: 28, fontWeight: "900" }}>
-            CalorieClick.ai
-          </Text>
-          <Text style={{ color: "#aaa", marginTop: 6 }}>
-            Login to use scans + subscriptions
-          </Text>
+          <View style={styles.card}>
+            <Text style={styles.h1}>Kcal Scan</Text>
+            <Text style={styles.sub}>Login or Signup</Text>
 
-          <View style={{ marginTop: 18 }}>
-            <Text style={styles.label}>Email</Text>
             <TextInput
+              style={styles.input}
+              placeholder="Email"
+              autoCapitalize="none"
               value={email}
               onChangeText={setEmail}
-              autoCapitalize="none"
-              keyboardType="email-address"
-              placeholder="you@email.com"
-              placeholderTextColor="#666"
-              style={styles.input}
             />
-
-            <Text style={[styles.label, { marginTop: 12 }]}>Password</Text>
             <TextInput
+              style={styles.input}
+              placeholder="Password"
+              secureTextEntry
               value={password}
               onChangeText={setPassword}
-              secureTextEntry
-              placeholder="••••••••"
-              placeholderTextColor="#666"
-              style={styles.input}
             />
-          </View>
 
-          <View style={{ flexDirection: "row", gap: 10, marginTop: 16 }}>
-            <TouchableOpacity style={[styles.btn, styles.primary]} onPress={signIn}>
+            <TouchableOpacity style={styles.btn} onPress={signIn}>
               <Text style={styles.btnText}>Login</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.btn} onPress={signUp}>
-              <Text style={styles.btnText}>Sign up</Text>
-            </TouchableOpacity>
-          </View>
 
-          <Text style={{ color: "#777", marginTop: 12, fontSize: 12 }}>
-            If email confirmation opens localhost, we’ll fix Supabase redirect URLs next.
-          </Text>
+            <TouchableOpacity style={[styles.btn, styles.btnSecondary]} onPress={signUp}>
+              <Text style={styles.btnText}>Signup</Text>
+            </TouchableOpacity>
+
+            <Text style={styles.small}>
+              Backend: {API_BASE} {"\n"}
+              Status: {serverOk ? "✅ OK" : "❌ Down"}
+            </Text>
+          </View>
         </KeyboardAvoidingView>
       </SafeAreaView>
     );
   }
 
-  if (!permission) return <View style={{ flex: 1, backgroundColor: "#000" }} />;
-  if (!permission.granted) {
-    return (
-      <View style={styles.center}>
-        <Text style={{ color: "white", marginBottom: 10 }}>
-          Camera permission required
-        </Text>
-        <TouchableOpacity onPress={requestPermission} style={styles.btn}>
-          <Text style={styles.btnText}>Grant Permission</Text>
+  // MAIN APP
+  return (
+    <SafeAreaView style={styles.container}>
+      <View style={styles.topBar}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.h1}>Kcal Scan</Text>
+          <Text style={styles.small}>
+            Plan: <Text style={{ fontWeight: "800" }}>{activePlan}</Text>
+            {"  •  "}
+            Remaining:{" "}
+            <Text style={{ fontWeight: "800" }}>
+              {usage?.remaining_month ?? "-"}
+            </Text>
+          </Text>
+        </View>
+
+        <TouchableOpacity style={styles.smallBtn} onPress={openPaywall}>
+          <Text style={styles.smallBtnText}>Upgrade</Text>
         </TouchableOpacity>
-        <TouchableOpacity onPress={signOut} style={[styles.btn, { marginTop: 12 }]}>
-          <Text style={styles.btnText}>Sign out</Text>
+
+        <TouchableOpacity style={[styles.smallBtn, { marginLeft: 8 }]} onPress={signOut}>
+          <Text style={styles.smallBtnText}>Logout</Text>
         </TouchableOpacity>
       </View>
-    );
-  }
 
-  const purchaseDisabled = loading || !rcReady || !offering;
+      {/* Mode Switch */}
+      <View style={styles.modeRow}>
+        <TouchableOpacity
+          style={[styles.modeBtn, mode === "photo" && styles.modeBtnActive]}
+          onPress={() => setMode("photo")}
+        >
+          <Text style={[styles.modeText, mode === "photo" && styles.modeTextActive]}>
+            Photo
+          </Text>
+        </TouchableOpacity>
 
-  return (
-    <View style={styles.container}>
-      {/* HEADER */}
-      <SafeAreaView style={{ backgroundColor: "#000" }}>
-        <View style={styles.header}>
-          <View>
-            <Text style={styles.headerTitle}>CalorieClick.ai</Text>
-            <Text style={styles.subHeader}>
-              Plan: <Text style={{ fontWeight: "900" }}>{plan}</Text>{" "}
-              {rcReady ? "✅" : "⚠️"}
-            </Text>
-          </View>
+        <TouchableOpacity
+          style={[styles.modeBtn, mode === "barcode" && styles.modeBtnActive]}
+          onPress={() => setMode("barcode")}
+        >
+          <Text style={[styles.modeText, mode === "barcode" && styles.modeTextActive]}>
+            Barcode
+          </Text>
+        </TouchableOpacity>
+      </View>
 
-          <TouchableOpacity onPress={signOut} style={styles.smallBtn}>
-            <Text style={styles.smallBtnText}>Sign out</Text>
-          </TouchableOpacity>
-        </View>
-      </SafeAreaView>
-
-      {/* CAMERA */}
+      {/* Camera */}
       <View style={styles.cameraWrap}>
-        <CameraView
-          style={styles.camera}
-          ref={cameraRef}
-          onBarcodeScanned={
-            mode === "barcode" && !manualOpen ? (event) => onBarcodeDetected(event) : undefined
-          }
+        {permission?.granted ? (
+          <CameraView
+            ref={cameraRef}
+            style={styles.camera}
+            facing="back"
+            barcodeScannerSettings={
+              mode === "barcode"
+                ? { barcodeTypes: ["ean13", "ean8", "upc_a", "upc_e"] }
+                : undefined
+            }
+            onBarcodeScanned={
+              mode === "barcode"
+                ? (e) => barcodeLookup(e?.data)
+                : undefined
+            }
+          />
+        ) : (
+          <View style={styles.center}>
+            <Text>Camera permission required</Text>
+            <TouchableOpacity style={styles.btn} onPress={requestPermission}>
+              <Text style={styles.btnText}>Grant permission</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+      </View>
+
+      {/* Actions */}
+      <View style={styles.actionsRow}>
+        {mode === "photo" ? (
+          <>
+            <TouchableOpacity style={styles.btn} onPress={takePhoto} disabled={loading}>
+              <Text style={styles.btnText}>{loading ? "..." : "Take Photo"}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.btn, !photoUri && { opacity: 0.4 }]}
+              onPress={analyzePhoto}
+              disabled={!photoUri || loading}
+            >
+              <Text style={styles.btnText}>{loading ? "Analyzing…" : "Analyze"}</Text>
+            </TouchableOpacity>
+          </>
+        ) : (
+          <Text style={styles.sub}>Scan barcode inside camera</Text>
+        )}
+      </View>
+
+      {/* Photo Preview */}
+      {!!photoUri && (
+        <View style={styles.previewWrap}>
+          <Image source={{ uri: photoUri }} style={styles.preview} />
+        </View>
+      )}
+
+      {/* Result */}
+      {result && (
+        <View style={styles.resultCard}>
+          <Text style={styles.h2}>
+            Total: {round1(result.total_kcal)} kcal
+          </Text>
+          <Text style={styles.sub}>
+            P {round1(result?.totals?.protein_g)}g  •  C {round1(result?.totals?.carbs_g)}g  •  F{" "}
+            {round1(result?.totals?.fat_g)}g
+          </Text>
+
+          <FlatList
+            data={result.items || []}
+            keyExtractor={(_, idx) => String(idx)}
+            renderItem={({ item }) => (
+              <View style={styles.itemRow}>
+                <Text style={styles.itemName}>{item?.name}</Text>
+                <Text style={styles.itemKcal}>{round1(item?.kcal)} kcal</Text>
+              </View>
+            )}
+          />
+        </View>
+      )}
+
+      {/* History */}
+      <View style={styles.historyWrap}>
+        <Text style={styles.h2}>History</Text>
+        <FlatList
+          data={history}
+          keyExtractor={(it) => it.id}
+          renderItem={({ item }) => (
+            <TouchableOpacity onPress={() => setSelected(item)}>
+              <View style={styles.historyRow}>
+                <Text style={styles.historyText}>
+                  {item.mode === "barcode" ? "📦" : "📷"} {round1(item.total_kcal)} kcal
+                </Text>
+                <Text style={styles.small}>{new Date(item.ts).toLocaleString()}</Text>
+              </View>
+            </TouchableOpacity>
+          )}
         />
       </View>
 
-      {/* MANUAL ADD MODAL */}
-      <Modal visible={manualOpen} transparent animationType="fade">
-        <View style={styles.modalBackdrop}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Barcode not found</Text>
-            <Text style={styles.modalSub}>
-              Add nutrition per 100g for:{" "}
-              <Text style={{ fontWeight: "900" }}>{manualBarcode}</Text>
-            </Text>
-
-            <TextInput
-              value={manualName}
-              onChangeText={setManualName}
-              placeholder="Product name (required)"
-              placeholderTextColor="#777"
-              style={styles.modalInput}
-            />
-            <TextInput
-              value={manualBrand}
-              onChangeText={setManualBrand}
-              placeholder="Brand (optional)"
-              placeholderTextColor="#777"
-              style={styles.modalInput}
-            />
-
-            <View style={{ flexDirection: "row", gap: 8 }}>
-              <TextInput
-                value={manualKcal}
-                onChangeText={setManualKcal}
-                placeholder="kcal/100g *"
-                placeholderTextColor="#777"
-                keyboardType="numeric"
-                style={[styles.modalInput, { flex: 1 }]}
-              />
-              <TextInput
-                value={manualP}
-                onChangeText={setManualP}
-                placeholder="P g"
-                placeholderTextColor="#777"
-                keyboardType="numeric"
-                style={[styles.modalInput, { flex: 1 }]}
-              />
-            </View>
-
-            <View style={{ flexDirection: "row", gap: 8 }}>
-              <TextInput
-                value={manualC}
-                onChangeText={setManualC}
-                placeholder="C g"
-                placeholderTextColor="#777"
-                keyboardType="numeric"
-                style={[styles.modalInput, { flex: 1 }]}
-              />
-              <TextInput
-                value={manualF}
-                onChangeText={setManualF}
-                placeholder="F g"
-                placeholderTextColor="#777"
-                keyboardType="numeric"
-                style={[styles.modalInput, { flex: 1 }]}
-              />
-            </View>
-
-            <View style={{ flexDirection: "row", gap: 10, marginTop: 10 }}>
-              <TouchableOpacity style={styles.btn} onPress={closeManualAdd} disabled={loading}>
-                <Text style={styles.btnText}>Close</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.btn, styles.primary]}
-                onPress={submitManualAdd}
-                disabled={loading}
-              >
-                <Text style={styles.btnText}>{loading ? "Saving..." : "Save"}</Text>
-              </TouchableOpacity>
-            </View>
+      {/* Paywall Modal */}
+      <Modal visible={paywallOpen} animationType="slide" onRequestClose={() => setPaywallOpen(false)}>
+        <SafeAreaView style={styles.modalWrap}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.h1}>Upgrade</Text>
+            <TouchableOpacity style={styles.smallBtn} onPress={() => setPaywallOpen(false)}>
+              <Text style={styles.smallBtnText}>Close</Text>
+            </TouchableOpacity>
           </View>
-        </View>
+
+          {rcLoading && (
+            <View style={styles.center}>
+              <ActivityIndicator size="large" />
+              <Text style={{ marginTop: 10 }}>Loading plans…</Text>
+            </View>
+          )}
+
+          {!rcLoading && !offering && (
+            <View style={styles.center}>
+              <Text style={styles.sub}>No offering found (RevenueCat)</Text>
+              <Text style={styles.small}>Offering ID: {OFFERING_ID}</Text>
+            </View>
+          )}
+
+          {!rcLoading && offering && (
+            <ScrollView style={{ flex: 1 }}>
+              <Text style={styles.sub}>
+                Current plan: <Text style={{ fontWeight: "900" }}>{activePlan}</Text>
+              </Text>
+
+              {(offering.availablePackages || []).map((pkg) => (
+                <TouchableOpacity
+                  key={pkg.identifier}
+                  style={styles.planCard}
+                  onPress={() => buyPackage(pkg)}
+                  disabled={rcLoading}
+                >
+                  <Text style={styles.h2}>
+                    {pkgTitle(pkg)} • {formatPrice(pkg)}
+                  </Text>
+                  <Text style={styles.small}>{pkg.product?.description || ""}</Text>
+                </TouchableOpacity>
+              ))}
+
+              <TouchableOpacity style={[styles.btn, { marginTop: 14 }]} onPress={restorePurchases}>
+                <Text style={styles.btnText}>Restore Purchases</Text>
+              </TouchableOpacity>
+
+              <Text style={[styles.small, { marginTop: 12 }]}>
+                After purchase/restore we sync to backend /plan/sync.
+              </Text>
+            </ScrollView>
+          )}
+        </SafeAreaView>
       </Modal>
 
-      {/* PANEL */}
-      <View style={styles.panel}>
-        <Text style={{ color: serverOk ? "#2ecc71" : "#ff5a5f" }}>
-          Server {serverOk ? "OK ✅" : "DOWN ❌"}
-        </Text>
+      {/* History detail modal */}
+      <Modal visible={!!selected} transparent animationType="fade">
+        <View style={styles.overlay}>
+          <View style={styles.detailCard}>
+            <Text style={styles.h2}>Scan Detail</Text>
+            <Text style={styles.sub}>{round1(selected?.total_kcal)} kcal</Text>
+            <Text style={styles.small}>{selected?.ts}</Text>
 
-        {usage ? (
-          <Text style={{ color: "#cfcfcf", marginTop: 6 }}>
-            Remaining today: {usage.remaining_day} • Remaining month: {usage.remaining_month}
-          </Text>
-        ) : (
-          <Text style={{ color: "#777", marginTop: 6 }}>Fetching usage…</Text>
-        )}
-
-        {/* Mode Switch */}
-        <View style={[styles.row, { marginTop: 10 }]}>
-          <TouchableOpacity
-            onPress={() => setMode("photo")}
-            style={[styles.btn, mode === "photo" ? styles.primary : null]}
-            disabled={loading}
-          >
-            <Text style={styles.btnText}>📸 Photo</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            onPress={() => setMode("barcode")}
-            style={[styles.btn, mode === "barcode" ? styles.primary : null]}
-            disabled={loading}
-          >
-            <Text style={styles.btnText}>🏷️ Barcode</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Photo controls */}
-        {mode === "photo" ? (
-          <>
-            {photoUri ? <Image source={{ uri: photoUri }} style={styles.preview} /> : null}
-
-            <View style={styles.row}>
-              <TouchableOpacity onPress={snapPhoto} style={styles.btn} disabled={loading}>
-                <Text style={styles.btnText}>📸 Snap</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                onPress={doAnalyze}
-                style={[styles.btn, styles.primary]}
-                disabled={loading}
-              >
-                <Text style={styles.btnText}>
-                  {loading ? "Analyzing..." : "⚡ Snap & Analyze"}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </>
-        ) : (
-          <View style={{ marginTop: 12 }}>
-            <Text style={{ color: "#ddd", fontWeight: "800" }}>Barcode mode ON</Text>
-            <Text style={{ color: "#888", marginTop: 4 }}>
-              Point camera at barcode. If not found, Manual Add will pop up.
-            </Text>
-          </View>
-        )}
-
-        {loading ? (
-          <View style={styles.loadingRow}>
-            <ActivityIndicator color="white" />
-            <Text style={{ color: "white", marginLeft: 10 }}>Working…</Text>
-          </View>
-        ) : null}
-
-        {/* RESULT */}
-        {display ? (
-          <View style={styles.resultBox}>
-            <Text style={styles.resultTitle}>
-              {result ? "Latest Result" : "From History"} • {display.source || "photo"}
-              {display.barcode ? ` • ${display.barcode}` : ""}
-            </Text>
-
-            <Text style={styles.kcalText}>Total: {round1(display.total_kcal)} kcal</Text>
-
-            <Text style={styles.macros}>
-              Protein {round1(display?.totals?.protein_g)}g • Carbs{" "}
-              {round1(display?.totals?.carbs_g)}g • Fat{" "}
-              {round1(display?.totals?.fat_g)}g
-            </Text>
-
-            <ScrollView style={{ maxHeight: 140, marginTop: 10 }}>
-              {(display.items || []).map((it, idx) => (
+            <ScrollView style={{ maxHeight: 300, marginTop: 10 }}>
+              {(selected?.items || []).map((it, idx) => (
                 <View key={idx} style={styles.itemRow}>
-                  <Text style={styles.itemName}>
-                    {it.name} ({round1(it.grams)}g)
-                  </Text>
-                  <Text style={styles.itemMeta}>
-                    {round1(it.kcal)} kcal • P {round1(it?.macros?.protein_g)}g • C{" "}
-                    {round1(it?.macros?.carbs_g)}g • F {round1(it?.macros?.fat_g)}g{" "}
-                    {typeof it.confidence === "number" ? `• conf ${round1(it.confidence)}` : ""}
-                  </Text>
+                  <Text style={styles.itemName}>{it?.name}</Text>
+                  <Text style={styles.itemKcal}>{round1(it?.kcal)} kcal</Text>
                 </View>
               ))}
             </ScrollView>
+
+            <TouchableOpacity style={[styles.btn, { marginTop: 12 }]} onPress={() => setSelected(null)}>
+              <Text style={styles.btnText}>Close</Text>
+            </TouchableOpacity>
           </View>
-        ) : null}
-
-        {/* SUBSCRIPTIONS */}
-        <View style={[styles.row, { marginTop: 14, alignItems: "center" }]}>
-          <Text style={styles.historyTitle}>Upgrade</Text>
-
-          <TouchableOpacity onPress={refreshOfferings} style={styles.smallBtn} disabled={loading}>
-            <Text style={styles.smallBtnText}>Refresh</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity onPress={restore} style={styles.smallBtn} disabled={loading}>
-            <Text style={styles.smallBtnText}>Restore</Text>
-          </TouchableOpacity>
         </View>
-
-        <Text style={{ color: "#888", marginTop: 6 }}>
-          Packages come from RevenueCat Offering:{" "}
-          <Text style={{ fontWeight: "900" }}>{OFFERING_ID}</Text>
-        </Text>
-
-        <View style={styles.row}>
-          <TouchableOpacity style={styles.btn} onPress={() => buy("elite")} disabled={purchaseDisabled}>
-            <Text style={styles.btnText}>Elite</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.btn} onPress={() => buy("advanced")} disabled={purchaseDisabled}>
-            <Text style={styles.btnText}>Advanced</Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.row}>
-          <TouchableOpacity style={styles.btn} onPress={() => buy("pro")} disabled={purchaseDisabled}>
-            <Text style={styles.btnText}>Pro</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.btn} onPress={() => buy("infinite")} disabled={purchaseDisabled}>
-            <Text style={styles.btnText}>Infinite</Text>
-          </TouchableOpacity>
-        </View>
-
-        {!rcReady ? (
-          <Text style={{ color: "#ffcc00", marginTop: 8, fontSize: 12 }}>
-            ⚠️ Offerings not loaded yet. Tap Refresh. If still missing, finish Apple Paid Apps Agreement + banking/tax.
-          </Text>
-        ) : (
-          <Text style={{ color: "#777", marginTop: 8, fontSize: 12 }}>
-            ✅ Auto-renews monthly • Cancel anytime
-          </Text>
-        )}
-
-        {/* HISTORY HEADER */}
-        <View style={[styles.row, { marginTop: 16, alignItems: "center" }]}>
-          <Text style={styles.historyTitle}>History</Text>
-          <TouchableOpacity onPress={clearHistory} style={styles.smallBtn}>
-            <Text style={styles.smallBtnText}>Clear</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* HISTORY LIST */}
-        <FlatList
-          data={history}
-          keyExtractor={(item) => item.id}
-          style={{ maxHeight: 250, marginTop: 8 }}
-          ListEmptyComponent={
-            <Text style={{ color: "#aaa", marginTop: 8 }}>
-              No scans yet. Try Snap & Analyze or Barcode.
-            </Text>
-          }
-          renderItem={({ item }) => {
-            const dtt = new Date(item.createdAt);
-            const label = `${dtt.toLocaleDateString()} ${dtt.toLocaleTimeString([], {
-              hour: "2-digit",
-              minute: "2-digit",
-            })}`;
-
-            return (
-              <TouchableOpacity
-                onPress={() => {
-                  setSelected(item);
-                  setResult(null);
-                }}
-                style={[
-                  styles.historyRow,
-                  selected?.id === item.id ? styles.historyRowActive : null,
-                ]}
-              >
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.historyMain}>
-                    {round1(item.total_kcal)} kcal
-                    {item.source ? ` • ${item.source}` : ""}
-                    {item.barcode ? ` • ${item.barcode}` : ""}
-                  </Text>
-                  <Text style={styles.historySub}>
-                    P {round1(item?.totals?.protein_g)}g • C{" "}
-                    {round1(item?.totals?.carbs_g)}g • F{" "}
-                    {round1(item?.totals?.fat_g)}g
-                  </Text>
-                  <Text style={styles.historySub2}>{label}</Text>
-                </View>
-
-                <TouchableOpacity onPress={() => deleteHistoryItem(item.id)} style={styles.deleteBtn}>
-                  <Text style={{ color: "white", fontWeight: "700" }}>Del</Text>
-                </TouchableOpacity>
-              </TouchableOpacity>
-            );
-          }}
-        />
-      </View>
-    </View>
+      </Modal>
+    </SafeAreaView>
   );
 }
 
 // ===================== STYLES =====================
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#000" },
-
-  header: {
-    paddingHorizontal: 14,
-    paddingTop: 8,
-    paddingBottom: 10,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    backgroundColor: "#000",
-  },
-  headerTitle: { color: "white", fontSize: 18, fontWeight: "900" },
-  subHeader: { color: "#aaa", marginTop: 2, fontSize: 12 },
-
-  cameraWrap: { flex: 1 },
-  camera: { flex: 1 },
-
-  panel: { padding: 14, backgroundColor: "#0f0f0f" },
-
-  preview: { height: 140, borderRadius: 12, marginTop: 10, marginBottom: 10 },
-
-  row: { flexDirection: "row", gap: 10, marginTop: 10 },
-
-  btn: {
-    flex: 1,
-    backgroundColor: "#2a2a2a",
-    paddingVertical: 12,
-    borderRadius: 12,
-    alignItems: "center",
-  },
-  primary: { backgroundColor: "#007AFF" },
-  btnText: { color: "white", fontSize: 15, fontWeight: "700" },
-
-  smallBtn: {
-    backgroundColor: "#2a2a2a",
-    paddingVertical: 8,
-    paddingHorizontal: 10,
-    borderRadius: 10,
-    marginLeft: 8,
-  },
-  smallBtnText: { color: "white", fontWeight: "700" },
-
-  loadingRow: { flexDirection: "row", alignItems: "center", marginTop: 10 },
-
-  resultBox: {
-    marginTop: 14,
-    backgroundColor: "#161616",
-    padding: 12,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "#222",
-  },
-  resultTitle: { color: "#aaa", fontWeight: "700", marginBottom: 4 },
-  kcalText: { color: "white", fontSize: 20, fontWeight: "900" },
-  macros: { color: "#ccc", marginTop: 6 },
-
-  itemRow: { paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: "#222" },
-  itemName: { color: "white", fontWeight: "800" },
-  itemMeta: { color: "#bdbdbd", marginTop: 2, fontSize: 12 },
-
-  historyTitle: { color: "white", fontSize: 16, fontWeight: "800", flex: 1 },
-  historyRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#141414",
-    borderRadius: 12,
-    padding: 10,
-    marginBottom: 8,
-    borderWidth: 1,
-    borderColor: "#1f1f1f",
-  },
-  historyRowActive: { borderColor: "#007AFF" },
-  historyMain: { color: "white", fontWeight: "900", fontSize: 14 },
-  historySub: { color: "#cfcfcf", marginTop: 2, fontSize: 12 },
-  historySub2: { color: "#888", marginTop: 2, fontSize: 11 },
-
-  deleteBtn: {
-    backgroundColor: "#ff3b30",
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 10,
-    marginLeft: 10,
-  },
-
-  label: { color: "#aaa", marginBottom: 6, marginTop: 2, fontWeight: "700" },
-  input: {
-    backgroundColor: "#121212",
-    borderWidth: 1,
-    borderColor: "#222",
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    color: "white",
-  },
-
-  center: { flex: 1, justifyContent: "center", alignItems: "center", padding: 20 },
-
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.75)",
-    justifyContent: "center",
+  container: { flex: 1, backgroundColor: "#0b0b0f", padding: 14 },
+  center: { flex: 1, justifyContent: "center", alignItems: "center" },
+  card: {
+    marginTop: 80,
+    backgroundColor: "#15151c",
+    borderRadius: 18,
     padding: 18,
   },
-  modalCard: {
-    backgroundColor: "#121212",
-    borderRadius: 16,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: "#222",
-  },
-  modalTitle: { color: "white", fontSize: 18, fontWeight: "900" },
-  modalSub: { color: "#aaa", marginTop: 6, marginBottom: 10 },
-  modalInput: {
-    backgroundColor: "#0b0b0b",
-    borderWidth: 1,
-    borderColor: "#222",
-    borderRadius: 12,
+  topBar: { flexDirection: "row", alignItems: "center", marginBottom: 12 },
+  h1: { fontSize: 24, fontWeight: "900", color: "white" },
+  h2: { fontSize: 18, fontWeight: "800", color: "white" },
+  sub: { marginTop: 6, color: "#b8b8c7" },
+  small: { marginTop: 12, color: "#8d8da3", fontSize: 12 },
+  input: {
+    marginTop: 12,
+    backgroundColor: "#1c1c25",
+    borderRadius: 14,
     paddingHorizontal: 12,
     paddingVertical: 10,
     color: "white",
+  },
+  btn: {
+    marginTop: 12,
+    backgroundColor: "#5b7cfa",
+    borderRadius: 14,
+    paddingVertical: 12,
+    alignItems: "center",
+  },
+  btnSecondary: { backgroundColor: "#303043" },
+  btnText: { color: "white", fontWeight: "900" },
+  smallBtn: {
+    backgroundColor: "#1c1c25",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 12,
+  },
+  smallBtnText: { color: "white", fontWeight: "800" },
+
+  modeRow: { flexDirection: "row", marginBottom: 10 },
+  modeBtn: {
+    flex: 1,
+    backgroundColor: "#1c1c25",
+    padding: 10,
+    borderRadius: 14,
+    alignItems: "center",
+    marginRight: 8,
+  },
+  modeBtnActive: { backgroundColor: "#5b7cfa" },
+  modeText: { color: "#b8b8c7", fontWeight: "900" },
+  modeTextActive: { color: "white" },
+
+  cameraWrap: { height: 280, borderRadius: 18, overflow: "hidden" },
+  camera: { flex: 1 },
+  actionsRow: { marginTop: 12, flexDirection: "row", gap: 12, alignItems: "center" },
+
+  previewWrap: { marginTop: 10, alignItems: "center" },
+  preview: { width: 140, height: 140, borderRadius: 18 },
+
+  resultCard: {
+    marginTop: 12,
+    backgroundColor: "#15151c",
+    borderRadius: 18,
+    padding: 14,
+    flex: 1,
+  },
+
+  itemRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 6 },
+  itemName: { color: "white", fontWeight: "700", flex: 1, paddingRight: 10 },
+  itemKcal: { color: "#b8b8c7", fontWeight: "800" },
+
+  historyWrap: { marginTop: 12, flex: 1 },
+  historyRow: {
+    backgroundColor: "#15151c",
     marginTop: 8,
+    borderRadius: 14,
+    padding: 12,
+  },
+  historyText: { color: "white", fontWeight: "800" },
+
+  overlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.65)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 18,
+  },
+  detailCard: {
+    width: "100%",
+    backgroundColor: "#15151c",
+    borderRadius: 18,
+    padding: 16,
+  },
+
+  modalWrap: { flex: 1, backgroundColor: "#0b0b0f", padding: 14 },
+  modalHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+
+  planCard: {
+    backgroundColor: "#15151c",
+    borderRadius: 18,
+    padding: 16,
+    marginTop: 12,
   },
 });
 
