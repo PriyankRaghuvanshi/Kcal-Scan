@@ -877,7 +877,8 @@ export default function App() {
       </ScrollView>
 
       {/* Paywall Modal */}
-      <Modal visible={paywallOpen}i’m building a calorie scan app what’s better than market apps?请完成后告诉我 which is good
+      <Modal 
+        visible={paywallOpen}
         animationType="slide"
         onRequestClose={() => setPaywallOpen(false)}
       >
