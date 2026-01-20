@@ -182,11 +182,56 @@ function formatPrice(pkg) {
   }
 }
 
+// UPDATED: force Elite/Advanced/Pro/Infinite labels (no "Monthly")
 function pkgTitle(pkg) {
-  const id = (pkg?.identifier || "").toLowerCase();
-  if (id.includes("monthly")) return "Monthly";
-  if (id.includes("year")) return "Yearly";
+  const pid =
+    (pkg?.product?.identifier ||
+      pkg?.product?.productIdentifier ||
+      pkg?.identifier ||
+      "")
+      .toLowerCase()
+      .trim();
+
+  // Prefer explicit identifiers first
+  if (pid.includes("calorieclick_elite") || pid.includes("elite")) return "Elite";
+  if (pid.includes("calorieclick_advanced") || pid.includes("advanced")) return "Advanced";
+  if (pid.includes("calorieclick_pro") || pid.includes("pro")) return "Pro";
+  if (pid.includes("calorieclick_infinite") || pid.includes("infinite")) return "Infinite";
+
+  // Fallback to title
+  const title = (pkg?.product?.title || "").toLowerCase();
+  if (title.includes("elite")) return "Elite";
+  if (title.includes("advanced")) return "Advanced";
+  if (title.includes("pro")) return "Pro";
+  if (title.includes("infinite")) return "Infinite";
+
+  // LAST fallback: infer from price (works well for your fixed tiers)
+  const priceStr = (pkg?.product?.priceString || "").replace(/[^\d.]/g, "");
+  const p = Number(priceStr);
+  if (p === 9.99) return "Elite";
+  if (p === 19.99) return "Advanced";
+  if (p === 39.99) return "Pro";
+  if (p === 149.99) return "Infinite";
+
   return pkg?.product?.title || "Plan";
+}
+
+function planRankFromPkg(pkg) {
+  const t = pkgTitle(pkg).toLowerCase();
+  if (t === "elite") return 1;
+  if (t === "advanced") return 2;
+  if (t === "pro") return 3;
+  if (t === "infinite") return 4;
+  return 99;
+}
+
+function planSubtitleFromTitle(t) {
+  const k = (t || "").toLowerCase();
+  if (k === "elite") return "Starter plan • daily + monthly scans";
+  if (k === "advanced") return "More daily limit • more monthly scans";
+  if (k === "pro") return "Power plan • very high monthly scans";
+  if (k === "infinite") return "Unlimited scans (fair use)";
+  return "";
 }
 
 // ===================== APP =====================
@@ -318,6 +363,11 @@ export default function App() {
     }
   }
 
+  // keep UI plan in sync with backend plan (fixes “plan didn’t change”)
+  useEffect(() => {
+    if (usage?.plan) setActivePlan(String(usage.plan).toLowerCase());
+  }, [usage?.plan]);
+
   // pull usage on login + after purchase
   useEffect(() => {
     if (userId) fetchUsage();
@@ -325,7 +375,7 @@ export default function App() {
 
   // ===================== PLAN SYNC =====================
   async function syncPlanToBackend(entitlement) {
-    if (!userId) return;
+    if (!userId) return null;
     try {
       const res = await fetch(`${API_BASE}/plan/sync?user_id=${encodeURIComponent(userId)}`, {
         method: "POST",
@@ -334,9 +384,15 @@ export default function App() {
       });
       const json = await res.json();
       console.log("plan/sync:", json);
+
+      // update UI plan from backend response immediately
+      if (json?.plan) setActivePlan(String(json.plan).toLowerCase());
+
       await fetchUsage();
+      return json?.plan || null;
     } catch (e) {
       console.log("plan/sync error:", e?.message || e);
+      return null;
     }
   }
 
@@ -351,7 +407,10 @@ export default function App() {
 
       const info = await Purchases.getCustomerInfo();
       setCustomerInfo(info);
-      setActivePlan(getActiveEntitlement(info));
+
+      // prefer backend plan if available, otherwise entitlement
+      if (usage?.plan) setActivePlan(String(usage.plan).toLowerCase());
+      else setActivePlan(getActiveEntitlement(info));
     } catch (e) {
       console.log("open paywall error:", e?.message || e);
     } finally {
@@ -364,14 +423,19 @@ export default function App() {
     setRcLoading(true);
     try {
       const { customerInfo } = await Purchases.purchasePackage(pkg);
-      setCustomerInfo(customerInfo);
-      const plan = getActiveEntitlement(customerInfo);
-      setActivePlan(plan);
+
+      // refresh customer info (helps iOS propagate entitlements faster)
+      const info2 = await Purchases.getCustomerInfo();
+      setCustomerInfo(info2);
+
+      // use the package label as the plan to sync (more reliable than “Monthly” titles)
+      const planLabel = pkgTitle(pkg).toLowerCase();
+      setActivePlan(planLabel);
 
       // 🔥 sync to backend
-      await syncPlanToBackend(plan);
+      await syncPlanToBackend(planLabel);
 
-      Alert.alert("✅ Purchase successful", `Plan activated: ${plan}`);
+      Alert.alert("✅ Purchase successful", `Plan activated: ${planLabel}`);
       setPaywallOpen(false);
     } catch (e) {
       const msg = e?.message || String(e);
@@ -387,20 +451,25 @@ export default function App() {
     try {
       const info = await Purchases.restorePurchases();
       setCustomerInfo(info);
-      const plan = getActiveEntitlement(info);
-      setActivePlan(plan);
 
-      // ✅ FIX: Do NOT reset scans on restore if backend already has same plan.
-      // Restore is meant to recover entitlements on a new device / after reinstall,
-      // not to "refill" usage repeatedly.
-      const backendPlan = (usage?.plan || activePlan || "free").toLowerCase();
-      if (String(plan).toLowerCase() !== backendPlan) {
-        await syncPlanToBackend(plan);
-      } else {
-        await fetchUsage();
+      // figure out restored plan from RevenueCat
+      const restored = getActiveEntitlement(info);
+
+      // IMPORTANT: avoid letting restore "refill scans" (spam)
+      // We only sync to backend if backend plan differs (eg reinstall/new device).
+      await fetchUsage();
+      const backendPlan = String(usage?.plan || "free").toLowerCase();
+      const restoredPlan = String(restored || "free").toLowerCase();
+
+      if (backendPlan !== restoredPlan && restoredPlan !== "free") {
+        await syncPlanToBackend(restoredPlan);
       }
 
-      Alert.alert("✅ Restored", `Active plan: ${plan}`);
+      // keep UI plan correct
+      if (usage?.plan) setActivePlan(String(usage.plan).toLowerCase());
+      else setActivePlan(restoredPlan);
+
+      Alert.alert("✅ Restored", `Active plan: ${restoredPlan}`);
       setPaywallOpen(false);
     } catch (e) {
       Alert.alert("Restore failed", e?.message || String(e));
@@ -444,6 +513,22 @@ export default function App() {
     setUsage(null);
     setResult(null);
     setPhotoUri(null);
+  }
+
+  // ===================== CLEAR HELPERS =====================
+  async function clearCurrent() {
+    setResult(null);
+    setPhotoUri(null);
+  }
+
+  async function clearHistoryAll() {
+    try {
+      setHistory([]);
+      await AsyncStorage.removeItem(HISTORY_KEY);
+      Alert.alert("✅ Cleared", "History cleared.");
+    } catch (e) {
+      Alert.alert("Clear failed", e?.message || String(e));
+    }
   }
 
   // ===================== SCAN FUNCTIONS =====================
@@ -646,136 +731,156 @@ export default function App() {
         </TouchableOpacity>
       </View>
 
-      {/* Mode Switch */}
-      <View style={styles.modeRow}>
-        <TouchableOpacity
-          style={[styles.modeBtn, mode === "photo" && styles.modeBtnActive]}
-          onPress={() => setMode("photo")}
-        >
-          <Text style={[styles.modeText, mode === "photo" && styles.modeTextActive]}>
-            Photo
-          </Text>
-        </TouchableOpacity>
+      {/* MAIN SCROLL (fixes “can’t scroll to history”) */}
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{ paddingBottom: 26 }}
+        keyboardShouldPersistTaps="handled"
+      >
+        {/* Mode Switch */}
+        <View style={styles.modeRow}>
+          <TouchableOpacity
+            style={[styles.modeBtn, mode === "photo" && styles.modeBtnActive]}
+            onPress={() => setMode("photo")}
+          >
+            <Text style={[styles.modeText, mode === "photo" && styles.modeTextActive]}>
+              Photo
+            </Text>
+          </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[styles.modeBtn, mode === "barcode" && styles.modeBtnActive]}
-          onPress={() => setMode("barcode")}
-        >
-          <Text style={[styles.modeText, mode === "barcode" && styles.modeTextActive]}>
-            Barcode
-          </Text>
-        </TouchableOpacity>
-      </View>
+          <TouchableOpacity
+            style={[styles.modeBtn, mode === "barcode" && styles.modeBtnActive, { marginRight: 0 }]}
+            onPress={() => setMode("barcode")}
+          >
+            <Text style={[styles.modeText, mode === "barcode" && styles.modeTextActive]}>
+              Barcode
+            </Text>
+          </TouchableOpacity>
+        </View>
 
-      {/* Camera */}
-      <View style={styles.cameraWrap}>
-        {permission?.granted ? (
-          <CameraView
-            ref={cameraRef}
-            style={styles.camera}
-            facing="back"
-            barcodeScannerSettings={
-              mode === "barcode"
-                ? { barcodeTypes: ["ean13", "ean8", "upc_a", "upc_e"] }
-                : undefined
-            }
-            onBarcodeScanned={
-              mode === "barcode"
-                ? (e) => barcodeLookup(e?.data)
-                : undefined
-            }
-          />
-        ) : (
-          <View style={styles.center}>
-            <Text>Camera permission required</Text>
-            <TouchableOpacity style={styles.btn} onPress={requestPermission}>
-              <Text style={styles.btnText}>Grant permission</Text>
+        {/* Camera */}
+        <View style={styles.cameraWrap}>
+          {permission?.granted ? (
+            <CameraView
+              ref={cameraRef}
+              style={styles.camera}
+              facing="back"
+              barcodeScannerSettings={
+                mode === "barcode"
+                  ? { barcodeTypes: ["ean13", "ean8", "upc_a", "upc_e"] }
+                  : undefined
+              }
+              onBarcodeScanned={
+                mode === "barcode"
+                  ? (e) => barcodeLookup(e?.data)
+                  : undefined
+              }
+            />
+          ) : (
+            <View style={styles.centerInline}>
+              <Text style={{ color: "white" }}>Camera permission required</Text>
+              <TouchableOpacity style={styles.btn} onPress={requestPermission}>
+                <Text style={styles.btnText}>Grant permission</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+
+        {/* Actions */}
+        <View style={styles.actionsRow}>
+          {mode === "photo" ? (
+            <>
+              <TouchableOpacity style={[styles.btnBig, styles.btnBigLeft]} onPress={takePhoto} disabled={loading}>
+                <Text style={styles.btnText}>{loading ? "..." : "Take Photo"}</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.btnBig, styles.btnBigRight, !photoUri && { opacity: 0.4 }]}
+                onPress={analyzePhoto}
+                disabled={!photoUri || loading}
+              >
+                <Text style={styles.btnText}>{loading ? "Analyzing…" : "Analyze"}</Text>
+              </TouchableOpacity>
+            </>
+          ) : (
+            <Text style={styles.sub}>Scan barcode inside camera</Text>
+          )}
+        </View>
+
+        {/* Clear current */}
+        {(photoUri || result) && (
+          <View style={{ marginTop: 10 }}>
+            <TouchableOpacity style={styles.btnSecondaryFull} onPress={clearCurrent}>
+              <Text style={styles.btnText}>Clear (Next Scan)</Text>
             </TouchableOpacity>
           </View>
         )}
-      </View>
 
-      {/* Actions */}
-      <View style={styles.actionsRow}>
-        {mode === "photo" ? (
-          <>
-            {/* ✅ FIX #2: bigger, nicer buttons */}
-            <TouchableOpacity
-              style={[styles.btn, styles.btnWide]}
-              onPress={takePhoto}
-              disabled={loading}
-            >
-              <Text style={styles.btnText}>{loading ? "..." : "Take Photo"}</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.btn, styles.btnWide, !photoUri && { opacity: 0.4 }]}
-              onPress={analyzePhoto}
-              disabled={!photoUri || loading}
-            >
-              <Text style={styles.btnText}>{loading ? "Analyzing…" : "Analyze"}</Text>
-            </TouchableOpacity>
-          </>
-        ) : (
-          <Text style={styles.sub}>Scan barcode inside camera</Text>
+        {/* Photo Preview */}
+        {!!photoUri && (
+          <View style={styles.previewWrap}>
+            <Image source={{ uri: photoUri }} style={styles.preview} />
+          </View>
         )}
-      </View>
 
-      {/* Photo Preview */}
-      {!!photoUri && (
-        <View style={styles.previewWrap}>
-          <Image source={{ uri: photoUri }} style={styles.preview} />
-        </View>
-      )}
+        {/* Result */}
+        {result && (
+          <View style={styles.resultCard}>
+            <Text style={styles.h2}>
+              Total: {round1(result.total_kcal)} kcal
+            </Text>
+            <Text style={styles.sub}>
+              P {round1(result?.totals?.protein_g)}g  •  C {round1(result?.totals?.carbs_g)}g  •  F{" "}
+              {round1(result?.totals?.fat_g)}g
+            </Text>
 
-      {/* Result */}
-      {result && (
-        <View style={styles.resultCard}>
-          <Text style={styles.h2}>
-            Total: {round1(result.total_kcal)} kcal
-          </Text>
-          <Text style={styles.sub}>
-            P {round1(result?.totals?.protein_g)}g  •  C {round1(result?.totals?.carbs_g)}g  •  F{" "}
-            {round1(result?.totals?.fat_g)}g
-          </Text>
+            {/* NOTE: disable internal scrolling so the main ScrollView scrolls smoothly */}
+            <FlatList
+              data={result.items || []}
+              keyExtractor={(_, idx) => String(idx)}
+              scrollEnabled={false}
+              renderItem={({ item }) => (
+                <View style={styles.itemRow}>
+                  <Text style={styles.itemName}>{item?.name}</Text>
+                  <Text style={styles.itemKcal}>{round1(item?.kcal)} kcal</Text>
+                </View>
+              )}
+            />
+          </View>
+        )}
 
-          {/* ✅ FIX #1: give items a bigger scrollable area */}
+        {/* History */}
+        <View style={styles.historyWrap}>
+          <View style={styles.historyHeaderRow}>
+            <Text style={styles.h2}>History</Text>
+            <TouchableOpacity style={styles.smallBtn} onPress={clearHistoryAll}>
+              <Text style={styles.smallBtnText}>Clear History</Text>
+            </TouchableOpacity>
+          </View>
+
           <FlatList
-            data={result.items || []}
-            keyExtractor={(_, idx) => String(idx)}
-            style={styles.resultList}
-            contentContainerStyle={styles.resultListContent}
+            data={history}
+            keyExtractor={(it) => it.id}
+            scrollEnabled={false}
             renderItem={({ item }) => (
-              <View style={styles.itemRow}>
-                <Text style={styles.itemName}>{item?.name}</Text>
-                <Text style={styles.itemKcal}>{round1(item?.kcal)} kcal</Text>
-              </View>
+              <TouchableOpacity onPress={() => setSelected(item)}>
+                <View style={styles.historyRow}>
+                  <Text style={styles.historyText}>
+                    {item.mode === "barcode" ? "📦" : "📷"} {round1(item.total_kcal)} kcal
+                  </Text>
+                  <Text style={styles.small}>{new Date(item.ts).toLocaleString()}</Text>
+                </View>
+              </TouchableOpacity>
             )}
           />
         </View>
-      )}
-
-      {/* History */}
-      <View style={styles.historyWrap}>
-        <Text style={styles.h2}>History</Text>
-        <FlatList
-          data={history}
-          keyExtractor={(it) => it.id}
-          renderItem={({ item }) => (
-            <TouchableOpacity onPress={() => setSelected(item)}>
-              <View style={styles.historyRow}>
-                <Text style={styles.historyText}>
-                  {item.mode === "barcode" ? "📦" : "📷"} {round1(item.total_kcal)} kcal
-                </Text>
-                <Text style={styles.small}>{new Date(item.ts).toLocaleString()}</Text>
-              </View>
-            </TouchableOpacity>
-          )}
-        />
-      </View>
+      </ScrollView>
 
       {/* Paywall Modal */}
-      <Modal visible={paywallOpen} animationType="slide" onRequestClose={() => setPaywallOpen(false)}>
+      <Modal visible={paywallOpen}i’m building a calorie scan app what’s better than market apps?请完成后告诉我 which is good
+        animationType="slide"
+        onRequestClose={() => setPaywallOpen(false)}
+      >
         <SafeAreaView style={styles.modalWrap}>
           <View style={styles.modalHeader}>
             <Text style={styles.h1}>Upgrade</Text>
@@ -785,49 +890,51 @@ export default function App() {
           </View>
 
           {rcLoading && (
-            <View style={styles.center}>
+            <View style={styles.centerInline}>
               <ActivityIndicator size="large" />
-              <Text style={{ marginTop: 10 }}>Loading plans…</Text>
+              <Text style={{ marginTop: 10, color: "white" }}>Loading plans…</Text>
             </View>
           )}
 
           {!rcLoading && !offering && (
-            <View style={styles.center}>
+            <View style={styles.centerInline}>
               <Text style={styles.sub}>No offering found (RevenueCat)</Text>
               <Text style={styles.small}>Offering ID: {OFFERING_ID}</Text>
             </View>
           )}
 
           {!rcLoading && offering && (
-            <ScrollView style={{ flex: 1 }}>
+            <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 18 }}>
               <Text style={styles.sub}>
                 Current plan: <Text style={{ fontWeight: "900" }}>{activePlan}</Text>
               </Text>
 
-              {(offering.availablePackages || []).map((pkg) => (
-                <TouchableOpacity
-                  key={pkg.identifier}
-                  style={styles.planCard}
-                  onPress={() => buyPackage(pkg)}
-                  disabled={rcLoading}
-                >
-                  <Text style={styles.h2}>
-                    {pkgTitle(pkg)} • {formatPrice(pkg)}
-                  </Text>
-                  <Text style={styles.small}>{pkg.product?.description || ""}</Text>
-                </TouchableOpacity>
-              ))}
+              {((offering.availablePackages || []) || [])
+                .slice()
+                .sort((a, b) => planRankFromPkg(a) - planRankFromPkg(b))
+                .map((pkg) => {
+                  const title = pkgTitle(pkg);
+                  return (
+                    <TouchableOpacity
+                      key={pkg.identifier}
+                      style={styles.planCard}
+                      onPress={() => buyPackage(pkg)}
+                      disabled={rcLoading}
+                    >
+                      <Text style={styles.h2}>
+                        {title} • {formatPrice(pkg)}
+                      </Text>
+                      <Text style={styles.small}>{planSubtitleFromTitle(title)}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
 
-              <TouchableOpacity
-                style={[styles.btn, { marginTop: 14 }]}
-                onPress={restorePurchases}
-                disabled={rcLoading}
-              >
+              <TouchableOpacity style={[styles.btn, { marginTop: 14 }]} onPress={restorePurchases}>
                 <Text style={styles.btnText}>Restore Purchases</Text>
               </TouchableOpacity>
 
               <Text style={[styles.small, { marginTop: 12 }]}>
-                After purchase/restore we sync to backend /plan/sync.
+                Restore is for reinstall/new device. It should not refill scans.
               </Text>
             </ScrollView>
           )}
@@ -865,6 +972,7 @@ export default function App() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#0b0b0f", padding: 14 },
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
+  centerInline: { justifyContent: "center", alignItems: "center", padding: 18 },
   card: {
     marginTop: 80,
     backgroundColor: "#15151c",
@@ -916,37 +1024,48 @@ const styles = StyleSheet.create({
 
   cameraWrap: { height: 280, borderRadius: 18, overflow: "hidden" },
   camera: { flex: 1 },
+
   actionsRow: { marginTop: 12, flexDirection: "row", gap: 12, alignItems: "center" },
 
-  // ✅ FIX #2 styles
-  btnWide: {
+  // bigger buttons for Take Photo / Analyze
+  btnBig: {
     flex: 1,
+    backgroundColor: "#5b7cfa",
+    borderRadius: 16,
     paddingVertical: 16,
-    borderRadius: 18,
+    alignItems: "center",
+  },
+  btnBigLeft: { marginRight: 6 },
+  btnBigRight: { marginLeft: 6 },
+
+  btnSecondaryFull: {
+    backgroundColor: "#303043",
+    borderRadius: 14,
+    paddingVertical: 12,
+    alignItems: "center",
   },
 
   previewWrap: { marginTop: 10, alignItems: "center" },
-  preview: { width: 140, height: 140, borderRadius: 18 },
+  preview: { width: 180, height: 180, borderRadius: 18 },
 
+  // remove flex:1 so it doesn't “trap” the screen above history
   resultCard: {
     marginTop: 12,
     backgroundColor: "#15151c",
     borderRadius: 18,
     padding: 14,
-    // ✅ FIX #1: make result area comfortably scrollable/taller
-    flex: 0,
-    maxHeight: 320,
   },
-
-  // ✅ FIX #1 styles (bigger list + easier scroll)
-  resultList: { marginTop: 10, flexGrow: 0 },
-  resultListContent: { paddingBottom: 12 },
 
   itemRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 6 },
   itemName: { color: "white", fontWeight: "700", flex: 1, paddingRight: 10 },
   itemKcal: { color: "#b8b8c7", fontWeight: "800" },
 
-  historyWrap: { marginTop: 12, flex: 1 },
+  historyWrap: { marginTop: 12 },
+  historyHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
   historyRow: {
     backgroundColor: "#15151c",
     marginTop: 8,
