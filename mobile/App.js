@@ -166,17 +166,10 @@ function normalizeBarcodeResponse(json) {
   };
 }
 
-/**
- * UPDATED: pick highest plan if multiple entitlements are active.
- * (infinite > pro > advanced > elite > free)
- */
 function getActiveEntitlement(customerInfo) {
   const active = customerInfo?.entitlements?.active || {};
-  const keys = Object.keys(active).map((k) => k.toLowerCase());
-
-  const order = ["infinite", "pro", "advanced", "elite"];
-  for (const p of order) {
-    if (keys.includes(p)) return p;
+  for (const k of ENTITLEMENTS) {
+    if (active[k]) return k;
   }
   return "free";
 }
@@ -189,47 +182,11 @@ function formatPrice(pkg) {
   }
 }
 
-/**
- * UPDATED: show Elite/Advanced/Pro/Infinite instead of "Monthly"
- * using identifier/title matching (works with your current RC setup).
- */
-function pkgPlanKey(pkg) {
-  const id = (pkg?.identifier || "").toLowerCase();
-  const prodId = (pkg?.product?.identifier || "").toLowerCase();
-  const title = (pkg?.product?.title || "").toLowerCase();
-  const s = `${id} ${prodId} ${title}`;
-
-  if (s.includes("infinite")) return "infinite";
-  if (s.includes("pro")) return "pro";
-  if (s.includes("advanced")) return "advanced";
-  if (s.includes("elite")) return "elite";
-  return "free";
-}
-
 function pkgTitle(pkg) {
-  const key = pkgPlanKey(pkg);
-  if (key === "elite") return "Elite";
-  if (key === "advanced") return "Advanced";
-  if (key === "pro") return "Pro";
-  if (key === "infinite") return "Infinite";
+  const id = (pkg?.identifier || "").toLowerCase();
+  if (id.includes("monthly")) return "Monthly";
+  if (id.includes("year")) return "Yearly";
   return pkg?.product?.title || "Plan";
-}
-
-function pkgDescFromKey(key) {
-  if (key === "elite") return "Starter plan • daily + monthly scans";
-  if (key === "advanced") return "More daily limit • more monthly scans";
-  if (key === "pro") return "Power plan • very high monthly scans";
-  if (key === "infinite") return "Unlimited scans (fair use)";
-  return "";
-}
-
-function sortPackages(pkgs) {
-  const rank = { elite: 1, advanced: 2, pro: 3, infinite: 4, free: 999 };
-  return [...pkgs].sort((a, b) => {
-    const ka = pkgPlanKey(a);
-    const kb = pkgPlanKey(b);
-    return (rank[ka] || 999) - (rank[kb] || 999);
-  });
 }
 
 // ===================== APP =====================
@@ -433,8 +390,15 @@ export default function App() {
       const plan = getActiveEntitlement(info);
       setActivePlan(plan);
 
-      // 🔥 sync to backend
-      await syncPlanToBackend(plan);
+      // ✅ FIX: Do NOT reset scans on restore if backend already has same plan.
+      // Restore is meant to recover entitlements on a new device / after reinstall,
+      // not to "refill" usage repeatedly.
+      const backendPlan = (usage?.plan || activePlan || "free").toLowerCase();
+      if (String(plan).toLowerCase() !== backendPlan) {
+        await syncPlanToBackend(plan);
+      } else {
+        await fetchUsage();
+      }
 
       Alert.alert("✅ Restored", `Active plan: ${plan}`);
       setPaywallOpen(false);
@@ -735,11 +699,17 @@ export default function App() {
       <View style={styles.actionsRow}>
         {mode === "photo" ? (
           <>
-            <TouchableOpacity style={styles.btn} onPress={takePhoto} disabled={loading}>
+            {/* ✅ FIX #2: bigger, nicer buttons */}
+            <TouchableOpacity
+              style={[styles.btn, styles.btnWide]}
+              onPress={takePhoto}
+              disabled={loading}
+            >
               <Text style={styles.btnText}>{loading ? "..." : "Take Photo"}</Text>
             </TouchableOpacity>
+
             <TouchableOpacity
-              style={[styles.btn, !photoUri && { opacity: 0.4 }]}
+              style={[styles.btn, styles.btnWide, !photoUri && { opacity: 0.4 }]}
               onPress={analyzePhoto}
               disabled={!photoUri || loading}
             >
@@ -769,9 +739,12 @@ export default function App() {
             {round1(result?.totals?.fat_g)}g
           </Text>
 
+          {/* ✅ FIX #1: give items a bigger scrollable area */}
           <FlatList
             data={result.items || []}
             keyExtractor={(_, idx) => String(idx)}
+            style={styles.resultList}
+            contentContainerStyle={styles.resultListContent}
             renderItem={({ item }) => (
               <View style={styles.itemRow}>
                 <Text style={styles.itemName}>{item?.name}</Text>
@@ -831,24 +804,25 @@ export default function App() {
                 Current plan: <Text style={{ fontWeight: "900" }}>{activePlan}</Text>
               </Text>
 
-              {sortPackages(offering.availablePackages || []).map((pkg) => {
-                const key = pkgPlanKey(pkg);
-                return (
-                  <TouchableOpacity
-                    key={pkg.identifier}
-                    style={styles.planCard}
-                    onPress={() => buyPackage(pkg)}
-                    disabled={rcLoading}
-                  >
-                    <Text style={styles.h2}>
-                      {pkgTitle(pkg)} • {formatPrice(pkg)}
-                    </Text>
-                    <Text style={styles.small}>{pkgDescFromKey(key)}</Text>
-                  </TouchableOpacity>
-                );
-              })}
+              {(offering.availablePackages || []).map((pkg) => (
+                <TouchableOpacity
+                  key={pkg.identifier}
+                  style={styles.planCard}
+                  onPress={() => buyPackage(pkg)}
+                  disabled={rcLoading}
+                >
+                  <Text style={styles.h2}>
+                    {pkgTitle(pkg)} • {formatPrice(pkg)}
+                  </Text>
+                  <Text style={styles.small}>{pkg.product?.description || ""}</Text>
+                </TouchableOpacity>
+              ))}
 
-              <TouchableOpacity style={[styles.btn, { marginTop: 14 }]} onPress={restorePurchases}>
+              <TouchableOpacity
+                style={[styles.btn, { marginTop: 14 }]}
+                onPress={restorePurchases}
+                disabled={rcLoading}
+              >
                 <Text style={styles.btnText}>Restore Purchases</Text>
               </TouchableOpacity>
 
@@ -944,6 +918,13 @@ const styles = StyleSheet.create({
   camera: { flex: 1 },
   actionsRow: { marginTop: 12, flexDirection: "row", gap: 12, alignItems: "center" },
 
+  // ✅ FIX #2 styles
+  btnWide: {
+    flex: 1,
+    paddingVertical: 16,
+    borderRadius: 18,
+  },
+
   previewWrap: { marginTop: 10, alignItems: "center" },
   preview: { width: 140, height: 140, borderRadius: 18 },
 
@@ -952,8 +933,14 @@ const styles = StyleSheet.create({
     backgroundColor: "#15151c",
     borderRadius: 18,
     padding: 14,
-    flex: 1,
+    // ✅ FIX #1: make result area comfortably scrollable/taller
+    flex: 0,
+    maxHeight: 320,
   },
+
+  // ✅ FIX #1 styles (bigger list + easier scroll)
+  resultList: { marginTop: 10, flexGrow: 0 },
+  resultListContent: { paddingBottom: 12 },
 
   itemRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 6 },
   itemName: { color: "white", fontWeight: "700", flex: 1, paddingRight: 10 },
