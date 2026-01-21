@@ -56,6 +56,19 @@ const ENTITLEMENTS = (
 
 const BARCODE_COOLDOWN_MS = 1800;
 
+const PLAN_ORDER = ["free", "elite", "advanced", "pro", "infinite"];
+function planRank(plan) {
+  const p = String(plan || "free").toLowerCase();
+  const idx = PLAN_ORDER.indexOf(p);
+  return idx >= 0 ? idx : 0;
+}
+function isElitePlus(plan) {
+  return planRank(plan) >= planRank("elite");
+}
+function isProPlus(plan) {
+  return planRank(plan) >= planRank("pro");
+}
+
 // ===================== HELPERS =====================
 function num(x) {
   const n = Number(x);
@@ -711,9 +724,22 @@ export default function App() {
       const res = await fetch(`${API_BASE}/barcode/${encodeURIComponent(code)}`, {
         headers: backendHeaders(userId),
       });
-      const json = await res.json();
+
+      let json = null;
+      try {
+        json = await res.json();
+      } catch {
+        json = null;
+      }
+
       if (!res.ok) {
-        throw new Error(json?.detail ? JSON.stringify(json.detail) : JSON.stringify(json));
+        const detail = json?.detail;
+        if (res.status === 403 && detail?.code === "upgrade_required") {
+          Alert.alert("Upgrade required", detail?.message || "Barcode requires Elite+");
+          openPaywall();
+          return;
+        }
+        throw new Error(detail ? JSON.stringify(detail) : JSON.stringify(json || {}));
       }
 
       const normalized = normalizeBarcodeResponse(json);
@@ -850,7 +876,17 @@ export default function App() {
 
           <TouchableOpacity
             style={[styles.modeBtn, mode === "barcode" && styles.modeBtnActive, { marginRight: 0 }]}
-            onPress={() => setMode("barcode")}
+            onPress={() => {
+            if (!isElitePlus(activePlan)) {
+              Alert.alert(
+                "Upgrade required",
+                "Barcode scanning requires Elite or above."
+              );
+              openPaywall();
+              return;
+            }
+            setMode("barcode");
+          }}
           >
             <Text style={[styles.modeText, mode === "barcode" && styles.modeTextActive]}>
               Barcode
@@ -1232,6 +1268,8 @@ const styles = StyleSheet.create({
 
   modalWrap: { flex: 1, backgroundColor: "#0b0b0f", padding: 14 },
   modalHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+
+  coachingLocked: { marginTop: 10, color: "#b8b8c7" },
 
   planCard: {
     backgroundColor: "#15151c",
