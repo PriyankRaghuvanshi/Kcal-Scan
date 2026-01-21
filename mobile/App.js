@@ -47,7 +47,9 @@ const RC_ANDROID_KEY =
 
 // Offering + entitlements
 const OFFERING_ID = process.env.EXPO_PUBLIC_RC_OFFERING || "main";
-const ENTITLEMENTS = (process.env.EXPO_PUBLIC_RC_ENTITLEMENTS || "elite,advanced,pro,infinite")
+const ENTITLEMENTS = (
+  process.env.EXPO_PUBLIC_RC_ENTITLEMENTS || "elite,advanced,pro,infinite"
+)
   .split(",")
   .map((x) => x.trim())
   .filter(Boolean);
@@ -80,8 +82,7 @@ function pickMacros(obj) {
   if (!obj) return { protein_g: 0, carbs_g: 0, fat_g: 0 };
   const protein =
     obj.protein_g ?? obj.protein ?? obj.p ?? obj.proteinG ?? obj.protein_gm ?? 0;
-  const carbs =
-    obj.carbs_g ?? obj.carbs ?? obj.c ?? obj.carbsG ?? obj.carbs_gm ?? 0;
+  const carbs = obj.carbs_g ?? obj.carbs ?? obj.c ?? obj.carbsG ?? obj.carbs_gm ?? 0;
   const fat = obj.fat_g ?? obj.fat ?? obj.f ?? obj.fatG ?? obj.fat_gm ?? 0;
   return { protein_g: num(protein), carbs_g: num(carbs), fat_g: num(fat) };
 }
@@ -192,20 +193,17 @@ function pkgTitle(pkg) {
       .toLowerCase()
       .trim();
 
-  // Prefer explicit identifiers first
   if (pid.includes("calorieclick_elite") || pid.includes("elite")) return "Elite";
   if (pid.includes("calorieclick_advanced") || pid.includes("advanced")) return "Advanced";
   if (pid.includes("calorieclick_pro") || pid.includes("pro")) return "Pro";
   if (pid.includes("calorieclick_infinite") || pid.includes("infinite")) return "Infinite";
 
-  // Fallback to title
   const title = (pkg?.product?.title || "").toLowerCase();
   if (title.includes("elite")) return "Elite";
   if (title.includes("advanced")) return "Advanced";
   if (title.includes("pro")) return "Pro";
   if (title.includes("infinite")) return "Infinite";
 
-  // LAST fallback: infer from price (works well for your fixed tiers)
   const priceStr = (pkg?.product?.priceString || "").replace(/[^\d.]/g, "");
   const p = Number(priceStr);
   if (p === 9.99) return "Elite";
@@ -232,6 +230,115 @@ function planSubtitleFromTitle(t) {
   if (k === "pro") return "Power plan • very high monthly scans";
   if (k === "infinite") return "Unlimited scans (fair use)";
   return "";
+}
+
+// ===== NEW: Protein bioavailability + Satiety index (heuristics) =====
+function clamp(n, lo, hi) {
+  return Math.max(lo, Math.min(hi, n));
+}
+
+function inferBVFromName(name) {
+  const n = String(name || "").toLowerCase();
+
+  // high
+  if (n.includes("whey")) return 104;
+  if (n.includes("egg")) return 100;
+
+  // solid animal
+  if (n.includes("milk") || n.includes("yogurt") || n.includes("cheese")) return 91;
+  if (n.includes("chicken") || n.includes("turkey")) return 80;
+  if (n.includes("fish") || n.includes("salmon") || n.includes("tuna")) return 83;
+  if (n.includes("beef") || n.includes("lamb") || n.includes("pork")) return 80;
+
+  // plant-ish
+  if (n.includes("soy") || n.includes("tofu") || n.includes("tempeh")) return 74;
+  if (n.includes("lentil") || n.includes("chickpea") || n.includes("bean")) return 70;
+
+  // low
+  if (n.includes("wheat") || n.includes("gluten") || n.includes("bread") || n.includes("pasta"))
+    return 64;
+
+  // default mixed meal
+  return 75;
+}
+
+function computeBioAvailability(result) {
+  const totals = result?.totals || {};
+  const totalProtein = num(totals.protein_g);
+  const items = Array.isArray(result?.items) ? result.items : [];
+
+  // weighted BV by protein grams
+  let weighted = 0;
+  let denom = 0;
+
+  for (const it of items) {
+    const p = num(it?.macros?.protein_g ?? it?.protein_g ?? 0);
+    if (p <= 0) continue;
+    const bv = inferBVFromName(it?.name);
+    weighted += p * bv;
+    denom += p;
+  }
+
+  const bv = denom > 0 ? weighted / denom : 75;
+  const bvClamped = clamp(bv, 0, 104);
+
+  const bioProtein = totalProtein * (bvClamped / 100); // approx bioavailable grams
+  const barPct = clamp((bvClamped / 104) * 100, 0, 100);
+
+  return {
+    bv: bvClamped,
+    bioProtein,
+    barPct,
+  };
+}
+
+function computeSatiety(result) {
+  // Heuristic 0–100 from macros + (optional) grams
+  const kcal = num(result?.total_kcal);
+  const totals = result?.totals || {};
+  const p = num(totals.protein_g);
+  const c = num(totals.carbs_g);
+  const f = num(totals.fat_g);
+
+  const proteinKcal = p * 4;
+  const carbKcal = c * 4;
+  const fatKcal = f * 9;
+  const macroKcal = proteinKcal + carbKcal + fatKcal;
+
+  const proteinPct = macroKcal > 0 ? proteinKcal / macroKcal : 0;
+  const fatPct = macroKcal > 0 ? fatKcal / macroKcal : 0;
+
+  const items = Array.isArray(result?.items) ? result.items : [];
+  const gramsSum = items.reduce((s, it) => s + num(it?.grams ?? it?.g ?? it?.weight_g ?? 0), 0);
+
+  // energy density (kcal per gram). lower is more filling.
+  const ed = gramsSum > 0 ? kcal / gramsSum : null;
+
+  // “hedonic” proxy: super high fat% + very high kcal
+  const hedonicPenalty = clamp((fatPct - 0.35) * 60 + (kcal > 900 ? 10 : 0), 0, 25);
+
+  // base score favors protein%, penalizes fat%, penalizes high energy density
+  let score = 50;
+
+  score += proteinPct * 45;          // up to +45
+  score -= fatPct * 25;              // down to -25
+  if (ed !== null) {
+    // ed 0.5 => bonus, ed 3 => penalty
+    const edPenalty = clamp((ed - 1.2) * 18, -10, 25);
+    score -= edPenalty;
+  } else {
+    // if grams unknown, small penalty so it's not overconfident
+    score -= 5;
+  }
+
+  score -= hedonicPenalty;
+
+  score = clamp(score, 0, 100);
+
+  return {
+    score,
+    barPct: score,
+  };
 }
 
 // ===================== APP =====================
@@ -363,7 +470,7 @@ export default function App() {
     }
   }
 
-  // keep UI plan in sync with backend plan (fixes “plan didn’t change”)
+  // keep UI plan in sync with backend plan
   useEffect(() => {
     if (usage?.plan) setActivePlan(String(usage.plan).toLowerCase());
   }, [usage?.plan]);
@@ -377,15 +484,17 @@ export default function App() {
   async function syncPlanToBackend(entitlement) {
     if (!userId) return null;
     try {
-      const res = await fetch(`${API_BASE}/plan/sync?user_id=${encodeURIComponent(userId)}`, {
-        method: "POST",
-        headers: backendHeaders(userId, { "Content-Type": "application/json" }),
-        body: JSON.stringify({ entitlement }),
-      });
+      const res = await fetch(
+        `${API_BASE}/plan/sync?user_id=${encodeURIComponent(userId)}`,
+        {
+          method: "POST",
+          headers: backendHeaders(userId, { "Content-Type": "application/json" }),
+          body: JSON.stringify({ entitlement }),
+        }
+      );
       const json = await res.json();
       console.log("plan/sync:", json);
 
-      // update UI plan from backend response immediately
       if (json?.plan) setActivePlan(String(json.plan).toLowerCase());
 
       await fetchUsage();
@@ -408,7 +517,6 @@ export default function App() {
       const info = await Purchases.getCustomerInfo();
       setCustomerInfo(info);
 
-      // prefer backend plan if available, otherwise entitlement
       if (usage?.plan) setActivePlan(String(usage.plan).toLowerCase());
       else setActivePlan(getActiveEntitlement(info));
     } catch (e) {
@@ -422,17 +530,14 @@ export default function App() {
     if (!pkg) return;
     setRcLoading(true);
     try {
-      const { customerInfo } = await Purchases.purchasePackage(pkg);
+      await Purchases.purchasePackage(pkg);
 
-      // refresh customer info (helps iOS propagate entitlements faster)
       const info2 = await Purchases.getCustomerInfo();
       setCustomerInfo(info2);
 
-      // use the package label as the plan to sync (more reliable than “Monthly” titles)
       const planLabel = pkgTitle(pkg).toLowerCase();
       setActivePlan(planLabel);
 
-      // 🔥 sync to backend
       await syncPlanToBackend(planLabel);
 
       Alert.alert("✅ Purchase successful", `Plan activated: ${planLabel}`);
@@ -452,11 +557,9 @@ export default function App() {
       const info = await Purchases.restorePurchases();
       setCustomerInfo(info);
 
-      // figure out restored plan from RevenueCat
       const restored = getActiveEntitlement(info);
 
-      // IMPORTANT: avoid letting restore "refill scans" (spam)
-      // We only sync to backend if backend plan differs (eg reinstall/new device).
+      // avoid letting restore refill scans: only sync if backend differs
       await fetchUsage();
       const backendPlan = String(usage?.plan || "free").toLowerCase();
       const restoredPlan = String(restored || "free").toLowerCase();
@@ -465,7 +568,6 @@ export default function App() {
         await syncPlanToBackend(restoredPlan);
       }
 
-      // keep UI plan correct
       if (usage?.plan) setActivePlan(String(usage.plan).toLowerCase());
       else setActivePlan(restoredPlan);
 
@@ -653,7 +755,7 @@ export default function App() {
   if (!HAS_SUPABASE) {
     return (
       <SafeAreaView style={styles.center}>
-        <Text style={styles.h1}>Kcal Scan</Text>
+        <Text style={styles.h1}>CalorieClick.ai</Text>
         <Text style={styles.sub}>
           Supabase env missing. Please set EXPO_PUBLIC_SUPABASE_URL & EXPO_PUBLIC_SUPABASE_ANON_KEY.
         </Text>
@@ -670,7 +772,7 @@ export default function App() {
           style={{ flex: 1 }}
         >
           <View style={styles.card}>
-            <Text style={styles.h1}>Kcal Scan</Text>
+            <Text style={styles.h1}>CalorieClick.ai</Text>
             <Text style={styles.sub}>Login or Signup</Text>
 
             <TextInput
@@ -711,14 +813,12 @@ export default function App() {
     <SafeAreaView style={styles.container}>
       <View style={styles.topBar}>
         <View style={{ flex: 1 }}>
-          <Text style={styles.h1}>Kcal Scan</Text>
+          <Text style={styles.h1}>CalorieClick.ai</Text>
           <Text style={styles.small}>
             Plan: <Text style={{ fontWeight: "800" }}>{activePlan}</Text>
             {"  •  "}
             Remaining:{" "}
-            <Text style={{ fontWeight: "800" }}>
-              {usage?.remaining_month ?? "-"}
-            </Text>
+            <Text style={{ fontWeight: "800" }}>{usage?.remaining_month ?? "-"}</Text>
           </Text>
         </View>
 
@@ -731,7 +831,7 @@ export default function App() {
         </TouchableOpacity>
       </View>
 
-      {/* MAIN SCROLL (fixes “can’t scroll to history”) */}
+      {/* MAIN SCROLL */}
       <ScrollView
         style={{ flex: 1 }}
         contentContainerStyle={{ paddingBottom: 26 }}
@@ -766,15 +866,9 @@ export default function App() {
               style={styles.camera}
               facing="back"
               barcodeScannerSettings={
-                mode === "barcode"
-                  ? { barcodeTypes: ["ean13", "ean8", "upc_a", "upc_e"] }
-                  : undefined
+                mode === "barcode" ? { barcodeTypes: ["ean13", "ean8", "upc_a", "upc_e"] } : undefined
               }
-              onBarcodeScanned={
-                mode === "barcode"
-                  ? (e) => barcodeLookup(e?.data)
-                  : undefined
-              }
+              onBarcodeScanned={mode === "barcode" ? (e) => barcodeLookup(e?.data) : undefined}
             />
           ) : (
             <View style={styles.centerInline}>
@@ -790,7 +884,11 @@ export default function App() {
         <View style={styles.actionsRow}>
           {mode === "photo" ? (
             <>
-              <TouchableOpacity style={[styles.btnBig, styles.btnBigLeft]} onPress={takePhoto} disabled={loading}>
+              <TouchableOpacity
+                style={[styles.btnBig, styles.btnBigLeft]}
+                onPress={takePhoto}
+                disabled={loading}
+              >
                 <Text style={styles.btnText}>{loading ? "..." : "Take Photo"}</Text>
               </TouchableOpacity>
 
@@ -826,15 +924,43 @@ export default function App() {
         {/* Result */}
         {result && (
           <View style={styles.resultCard}>
-            <Text style={styles.h2}>
-              Total: {round1(result.total_kcal)} kcal
-            </Text>
+            <Text style={styles.h2}>Total: {round1(result.total_kcal)} kcal</Text>
             <Text style={styles.sub}>
               P {round1(result?.totals?.protein_g)}g  •  C {round1(result?.totals?.carbs_g)}g  •  F{" "}
               {round1(result?.totals?.fat_g)}g
             </Text>
 
-            {/* NOTE: disable internal scrolling so the main ScrollView scrolls smoothly */}
+            {/* NEW: Satiety + Bioavailability bars */}
+            {(() => {
+              const sat = computeSatiety(result);
+              const bio = computeBioAvailability(result);
+              return (
+                <View style={{ marginTop: 12 }}>
+                  <View style={styles.metricRow}>
+                    <Text style={styles.metricLabel}>Satiety Index</Text>
+                    <Text style={styles.metricValue}>{Math.round(sat.score)}/100</Text>
+                  </View>
+                  <View style={styles.barTrack}>
+                    <View style={[styles.barFill, { width: `${sat.barPct}%` }]} />
+                  </View>
+
+                  <View style={[styles.metricRow, { marginTop: 10 }]}>
+                    <Text style={styles.metricLabel}>Protein Bioavailability</Text>
+                    <Text style={styles.metricValue}>
+                      {Math.round(bio.barPct)}/100
+                    </Text>
+                  </View>
+                  <View style={styles.barTrack}>
+                    <View style={[styles.barFill, { width: `${bio.barPct}%` }]} />
+                  </View>
+                  <Text style={[styles.small, { marginTop: 8 }]}>
+                    Est. bioavailable protein: {round1(bio.bioProtein)}g (BV ~{Math.round(bio.bv)})
+                  </Text>
+                </View>
+              );
+            })()}
+
+            {/* Items list */}
             <FlatList
               data={result.items || []}
               keyExtractor={(_, idx) => String(idx)}
@@ -877,11 +1003,7 @@ export default function App() {
       </ScrollView>
 
       {/* Paywall Modal */}
-      <Modal 
-        visible={paywallOpen}
-        animationType="slide"
-        onRequestClose={() => setPaywallOpen(false)}
-      >
+      <Modal visible={paywallOpen} animationType="slide" onRequestClose={() => setPaywallOpen(false)}>
         <SafeAreaView style={styles.modalWrap}>
           <View style={styles.modalHeader}>
             <Text style={styles.h1}>Upgrade</Text>
@@ -910,7 +1032,7 @@ export default function App() {
                 Current plan: <Text style={{ fontWeight: "900" }}>{activePlan}</Text>
               </Text>
 
-              {((offering.availablePackages || []) || [])
+              {(offering.availablePackages || [])
                 .slice()
                 .sort((a, b) => planRankFromPkg(a) - planRankFromPkg(b))
                 .map((pkg) => {
@@ -1028,7 +1150,6 @@ const styles = StyleSheet.create({
 
   actionsRow: { marginTop: 12, flexDirection: "row", gap: 12, alignItems: "center" },
 
-  // bigger buttons for Take Photo / Analyze
   btnBig: {
     flex: 1,
     backgroundColor: "#5b7cfa",
@@ -1049,12 +1170,32 @@ const styles = StyleSheet.create({
   previewWrap: { marginTop: 10, alignItems: "center" },
   preview: { width: 180, height: 180, borderRadius: 18 },
 
-  // remove flex:1 so it doesn't “trap” the screen above history
   resultCard: {
     marginTop: 12,
     backgroundColor: "#15151c",
     borderRadius: 18,
     padding: 14,
+  },
+
+  // NEW bar styles
+  metricRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  metricLabel: { color: "white", fontWeight: "800" },
+  metricValue: { color: "#b8b8c7", fontWeight: "900" },
+  barTrack: {
+    marginTop: 8,
+    height: 10,
+    borderRadius: 10,
+    backgroundColor: "#1c1c25",
+    overflow: "hidden",
+  },
+  barFill: {
+    height: 10,
+    borderRadius: 10,
+    backgroundColor: "#5b7cfa",
   },
 
   itemRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 6 },
