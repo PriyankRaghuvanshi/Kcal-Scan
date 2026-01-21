@@ -111,6 +111,26 @@ def _digits_only(s: str) -> str:
     return "".join([c for c in (s or "").strip() if c.isdigit()])
 
 
+# -------------------- PLAN GATING HELPERS (NEW) --------------------
+def plan_at_least(current: str, required: str) -> bool:
+    try:
+        return PLAN_ORDER.index((current or DEFAULT_PLAN).lower()) >= PLAN_ORDER.index(required.lower())
+    except ValueError:
+        return False
+
+def require_plan(current: str, required: str, feature: str):
+    if not plan_at_least(current, required):
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "error": "upgrade_required",
+                "feature": feature,
+                "required_plan": required,
+                "current_plan": (current or DEFAULT_PLAN).lower(),
+            },
+        )
+
+
 # -------------------- SUPABASE REST HELPERS --------------------
 def supabase_headers() -> Dict[str, str]:
     _require_supabase()
@@ -337,6 +357,9 @@ def set_user_plan(user_id: str, plan: str) -> Dict[str, Any]:
     stored = sb_upsert(TBL_USER_USAGE, row, on_conflict="user_id")
     return stored
 
+def get_user_plan(user_id: str) -> str:
+    row = get_or_init_usage(user_id)
+    return (row.get("plan") or DEFAULT_PLAN).lower()
 
 def require_user_id(x_user_id: Optional[str], user_id: Optional[str]) -> str:
     uid = (x_user_id or user_id or "").strip()
@@ -598,6 +621,10 @@ def barcode_lookup(
 ):
     uid = require_user_id(x_user_id, user_id)
 
+    # 🔒 barcode requires elite+
+    plan = get_user_plan(uid)
+    require_plan(plan, "elite", feature="barcode")
+
     # consume scan first (so even cache hits count)
     usage_row = consume_one_scan(uid)
 
@@ -674,6 +701,11 @@ def barcode_manual(
       }
     """
     uid = require_user_id(x_user_id, user_id)
+
+    # 🔒 barcode requires elite+
+    plan = get_user_plan(uid)
+    require_plan(plan, "elite", feature="barcode")
+
     usage_row = consume_one_scan(uid)
 
     barcode = _digits_only(str(payload.get("barcode") or ""))
@@ -788,7 +820,11 @@ async def analyze(
         total_c += c
         total_f += f
 
-    return {
+    # 🔒 coaching is pro+ (we don't block analyze; we just hide coaching fields)
+    plan = (usage_row.get("plan") or DEFAULT_PLAN).lower()
+    coaching_enabled = plan_at_least(plan, "pro")
+
+    response = {
         "source": "photo",
         "total_kcal": round(total_kcal, 1),
         "totals": {
@@ -803,3 +839,10 @@ async def analyze(
             "remaining_month": int(usage_row.get("remaining_month") or 0),
         },
     }
+
+    if not coaching_enabled:
+        # UI can use this to show "Upgrade to Pro"
+        response["locked"] = {"feature": "coaching", "required_plan": "pro"}
+
+    return response
+
