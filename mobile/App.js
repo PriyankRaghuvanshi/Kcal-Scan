@@ -56,6 +56,19 @@ const ENTITLEMENTS = (
 
 const BARCODE_COOLDOWN_MS = 1800;
 
+const PLAN_ORDER = ["free", "elite", "advanced", "pro", "infinite"];
+function planRank(plan) {
+  const p = String(plan || "free").toLowerCase();
+  const idx = PLAN_ORDER.indexOf(p);
+  return idx >= 0 ? idx : 0;
+}
+function isElitePlus(plan) {
+  return planRank(plan) >= planRank("elite");
+}
+function isProPlus(plan) {
+  return planRank(plan) >= planRank("pro");
+}
+
 // ===================== HELPERS =====================
 function num(x) {
   const n = Number(x);
@@ -175,12 +188,6 @@ function getActiveEntitlement(customerInfo) {
   return "free";
 }
 
-// ✅ NEW: pro+ gating helper
-function isProPlus(plan) {
-  const p = String(plan || "").toLowerCase();
-  return p === "pro" || p === "infinite";
-}
-
 function formatPrice(pkg) {
   try {
     return pkg?.product?.priceString || "";
@@ -191,32 +198,15 @@ function formatPrice(pkg) {
 
 // UPDATED: force Elite/Advanced/Pro/Infinite labels (no "Monthly")
 function pkgTitle(pkg) {
-  const pid =
-    (pkg?.product?.identifier ||
-      pkg?.product?.productIdentifier ||
-      pkg?.identifier ||
-      "")
-      .toLowerCase()
-      .trim();
+  const id = String(pkg?.identifier || pkg?.product?.identifier || pkg?.product?.productIdentifier || "").toLowerCase();
 
-  if (pid.includes("calorieclick_elite") || pid.includes("elite")) return "Elite";
-  if (pid.includes("calorieclick_advanced") || pid.includes("advanced")) return "Advanced";
-  if (pid.includes("calorieclick_pro") || pid.includes("pro")) return "Pro";
-  if (pid.includes("calorieclick_infinite") || pid.includes("infinite")) return "Infinite";
+  // Prefer showing the plan name (elite/advanced/pro/infinite) if we can detect it
+  for (const ent of ENTITLEMENTS) {
+    if (id.includes(ent.toLowerCase())) return ent;
+  }
 
-  const title = (pkg?.product?.title || "").toLowerCase();
-  if (title.includes("elite")) return "Elite";
-  if (title.includes("advanced")) return "Advanced";
-  if (title.includes("pro")) return "Pro";
-  if (title.includes("infinite")) return "Infinite";
-
-  const priceStr = (pkg?.product?.priceString || "").replace(/[^\d.]/g, "");
-  const p = Number(priceStr);
-  if (p === 9.99) return "Elite";
-  if (p === 19.99) return "Advanced";
-  if (p === 39.99) return "Pro";
-  if (p === 149.99) return "Infinite";
-
+  if (id.includes("monthly")) return "Monthly";
+  if (id.includes("year")) return "Yearly";
   return pkg?.product?.title || "Plan";
 }
 
@@ -326,8 +316,8 @@ function computeSatiety(result) {
   // base score favors protein%, penalizes fat%, penalizes high energy density
   let score = 50;
 
-  score += proteinPct * 45; // up to +45
-  score -= fatPct * 25; // down to -25
+  score += proteinPct * 45;          // up to +45
+  score -= fatPct * 25;              // down to -25
   if (ed !== null) {
     // ed 0.5 => bonus, ed 3 => penalty
     const edPenalty = clamp((ed - 1.2) * 18, -10, 25);
@@ -343,23 +333,8 @@ function computeSatiety(result) {
 
   return {
     score,
-    label: score >= 75 ? "Very filling" : score >= 55 ? "Moderately filling" : "Low satiety",
-    note:
-      score >= 75
-        ? "High protein / lower energy density"
-        : score >= 55
-          ? "Decent balance"
-          : "More calorie-dense / lower protein",
+    barPct: score,
   };
-}
-
-function ProgressBar({ value }) {
-  const v = clamp(num(value), 0, 100);
-  return (
-    <View style={styles.barTrack}>
-      <View style={[styles.barFill, { width: `${v}%` }]} />
-    </View>
-  );
 }
 
 // ===================== APP =====================
@@ -398,9 +373,6 @@ export default function App() {
   const [activePlan, setActivePlan] = useState("free");
 
   const userId = session?.user?.id || null;
-
-  // ✅ NEW: authoritative pro+ check (backend usage first, then RC fallback)
-  const coachingAllowed = isProPlus(usage?.plan || activePlan);
 
   // ===================== INIT =====================
   useEffect(() => {
@@ -462,7 +434,8 @@ export default function App() {
         Purchases.setLogLevel(Purchases.LOG_LEVEL.INFO);
         await Purchases.configure({ apiKey, appUserID: userId });
 
-        const info = await Purchases.getCustomerInfo();
+        if (Purchases.invalidateCustomerInfoCache) { await Purchases.invalidateCustomerInfoCache(); }
+      const info = await Purchases.getCustomerInfo();
         setCustomerInfo(info);
         setActivePlan(getActiveEntitlement(info));
 
@@ -494,6 +467,11 @@ export default function App() {
     }
   }
 
+  // keep UI plan in sync with backend plan
+  useEffect(() => {
+    if (usage?.plan) setActivePlan(String(usage.plan).toLowerCase());
+  }, [usage?.plan]);
+
   // pull usage on login + after purchase
   useEffect(() => {
     if (userId) fetchUsage();
@@ -501,18 +479,26 @@ export default function App() {
 
   // ===================== PLAN SYNC =====================
   async function syncPlanToBackend(entitlement) {
-    if (!userId) return;
+    if (!userId) return null;
     try {
-      const res = await fetch(`${API_BASE}/plan/sync?user_id=${encodeURIComponent(userId)}`, {
-        method: "POST",
-        headers: backendHeaders(userId, { "Content-Type": "application/json" }),
-        body: JSON.stringify({ entitlement }),
-      });
+      const res = await fetch(
+        `${API_BASE}/plan/sync?user_id=${encodeURIComponent(userId)}`,
+        {
+          method: "POST",
+          headers: backendHeaders(userId, { "Content-Type": "application/json" }),
+          body: JSON.stringify({ entitlement }),
+        }
+      );
       const json = await res.json();
       console.log("plan/sync:", json);
+
+      if (json?.plan) setActivePlan(String(json.plan).toLowerCase());
+
       await fetchUsage();
+      return json?.plan || null;
     } catch (e) {
       console.log("plan/sync error:", e?.message || e);
+      return null;
     }
   }
 
@@ -527,7 +513,9 @@ export default function App() {
 
       const info = await Purchases.getCustomerInfo();
       setCustomerInfo(info);
-      setActivePlan(getActiveEntitlement(info));
+
+      if (usage?.plan) setActivePlan(String(usage.plan).toLowerCase());
+      else setActivePlan(getActiveEntitlement(info));
     } catch (e) {
       console.log("open paywall error:", e?.message || e);
     } finally {
@@ -539,15 +527,17 @@ export default function App() {
     if (!pkg) return;
     setRcLoading(true);
     try {
-      const { customerInfo } = await Purchases.purchasePackage(pkg);
-      setCustomerInfo(customerInfo);
-      const plan = getActiveEntitlement(customerInfo);
-      setActivePlan(plan);
+      await Purchases.purchasePackage(pkg);
 
-      // sync to backend
-      await syncPlanToBackend(plan);
+      const info2 = await Purchases.getCustomerInfo();
+      setCustomerInfo(info2);
 
-      Alert.alert("✅ Purchase successful", `Plan activated: ${plan}`);
+      const planLabel = pkgTitle(pkg).toLowerCase();
+      setActivePlan(planLabel);
+
+      await syncPlanToBackend(planLabel);
+
+      Alert.alert("✅ Purchase successful", `Plan activated: ${planLabel}`);
       setPaywallOpen(false);
     } catch (e) {
       const msg = e?.message || String(e);
@@ -562,14 +552,25 @@ export default function App() {
     setRcLoading(true);
     try {
       const info = await Purchases.restorePurchases();
+      if (Purchases.invalidateCustomerInfoCache) { await Purchases.invalidateCustomerInfoCache(); }
+      const fresh = await Purchases.getCustomerInfo();
       setCustomerInfo(info);
-      const plan = getActiveEntitlement(info);
-      setActivePlan(plan);
 
-      // sync to backend
-      await syncPlanToBackend(plan);
+      const restored = getActiveEntitlement(info);
 
-      Alert.alert("✅ Restored", `Active plan: ${plan}`);
+      // avoid letting restore refill scans: only sync if backend differs
+      await fetchUsage();
+      const backendPlan = String(usage?.plan || "free").toLowerCase();
+      const restoredPlan = String(restored || "free").toLowerCase();
+
+      if (backendPlan !== restoredPlan && restoredPlan !== "free") {
+        await syncPlanToBackend(restoredPlan);
+      }
+
+      if (usage?.plan) setActivePlan(String(usage.plan).toLowerCase());
+      else setActivePlan(restoredPlan);
+
+      Alert.alert("✅ Restored", `Active plan: ${restoredPlan}`);
       setPaywallOpen(false);
     } catch (e) {
       Alert.alert("Restore failed", e?.message || String(e));
@@ -613,6 +614,22 @@ export default function App() {
     setUsage(null);
     setResult(null);
     setPhotoUri(null);
+  }
+
+  // ===================== CLEAR HELPERS =====================
+  async function clearCurrent() {
+    setResult(null);
+    setPhotoUri(null);
+  }
+
+  async function clearHistoryAll() {
+    try {
+      setHistory([]);
+      await AsyncStorage.removeItem(HISTORY_KEY);
+      Alert.alert("✅ Cleared", "History cleared.");
+    } catch (e) {
+      Alert.alert("Clear failed", e?.message || String(e));
+    }
   }
 
   // ===================== SCAN FUNCTIONS =====================
@@ -693,9 +710,22 @@ export default function App() {
       const res = await fetch(`${API_BASE}/barcode/${encodeURIComponent(code)}`, {
         headers: backendHeaders(userId),
       });
-      const json = await res.json();
+
+      let json = null;
+      try {
+        json = await res.json();
+      } catch {
+        json = null;
+      }
+
       if (!res.ok) {
-        throw new Error(json?.detail ? JSON.stringify(json.detail) : JSON.stringify(json));
+        const detail = json?.detail;
+        if (res.status === 403 && detail?.code === "upgrade_required") {
+          Alert.alert("Upgrade required", detail?.message || "Barcode requires Elite+");
+          openPaywall();
+          return;
+        }
+        throw new Error(detail ? JSON.stringify(detail) : JSON.stringify(json || {}));
       }
 
       const normalized = normalizeBarcodeResponse(json);
@@ -724,19 +754,12 @@ export default function App() {
     }
   }
 
-  async function clearHistoryAll() {
-    try {
-      await AsyncStorage.removeItem(HISTORY_KEY);
-    } catch {}
-    setHistory([]);
-  }
-
   // ===================== UI =====================
   if (authLoading) {
     return (
       <SafeAreaView style={styles.center}>
         <ActivityIndicator size="large" />
-        <Text style={{ marginTop: 10, color: "white" }}>Loading…</Text>
+        <Text style={{ marginTop: 10 }}>Loading…</Text>
       </SafeAreaView>
     );
   }
@@ -744,7 +767,7 @@ export default function App() {
   if (!HAS_SUPABASE) {
     return (
       <SafeAreaView style={styles.center}>
-        <Text style={styles.h1}>Kcal Scan</Text>
+        <Text style={styles.h1}>CalorieClick.ai</Text>
         <Text style={styles.sub}>
           Supabase env missing. Please set EXPO_PUBLIC_SUPABASE_URL & EXPO_PUBLIC_SUPABASE_ANON_KEY.
         </Text>
@@ -752,6 +775,7 @@ export default function App() {
     );
   }
 
+  // AUTH SCREEN
   if (!session?.user) {
     return (
       <SafeAreaView style={styles.container}>
@@ -760,7 +784,7 @@ export default function App() {
           style={{ flex: 1 }}
         >
           <View style={styles.card}>
-            <Text style={styles.h1}>Kcal Scan</Text>
+            <Text style={styles.h1}>CalorieClick.ai</Text>
             <Text style={styles.sub}>Login or Signup</Text>
 
             <TextInput
@@ -796,18 +820,17 @@ export default function App() {
     );
   }
 
+  // MAIN APP
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.topBar}>
         <View style={{ flex: 1 }}>
-          <Text style={styles.h1}>Kcal Scan</Text>
+          <Text style={styles.h1}>CalorieClick.ai</Text>
           <Text style={styles.small}>
-            Plan: <Text style={{ fontWeight: "800" }}>{usage?.plan ?? activePlan}</Text>
+            Plan: <Text style={{ fontWeight: "800" }}>{activePlan}</Text>
             {"  •  "}
             Remaining:{" "}
-            <Text style={{ fontWeight: "800" }}>
-              {usage?.remaining_month ?? "-"}
-            </Text>
+            <Text style={{ fontWeight: "800" }}>{usage?.remaining_month ?? "-"}</Text>
           </Text>
         </View>
 
@@ -820,7 +843,12 @@ export default function App() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView contentContainerStyle={{ paddingBottom: 24 }}>
+      {/* MAIN SCROLL */}
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{ paddingBottom: 26 }}
+        keyboardShouldPersistTaps="handled"
+      >
         {/* Mode Switch */}
         <View style={styles.modeRow}>
           <TouchableOpacity
@@ -833,8 +861,18 @@ export default function App() {
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[styles.modeBtn, mode === "barcode" && styles.modeBtnActive]}
-            onPress={() => setMode("barcode")}
+            style={[styles.modeBtn, mode === "barcode" && styles.modeBtnActive, { marginRight: 0 }]}
+            onPress={() => {
+            if (!isElitePlus(activePlan)) {
+              Alert.alert(
+                "Upgrade required",
+                "Barcode scanning requires Elite or above."
+              );
+              openPaywall();
+              return;
+            }
+            setMode("barcode");
+          }}
           >
             <Text style={[styles.modeText, mode === "barcode" && styles.modeTextActive]}>
               Barcode
@@ -850,15 +888,9 @@ export default function App() {
               style={styles.camera}
               facing="back"
               barcodeScannerSettings={
-                mode === "barcode"
-                  ? { barcodeTypes: ["ean13", "ean8", "upc_a", "upc_e"] }
-                  : undefined
+                mode === "barcode" ? { barcodeTypes: ["ean13", "ean8", "upc_a", "upc_e"] } : undefined
               }
-              onBarcodeScanned={
-                mode === "barcode"
-                  ? (e) => barcodeLookup(e?.data)
-                  : undefined
-              }
+              onBarcodeScanned={mode === "barcode" ? (e) => barcodeLookup(e?.data) : undefined}
             />
           ) : (
             <View style={styles.centerInline}>
@@ -874,9 +906,14 @@ export default function App() {
         <View style={styles.actionsRow}>
           {mode === "photo" ? (
             <>
-              <TouchableOpacity style={[styles.btnBig, styles.btnBigLeft]} onPress={takePhoto} disabled={loading}>
+              <TouchableOpacity
+                style={[styles.btnBig, styles.btnBigLeft]}
+                onPress={takePhoto}
+                disabled={loading}
+              >
                 <Text style={styles.btnText}>{loading ? "..." : "Take Photo"}</Text>
               </TouchableOpacity>
+
               <TouchableOpacity
                 style={[styles.btnBig, styles.btnBigRight, !photoUri && { opacity: 0.4 }]}
                 onPress={analyzePhoto}
@@ -890,9 +927,14 @@ export default function App() {
           )}
         </View>
 
-        <TouchableOpacity style={[styles.btnSecondaryFull, { marginTop: 10 }]} onPress={() => { setPhotoUri(null); setResult(null); }}>
-          <Text style={styles.btnText}>Clear</Text>
-        </TouchableOpacity>
+        {/* Clear current */}
+        {(photoUri || result) && (
+          <View style={{ marginTop: 10 }}>
+            <TouchableOpacity style={styles.btnSecondaryFull} onPress={clearCurrent}>
+              <Text style={styles.btnText}>Clear (Next Scan)</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         {/* Photo Preview */}
         {!!photoUri && (
@@ -904,56 +946,66 @@ export default function App() {
         {/* Result */}
         {result && (
           <View style={styles.resultCard}>
-            <Text style={styles.h2}>
-              Total: {round1(result.total_kcal)} kcal
-            </Text>
+            <Text style={styles.h2}>Total: {round1(result.total_kcal)} kcal</Text>
             <Text style={styles.sub}>
               P {round1(result?.totals?.protein_g)}g  •  C {round1(result?.totals?.carbs_g)}g  •  F{" "}
               {round1(result?.totals?.fat_g)}g
             </Text>
 
-            {/* ✅ UPDATED: Satiety + Bioavailability is Pro+ only */}
-            {coachingAllowed && !(result?.locked?.feature === "coaching") ? (
-              (() => {
-                const sat = computeSatiety(result);
-                const bio = computeBioAvailability(result);
-                return (
-                  <View style={styles.coachingCard}>
-                    <Text style={styles.coachingTitle}>Coaching Insights</Text>
+            {/* NEW: Satiety + Bioavailability bars */}
+            {result?.coaching && (() => {
+              const coaching = result?.coaching || {};
+              const satScore = num(coaching.satiety_score);
+              const sat = { score: satScore, barPct: Math.max(0, Math.min(100, satScore)) };
 
-                    <View style={{ marginTop: 10 }}>
-                      <Text style={styles.coachingLabel}>Satiety Score</Text>
-                      <ProgressBar value={sat.score} />
-                      <Text style={styles.coachingHint}>
-                        {sat.label} — {sat.note} ({Math.round(sat.score)}/100)
-                      </Text>
-                    </View>
+              const bv = num(coaching.protein_bv);
+              const bioPct = Math.max(0, Math.min(100, bv));
+              const bio = {
+                bv,
+                barPct: bioPct,
+                bioProtein: num(coaching.bioavailable_protein_g),
+              };
 
-                    <View style={{ marginTop: 12 }}>
-                      <Text style={styles.coachingLabel}>Protein Bioavailability (BV)</Text>
-                      <ProgressBar value={bio.bv} />
-                      <Text style={styles.coachingHint}>
-                        Estimated bioavailable protein: {round1(bio.bioProtein)}g (BV ~{Math.round(bio.bv)})
-                      </Text>
-                    </View>
+              const leucine = num(coaching.leucine_est_g);
+              const thr = num(coaching.mps_threshold_g || 2.5);
+              const mpsOk = Boolean(coaching.mps_triggered); = Boolean(coaching.mps_triggered);
+              return (
+                <View style={{ marginTop: 12 }}>
+                  <View style={styles.metricRow}>
+                    <Text style={styles.metricLabel}>Satiety Index</Text>
+                    <Text style={styles.metricValue}>{Math.round(sat.score)}/100</Text>
                   </View>
-                );
-              })()
-            ) : (
-              <View style={styles.coachingCard}>
-                <Text style={styles.coachingTitle}>🔒 Coaching Insights (Pro+)</Text>
-                <Text style={styles.coachingHint}>
-                  Upgrade to Pro or Infinite to unlock Satiety Score, Protein Bioavailability, and coaching insights.
-                </Text>
-                <TouchableOpacity
-                  style={[styles.smallBtn, { marginTop: 10, alignSelf: "flex-start" }]}
-                  onPress={openPaywall}
-                >
-                  <Text style={styles.smallBtnText}>Upgrade</Text>
-                </TouchableOpacity>
-              </View>
-            )}
+                  <View style={styles.barTrack}>
+                    <View style={[styles.barFill, { width: `${sat.barPct}%` }]} />
+                  </View>
 
+                  <View style={[styles.metricRow, { marginTop: 10 }]}>
+                    <Text style={styles.metricLabel}>Protein Bioavailability</Text>
+                    <Text style={styles.metricValue}>
+                      {Math.round(bio.barPct)}/100
+                    </Text>
+                  </View>
+                  <View style={styles.barTrack}>
+                    <View style={[styles.barFill, { width: `${bio.barPct}%` }]} />
+                  </View>
+                  <View style={[styles.metricRow, { marginTop: 10 }]}>
+                    <Text style={styles.metricLabel}>MPS (Leucine)</Text>
+                    <Text style={styles.metricValue}>
+                      {leucine.toFixed(2)}g {mpsOk ? "✅" : "❌"}
+                    </Text>
+                  </View>
+                  <Text style={styles.metricHint}>
+                    Threshold: {thr.toFixed(1)}g • {mpsOk ? "Triggered" : "Not yet"}
+                  </Text>
+
+                  <Text style={[styles.small, { marginTop: 8 }]}>
+                    Est. bioavailable protein: {round1(bio.bioProtein)}g (BV ~{Math.round(bio.bv)})
+                  </Text>
+                </View>
+              );
+            })()}
+
+            {/* Items list */}
             <FlatList
               data={result.items || []}
               keyExtractor={(_, idx) => String(idx)}
@@ -1170,18 +1222,7 @@ const styles = StyleSheet.create({
     padding: 14,
   },
 
-  coachingCard: {
-    marginTop: 12,
-    backgroundColor: "#101017",
-    borderRadius: 16,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: "#232336",
-  },
-  coachingTitle: { color: "white", fontWeight: "900", fontSize: 16 },
-  coachingLabel: { color: "white", fontWeight: "800", marginTop: 6 },
-  coachingHint: { color: "#b8b8c7", marginTop: 6, fontSize: 12 },
-
+  // NEW bar styles
   metricRow: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -1236,6 +1277,8 @@ const styles = StyleSheet.create({
 
   modalWrap: { flex: 1, backgroundColor: "#0b0b0f", padding: 14 },
   modalHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+
+  coachingLocked: { marginTop: 10, color: "#b8b8c7" },
 
   planCard: {
     backgroundColor: "#15151c",
