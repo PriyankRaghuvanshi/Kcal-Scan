@@ -57,6 +57,27 @@ DEFAULT_PLAN = "free"
 PLAN_ORDER = ["free", "elite", "advanced", "pro", "infinite"]
 
 
+PLAN_RANK = {p: i for i, p in enumerate(PLAN_ORDER)}
+
+def plan_at_least(current: str, required: str) -> bool:
+    c = (current or DEFAULT_PLAN).lower()
+    r = (required or DEFAULT_PLAN).lower()
+    return PLAN_RANK.get(c, 0) >= PLAN_RANK.get(r, 0)
+
+def require_plan(usage_row: Dict[str, Any], required: str, feature: str):
+    plan = (usage_row.get("plan") or DEFAULT_PLAN).lower()
+    if not plan_at_least(plan, required):
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "error": "Upgrade required",
+                "feature": feature,
+                "required_plan": required,
+                "current_plan": plan,
+            },
+        )
+
+
 # -------------------- MIDDLEWARE --------------------
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
@@ -751,6 +772,118 @@ def barcode_manual(
     }
 
 
+
+
+# -------------------- COACHING (PRO+) --------------------
+LEUCINE_THRESHOLD_G = float(os.getenv("LEUCINE_THRESHOLD_G", "2.5") or 2.5)
+
+PROTEIN_BV_MAP = [
+    ("whey", 104),
+    ("isolate", 104),
+    ("casein", 91),
+    ("milk", 91),
+    ("egg", 100),
+    ("chicken", 80),
+    ("turkey", 80),
+    ("fish", 83),
+    ("tuna", 83),
+    ("salmon", 83),
+    ("beef", 80),
+    ("pork", 80),
+    ("lamb", 80),
+    ("soy", 74),
+    ("tofu", 74),
+    ("lentil", 60),
+    ("beans", 60),
+    ("wheat", 64),
+    ("gluten", 64),
+    ("rice", 60),
+]
+
+def estimate_protein_bv(items: List[Dict[str, Any]]) -> int:
+    # Weighted avg by protein grams where possible.
+    total_p = 0.0
+    weighted = 0.0
+    for it in items or []:
+        name = (it.get("name") or "").lower()
+        p = float((it.get("macros") or {}).get("protein_g") or 0.0)
+        bv = 70  # default mixed food
+        for key, val in PROTEIN_BV_MAP:
+            if key in name:
+                bv = val
+                break
+        total_p += p
+        weighted += p * bv
+    if total_p <= 0:
+        return 70
+    return int(round(weighted / total_p))
+
+def compute_satiety_score(total_kcal: float, totals: Dict[str, float], total_grams: float) -> int:
+    # Heuristic 0-100 using protein density + energy density.
+    protein_g = float(totals.get("protein_g") or 0.0)
+    fat_g = float(totals.get("fat_g") or 0.0)
+    carbs_g = float(totals.get("carbs_g") or 0.0)
+
+    if total_kcal <= 0 or total_grams <= 0:
+        return 50
+
+    # Energy density kcal/g (lower is more filling)
+    ed = float(total_kcal) / float(total_grams)
+
+    # Protein percent of calories
+    protein_kcal = protein_g * 4.0
+    protein_pct = (protein_kcal / float(total_kcal)) * 100.0 if total_kcal else 0.0
+
+    # Base score
+    score = 50.0
+
+    # Protein helps
+    score += min(25.0, protein_pct * 0.6)  # up to +25
+
+    # Lower energy density helps
+    # ed ~ 0.5 (salad) => +20, ed ~ 3.0 (dense) => -10
+    score += max(-15.0, min(20.0, (1.5 - ed) * 12.0))
+
+    # Very fatty / sugary meals reduce perceived satiety stability
+    fat_pct = ((fat_g * 9.0) / float(total_kcal)) * 100.0 if total_kcal else 0.0
+    sugar_like = carbs_g / max(1.0, protein_g + fat_g + carbs_g)
+    if fat_pct > 45:
+        score -= 8
+    if sugar_like > 0.65 and ed > 2.0:
+        score -= 8
+
+    return int(max(0, min(100, round(score))))
+
+def compute_coaching(payload: Dict[str, Any]) -> Dict[str, Any]:
+    total_kcal = float(payload.get("total_kcal") or 0.0)
+    totals = payload.get("totals") or {}
+    items = payload.get("items") or []
+
+    total_grams = 0.0
+    for it in items:
+        try:
+            total_grams += float(it.get("grams") or 0.0)
+        except Exception:
+            pass
+
+    protein_g = float(totals.get("protein_g") or 0.0)
+
+    leucine_est_g = protein_g * 0.08  # ~8% leucine of high-quality proteins
+    bv = estimate_protein_bv(items)
+    bioavailable_protein_g = protein_g * (float(bv) / 100.0)
+
+    satiety = compute_satiety_score(total_kcal, totals, total_grams)
+
+    return {
+        "satiety_score": satiety,
+        "protein_bv": bv,
+        "bioavailable_protein_g": round(bioavailable_protein_g, 1),
+        "leucine_est_g": round(leucine_est_g, 2),
+        "mps_threshold_g": LEUCINE_THRESHOLD_G,
+        "mps_triggered": bool(leucine_est_g >= LEUCINE_THRESHOLD_G),
+    }
+
+
 # -------------------- ANALYZE (PHOTO) --------------------
 @app.post("/analyze")
 async def analyze(
@@ -760,7 +893,12 @@ async def analyze(
 ):
     uid = require_user_id(x_user_id, user_id)
 
-    # consume scan first (so failures still count? You can change this later.)
+    # Read usage (no decrement yet) + enforce Elite+ for barcode
+    usage_row = get_or_init_usage(uid)
+    usage_row = normalize_resets(usage_row)
+    require_plan(usage_row, "elite", feature="barcode")
+
+    # consume scan (so cache hits count)
     usage_row = consume_one_scan(uid)
 
     contents = await file.read()
