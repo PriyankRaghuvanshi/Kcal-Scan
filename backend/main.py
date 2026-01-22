@@ -64,19 +64,18 @@ def plan_at_least(current: str, required: str) -> bool:
     r = (required or DEFAULT_PLAN).lower()
     return PLAN_RANK.get(c, 0) >= PLAN_RANK.get(r, 0)
 
-def require_plan(usage_row: Dict[str, Any], required: str, feature: str):
-    plan = (usage_row.get("plan") or DEFAULT_PLAN).lower()
+def require_plan(current: str, required: str, feature: str):
+    plan = (current or DEFAULT_PLAN).lower()
     if not plan_at_least(plan, required):
         raise HTTPException(
             status_code=403,
             detail={
-                "error": "Upgrade required",
+                "error": "upgrade_required",
                 "feature": feature,
                 "required_plan": required,
                 "current_plan": plan,
             },
         )
-
 
 # -------------------- MIDDLEWARE --------------------
 @app.middleware("http")
@@ -130,26 +129,6 @@ def _month_start(d: dt.date) -> dt.date:
 
 def _digits_only(s: str) -> str:
     return "".join([c for c in (s or "").strip() if c.isdigit()])
-
-
-# -------------------- PLAN GATING HELPERS (NEW) --------------------
-def plan_at_least(current: str, required: str) -> bool:
-    try:
-        return PLAN_ORDER.index((current or DEFAULT_PLAN).lower()) >= PLAN_ORDER.index(required.lower())
-    except ValueError:
-        return False
-
-def require_plan(current: str, required: str, feature: str):
-    if not plan_at_least(current, required):
-        raise HTTPException(
-            status_code=403,
-            detail={
-                "error": "upgrade_required",
-                "feature": feature,
-                "required_plan": required,
-                "current_plan": (current or DEFAULT_PLAN).lower(),
-            },
-        )
 
 
 # -------------------- SUPABASE REST HELPERS --------------------
@@ -896,8 +875,6 @@ async def analyze(
     # Read usage (no decrement yet) + enforce Elite+ for barcode
     usage_row = get_or_init_usage(uid)
     usage_row = normalize_resets(usage_row)
-    require_plan(usage_row, "elite", feature="barcode")
-
     # consume scan (so cache hits count)
     usage_row = consume_one_scan(uid)
 
