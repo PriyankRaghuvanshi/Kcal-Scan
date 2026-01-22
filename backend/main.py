@@ -59,81 +59,32 @@ PLAN_ORDER = ["free", "elite", "advanced", "pro", "infinite"]
 
 PLAN_RANK = {p: i for i, p in enumerate(PLAN_ORDER)}
 
-def plan_at_least(current: str, required: str) -> bool:
-    c = (current or DEFAULT_PLAN).lower()
-    r = (required or DEFAULT_PLAN).lower()
-    return PLAN_RANK.get(c, 0) >= PLAN_RANK.get(r, 0)
+# -------------------- PLAN HELPERS --------------------
+def plan_rank(plan: Any) -> int:
+    """Return numeric rank for a plan; accepts string or a usage-row dict."""
+    if isinstance(plan, dict):
+        plan = plan.get("plan")
+    p = str(plan or DEFAULT_PLAN).lower()
+    try:
+        return PLAN_ORDER.index(p)
+    except ValueError:
+        return PLAN_ORDER.index(DEFAULT_PLAN)
 
-def require_plan(usage_row: Dict[str, Any], required: str, feature: str):
-    plan = (usage_row.get("plan") or DEFAULT_PLAN).lower()
-    if not plan_at_least(plan, required):
+def plan_at_least(current: Any, required: str) -> bool:
+    return plan_rank(current) >= plan_rank(required)
+
+def require_plan(current: Any, required: str, feature: str = "feature") -> None:
+    """Raise 403 if current plan is below required."""
+    if not plan_at_least(current, required):
         raise HTTPException(
             status_code=403,
             detail={
-                "error": "Upgrade required",
+                "error": "Plan required",
                 "feature": feature,
                 "required_plan": required,
-                "current_plan": plan,
+                "current_plan": (current.get("plan") if isinstance(current, dict) else str(current or DEFAULT_PLAN)),
             },
         )
-
-
-# -------------------- MIDDLEWARE --------------------
-@app.middleware("http")
-async def log_requests(request: Request, call_next):
-    logger.info(f"INCOMING {request.method} {request.url.path}")
-    resp = await call_next(request)
-    logger.info(f"RESPONSE {request.method} {request.url.path} -> {resp.status_code}")
-    return resp
-
-
-# -------------------- BASIC ROUTES --------------------
-@app.get("/")
-def root():
-    return {"service": "kcal-scan", "version": "railway-v1"}
-
-@app.get("/health")
-def health():
-    return {"status": "ok", "version": "railway-v1"}
-
-@app.options("/analyze")
-def analyze_options():
-    return PlainTextResponse("ok", status_code=200)
-
-
-# -------------------- VALIDATION HELPERS --------------------
-def _require_usda_key():
-    if not USDA_API_KEY:
-        raise HTTPException(status_code=500, detail="USDA_API_KEY is not set on the server (Railway Variables).")
-
-def _require_gemini_key():
-    if not GEMINI_API_KEY:
-        raise HTTPException(status_code=500, detail="GEMINI_API_KEY is not set on the server (Railway Variables).")
-
-def _require_supabase():
-    if not SUPABASE_URL or not SUPABASE_SERVICE_ROLE_KEY:
-        raise HTTPException(status_code=500, detail="SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY not set on server.")
-
-def _safe_float(x, default=None):
-    try:
-        if x is None:
-            return default
-        return float(x)
-    except Exception:
-        return default
-
-def _today_date() -> dt.date:
-    return dt.datetime.utcnow().date()
-
-def _month_start(d: dt.date) -> dt.date:
-    return dt.date(d.year, d.month, 1)
-
-def _digits_only(s: str) -> str:
-    return "".join([c for c in (s or "").strip() if c.isdigit()])
-
-
-
-# -------------------- SUPABASE REST HELPERS --------------------
 def supabase_headers() -> Dict[str, str]:
     _require_supabase()
     return {
@@ -628,6 +579,12 @@ def barcode_lookup(
     require_plan(plan, "elite", feature="barcode")
 
     # consume scan first (so even cache hits count)
+    # Elite+ only feature: barcode scanning
+    pre = get_or_init_usage(uid)
+    pre = normalize_resets(pre)
+    require_plan(pre, "elite", feature="barcode")
+
+    # consume scan (only after plan check)
     usage_row = consume_one_scan(uid)
 
     barcode = _digits_only(code)
@@ -708,6 +665,12 @@ def barcode_manual(
     plan = get_user_plan(uid)
     require_plan(plan, "elite", feature="barcode")
 
+    # Elite+ only feature: barcode manual add
+    pre = get_or_init_usage(uid)
+    pre = normalize_resets(pre)
+    require_plan(pre, "elite", feature="barcode")
+
+    # consume scan (only after plan check)
     usage_row = consume_one_scan(uid)
 
     barcode = _digits_only(str(payload.get("barcode") or ""))
@@ -836,132 +799,103 @@ def compute_satiety_score(total_kcal: float, totals: Dict[str, float], total_gra
     return int(max(0, min(100, round(score))))
 
 def compute_coaching(payload: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Pro/Infinite coaching metrics derived from the meal.
+    Uses heuristics only (no medical claims).
+    """
     total_kcal = float(payload.get("total_kcal") or 0.0)
     totals = payload.get("totals") or {}
     items = payload.get("items") or []
 
+    protein_g = float(totals.get("protein_g") or 0.0)
+    carbs_g = float(totals.get("carbs_g") or 0.0)
+    fat_g = float(totals.get("fat_g") or 0.0)
+
     total_grams = 0.0
+    branded = 0
     for it in items:
         try:
             total_grams += float(it.get("grams") or 0.0)
         except Exception:
             pass
+        # USDA dataType heuristic for processing
+        try:
+            if (it.get("usda") or {}).get("dataType") == "Branded":
+                branded += 1
+        except Exception:
+            pass
 
-    protein_g = float(totals.get("protein_g") or 0.0)
+    # ---- Satiety score (0..100) ----
+    satiety_score = compute_satiety_score(total_kcal, totals, total_grams)
 
-    leucine_est_g = protein_g * 0.08  # ~8% leucine of high-quality proteins
-    bv = estimate_protein_bv(items)
-    bioavailable_protein_g = protein_g * (float(bv) / 100.0)
+    # ---- Protein bioavailability (BV-ish heuristic) ----
+    bv = estimate_protein_source_bv(items)  # {label, bv, bioavailable_protein_g}
+    # Normalize BV to 0..100 bar
+    bv_bar = max(0.0, min(100.0, float(bv.get("bv") or 0.0)))
 
-    satiety = compute_satiety_score(total_kcal, totals, total_grams)
+    # ---- Leucine & MPS trigger heuristic ----
+    leucine_g = estimate_leucine_g(protein_g)
+    leucine_threshold = 2.5
+    mps_triggered = leucine_g >= leucine_threshold
+
+    # ---- Glycemic load risk (very rough heuristic) ----
+    # Without fiber/ingredient data, approximate from carb load per meal.
+    if carbs_g <= 25:
+        gl_risk = {"level": "low", "reason": "Lower carb load for this meal."}
+    elif carbs_g <= 50:
+        gl_risk = {"level": "medium", "reason": "Moderate carb load; consider pairing with protein/fiber."}
+    else:
+        gl_risk = {"level": "high", "reason": "High carb load; spikes are more likely depending on food type."}
+
+    # ---- Ultra-processed / NOVA-style heuristic ----
+    # Uses branded share + obvious keywords.
+    up_keywords = [
+        "cola", "soda", "soft drink", "chips", "candy", "chocolate", "cookie", "biscuit",
+        "ice cream", "instant", "packaged", "processed", "whey", "protein powder", "mass gainer",
+        "energy drink", "syrup", "ketchup"
+    ]
+    hits = 0
+    for it in items:
+        name = str(it.get("name") or "").lower()
+        if any(k in name for k in up_keywords):
+            hits += 1
+
+    n_items = max(1, len(items))
+    branded_ratio = branded / n_items
+    keyword_ratio = hits / n_items
+
+    # score 0..100, higher = more processed
+    ultra_processed_score = int(max(0, min(100, round((0.65 * branded_ratio + 0.35 * keyword_ratio) * 100))))
+    if ultra_processed_score < 25:
+        nova_class = 1
+    elif ultra_processed_score < 50:
+        nova_class = 2
+    elif ultra_processed_score < 75:
+        nova_class = 3
+    else:
+        nova_class = 4
 
     return {
-        "satiety_score": satiety,
-        "protein_bv": bv,
-        "bioavailable_protein_g": round(bioavailable_protein_g, 1),
-        "leucine_est_g": round(leucine_est_g, 2),
-        "mps_threshold_g": LEUCINE_THRESHOLD_G,
-        "mps_triggered": bool(leucine_est_g >= LEUCINE_THRESHOLD_G),
-    }
-
-
-# -------------------- ANALYZE (PHOTO) --------------------
-@app.post("/analyze")
-async def analyze(
-    file: UploadFile = File(...),
-    user_id: Optional[str] = None,
-    x_user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
-):
-    uid = require_user_id(x_user_id, user_id)
-
-    # Read usage (no decrement yet) + enforce Elite+ for barcode
-    usage_row = get_or_init_usage(uid)
-    usage_row = normalize_resets(usage_row)
-
-    # consume scan (so cache hits count)
-    usage_row = consume_one_scan(uid)
-
-    contents = await file.read()
-    if not contents:
-        raise HTTPException(status_code=400, detail="Empty file")
-
-    try:
-        _ = Image.open(io.BytesIO(contents)).convert("RGB")
-    except Exception:
-        raise HTTPException(status_code=400, detail="Uploaded file is not a valid image")
-
-    detected_items = gemini_detect_foods(contents)
-    logger.info(f"Detected items: {detected_items}")
-
-    results = []
-    total_kcal = 0.0
-    total_p = total_c = total_f = 0.0
-
-    for d in detected_items:
-        name = d["name"]
-        grams = float(d["grams"])
-        conf = float(d.get("confidence", 0))
-
-        best = usda_search_best(name)
-        if not best:
-            raise HTTPException(status_code=404, detail=f"No USDA match for '{name}'")
-
-        fdc_id = int(best["fdcId"])
-        details = usda_food_details(fdc_id)
-        macros100 = extract_macros_per_100g(details)
-
-        factor = grams / 100.0
-        kcal = macros100["kcal_per_100g"] * factor
-        p = macros100["protein_g_per_100g"] * factor
-        c = macros100["carbs_g_per_100g"] * factor
-        f = macros100["fat_g_per_100g"] * factor
-
-        results.append({
-            "name": name,
-            "grams": round(grams, 1),
-            "confidence": round(conf, 2),
-            "kcal": round(kcal, 1),
-            "macros": {
-                "protein_g": round(p, 1),
-                "carbs_g": round(c, 1),
-                "fat_g": round(f, 1),
-            },
-            "usda": {
-                "fdcId": fdc_id,
-                "description": details.get("description"),
-                "dataType": details.get("dataType"),
-            }
-        })
-
-        total_kcal += kcal
-        total_p += p
-        total_c += c
-        total_f += f
-
-    # 🔒 coaching is pro+ (we don't block analyze; we just hide coaching fields)
-    plan = (usage_row.get("plan") or DEFAULT_PLAN).lower()
-    coaching_enabled = plan_at_least(plan, "pro")
-
-    response = {
-        "source": "photo",
-        "total_kcal": round(total_kcal, 1),
-        "totals": {
-            "protein_g": round(total_p, 1),
-            "carbs_g": round(total_c, 1),
-            "fat_g": round(total_f, 1),
+        "satiety": {
+            "score": int(satiety_score),
+            "bar_0_100": int(satiety_score),
         },
-        "items": results,
-        "usage": {
-            "plan": usage_row.get("plan"),
-            "remaining_day": int(usage_row.get("remaining_day") or 0),
-            "remaining_month": int(usage_row.get("remaining_month") or 0),
+        "protein_bioavailability": {
+            "label": bv.get("label"),
+            "bv": float(bv.get("bv") or 0.0),
+            "bar_0_100": float(bv_bar),
+            "bioavailable_protein_g": float(bv.get("bioavailable_protein_g") or 0.0),
+        },
+        "mps": {
+            "leucine_g_est": round(float(leucine_g), 2),
+            "threshold_g": leucine_threshold,
+            "triggered": bool(mps_triggered),
+            "message": "MPS triggered ✅" if mps_triggered else "Not yet ❌ (add more high-quality protein)",
+        },
+        "glycemic_load_risk": gl_risk,
+        "ultra_processed": {
+            "score_0_100": ultra_processed_score,
+            "nova_class": nova_class,
         },
     }
-
-    if not coaching_enabled:
-        # UI can use this to show "Upgrade to Pro"
-        response["locked"] = {"feature": "coaching", "required_plan": "pro"}
-
-    return response
-
 
