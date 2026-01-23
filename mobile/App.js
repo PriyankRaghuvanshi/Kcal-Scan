@@ -1,274 +1,453 @@
-// App.js
-import React, { useEffect, useMemo, useRef, useState } from "react";
+// mobile/App.js
+import React, { useEffect, useRef, useState } from "react";
 import {
+  View,
+  Text,
+  TouchableOpacity,
+  Image,
   Alert,
   ActivityIndicator,
-  Image,
-  Platform,
-  SafeAreaView,
-  ScrollView,
+  FlatList,
   StyleSheet,
-  Text,
+  ScrollView,
   TextInput,
-  TouchableOpacity,
-  View,
+  SafeAreaView,
+  KeyboardAvoidingView,
+  Platform,
+  Modal,
 } from "react-native";
 
+import { CameraView, useCameraPermissions } from "expo-camera";
+import * as FileSystem from "expo-file-system";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import * as ImagePicker from "expo-image-picker";
-
 import { createClient } from "@supabase/supabase-js";
+import "react-native-url-polyfill/auto";
 
-// -------------------- CONFIG --------------------
-const API_BASE = "https://kcal-scan-production.up.railway.app";
+// RevenueCat
+import Purchases from "react-native-purchases";
 
-// ✅ Put your Supabase project values here (same as before)
-const SUPABASE_URL = "YOUR_SUPABASE_URL";
-const SUPABASE_ANON_KEY = "YOUR_SUPABASE_ANON_KEY";
+// ===================== CONFIG =====================
+const API_BASE =
+  process.env.EXPO_PUBLIC_API_BASE?.trim() ||
+  "https://kcal-scan-production.up.railway.app";
 
-// Plans order must match backend
-const PLAN_ORDER = ["free", "elite", "advanced", "pro", "infinite"];
+const HISTORY_KEY = "kcal_scan_history_v3";
+const MAX_HISTORY = 50;
 
-// Feature gates
-const isPlanAtLeast = (current, required) => {
-  const c = (current || "free").toLowerCase();
-  const r = (required || "free").toLowerCase();
-  return PLAN_ORDER.indexOf(c) >= PLAN_ORDER.indexOf(r);
-};
+const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL || "";
+const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || "";
+const HAS_SUPABASE = Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
+const supabase = HAS_SUPABASE ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
 
-const FEATURES = {
-  barcode: "elite", // elite+
-  coaching: "pro",  // pro+ (satiety + protein BV + MPS)
-};
+// RevenueCat keys (env preferred)
+const RC_IOS_KEY =
+  process.env.EXPO_PUBLIC_RC_IOS_KEY || "appl_SoteCFCeVzvTTQWIpwbClzFnBdq";
+const RC_ANDROID_KEY =
+  process.env.EXPO_PUBLIC_RC_ANDROID_KEY || "goog_XXXXXXXXXXXXXXXX";
 
-// -------------------- UI HELPERS --------------------
-function Pill({ children }) {
+// Offering + entitlements
+const OFFERING_ID = process.env.EXPO_PUBLIC_RC_OFFERING || "main";
+const ENTITLEMENTS = (process.env.EXPO_PUBLIC_RC_ENTITLEMENTS || "elite,advanced,pro,infinite")
+  .split(",")
+  .map((x) => x.trim())
+  .filter(Boolean);
+
+const BARCODE_COOLDOWN_MS = 1800;
+
+// ===================== HELPERS =====================
+function num(x) {
+  const n = Number(x);
+  return Number.isFinite(n) ? n : 0;
+}
+function round1(x) {
+  const n = Number(x);
+  return Number.isFinite(n) ? Math.round(n * 10) / 10 : 0;
+}
+function nowISO() {
+  return new Date().toISOString();
+}
+
+function backendHeaders(userId, extra = {}) {
+  if (!userId) return { ...extra };
+  return {
+    "X-User-Id": userId,
+    "x-user-id": userId,
+    ...extra,
+  };
+}
+
+function pickMacros(obj) {
+  if (!obj) return { protein_g: 0, carbs_g: 0, fat_g: 0 };
+  const protein =
+    obj.protein_g ?? obj.protein ?? obj.p ?? obj.proteinG ?? obj.protein_gm ?? 0;
+  const carbs =
+    obj.carbs_g ?? obj.carbs ?? obj.c ?? obj.carbsG ?? obj.carbs_gm ?? 0;
+  const fat = obj.fat_g ?? obj.fat ?? obj.f ?? obj.fatG ?? obj.fat_gm ?? 0;
+  return { protein_g: num(protein), carbs_g: num(carbs), fat_g: num(fat) };
+}
+
+function normalizeAnalyzeResponse(json) {
+  const total_kcal = num(json?.total_kcal ?? json?.totalKcal ?? 0);
+
+  const totalsCandidate = json?.totals ?? json?.macros ?? json?.total_macros ?? null;
+  let totals = pickMacros(totalsCandidate);
+
+  const rawItems = Array.isArray(json?.items)
+    ? json.items
+    : Array.isArray(json?.foods)
+      ? json.foods
+      : [];
+
+  const items = rawItems.map((it) => {
+    const kcal = num(it?.kcal ?? it?.calories ?? 0);
+    const grams = num(it?.grams ?? it?.g ?? it?.weight_g ?? 0);
+    const macros = pickMacros(it?.macros ?? it);
+    return {
+      ...it,
+      name: it?.name ?? it?.label ?? it?.food ?? "item",
+      kcal,
+      grams,
+      macros,
+      confidence: it?.confidence ?? it?.conf ?? it?.score,
+    };
+  });
+
+  if (
+    totals.protein_g === 0 &&
+    totals.carbs_g === 0 &&
+    totals.fat_g === 0 &&
+    items.length > 0
+  ) {
+    totals = items.reduce(
+      (acc, it) => ({
+        protein_g: acc.protein_g + num(it?.macros?.protein_g),
+        carbs_g: acc.carbs_g + num(it?.macros?.carbs_g),
+        fat_g: acc.fat_g + num(it?.macros?.fat_g),
+      }),
+      { protein_g: 0, carbs_g: 0, fat_g: 0 }
+    );
+  }
+
+  const computedKcal =
+    total_kcal && total_kcal > 0 ? total_kcal : items.reduce((s, it) => s + num(it.kcal), 0);
+
+  return { ...json, total_kcal: computedKcal, totals, items };
+}
+
+function normalizeBarcodeResponse(json) {
+  const per = json?.per_100g || {};
+  const name = json?.name || "Unknown product";
+  const brand = json?.brand || null;
+
+  const item = {
+    name: brand ? `${name} (${brand})` : name,
+    grams: 100,
+    confidence: 1,
+    kcal: num(per.kcal),
+    macros: {
+      protein_g: num(per.protein_g),
+      carbs_g: num(per.carbs_g),
+      fat_g: num(per.fat_g),
+    },
+    barcode: json?.barcode,
+    source_db: json?.source_db,
+  };
+
+  return {
+    source: "barcode",
+    barcode: json?.barcode,
+    total_kcal: num(per.kcal),
+    totals: {
+      protein_g: num(per.protein_g),
+      carbs_g: num(per.carbs_g),
+      fat_g: num(per.fat_g),
+    },
+    items: [item],
+  };
+}
+
+function getActiveEntitlement(customerInfo) {
+  const active = customerInfo?.entitlements?.active || {};
+  for (const k of ENTITLEMENTS) {
+    if (active[k]) return k;
+  }
+  return "free";
+}
+
+function formatPrice(pkg) {
+  try {
+    return pkg?.product?.priceString || "";
+  } catch {
+    return "";
+  }
+}
+
+function pkgTitle(pkg) {
+  const id = (pkg?.identifier || pkg?.product?.identifier || "").toLowerCase();
+
+  // If you encoded entitlement in the product/package identifier, show it nicely
+  for (const ent of ENTITLEMENTS) {
+    if (id.includes(ent.toLowerCase())) return ent.toUpperCase();
+  }
+
+  // Otherwise, fall back to the Store title (this is what usually contains "Elite", "Advanced", etc.)
   return (
-    <View style={styles.pill}>
-      <Text style={styles.pillText}>{children}</Text>
-    </View>
+    pkg?.product?.title ||
+    pkg?.product?.description ||
+    pkg?.identifier ||
+    "Plan"
   );
 }
 
-function PrimaryButton({ title, onPress, disabled }) {
-  return (
-    <TouchableOpacity
-      onPress={onPress}
-      disabled={disabled}
-      style={[styles.primaryBtn, disabled && { opacity: 0.5 }]}
-    >
-      <Text style={styles.primaryBtnText}>{title}</Text>
-    </TouchableOpacity>
-  );
+function planRankFromPkg(pkg) {
+  const t = pkgTitle(pkg).toLowerCase();
+  if (t.includes("infinite")) return 4;
+  if (t.includes("pro")) return 3;
+  if (t.includes("advanced")) return 2;
+  if (t.includes("elite")) return 1;
+  return 0;
 }
 
-function SecondaryButton({ title, onPress, disabled }) {
-  return (
-    <TouchableOpacity
-      onPress={onPress}
-      disabled={disabled}
-      style={[styles.secondaryBtn, disabled && { opacity: 0.5 }]}
-    >
-      <Text style={styles.secondaryBtnText}>{title}</Text>
-    </TouchableOpacity>
-  );
+function isElitePlus(plan) {
+  const p = (plan || "free").toLowerCase();
+  return p === "elite" || p === "advanced" || p === "pro" || p === "infinite";
 }
 
-function ProgressBar({ label, value, max = 100, rightText }) {
-  const pct = Math.max(0, Math.min(1, (value || 0) / max));
-  return (
-    <View style={{ marginTop: 12 }}>
-      <View style={styles.rowBetween}>
-        <Text style={styles.sectionTitle}>{label}</Text>
-        <Text style={styles.muted}>{rightText ?? `${Math.round(value || 0)}/${max}`}</Text>
-      </View>
-      <View style={styles.barTrack}>
-        <View style={[styles.barFill, { width: `${pct * 100}%` }]} />
-      </View>
-    </View>
-  );
+function isProPlus(plan) {
+  const p = (plan || "free").toLowerCase();
+  return p === "pro" || p === "infinite";
 }
 
-// -------------------- LOGIN SCREEN --------------------
-function LoginScreen({
-  email,
-  setEmail,
-  password,
-  setPassword,
-  onLogin,
-  onSignup,
-  loading,
-}) {
-  return (
-    <SafeAreaView style={styles.safe}>
-      <View style={styles.loginWrap}>
-        <Text style={styles.brandTitle}>CalorieClick.ai</Text>
-        <Text style={styles.muted}>Login to sync plan + usage</Text>
-
-        <View style={{ height: 18 }} />
-
-        <Text style={styles.inputLabel}>Email</Text>
-        <TextInput
-          value={email}
-          onChangeText={setEmail}
-          placeholder="you@email.com"
-          placeholderTextColor="#666"
-          autoCapitalize="none"
-          keyboardType="email-address"
-          style={styles.input}
-        />
-
-        <Text style={styles.inputLabel}>Password</Text>
-        <TextInput
-          value={password}
-          onChangeText={setPassword}
-          placeholder="••••••••"
-          placeholderTextColor="#666"
-          secureTextEntry
-          style={styles.input}
-        />
-
-        <View style={{ height: 14 }} />
-
-        <PrimaryButton title={loading ? "Logging in..." : "Login"} onPress={onLogin} disabled={loading} />
-        <View style={{ height: 10 }} />
-        <SecondaryButton title={loading ? "Creating..." : "Create account"} onPress={onSignup} disabled={loading} />
-
-        <View style={{ height: 22 }} />
-        <Text style={styles.mutedSmall}>
-          Tip: if you were logged in earlier, tap <Text style={{ color: "#9bbcff" }}>Logout</Text> or{" "}
-          <Text style={{ color: "#9bbcff" }}>Switch account</Text> to see this screen again.
-        </Text>
-      </View>
-    </SafeAreaView>
-  );
+function planSubtitleFromTitle(title) {
+  const t = (title || "").toLowerCase();
+  if (t.includes("elite")) return "Barcode scans + more scans";
+  if (t.includes("advanced")) return "More scans + barcode";
+  if (t.includes("pro")) return "Coaching insights + Satiety/BV + Muscle score";
+  if (t.includes("infinite")) return "Everything + massive scan limits";
+  return "Upgrade to unlock features";
 }
 
-// -------------------- APP --------------------
+// ===================== APP =====================
 export default function App() {
-  const supabase = useMemo(() => {
-    if (!SUPABASE_URL || !SUPABASE_ANON_KEY || SUPABASE_URL.includes("YOUR_")) return null;
+  const cameraRef = useRef(null);
+  const [permission, requestPermission] = useCameraPermissions();
 
-    // Persist auth in AsyncStorage (required on Expo)
-    return createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-      auth: {
-        storage: AsyncStorage,
-        persistSession: true,
-        autoRefreshToken: true,
-        detectSessionInUrl: false,
-      },
-    });
-  }, []);
-
-  const [session, setSession] = useState(null);
+  // Supabase Auth
   const [authLoading, setAuthLoading] = useState(true);
-
-  // Force-show login screen even if session exists (Switch account)
-  const [forceLogin, setForceLogin] = useState(false);
-
-  // Auth form
+  const [session, setSession] = useState(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
   // App state
-  const [usage, setUsage] = useState(null);
-  const [loadingUsage, setLoadingUsage] = useState(false);
-  const [mode, setMode] = useState("photo"); // "photo" | "barcode"
   const [photoUri, setPhotoUri] = useState(null);
-  const [barcode, setBarcode] = useState("");
-  const [result, setResult] = useState(null);
-  const [busy, setBusy] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [serverOk, setServerOk] = useState(false);
 
-  // history
+  const [result, setResult] = useState(null);
   const [history, setHistory] = useState([]);
+  const [selected, setSelected] = useState(null);
+
+  // Mode
+  const [mode, setMode] = useState("photo"); // "photo" | "barcode"
+  const lastBarcodeRef = useRef({ code: null, t: 0 });
+  const barcodeBusyRef = useRef(false);
+
+  // Usage
+  const [usage, setUsage] = useState(null);
+
+  // RevenueCat paywall
+  const [paywallOpen, setPaywallOpen] = useState(false);
+  const [rcLoading, setRcLoading] = useState(false);
+  const [offering, setOffering] = useState(null);
+  const [customerInfo, setCustomerInfo] = useState(null);
+  const [activePlan, setActivePlan] = useState("free");
 
   const userId = session?.user?.id || null;
-  const plan = (usage?.plan || "free").toLowerCase();
 
-  const canBarcode = isPlanAtLeast(plan, FEATURES.barcode);
-  const canCoaching = isPlanAtLeast(plan, FEATURES.coaching);
-
-  // -------------------- AUTH INIT --------------------
+  // ===================== INIT =====================
   useEffect(() => {
-    let sub;
-    async function init() {
+    (async () => {
       try {
-        if (!supabase) {
-          setAuthLoading(false);
-          return;
-        }
-        const { data } = await supabase.auth.getSession();
-        setSession(data?.session || null);
+        const raw = await AsyncStorage.getItem(HISTORY_KEY);
+        const arr = raw ? JSON.parse(raw) : [];
+        if (Array.isArray(arr)) setHistory(arr);
+      } catch {}
+    })();
+  }, []);
 
-        sub = supabase.auth.onAuthStateChange((_event, sess) => {
-          setSession(sess);
-        }).data.subscription;
-      } catch (e) {
-        setSession(null);
-      } finally {
-        setAuthLoading(false);
-      }
+  useEffect(() => {
+    if (!HAS_SUPABASE) {
+      setAuthLoading(false);
+      return;
     }
-    init();
+
+    supabase.auth.getSession().then(({ data }) => {
+      setSession(data?.session || null);
+      setAuthLoading(false);
+    });
+
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, s) => {
+      setSession(s);
+      setAuthLoading(false);
+    });
 
     return () => {
-      if (sub) sub.unsubscribe();
+      listener?.subscription?.unsubscribe?.();
     };
-  }, [supabase]);
+  }, []);
 
-  // -------------------- USAGE --------------------
+  // Health check
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch(`${API_BASE}/health`);
+        setServerOk(res.ok);
+      } catch {
+        setServerOk(false);
+      }
+    })();
+  }, []);
+
+  // Setup camera permission
+  useEffect(() => {
+    if (!permission?.granted) requestPermission();
+  }, [permission]);
+
+  // ===================== REVENUECAT SETUP =====================
+  useEffect(() => {
+    if (!userId) return;
+
+    (async () => {
+      try {
+        const apiKey = Platform.OS === "ios" ? RC_IOS_KEY : RC_ANDROID_KEY;
+
+        Purchases.setLogLevel(Purchases.LOG_LEVEL.INFO);
+        await Purchases.configure({ apiKey, appUserID: userId });
+
+        const info = await Purchases.getCustomerInfo();
+        setCustomerInfo(info);
+        setActivePlan(getActiveEntitlement(info));
+
+        // preload offerings
+        const offerings = await Purchases.getOfferings();
+        const off = offerings?.current || offerings?.all?.[OFFERING_ID];
+        setOffering(off || null);
+      } catch (e) {
+        console.log("RevenueCat init error:", e?.message || e);
+      }
+    })();
+  }, [userId]);
+
+  // ===================== BACKEND USAGE =====================
   async function fetchUsage() {
     if (!userId) return;
     try {
-      setLoadingUsage(true);
-      const r = await fetch(`${API_BASE}/usage?user_id=${encodeURIComponent(userId)}`, {
-        method: "GET",
-        headers: { accept: "application/json" },
+      const res = await fetch(`${API_BASE}/usage`, {
+        headers: backendHeaders(userId),
       });
-      const data = await r.json();
-      setUsage(data);
+      if (!res.ok) {
+        const t = await res.text();
+        throw new Error(t);
+      }
+      const json = await res.json();
+      setUsage(json);
     } catch (e) {
-      console.log("usage err", e);
-    } finally {
-      setLoadingUsage(false);
+      console.log("usage fetch error:", e?.message || e);
     }
   }
 
+  // pull usage on login + after purchase
   useEffect(() => {
     if (userId) fetchUsage();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId]);
 
-  // -------------------- AUTH ACTIONS --------------------
-  async function signIn() {
-    if (!supabase) {
-      Alert.alert("Missing Supabase config", "Please set SUPABASE_URL and SUPABASE_ANON_KEY in App.js");
-      return;
-    }
-    if (!email || !password) return Alert.alert("Missing", "Enter email and password");
+  // ===================== PLAN SYNC =====================
+  async function syncPlanToBackend(entitlement) {
+    if (!userId) return;
     try {
-      setAuthLoading(true);
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) throw error;
-      setForceLogin(false);
+      const res = await fetch(`${API_BASE}/plan/sync?user_id=${encodeURIComponent(userId)}`, {
+        method: "POST",
+        headers: backendHeaders(userId, { "Content-Type": "application/json" }),
+        body: JSON.stringify({ entitlement }),
+      });
+      const json = await res.json();
+      console.log("plan/sync:", json);
+      await fetchUsage();
     } catch (e) {
-      Alert.alert("Login failed", e?.message || String(e));
-    } finally {
-      setAuthLoading(false);
+      console.log("plan/sync error:", e?.message || e);
     }
   }
 
-  async function signUp() {
-    if (!supabase) {
-      Alert.alert("Missing Supabase config", "Please set SUPABASE_URL and SUPABASE_ANON_KEY in App.js");
-      return;
+  // ===================== PURCHASE / RESTORE =====================
+  async function openPaywall() {
+    setPaywallOpen(true);
+    setRcLoading(true);
+    try {
+      const offerings = await Purchases.getOfferings();
+      const off = offerings?.current || offerings?.all?.[OFFERING_ID];
+      setOffering(off || null);
+
+      const info = await Purchases.getCustomerInfo();
+      setCustomerInfo(info);
+      setActivePlan(getActiveEntitlement(info));
+    } catch (e) {
+      console.log("open paywall error:", e?.message || e);
+    } finally {
+      setRcLoading(false);
     }
-    if (!email || !password) return Alert.alert("Missing", "Enter email and password");
+  }
+
+  async function buyPackage(pkg) {
+    if (!pkg) return;
+    setRcLoading(true);
+    try {
+      const { customerInfo } = await Purchases.purchasePackage(pkg);
+      setCustomerInfo(customerInfo);
+      const plan = getActiveEntitlement(customerInfo);
+      setActivePlan(plan);
+
+      // 🔥 sync to backend
+      await syncPlanToBackend(plan);
+
+      Alert.alert("✅ Purchase successful", `Plan activated: ${plan}`);
+      setPaywallOpen(false);
+    } catch (e) {
+      const msg = e?.message || String(e);
+      if (msg.toLowerCase().includes("cancel")) return;
+      Alert.alert("Purchase failed", msg);
+    } finally {
+      setRcLoading(false);
+    }
+  }
+
+  async function restorePurchases() {
+    setRcLoading(true);
+    try {
+      const info = await Purchases.restorePurchases();
+      setCustomerInfo(info);
+      const plan = getActiveEntitlement(info);
+      setActivePlan(plan);
+
+      // 🔥 sync to backend
+      await syncPlanToBackend(plan);
+
+      Alert.alert("✅ Restored", `Active plan: ${plan}`);
+      setPaywallOpen(false);
+    } catch (e) {
+      Alert.alert("Restore failed", e?.message || String(e));
+    } finally {
+      setRcLoading(false);
+    }
+  }
+
+  // ===================== SUPABASE AUTH UI =====================
+  async function signUp() {
+    if (!supabase) return;
     try {
       setAuthLoading(true);
       const { error } = await supabase.auth.signUp({ email, password });
       if (error) throw error;
-      Alert.alert("Account created", "Now login (or check email if confirmations enabled).");
+      Alert.alert("✅ Signup success", "Now login.");
     } catch (e) {
       Alert.alert("Signup failed", e?.message || String(e));
     } finally {
@@ -276,72 +455,61 @@ export default function App() {
     }
   }
 
-  async function signOut() {
+  async function signIn() {
+    if (!supabase) return;
     try {
-      if (supabase) await supabase.auth.signOut();
-    } catch {}
+      setAuthLoading(true);
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) throw error;
+    } catch (e) {
+      Alert.alert("Login failed", e?.message || String(e));
+    } finally {
+      setAuthLoading(false);
+    }
+  }
+
+  async function signOut() {
+    if (!supabase) return;
+    await supabase.auth.signOut();
     setSession(null);
     setUsage(null);
     setResult(null);
     setPhotoUri(null);
-    setBarcode("");
-    setForceLogin(true); // show login after logout
   }
 
-  // -------------------- IMAGE PICK / CAMERA --------------------
-  async function ensureMediaPerm() {
-    if (Platform.OS === "web") return true;
-    const { status } = await ImagePicker.requestCameraPermissionsAsync();
-    if (status !== "granted") {
-      Alert.alert("Permission needed", "Camera permission is required.");
-      return false;
-    }
-    return true;
-  }
-
-  async function takePhoto() {
-    const ok = await ensureMediaPerm();
-    if (!ok) return;
-
-    const res = await ImagePicker.launchCameraAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      quality: 0.8,
-    });
-
-    if (!res.canceled && res.assets?.[0]?.uri) {
-      setPhotoUri(res.assets[0].uri);
-      setResult(null);
-    }
-  }
-
-  async function pickImage() {
-    const res = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      quality: 0.8,
-    });
-    if (!res.canceled && res.assets?.[0]?.uri) {
-      setPhotoUri(res.assets[0].uri);
-      setResult(null);
-    }
-  }
-
-  function clearCurrent() {
+  async function clearCurrent() {
     setResult(null);
     setPhotoUri(null);
-    setBarcode("");
+    setSelected(null);
   }
 
-  function clearHistory() {
+  async function clearHistoryAll() {
+    try {
+      await AsyncStorage.removeItem(HISTORY_KEY);
+    } catch {}
     setHistory([]);
   }
 
-  // -------------------- API CALLS --------------------
+  // ===================== SCAN FUNCTIONS =====================
+  async function takePhoto() {
+    try {
+      if (!cameraRef.current) return;
+      setLoading(true);
+      const photo = await cameraRef.current.takePictureAsync({ quality: 0.7 });
+      setPhotoUri(photo?.uri || null);
+      setResult(null);
+    } catch (e) {
+      Alert.alert("Camera error", e?.message || String(e));
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function analyzePhoto() {
-    if (!photoUri) return Alert.alert("Missing photo", "Take or pick a photo first.");
+    if (!photoUri || !userId) return;
+    setLoading(true);
 
     try {
-      setBusy(true);
-
       const form = new FormData();
       form.append("file", {
         uri: photoUri,
@@ -349,480 +517,616 @@ export default function App() {
         type: "image/jpeg",
       });
 
-      const r = await fetch(`${API_BASE}/analyze?user_id=${encodeURIComponent(userId)}`, {
+      const res = await fetch(`${API_BASE}/analyze`, {
         method: "POST",
-        headers: { accept: "application/json" },
+        headers: backendHeaders(userId), // DO NOT set content-type for multipart
         body: form,
       });
 
-      const data = await r.json();
+      const json = await res.json();
+      if (!res.ok) {
+        throw new Error(json?.detail ? JSON.stringify(json.detail) : JSON.stringify(json));
+      }
 
-      // API might return locked payload (for coaching)
-      setResult(data);
-      if (data?.usage) setUsage((u) => ({ ...(u || {}), ...data.usage }));
+      const normalized = normalizeAnalyzeResponse(json);
+      setResult(normalized);
 
-      setHistory((h) => [
-        { ts: Date.now(), total_kcal: data?.total_kcal, plan: data?.usage?.plan },
-        ...h,
-      ]);
+      const entry = {
+        id: nowISO(),
+        ts: nowISO(),
+        mode: "photo",
+        total_kcal: normalized.total_kcal,
+        totals: normalized.totals,
+        items: normalized.items,
+      };
+
+      const newHist = [entry, ...history].slice(0, MAX_HISTORY);
+      setHistory(newHist);
+      await AsyncStorage.setItem(HISTORY_KEY, JSON.stringify(newHist));
+
+      await fetchUsage();
     } catch (e) {
       Alert.alert("Analyze failed", e?.message || String(e));
     } finally {
-      setBusy(false);
+      setLoading(false);
     }
   }
 
-  async function lookupBarcode() {
-    if (!barcode?.trim()) return Alert.alert("Missing barcode", "Enter a barcode first.");
+  async function barcodeLookup(code) {
+    if (!code || !userId) return;
 
-    if (!canBarcode) {
-      Alert.alert("Upgrade required", "Barcode scanning requires Elite or higher.");
+    if (!isElitePlus(activePlan)) {
+      Alert.alert("🔒 Elite+ feature", "Barcode scanning requires Elite or higher.");
       return;
     }
 
+    const now = Date.now();
+    const last = lastBarcodeRef.current;
+    if (last.code === code && now - last.t < BARCODE_COOLDOWN_MS) return;
+
+    if (barcodeBusyRef.current) return;
+    barcodeBusyRef.current = true;
+    lastBarcodeRef.current = { code, t: now };
+
     try {
-      setBusy(true);
-      const r = await fetch(`${API_BASE}/barcode/${encodeURIComponent(barcode.trim())}?user_id=${encodeURIComponent(userId)}`, {
-        method: "GET",
-        headers: { accept: "application/json" },
+      setLoading(true);
+      const res = await fetch(`${API_BASE}/barcode/${encodeURIComponent(code)}`, {
+        headers: backendHeaders(userId),
       });
-      const data = await r.json();
-      setResult(data);
-      if (data?.usage) setUsage((u) => ({ ...(u || {}), ...data.usage }));
-      setHistory((h) => [{ ts: Date.now(), total_kcal: null, plan: data?.usage?.plan, barcode: barcode.trim() }, ...h]);
+      const json = await res.json();
+      if (!res.ok) {
+        throw new Error(json?.detail ? JSON.stringify(json.detail) : JSON.stringify(json));
+      }
+
+      const normalized = normalizeBarcodeResponse(json);
+      setResult(normalized);
+
+      const entry = {
+        id: nowISO(),
+        ts: nowISO(),
+        mode: "barcode",
+        barcode: normalized.barcode,
+        total_kcal: normalized.total_kcal,
+        totals: normalized.totals,
+        items: normalized.items,
+      };
+
+      const newHist = [entry, ...history].slice(0, MAX_HISTORY);
+      setHistory(newHist);
+      await AsyncStorage.setItem(HISTORY_KEY, JSON.stringify(newHist));
+
+      await fetchUsage();
     } catch (e) {
       Alert.alert("Barcode failed", e?.message || String(e));
     } finally {
-      setBusy(false);
+      setLoading(false);
+      barcodeBusyRef.current = false;
     }
   }
 
-  // -------------------- DERIVED: coaching metrics --------------------
-  function computeCoachingFromResult(res) {
-    // Backend sends these (when pro+) as:
-    // res.coaching = { satiety_score, protein_bv_score, bioavailable_protein_g, bv, leucine_g, leucine_threshold_g, mps_hit, glycemic_risk, nova_score }
-    const c = res?.coaching || null;
-    if (!c) return null;
-    return c;
-  }
-
-  const coaching = computeCoachingFromResult(result);
-
-  // -------------------- RENDER CHOICE: LOGIN vs APP --------------------
+  // ===================== UI =====================
   if (authLoading) {
     return (
-      <SafeAreaView style={styles.safeCenter}>
-        <ActivityIndicator />
-        <Text style={styles.muted}>(loading)</Text>
+      <SafeAreaView style={styles.center}>
+        <ActivityIndicator size="large" />
+        <Text style={{ marginTop: 10 }}>Loading…</Text>
       </SafeAreaView>
     );
   }
 
-  // No supabase configured -> show a warning but still allow app (optional).
-  if (!supabase) {
+  if (!HAS_SUPABASE) {
     return (
-      <SafeAreaView style={styles.safe}>
-        <View style={styles.loginWrap}>
-          <Text style={styles.brandTitle}>CalorieClick.ai</Text>
-          <Text style={styles.muted}>
-            Supabase login is not configured in this App.js. Add SUPABASE_URL and SUPABASE_ANON_KEY.
-          </Text>
-          <View style={{ height: 12 }} />
-          <Text style={styles.mutedSmall}>
-            After that, you’ll get the login screen + proper user_id syncing to backend usage.
-          </Text>
-        </View>
+      <SafeAreaView style={styles.center}>
+        <Text style={styles.h1}>CalorieClick.ai</Text>
+        <Text style={styles.sub}>
+          Supabase env missing. Please set EXPO_PUBLIC_SUPABASE_URL & EXPO_PUBLIC_SUPABASE_ANON_KEY.
+        </Text>
       </SafeAreaView>
     );
   }
 
-  if (!session || forceLogin) {
+  // AUTH SCREEN
+  if (!session?.user) {
     return (
-      <LoginScreen
-        email={email}
-        setEmail={setEmail}
-        password={password}
-        setPassword={setPassword}
-        onLogin={signIn}
-        onSignup={signUp}
-        loading={authLoading}
-      />
-    );
-  }
+      <SafeAreaView style={styles.container}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          style={{ flex: 1 }}
+        >
+          <View style={styles.card}>
+            <Text style={styles.h1}>CalorieClick.ai</Text>
+            <Text style={styles.sub}>Login or Signup</Text>
 
-  // -------------------- MAIN APP UI --------------------
-  return (
-    <SafeAreaView style={styles.safe}>
-      <ScrollView contentContainerStyle={styles.container}>
-        {/* Header */}
-        <View style={styles.headerRow}>
-          <View>
-            <Text style={styles.brandTitle}>CalorieClick.ai</Text>
-            <Text style={styles.muted}>
-              Plan: <Text style={styles.bold}>{plan}</Text> · Remaining:{" "}
-              <Text style={styles.bold}>
-                {usage?.remaining_month ?? "—"}
-              </Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Email"
+              autoCapitalize="none"
+              value={email}
+              onChangeText={setEmail}
+            />
+            <TextInput
+              style={styles.input}
+              placeholder="Password"
+              secureTextEntry
+              value={password}
+              onChangeText={setPassword}
+            />
+
+            <TouchableOpacity style={styles.btn} onPress={signIn}>
+              <Text style={styles.btnText}>Login</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={[styles.btn, styles.btnSecondary]} onPress={signUp}>
+              <Text style={styles.btnText}>Signup</Text>
+            </TouchableOpacity>
+
+            <Text style={styles.small}>
+              Backend: {API_BASE} {"\n"}
+              Status: {serverOk ? "✅ OK" : "❌ Down"}
             </Text>
           </View>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
+    );
+  }
 
-          <View style={{ flexDirection: "row", gap: 10 }}>
-            <TouchableOpacity style={styles.headerBtn} onPress={() => Alert.alert("Upgrade", "Hook this to RevenueCat paywall")}>
-              <Text style={styles.headerBtnText}>Upgrade</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.headerBtn} onPress={signOut}>
-              <Text style={styles.headerBtnText}>Logout</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.headerBtnAlt} onPress={() => setForceLogin(true)}>
-              <Text style={styles.headerBtnText}>Switch</Text>
-            </TouchableOpacity>
-          </View>
+  // MAIN APP
+  return (
+    <SafeAreaView style={styles.container}>
+      <View style={styles.topBar}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.h1}>CalorieClick.ai</Text>
+          <Text style={styles.small}>
+            Plan: <Text style={{ fontWeight: "800" }}>{activePlan}</Text>
+            {"  •  "}
+            Remaining:{" "}
+            <Text style={{ fontWeight: "800" }}>
+              {usage?.remaining_month ?? "-"}
+            </Text>
+          </Text>
         </View>
 
-        {/* Mode Tabs */}
-        <View style={styles.tabs}>
-          <TouchableOpacity
-            style={[styles.tab, mode === "photo" && styles.tabActive]}
-            onPress={() => {
-              setMode("photo");
-              setResult(null);
-            }}
-          >
-            <Text style={[styles.tabText, mode === "photo" && styles.tabTextActive]}>Photo</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.tab, mode === "barcode" && styles.tabActive]}
-            onPress={() => {
-              setMode("barcode");
-              setResult(null);
-            }}
-          >
-            <Text style={[styles.tabText, mode === "barcode" && styles.tabTextActive]}>Barcode</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Controls */}
-        {mode === "photo" ? (
-          <View style={styles.actionsRow}>
-            <PrimaryButton title="Take Photo" onPress={takePhoto} disabled={busy} />
-            <PrimaryButton title="Analyze" onPress={analyzePhoto} disabled={busy || !photoUri} />
-          </View>
-        ) : (
-          <View style={styles.barcodeRow}>
-            <TextInput
-              value={barcode}
-              onChangeText={setBarcode}
-              placeholder="Enter barcode"
-              placeholderTextColor="#666"
-              style={styles.input}
-            />
-            <PrimaryButton title={canBarcode ? "Lookup" : "Elite+"} onPress={lookupBarcode} disabled={busy || !canBarcode} />
-          </View>
-        )}
-
-        <TouchableOpacity style={styles.clearBtn} onPress={clearCurrent}>
-          <Text style={styles.clearBtnText}>Clear (Next Scan)</Text>
+        <TouchableOpacity style={styles.smallBtn} onPress={openPaywall}>
+          <Text style={styles.smallBtnText}>Upgrade</Text>
         </TouchableOpacity>
 
-        {/* Preview image */}
-        {!!photoUri && (
-          <View style={styles.previewWrap}>
-            <Image source={{ uri: photoUri }} style={styles.previewImg} />
+        <TouchableOpacity style={[styles.smallBtn, { marginLeft: 8 }]} onPress={signOut}>
+          <Text style={styles.smallBtnText}>Logout</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Mode Switch */}
+      <View style={styles.modeRow}>
+        <TouchableOpacity
+          style={[styles.modeBtn, mode === "photo" && styles.modeBtnActive]}
+          onPress={() => setMode("photo")}
+        >
+          <Text style={[styles.modeText, mode === "photo" && styles.modeTextActive]}>
+            Photo
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.modeBtn, mode === "barcode" && styles.modeBtnActive]}
+          onPress={() => setMode("barcode")}
+        >
+          <Text style={[styles.modeText, mode === "barcode" && styles.modeTextActive]}>
+            Barcode
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Camera */}
+      <View style={styles.cameraWrap}>
+        {permission?.granted ? (
+          <CameraView
+            ref={cameraRef}
+            style={styles.camera}
+            facing="back"
+            barcodeScannerSettings={
+              mode === "barcode"
+                ? { barcodeTypes: ["ean13", "ean8", "upc_a", "upc_e"] }
+                : undefined
+            }
+            onBarcodeScanned={
+              mode === "barcode"
+                ? (e) => barcodeLookup(e?.data)
+                : undefined
+            }
+          />
+        ) : (
+          <View style={styles.center}>
+            <Text>Camera permission required</Text>
+            <TouchableOpacity style={styles.btn} onPress={requestPermission}>
+              <Text style={styles.btnText}>Grant permission</Text>
+            </TouchableOpacity>
           </View>
         )}
+      </View>
 
-        {/* Usage row */}
-        <View style={styles.usageRow}>
-          <Pill>{loadingUsage ? "Loading usage..." : `Day: ${usage?.remaining_day ?? "—"} | Month: ${usage?.remaining_month ?? "—"}`}</Pill>
-          <TouchableOpacity onPress={fetchUsage} style={styles.refreshBtn}>
-            <Text style={styles.refreshText}>Refresh</Text>
-          </TouchableOpacity>
+      {/* Actions */}
+      <View style={styles.actionsRow}>
+        {mode === "photo" ? (
+          <>
+            <TouchableOpacity style={styles.btnBig} onPress={takePhoto} disabled={loading}>
+              <Text style={styles.btnText}>{loading ? "..." : "Take Photo"}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.btnBig, !photoUri && { opacity: 0.4 }]}
+              onPress={analyzePhoto}
+              disabled={!photoUri || loading}
+            >
+              <Text style={styles.btnText}>{loading ? "Analyzing…" : "Analyze"}</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={[styles.smallBtn, { marginLeft: 8 }]} onPress={clearCurrent}>
+              <Text style={styles.smallBtnText}>Clear</Text>
+            </TouchableOpacity>
+          </>
+        ) : (
+          <Text style={styles.sub}>Scan barcode inside camera</Text>
+        )}
+      </View>
+
+      {/* Photo Preview */}
+      {!!photoUri && (
+        <View style={styles.previewWrap}>
+          <Image source={{ uri: photoUri }} style={styles.preview} />
         </View>
+      )}
 
-        {/* RESULT CARD */}
-        {result && (
-          <View style={styles.card}>
-            {/* PHOTO RESULT */}
-            {result.source === "photo" && (
-              <>
-                <Text style={styles.totalKcal}>Total: {result.total_kcal} kcal</Text>
-                <Text style={styles.muted}>
-                  P {result?.totals?.protein_g}g · C {result?.totals?.carbs_g}g · F {result?.totals?.fat_g}g
-                </Text>
+      {/* Result */}
+      {result && (
+        <View style={styles.resultCard}>
+          <Text style={styles.h2}>
+            Total: {round1(result.total_kcal)} kcal
+          </Text>
+          <Text style={styles.sub}>
+            P {round1(result?.totals?.protein_g)}g  •  C {round1(result?.totals?.carbs_g)}g  •  F{" "}
+            {round1(result?.totals?.fat_g)}g
+          </Text>
 
-                {/* ✅ Coaching unlocked (pro+) */}
-                {canCoaching && coaching && (
-                  <>
-                    <ProgressBar label="Satiety Index" value={coaching.satiety_score} max={100} />
-                    <ProgressBar label="Protein Bioavailability" value={coaching.protein_bv_score} max={100} />
-                    <View style={{ marginTop: 12 }}>
-                      <View style={styles.rowBetween}>
-                        <Text style={styles.sectionTitle}>MPS (Leucine)</Text>
-                        <Text style={styles.muted}>
-                          {Number(coaching.leucine_g || 0).toFixed(2)}g{" "}
-                          {coaching.mps_hit ? "✅" : "❌"}
-                        </Text>
-                      </View>
-                      <Text style={styles.mutedSmall}>
-                        Threshold: {Number(coaching.leucine_threshold_g || 2.5).toFixed(1)}g ·{" "}
-                        {coaching.mps_hit ? "Hit ✅" : "Not yet"}
-                      </Text>
-                    </View>
-
-                    {!!coaching.bioavailable_protein_g && (
-                      <Text style={styles.mutedSmall}>
-                        Est. bioavailable protein: {Number(coaching.bioavailable_protein_g).toFixed(1)}g (BV ~{Math.round(coaching.bv || 0)})
-                      </Text>
-                    )}
-
-                    {/* Optional fields */}
-                    {(coaching.glycemic_risk || coaching.nova_score) && (
-                      <View style={{ marginTop: 10 }}>
-                        {!!coaching.glycemic_risk && (
-                          <Text style={styles.mutedSmall}>Glycemic risk: {String(coaching.glycemic_risk)}</Text>
-                        )}
-                        {!!coaching.nova_score && (
-                          <Text style={styles.mutedSmall}>Ultra-processed score (NOVA): {String(coaching.nova_score)}</Text>
-                        )}
-                      </View>
-                    )}
-                  </>
-                )}
-
-                {/* 🔒 Locked message for free/elite/advanced */}
-                {!canCoaching && (
-                  <View style={styles.lockedCard}>
-                    <Text style={styles.lockedTitle}>🔓 Unlock Satiety + Protein BV + MPS</Text>
-                    <Text style={styles.lockedSub}>Upgrade to Pro (or Infinite) to see coaching insights.</Text>
-                  </View>
-                )}
-
-                <View style={{ marginTop: 10 }}>
-                  {(result.items || []).map((it, idx) => (
-                    <View key={`${it.name}-${idx}`} style={styles.itemRow}>
-                      <Text style={styles.itemName}>{it.name}</Text>
-                      <Text style={styles.itemKcal}>{it.kcal} kcal</Text>
-                    </View>
-                  ))}
-                </View>
-              </>
-            )}
-
-            {/* BARCODE RESULT */}
-            {result.source === "barcode" && (
-              <>
-                <View style={styles.rowBetween}>
-                  <Text style={styles.totalKcal}>{result.name}</Text>
-                  <Text style={styles.muted}>{result.barcode}</Text>
-                </View>
-                <Text style={styles.muted}>{result.brand || ""}</Text>
-
-                <View style={{ marginTop: 10 }}>
-                  <Text style={styles.muted}>Per 100g</Text>
-                  <Text style={styles.muted}>
-                    {result?.per_100g?.kcal} kcal · P {result?.per_100g?.protein_g}g · C {result?.per_100g?.carbs_g}g · F {result?.per_100g?.fat_g}g
-                  </Text>
-                </View>
-              </>
-            )}
-
-            {/* Locked response from API */}
-            {result.locked && (
-              <View style={[styles.lockedCard, { marginTop: 12 }]}>
-                <Text style={styles.lockedTitle}>
-                  🔒 Locked: {result.locked.feature}
-                </Text>
-                <Text style={styles.lockedSub}>
-                  Required plan: {result.locked.required_plan}
-                </Text>
+          <FlatList
+            data={result.items || []}
+            keyExtractor={(_, idx) => String(idx)}
+            renderItem={({ item }) => (
+              <View style={styles.itemRow}>
+                <Text style={styles.itemName}>{item?.name}</Text>
+                <Text style={styles.itemKcal}>{round1(item?.kcal)} kcal</Text>
               </View>
             )}
-          </View>
-        )}
+          />
 
-        {/* History */}
-        <View style={styles.historyHeader}>
-          <Text style={styles.hTitle}>History</Text>
-          <TouchableOpacity style={styles.headerBtn} onPress={clearHistory}>
-            <Text style={styles.headerBtnText}>Clear History</Text>
+          {result?.locked?.feature === "coaching" && !isProPlus(activePlan) && (
+            <View style={styles.lockedCard}>
+              <Text style={styles.lockedTitle}>🔓 Unlock Pro Coaching</Text>
+              <Text style={styles.lockedBody}>
+                Get Satiety Index, Protein Bioavailability (BV), and MPS (Leucine) insights.
+              </Text>
+              <TouchableOpacity onPress={openPaywall} style={styles.lockedCta}>
+                <Text style={styles.lockedCtaText}>Upgrade to Pro</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+      )}
+
+      {/* Coaching (Pro/Infinite only) */}
+      {isProPlus(activePlan) && result?.coaching && (() => {
+        const coaching = result.coaching || {};
+        const sat = num(coaching?.satiety_score);
+        const bv = num(coaching?.protein_bv);
+        const leucine = num(coaching?.leucine_g);
+        const gly = num(coaching?.glycemic_load);
+        const nova = coaching?.nova_label || "";
+        const mpsOk = Boolean(coaching?.mps_triggered || coaching?.mpsTriggered);
+        const thr = num(coaching?.mps_threshold_g) || 2.5;
+
+        const bar = (val, max = 100) => {
+          const pct = Math.max(0, Math.min(1, val / max));
+          return (
+            <View style={styles.barWrap}>
+              <View style={[styles.barFill, { width: `${pct * 100}%` }]} />
+            </View>
+          );
+        };
+
+        return (
+          <View style={styles.coachingCard}>
+            <Text style={styles.h2}>Coaching Insights</Text>
+
+            <Text style={styles.sub}>Satiety Score: {round1(sat)}/100</Text>
+            {bar(sat, 100)}
+
+            <Text style={styles.sub}>Protein Bioavailability (BV): {round1(bv)}/100</Text>
+            {bar(bv, 100)}
+
+            <Text style={styles.sub}>
+              Leucine Estimate: {leucine.toFixed(2)}g {mpsOk ? "✅" : "❌"}
+            </Text>
+            <Text style={styles.small}>
+              Threshold: {thr.toFixed(1)}g • {mpsOk ? "Triggered" : "Not yet"}
+            </Text>
+
+            {!!gly && (
+              <Text style={styles.sub}>Glycemic Load (est): {round1(gly)}</Text>
+            )}
+            {!!nova && (
+              <Text style={styles.sub}>Ultra-processed score (NOVA): {nova}</Text>
+            )}
+          </View>
+        );
+      })()}
+
+      {/* History */}
+      <View style={styles.historyWrap}>
+        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+          <Text style={styles.h2}>History</Text>
+          <TouchableOpacity style={styles.smallBtn} onPress={clearHistoryAll}>
+            <Text style={styles.smallBtnText}>Clear History</Text>
           </TouchableOpacity>
         </View>
 
-        {history.map((h, idx) => (
-          <View key={`${h.ts}-${idx}`} style={styles.historyRow}>
-            <Text style={styles.hRowText}>
-              {h.total_kcal ? `${h.total_kcal} kcal` : `barcode: ${h.barcode || "-"}`}
-            </Text>
-            <Text style={styles.mutedSmall}>{new Date(h.ts).toLocaleString()}</Text>
-          </View>
-        ))}
+        <FlatList
+          data={history}
+          keyExtractor={(it) => it.id}
+          renderItem={({ item }) => (
+            <TouchableOpacity onPress={() => setSelected(item)}>
+              <View style={styles.historyRow}>
+                <Text style={styles.historyText}>
+                  {item.mode === "barcode" ? "📦" : "📷"} {round1(item.total_kcal)} kcal
+                </Text>
+                <Text style={styles.small}>{new Date(item.ts).toLocaleString()}</Text>
+              </View>
+            </TouchableOpacity>
+          )}
+        />
+      </View>
 
-        <View style={{ height: 40 }} />
-      </ScrollView>
+      {/* Paywall Modal */}
+      <Modal visible={paywallOpen} animationType="slide" onRequestClose={() => setPaywallOpen(false)}>
+        <SafeAreaView style={styles.modalWrap}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.h1}>Upgrade</Text>
+            <TouchableOpacity style={styles.smallBtn} onPress={() => setPaywallOpen(false)}>
+              <Text style={styles.smallBtnText}>Close</Text>
+            </TouchableOpacity>
+          </View>
+
+          {rcLoading && (
+            <View style={styles.center}>
+              <ActivityIndicator size="large" />
+              <Text style={{ marginTop: 10 }}>Loading plans…</Text>
+            </View>
+          )}
+
+          {!rcLoading && !offering && (
+            <View style={styles.center}>
+              <Text style={styles.sub}>No offering found (RevenueCat)</Text>
+              <Text style={styles.small}>Offering ID: {OFFERING_ID}</Text>
+            </View>
+          )}
+
+          {!rcLoading && offering && (
+            <ScrollView style={{ flex: 1 }}>
+              <Text style={styles.sub}>
+                Current plan: <Text style={{ fontWeight: "900" }}>{activePlan}</Text>
+              </Text>
+
+              {(offering.availablePackages || [])
+                .slice()
+                .sort((a, b) => planRankFromPkg(a) - planRankFromPkg(b))
+                .map((pkg) => {
+                  const title = pkgTitle(pkg);
+                  const price = formatPrice(pkg);
+                  return (
+                    <TouchableOpacity
+                      key={pkg.identifier}
+                      style={styles.planCard}
+                      onPress={() => buyPackage(pkg)}
+                      disabled={rcLoading}
+                    >
+                      <Text style={styles.h2}>
+                        {title} • {price}
+                      </Text>
+                      <Text style={styles.small}>{planSubtitleFromTitle(title)}</Text>
+                      {!!pkg.product?.description && (
+                        <Text style={styles.small}>{pkg.product.description}</Text>
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
+
+              <TouchableOpacity style={[styles.btn, { marginTop: 14 }]} onPress={restorePurchases}>
+                <Text style={styles.btnText}>Restore Purchases</Text>
+              </TouchableOpacity>
+
+              <Text style={[styles.small, { marginTop: 12 }]}>
+                After purchase/restore we sync to backend /plan/sync.
+              </Text>
+            </ScrollView>
+          )}
+        </SafeAreaView>
+      </Modal>
+
+      {/* History detail modal */}
+      <Modal visible={!!selected} transparent animationType="fade">
+        <View style={styles.overlay}>
+          <View style={styles.detailCard}>
+            <Text style={styles.h2}>Scan Detail</Text>
+            <Text style={styles.sub}>{round1(selected?.total_kcal)} kcal</Text>
+            <Text style={styles.small}>{selected?.ts}</Text>
+
+            <ScrollView style={{ maxHeight: 300, marginTop: 10 }}>
+              {(selected?.items || []).map((it, idx) => (
+                <View key={idx} style={styles.itemRow}>
+                  <Text style={styles.itemName}>{it?.name}</Text>
+                  <Text style={styles.itemKcal}>{round1(it?.kcal)} kcal</Text>
+                </View>
+              ))}
+            </ScrollView>
+
+            <TouchableOpacity style={[styles.btn, { marginTop: 12 }]} onPress={() => setSelected(null)}>
+              <Text style={styles.btnText}>Close</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
 
-// -------------------- STYLES --------------------
+// ===================== STYLES =====================
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: "#0b0c10" },
-  safeCenter: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#0b0c10" },
-
-  container: { padding: 16, paddingBottom: 40 },
-
-  brandTitle: { color: "white", fontSize: 28, fontWeight: "800" },
-  bold: { fontWeight: "800", color: "white" },
-  muted: { color: "#a5a6aa", marginTop: 4 },
-  mutedSmall: { color: "#8d8f95", marginTop: 6, fontSize: 12 },
-
-  headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  headerBtn: {
-    backgroundColor: "#1d1f27",
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 14,
-  },
-  headerBtnAlt: {
-    backgroundColor: "#14151a",
-    paddingHorizontal: 10,
-    paddingVertical: 10,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "#242633",
-  },
-  headerBtnText: { color: "white", fontWeight: "700" },
-
-  tabs: {
-    flexDirection: "row",
-    marginTop: 14,
-    backgroundColor: "#14151a",
-    borderRadius: 18,
-    padding: 6,
-    gap: 6,
-  },
-  tab: { flex: 1, paddingVertical: 12, borderRadius: 14, alignItems: "center" },
-  tabActive: { backgroundColor: "#2a4cff" },
-  tabText: { color: "#a5a6aa", fontWeight: "700" },
-  tabTextActive: { color: "white" },
-
-  actionsRow: { flexDirection: "row", gap: 12, marginTop: 12 },
-  barcodeRow: { flexDirection: "row", gap: 12, marginTop: 12, alignItems: "center" },
-
-  primaryBtn: {
-    flex: 1,
-    backgroundColor: "#2a4cff",
-    paddingVertical: 16,
-    borderRadius: 18,
-    alignItems: "center",
-  },
-  primaryBtnText: { color: "white", fontWeight: "800", fontSize: 16 },
-
-  secondaryBtn: {
-    backgroundColor: "#14151a",
-    paddingVertical: 14,
-    borderRadius: 18,
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#242633",
-  },
-  secondaryBtnText: { color: "white", fontWeight: "800" },
-
-  clearBtn: {
-    marginTop: 12,
-    backgroundColor: "#1d1f27",
-    paddingVertical: 14,
-    borderRadius: 18,
-    alignItems: "center",
-  },
-  clearBtnText: { color: "#d0d2d7", fontWeight: "700" },
-
-  previewWrap: {
-    marginTop: 14,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  previewImg: { width: 220, height: 220, borderRadius: 22 },
-
-  usageRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 12 },
-  pill: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    backgroundColor: "#14151a",
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: "#242633",
-  },
-  pillText: { color: "#cfd2da", fontWeight: "700" },
-  refreshBtn: { paddingHorizontal: 10, paddingVertical: 6 },
-  refreshText: { color: "#9bbcff", fontWeight: "700" },
-
+  container: { flex: 1, backgroundColor: "#0b0b0f", padding: 14 },
+  center: { flex: 1, justifyContent: "center", alignItems: "center" },
   card: {
-    marginTop: 14,
-    backgroundColor: "#12131a",
-    borderRadius: 22,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: "#242633",
+    marginTop: 80,
+    backgroundColor: "#15151c",
+    borderRadius: 18,
+    padding: 18,
   },
-  totalKcal: { color: "white", fontSize: 22, fontWeight: "900" },
-
-  sectionTitle: { color: "white", fontWeight: "800" },
-  rowBetween: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-
-  barTrack: {
-    marginTop: 8,
-    height: 12,
-    borderRadius: 999,
-    backgroundColor: "#1f2230",
-    overflow: "hidden",
+  topBar: { flexDirection: "row", alignItems: "center", marginBottom: 12 },
+  h1: { fontSize: 24, fontWeight: "900", color: "white" },
+  h2: { fontSize: 18, fontWeight: "800", color: "white" },
+  sub: { marginTop: 6, color: "#b8b8c7" },
+  small: { marginTop: 12, color: "#8d8da3", fontSize: 12 },
+  input: {
+    marginTop: 12,
+    backgroundColor: "#1c1c25",
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    color: "white",
   },
-  barFill: {
-    height: 12,
-    borderRadius: 999,
-    backgroundColor: "#2a4cff",
+  btn: {
+    marginTop: 12,
+    backgroundColor: "#5b7cfa",
+    borderRadius: 14,
+    paddingVertical: 12,
+    alignItems: "center",
   },
-
-  itemRow: { flexDirection: "row", justifyContent: "space-between", marginTop: 8 },
-  itemName: { color: "white", fontWeight: "700" },
-  itemKcal: { color: "#a5a6aa", fontWeight: "700" },
-
-  lockedCard: {
-    marginTop: 14,
-    backgroundColor: "#0f1015",
+  btnBig: {
+    marginTop: 12,
+    backgroundColor: "#5b7cfa",
     borderRadius: 16,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: "#2b2f40",
+    paddingVertical: 14,
+    paddingHorizontal: 18,
+    alignItems: "center",
+    flex: 1,
   },
-  lockedTitle: { color: "white", fontWeight: "900" },
-  lockedSub: { color: "#a5a6aa", marginTop: 6, fontSize: 12 },
+  btnSecondary: { backgroundColor: "#303043" },
+  btnText: { color: "white", fontWeight: "900" },
+  smallBtn: {
+    backgroundColor: "#1c1c25",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 12,
+  },
+  smallBtnText: { color: "white", fontWeight: "800" },
 
-  historyHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 16 },
-  hTitle: { color: "white", fontSize: 18, fontWeight: "900" },
-  historyRow: {
-    marginTop: 10,
-    backgroundColor: "#12131a",
+  modeRow: { flexDirection: "row", marginBottom: 10 },
+  modeBtn: {
+    flex: 1,
+    backgroundColor: "#1c1c25",
+    padding: 10,
+    borderRadius: 14,
+    alignItems: "center",
+    marginRight: 8,
+  },
+  modeBtnActive: { backgroundColor: "#5b7cfa" },
+  modeText: { color: "#b8b8c7", fontWeight: "900" },
+  modeTextActive: { color: "white" },
+
+  cameraWrap: { height: 280, borderRadius: 18, overflow: "hidden" },
+  camera: { flex: 1 },
+  actionsRow: { marginTop: 12, flexDirection: "row", gap: 12, alignItems: "center" },
+
+  previewWrap: { marginTop: 10, alignItems: "center" },
+  preview: { width: 140, height: 140, borderRadius: 18 },
+
+  resultCard: {
+    marginTop: 12,
+    backgroundColor: "#15151c",
+    borderRadius: 18,
+    padding: 14,
+    maxHeight: 260,
+  },
+
+  itemRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 6 },
+  itemName: { color: "white", fontWeight: "700", flex: 1, paddingRight: 10 },
+  itemKcal: { color: "#b8b8c7", fontWeight: "800" },
+
+  coachingCard: {
+    marginTop: 12,
+    backgroundColor: "#15151c",
+    borderRadius: 18,
+    padding: 14,
+  },
+  coachingLocked: { marginTop: 8, color: "#ffcf5a", fontWeight: "800" },
+  lockedCard: {
+    marginTop: 12,
+    backgroundColor: "#15151c",
     borderRadius: 18,
     padding: 14,
     borderWidth: 1,
-    borderColor: "#242633",
+    borderColor: "#2a2a38",
   },
-  hRowText: { color: "white", fontWeight: "800" },
-
-  inputLabel: { color: "#cfd2da", fontWeight: "700", marginTop: 8 },
-  input: {
-    flex: 1,
-    marginTop: 6,
-    backgroundColor: "#0f1015",
-    borderRadius: 16,
+  lockedTitle: { color: "#ffffff", fontWeight: "900", fontSize: 14 },
+  lockedBody: { marginTop: 6, color: "#aeb0c0", lineHeight: 18 },
+  lockedCta: {
+    marginTop: 10,
+    alignSelf: "flex-start",
+    backgroundColor: "#3b82f6",
     paddingHorizontal: 14,
-    paddingVertical: 12,
-    color: "white",
-    borderWidth: 1,
-    borderColor: "#242633",
+    paddingVertical: 10,
+    borderRadius: 12,
+  },
+  lockedCtaText: { color: "#ffffff", fontWeight: "800" },
+  barWrap: {
+    height: 10,
+    borderRadius: 10,
+    backgroundColor: "#1c1c25",
+    overflow: "hidden",
+    marginTop: 8,
+  },
+  barFill: {
+    height: 10,
+    borderRadius: 10,
+    backgroundColor: "#5b7cfa",
   },
 
-  loginWrap: { padding: 18, marginTop: 24 },
+  historyWrap: { marginTop: 12, flex: 1 },
+  historyRow: {
+    backgroundColor: "#15151c",
+    marginTop: 8,
+    borderRadius: 14,
+    padding: 12,
+  },
+  historyText: { color: "white", fontWeight: "800" },
+
+  overlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.65)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 18,
+  },
+  detailCard: {
+    width: "100%",
+    backgroundColor: "#15151c",
+    borderRadius: 18,
+    padding: 16,
+  },
+
+  modalWrap: { flex: 1, backgroundColor: "#0b0b0f", padding: 14 },
+  modalHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+
+  planCard: {
+    backgroundColor: "#15151c",
+    borderRadius: 18,
+    padding: 16,
+    marginTop: 12,
+  },
 });
 
