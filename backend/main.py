@@ -83,16 +83,25 @@ def plan_at_least(current: Any, required: str) -> bool:
         req = DEFAULT_PLAN
 
     return PLAN_RANK.get(cur, 0) >= PLAN_RANK.get(req, 0)
-def require_plan(usage_row: Dict[str, Any], required: str, feature: str):
-    plan = (usage_row.get("plan") or DEFAULT_PLAN).lower()
-    if not plan_at_least(plan, required):
+def require_plan(current: Any, required: str, feature: str):
+    """Raise HTTP 402 when current plan is below required plan."""
+    # extract plan name for error message
+    cur = current
+    if isinstance(cur, dict):
+        cur = cur.get("plan")
+    current_plan = (cur or DEFAULT_PLAN)
+    if not isinstance(current_plan, str):
+        current_plan = str(current_plan)
+    current_plan = current_plan.lower().strip()
+
+    if not plan_at_least(current_plan, required):
         raise HTTPException(
-            status_code=403,
+            status_code=402,
             detail={
-                "error": "Upgrade required",
+                "error": "upgrade_required",
                 "feature": feature,
                 "required_plan": required,
-                "current_plan": plan,
+                "current_plan": current_plan,
             },
         )
 
@@ -151,24 +160,6 @@ def _digits_only(s: str) -> str:
     return "".join([c for c in (s or "").strip() if c.isdigit()])
 
 
-# -------------------- PLAN GATING HELPERS (NEW) --------------------
-def plan_at_least(current: str, required: str) -> bool:
-    try:
-        return PLAN_ORDER.index((current or DEFAULT_PLAN).lower()) >= PLAN_ORDER.index(required.lower())
-    except ValueError:
-        return False
-
-def require_plan(current: str, required: str, feature: str):
-    if not plan_at_least(current, required):
-        raise HTTPException(
-            status_code=403,
-            detail={
-                "error": "upgrade_required",
-                "feature": feature,
-                "required_plan": required,
-                "current_plan": (current or DEFAULT_PLAN).lower(),
-            },
-        )
 
 
 # -------------------- SUPABASE REST HELPERS --------------------
@@ -1005,6 +996,9 @@ async def analyze(
             "remaining_month": int(usage_row.get("remaining_month") or 0),
         },
     }
+
+    if coaching_enabled and coaching:
+        response["coaching"] = coaching
 
     if not coaching_enabled:
         # UI can use this to show "Upgrade to Pro"
