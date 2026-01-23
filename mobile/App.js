@@ -182,49 +182,56 @@ function formatPrice(pkg) {
   }
 }
 
+// UPDATED: force Elite/Advanced/Pro/Infinite labels (no "Monthly")
 function pkgTitle(pkg) {
-  const id = (pkg?.identifier || pkg?.product?.identifier || "").toLowerCase();
+  const pid =
+    (pkg?.product?.identifier ||
+      pkg?.product?.productIdentifier ||
+      pkg?.identifier ||
+      "")
+      .toLowerCase()
+      .trim();
 
-  // If you encoded entitlement in the product/package identifier, show it nicely
-  for (const ent of ENTITLEMENTS) {
-    if (id.includes(ent.toLowerCase())) return ent.toUpperCase();
-  }
+  // Prefer explicit identifiers first
+  if (pid.includes("calorieclick_elite") || pid.includes("elite")) return "Elite";
+  if (pid.includes("calorieclick_advanced") || pid.includes("advanced")) return "Advanced";
+  if (pid.includes("calorieclick_pro") || pid.includes("pro")) return "Pro";
+  if (pid.includes("calorieclick_infinite") || pid.includes("infinite")) return "Infinite";
 
-  // Otherwise, fall back to the Store title (this is what usually contains "Elite", "Advanced", etc.)
-  return (
-    pkg?.product?.title ||
-    pkg?.product?.description ||
-    pkg?.identifier ||
-    "Plan"
-  );
+  // Fallback to title
+  const title = (pkg?.product?.title || "").toLowerCase();
+  if (title.includes("elite")) return "Elite";
+  if (title.includes("advanced")) return "Advanced";
+  if (title.includes("pro")) return "Pro";
+  if (title.includes("infinite")) return "Infinite";
+
+  // LAST fallback: infer from price (works well for your fixed tiers)
+  const priceStr = (pkg?.product?.priceString || "").replace(/[^\d.]/g, "");
+  const p = Number(priceStr);
+  if (p === 9.99) return "Elite";
+  if (p === 19.99) return "Advanced";
+  if (p === 39.99) return "Pro";
+  if (p === 149.99) return "Infinite";
+
+  return pkg?.product?.title || "Plan";
 }
 
 function planRankFromPkg(pkg) {
   const t = pkgTitle(pkg).toLowerCase();
-  if (t.includes("infinite")) return 4;
-  if (t.includes("pro")) return 3;
-  if (t.includes("advanced")) return 2;
-  if (t.includes("elite")) return 1;
-  return 0;
+  if (t === "elite") return 1;
+  if (t === "advanced") return 2;
+  if (t === "pro") return 3;
+  if (t === "infinite") return 4;
+  return 99;
 }
 
-function isElitePlus(plan) {
-  const p = (plan || "free").toLowerCase();
-  return p === "elite" || p === "advanced" || p === "pro" || p === "infinite";
-}
-
-function isProPlus(plan) {
-  const p = (plan || "free").toLowerCase();
-  return p === "pro" || p === "infinite";
-}
-
-function planSubtitleFromTitle(title) {
-  const t = (title || "").toLowerCase();
-  if (t.includes("elite")) return "Barcode scans + more scans";
-  if (t.includes("advanced")) return "More scans + barcode";
-  if (t.includes("pro")) return "Coaching insights + Satiety/BV + Muscle score";
-  if (t.includes("infinite")) return "Everything + massive scan limits";
-  return "Upgrade to unlock features";
+function planSubtitleFromTitle(t) {
+  const k = (t || "").toLowerCase();
+  if (k === "elite") return "Starter plan • daily + monthly scans";
+  if (k === "advanced") return "More daily limit • more monthly scans";
+  if (k === "pro") return "Power plan • very high monthly scans";
+  if (k === "infinite") return "Unlimited scans (fair use)";
+  return "";
 }
 
 // ===================== APP =====================
@@ -356,6 +363,11 @@ export default function App() {
     }
   }
 
+  // keep UI plan in sync with backend plan (fixes “plan didn’t change”)
+  useEffect(() => {
+    if (usage?.plan) setActivePlan(String(usage.plan).toLowerCase());
+  }, [usage?.plan]);
+
   // pull usage on login + after purchase
   useEffect(() => {
     if (userId) fetchUsage();
@@ -363,7 +375,7 @@ export default function App() {
 
   // ===================== PLAN SYNC =====================
   async function syncPlanToBackend(entitlement) {
-    if (!userId) return;
+    if (!userId) return null;
     try {
       const res = await fetch(`${API_BASE}/plan/sync?user_id=${encodeURIComponent(userId)}`, {
         method: "POST",
@@ -372,9 +384,15 @@ export default function App() {
       });
       const json = await res.json();
       console.log("plan/sync:", json);
+
+      // update UI plan from backend response immediately
+      if (json?.plan) setActivePlan(String(json.plan).toLowerCase());
+
       await fetchUsage();
+      return json?.plan || null;
     } catch (e) {
       console.log("plan/sync error:", e?.message || e);
+      return null;
     }
   }
 
@@ -389,7 +407,10 @@ export default function App() {
 
       const info = await Purchases.getCustomerInfo();
       setCustomerInfo(info);
-      setActivePlan(getActiveEntitlement(info));
+
+      // prefer backend plan if available, otherwise entitlement
+      if (usage?.plan) setActivePlan(String(usage.plan).toLowerCase());
+      else setActivePlan(getActiveEntitlement(info));
     } catch (e) {
       console.log("open paywall error:", e?.message || e);
     } finally {
@@ -402,14 +423,19 @@ export default function App() {
     setRcLoading(true);
     try {
       const { customerInfo } = await Purchases.purchasePackage(pkg);
-      setCustomerInfo(customerInfo);
-      const plan = getActiveEntitlement(customerInfo);
-      setActivePlan(plan);
+
+      // refresh customer info (helps iOS propagate entitlements faster)
+      const info2 = await Purchases.getCustomerInfo();
+      setCustomerInfo(info2);
+
+      // use the package label as the plan to sync (more reliable than “Monthly” titles)
+      const planLabel = pkgTitle(pkg).toLowerCase();
+      setActivePlan(planLabel);
 
       // 🔥 sync to backend
-      await syncPlanToBackend(plan);
+      await syncPlanToBackend(planLabel);
 
-      Alert.alert("✅ Purchase successful", `Plan activated: ${plan}`);
+      Alert.alert("✅ Purchase successful", `Plan activated: ${planLabel}`);
       setPaywallOpen(false);
     } catch (e) {
       const msg = e?.message || String(e);
@@ -425,13 +451,25 @@ export default function App() {
     try {
       const info = await Purchases.restorePurchases();
       setCustomerInfo(info);
-      const plan = getActiveEntitlement(info);
-      setActivePlan(plan);
 
-      // 🔥 sync to backend
-      await syncPlanToBackend(plan);
+      // figure out restored plan from RevenueCat
+      const restored = getActiveEntitlement(info);
 
-      Alert.alert("✅ Restored", `Active plan: ${plan}`);
+      // IMPORTANT: avoid letting restore "refill scans" (spam)
+      // We only sync to backend if backend plan differs (eg reinstall/new device).
+      await fetchUsage();
+      const backendPlan = String(usage?.plan || "free").toLowerCase();
+      const restoredPlan = String(restored || "free").toLowerCase();
+
+      if (backendPlan !== restoredPlan && restoredPlan !== "free") {
+        await syncPlanToBackend(restoredPlan);
+      }
+
+      // keep UI plan correct
+      if (usage?.plan) setActivePlan(String(usage.plan).toLowerCase());
+      else setActivePlan(restoredPlan);
+
+      Alert.alert("✅ Restored", `Active plan: ${restoredPlan}`);
       setPaywallOpen(false);
     } catch (e) {
       Alert.alert("Restore failed", e?.message || String(e));
@@ -477,17 +515,20 @@ export default function App() {
     setPhotoUri(null);
   }
 
+  // ===================== CLEAR HELPERS =====================
   async function clearCurrent() {
     setResult(null);
     setPhotoUri(null);
-    setSelected(null);
   }
 
   async function clearHistoryAll() {
     try {
+      setHistory([]);
       await AsyncStorage.removeItem(HISTORY_KEY);
-    } catch {}
-    setHistory([]);
+      Alert.alert("✅ Cleared", "History cleared.");
+    } catch (e) {
+      Alert.alert("Clear failed", e?.message || String(e));
+    }
   }
 
   // ===================== SCAN FUNCTIONS =====================
@@ -555,11 +596,6 @@ export default function App() {
   async function barcodeLookup(code) {
     if (!code || !userId) return;
 
-    if (!isElitePlus(activePlan)) {
-      Alert.alert("🔒 Elite+ feature", "Barcode scanning requires Elite or higher.");
-      return;
-    }
-
     const now = Date.now();
     const last = lastBarcodeRef.current;
     if (last.code === code && now - last.t < BARCODE_COOLDOWN_MS) return;
@@ -617,7 +653,7 @@ export default function App() {
   if (!HAS_SUPABASE) {
     return (
       <SafeAreaView style={styles.center}>
-        <Text style={styles.h1}>CalorieClick.ai</Text>
+        <Text style={styles.h1}>Kcal Scan</Text>
         <Text style={styles.sub}>
           Supabase env missing. Please set EXPO_PUBLIC_SUPABASE_URL & EXPO_PUBLIC_SUPABASE_ANON_KEY.
         </Text>
@@ -634,7 +670,7 @@ export default function App() {
           style={{ flex: 1 }}
         >
           <View style={styles.card}>
-            <Text style={styles.h1}>CalorieClick.ai</Text>
+            <Text style={styles.h1}>Kcal Scan</Text>
             <Text style={styles.sub}>Login or Signup</Text>
 
             <TextInput
@@ -675,7 +711,7 @@ export default function App() {
     <SafeAreaView style={styles.container}>
       <View style={styles.topBar}>
         <View style={{ flex: 1 }}>
-          <Text style={styles.h1}>CalorieClick.ai</Text>
+          <Text style={styles.h1}>Kcal Scan</Text>
           <Text style={styles.small}>
             Plan: <Text style={{ fontWeight: "800" }}>{activePlan}</Text>
             {"  •  "}
@@ -695,196 +731,156 @@ export default function App() {
         </TouchableOpacity>
       </View>
 
-      {/* Mode Switch */}
-      <View style={styles.modeRow}>
-        <TouchableOpacity
-          style={[styles.modeBtn, mode === "photo" && styles.modeBtnActive]}
-          onPress={() => setMode("photo")}
-        >
-          <Text style={[styles.modeText, mode === "photo" && styles.modeTextActive]}>
-            Photo
-          </Text>
-        </TouchableOpacity>
+      {/* MAIN SCROLL (fixes “can’t scroll to history”) */}
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{ paddingBottom: 26 }}
+        keyboardShouldPersistTaps="handled"
+      >
+        {/* Mode Switch */}
+        <View style={styles.modeRow}>
+          <TouchableOpacity
+            style={[styles.modeBtn, mode === "photo" && styles.modeBtnActive]}
+            onPress={() => setMode("photo")}
+          >
+            <Text style={[styles.modeText, mode === "photo" && styles.modeTextActive]}>
+              Photo
+            </Text>
+          </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[styles.modeBtn, mode === "barcode" && styles.modeBtnActive]}
-          onPress={() => setMode("barcode")}
-        >
-          <Text style={[styles.modeText, mode === "barcode" && styles.modeTextActive]}>
-            Barcode
-          </Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Camera */}
-      <View style={styles.cameraWrap}>
-        {permission?.granted ? (
-          <CameraView
-            ref={cameraRef}
-            style={styles.camera}
-            facing="back"
-            barcodeScannerSettings={
-              mode === "barcode"
-                ? { barcodeTypes: ["ean13", "ean8", "upc_a", "upc_e"] }
-                : undefined
-            }
-            onBarcodeScanned={
-              mode === "barcode"
-                ? (e) => barcodeLookup(e?.data)
-                : undefined
-            }
-          />
-        ) : (
-          <View style={styles.center}>
-            <Text>Camera permission required</Text>
-            <TouchableOpacity style={styles.btn} onPress={requestPermission}>
-              <Text style={styles.btnText}>Grant permission</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-      </View>
-
-      {/* Actions */}
-      <View style={styles.actionsRow}>
-        {mode === "photo" ? (
-          <>
-            <TouchableOpacity style={styles.btnBig} onPress={takePhoto} disabled={loading}>
-              <Text style={styles.btnText}>{loading ? "..." : "Take Photo"}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.btnBig, !photoUri && { opacity: 0.4 }]}
-              onPress={analyzePhoto}
-              disabled={!photoUri || loading}
-            >
-              <Text style={styles.btnText}>{loading ? "Analyzing…" : "Analyze"}</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={[styles.smallBtn, { marginLeft: 8 }]} onPress={clearCurrent}>
-              <Text style={styles.smallBtnText}>Clear</Text>
-            </TouchableOpacity>
-          </>
-        ) : (
-          <Text style={styles.sub}>Scan barcode inside camera</Text>
-        )}
-      </View>
-
-      {/* Photo Preview */}
-      {!!photoUri && (
-        <View style={styles.previewWrap}>
-          <Image source={{ uri: photoUri }} style={styles.preview} />
+          <TouchableOpacity
+            style={[styles.modeBtn, mode === "barcode" && styles.modeBtnActive, { marginRight: 0 }]}
+            onPress={() => setMode("barcode")}
+          >
+            <Text style={[styles.modeText, mode === "barcode" && styles.modeTextActive]}>
+              Barcode
+            </Text>
+          </TouchableOpacity>
         </View>
-      )}
 
-      {/* Result */}
-      {result && (
-        <View style={styles.resultCard}>
-          <Text style={styles.h2}>
-            Total: {round1(result.total_kcal)} kcal
-          </Text>
-          <Text style={styles.sub}>
-            P {round1(result?.totals?.protein_g)}g  •  C {round1(result?.totals?.carbs_g)}g  •  F{" "}
-            {round1(result?.totals?.fat_g)}g
-          </Text>
-
-          <FlatList
-            data={result.items || []}
-            keyExtractor={(_, idx) => String(idx)}
-            renderItem={({ item }) => (
-              <View style={styles.itemRow}>
-                <Text style={styles.itemName}>{item?.name}</Text>
-                <Text style={styles.itemKcal}>{round1(item?.kcal)} kcal</Text>
-              </View>
-            )}
-          />
-
-          {result?.locked?.feature === "coaching" && !isProPlus(activePlan) && (
-            <View style={styles.lockedCard}>
-              <Text style={styles.lockedTitle}>🔓 Unlock Pro Coaching</Text>
-              <Text style={styles.lockedBody}>
-                Get Satiety Index, Protein Bioavailability (BV), and MPS (Leucine) insights.
-              </Text>
-              <TouchableOpacity onPress={openPaywall} style={styles.lockedCta}>
-                <Text style={styles.lockedCtaText}>Upgrade to Pro</Text>
+        {/* Camera */}
+        <View style={styles.cameraWrap}>
+          {permission?.granted ? (
+            <CameraView
+              ref={cameraRef}
+              style={styles.camera}
+              facing="back"
+              barcodeScannerSettings={
+                mode === "barcode"
+                  ? { barcodeTypes: ["ean13", "ean8", "upc_a", "upc_e"] }
+                  : undefined
+              }
+              onBarcodeScanned={
+                mode === "barcode"
+                  ? (e) => barcodeLookup(e?.data)
+                  : undefined
+              }
+            />
+          ) : (
+            <View style={styles.centerInline}>
+              <Text style={{ color: "white" }}>Camera permission required</Text>
+              <TouchableOpacity style={styles.btn} onPress={requestPermission}>
+                <Text style={styles.btnText}>Grant permission</Text>
               </TouchableOpacity>
             </View>
           )}
         </View>
-      )}
 
-      {/* Coaching (Pro/Infinite only) */}
-      {isProPlus(activePlan) && result?.coaching && (() => {
-        const coaching = result.coaching || {};
-        const sat = num(coaching?.satiety_score);
-        const bv = num(coaching?.protein_bv);
-        const leucine = num(coaching?.leucine_g);
-        const gly = num(coaching?.glycemic_load);
-        const nova = coaching?.nova_label || "";
-        const mpsOk = Boolean(coaching?.mps_triggered || coaching?.mpsTriggered);
-        const thr = num(coaching?.mps_threshold_g) || 2.5;
+        {/* Actions */}
+        <View style={styles.actionsRow}>
+          {mode === "photo" ? (
+            <>
+              <TouchableOpacity style={[styles.btnBig, styles.btnBigLeft]} onPress={takePhoto} disabled={loading}>
+                <Text style={styles.btnText}>{loading ? "..." : "Take Photo"}</Text>
+              </TouchableOpacity>
 
-        const bar = (val, max = 100) => {
-          const pct = Math.max(0, Math.min(1, val / max));
-          return (
-            <View style={styles.barWrap}>
-              <View style={[styles.barFill, { width: `${pct * 100}%` }]} />
-            </View>
-          );
-        };
-
-        return (
-          <View style={styles.coachingCard}>
-            <Text style={styles.h2}>Coaching Insights</Text>
-
-            <Text style={styles.sub}>Satiety Score: {round1(sat)}/100</Text>
-            {bar(sat, 100)}
-
-            <Text style={styles.sub}>Protein Bioavailability (BV): {round1(bv)}/100</Text>
-            {bar(bv, 100)}
-
-            <Text style={styles.sub}>
-              Leucine Estimate: {leucine.toFixed(2)}g {mpsOk ? "✅" : "❌"}
-            </Text>
-            <Text style={styles.small}>
-              Threshold: {thr.toFixed(1)}g • {mpsOk ? "Triggered" : "Not yet"}
-            </Text>
-
-            {!!gly && (
-              <Text style={styles.sub}>Glycemic Load (est): {round1(gly)}</Text>
-            )}
-            {!!nova && (
-              <Text style={styles.sub}>Ultra-processed score (NOVA): {nova}</Text>
-            )}
-          </View>
-        );
-      })()}
-
-      {/* History */}
-      <View style={styles.historyWrap}>
-        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-          <Text style={styles.h2}>History</Text>
-          <TouchableOpacity style={styles.smallBtn} onPress={clearHistoryAll}>
-            <Text style={styles.smallBtnText}>Clear History</Text>
-          </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.btnBig, styles.btnBigRight, !photoUri && { opacity: 0.4 }]}
+                onPress={analyzePhoto}
+                disabled={!photoUri || loading}
+              >
+                <Text style={styles.btnText}>{loading ? "Analyzing…" : "Analyze"}</Text>
+              </TouchableOpacity>
+            </>
+          ) : (
+            <Text style={styles.sub}>Scan barcode inside camera</Text>
+          )}
         </View>
 
-        <FlatList
-          data={history}
-          keyExtractor={(it) => it.id}
-          renderItem={({ item }) => (
-            <TouchableOpacity onPress={() => setSelected(item)}>
-              <View style={styles.historyRow}>
-                <Text style={styles.historyText}>
-                  {item.mode === "barcode" ? "📦" : "📷"} {round1(item.total_kcal)} kcal
-                </Text>
-                <Text style={styles.small}>{new Date(item.ts).toLocaleString()}</Text>
-              </View>
+        {/* Clear current */}
+        {(photoUri || result) && (
+          <View style={{ marginTop: 10 }}>
+            <TouchableOpacity style={styles.btnSecondaryFull} onPress={clearCurrent}>
+              <Text style={styles.btnText}>Clear (Next Scan)</Text>
             </TouchableOpacity>
-          )}
-        />
-      </View>
+          </View>
+        )}
+
+        {/* Photo Preview */}
+        {!!photoUri && (
+          <View style={styles.previewWrap}>
+            <Image source={{ uri: photoUri }} style={styles.preview} />
+          </View>
+        )}
+
+        {/* Result */}
+        {result && (
+          <View style={styles.resultCard}>
+            <Text style={styles.h2}>
+              Total: {round1(result.total_kcal)} kcal
+            </Text>
+            <Text style={styles.sub}>
+              P {round1(result?.totals?.protein_g)}g  •  C {round1(result?.totals?.carbs_g)}g  •  F{" "}
+              {round1(result?.totals?.fat_g)}g
+            </Text>
+
+            {/* NOTE: disable internal scrolling so the main ScrollView scrolls smoothly */}
+            <FlatList
+              data={result.items || []}
+              keyExtractor={(_, idx) => String(idx)}
+              scrollEnabled={false}
+              renderItem={({ item }) => (
+                <View style={styles.itemRow}>
+                  <Text style={styles.itemName}>{item?.name}</Text>
+                  <Text style={styles.itemKcal}>{round1(item?.kcal)} kcal</Text>
+                </View>
+              )}
+            />
+          </View>
+        )}
+
+        {/* History */}
+        <View style={styles.historyWrap}>
+          <View style={styles.historyHeaderRow}>
+            <Text style={styles.h2}>History</Text>
+            <TouchableOpacity style={styles.smallBtn} onPress={clearHistoryAll}>
+              <Text style={styles.smallBtnText}>Clear History</Text>
+            </TouchableOpacity>
+          </View>
+
+          <FlatList
+            data={history}
+            keyExtractor={(it) => it.id}
+            scrollEnabled={false}
+            renderItem={({ item }) => (
+              <TouchableOpacity onPress={() => setSelected(item)}>
+                <View style={styles.historyRow}>
+                  <Text style={styles.historyText}>
+                    {item.mode === "barcode" ? "📦" : "📷"} {round1(item.total_kcal)} kcal
+                  </Text>
+                  <Text style={styles.small}>{new Date(item.ts).toLocaleString()}</Text>
+                </View>
+              </TouchableOpacity>
+            )}
+          />
+        </View>
+      </ScrollView>
 
       {/* Paywall Modal */}
-      <Modal visible={paywallOpen} animationType="slide" onRequestClose={() => setPaywallOpen(false)}>
+      <Modal visible={paywallOpen}i’m building a calorie scan app what’s better than market apps?请完成后告诉我 which is good
+        animationType="slide"
+        onRequestClose={() => setPaywallOpen(false)}
+      >
         <SafeAreaView style={styles.modalWrap}>
           <View style={styles.modalHeader}>
             <Text style={styles.h1}>Upgrade</Text>
@@ -894,31 +890,30 @@ export default function App() {
           </View>
 
           {rcLoading && (
-            <View style={styles.center}>
+            <View style={styles.centerInline}>
               <ActivityIndicator size="large" />
-              <Text style={{ marginTop: 10 }}>Loading plans…</Text>
+              <Text style={{ marginTop: 10, color: "white" }}>Loading plans…</Text>
             </View>
           )}
 
           {!rcLoading && !offering && (
-            <View style={styles.center}>
+            <View style={styles.centerInline}>
               <Text style={styles.sub}>No offering found (RevenueCat)</Text>
               <Text style={styles.small}>Offering ID: {OFFERING_ID}</Text>
             </View>
           )}
 
           {!rcLoading && offering && (
-            <ScrollView style={{ flex: 1 }}>
+            <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 18 }}>
               <Text style={styles.sub}>
                 Current plan: <Text style={{ fontWeight: "900" }}>{activePlan}</Text>
               </Text>
 
-              {(offering.availablePackages || [])
+              {((offering.availablePackages || []) || [])
                 .slice()
                 .sort((a, b) => planRankFromPkg(a) - planRankFromPkg(b))
                 .map((pkg) => {
                   const title = pkgTitle(pkg);
-                  const price = formatPrice(pkg);
                   return (
                     <TouchableOpacity
                       key={pkg.identifier}
@@ -927,12 +922,9 @@ export default function App() {
                       disabled={rcLoading}
                     >
                       <Text style={styles.h2}>
-                        {title} • {price}
+                        {title} • {formatPrice(pkg)}
                       </Text>
                       <Text style={styles.small}>{planSubtitleFromTitle(title)}</Text>
-                      {!!pkg.product?.description && (
-                        <Text style={styles.small}>{pkg.product.description}</Text>
-                      )}
                     </TouchableOpacity>
                   );
                 })}
@@ -942,7 +934,7 @@ export default function App() {
               </TouchableOpacity>
 
               <Text style={[styles.small, { marginTop: 12 }]}>
-                After purchase/restore we sync to backend /plan/sync.
+                Restore is for reinstall/new device. It should not refill scans.
               </Text>
             </ScrollView>
           )}
@@ -980,6 +972,7 @@ export default function App() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#0b0b0f", padding: 14 },
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
+  centerInline: { justifyContent: "center", alignItems: "center", padding: 18 },
   card: {
     marginTop: 80,
     backgroundColor: "#15151c",
@@ -1006,15 +999,6 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     alignItems: "center",
   },
-  btnBig: {
-    marginTop: 12,
-    backgroundColor: "#5b7cfa",
-    borderRadius: 16,
-    paddingVertical: 14,
-    paddingHorizontal: 18,
-    alignItems: "center",
-    flex: 1,
-  },
   btnSecondary: { backgroundColor: "#303043" },
   btnText: { color: "white", fontWeight: "900" },
   smallBtn: {
@@ -1040,63 +1024,48 @@ const styles = StyleSheet.create({
 
   cameraWrap: { height: 280, borderRadius: 18, overflow: "hidden" },
   camera: { flex: 1 },
+
   actionsRow: { marginTop: 12, flexDirection: "row", gap: 12, alignItems: "center" },
 
-  previewWrap: { marginTop: 10, alignItems: "center" },
-  preview: { width: 140, height: 140, borderRadius: 18 },
+  // bigger buttons for Take Photo / Analyze
+  btnBig: {
+    flex: 1,
+    backgroundColor: "#5b7cfa",
+    borderRadius: 16,
+    paddingVertical: 16,
+    alignItems: "center",
+  },
+  btnBigLeft: { marginRight: 6 },
+  btnBigRight: { marginLeft: 6 },
 
+  btnSecondaryFull: {
+    backgroundColor: "#303043",
+    borderRadius: 14,
+    paddingVertical: 12,
+    alignItems: "center",
+  },
+
+  previewWrap: { marginTop: 10, alignItems: "center" },
+  preview: { width: 180, height: 180, borderRadius: 18 },
+
+  // remove flex:1 so it doesn't “trap” the screen above history
   resultCard: {
     marginTop: 12,
     backgroundColor: "#15151c",
     borderRadius: 18,
     padding: 14,
-    maxHeight: 260,
   },
 
   itemRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 6 },
   itemName: { color: "white", fontWeight: "700", flex: 1, paddingRight: 10 },
   itemKcal: { color: "#b8b8c7", fontWeight: "800" },
 
-  coachingCard: {
-    marginTop: 12,
-    backgroundColor: "#15151c",
-    borderRadius: 18,
-    padding: 14,
+  historyWrap: { marginTop: 12 },
+  historyHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
   },
-  coachingLocked: { marginTop: 8, color: "#ffcf5a", fontWeight: "800" },
-  lockedCard: {
-    marginTop: 12,
-    backgroundColor: "#15151c",
-    borderRadius: 18,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: "#2a2a38",
-  },
-  lockedTitle: { color: "#ffffff", fontWeight: "900", fontSize: 14 },
-  lockedBody: { marginTop: 6, color: "#aeb0c0", lineHeight: 18 },
-  lockedCta: {
-    marginTop: 10,
-    alignSelf: "flex-start",
-    backgroundColor: "#3b82f6",
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 12,
-  },
-  lockedCtaText: { color: "#ffffff", fontWeight: "800" },
-  barWrap: {
-    height: 10,
-    borderRadius: 10,
-    backgroundColor: "#1c1c25",
-    overflow: "hidden",
-    marginTop: 8,
-  },
-  barFill: {
-    height: 10,
-    borderRadius: 10,
-    backgroundColor: "#5b7cfa",
-  },
-
-  historyWrap: { marginTop: 12, flex: 1 },
   historyRow: {
     backgroundColor: "#15151c",
     marginTop: 8,
@@ -1129,4 +1098,5 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
 });
+
 
