@@ -57,61 +57,34 @@ DEFAULT_PLAN = "free"
 PLAN_ORDER = ["free", "elite", "advanced", "pro", "infinite"]
 
 
-# -------------------- MIDDLEWARE --------------------
-@app.middleware("http")
-async def log_requests(request: Request, call_next):
-    logger.info(f"INCOMING {request.method} {request.url.path}")
-    resp = await call_next(request)
-    logger.info(f"RESPONSE {request.method} {request.url.path} -> {resp.status_code}")
-    return resp
+PLAN_RANK = {p: i for i, p in enumerate(PLAN_ORDER)}
 
-
-# -------------------- BASIC ROUTES --------------------
-@app.get("/")
-def root():
-    return {"service": "kcal-scan", "version": "railway-v1"}
-
-@app.get("/health")
-def health():
-    return {"status": "ok", "version": "railway-v1"}
-
-@app.options("/analyze")
-def analyze_options():
-    return PlainTextResponse("ok", status_code=200)
-
-
-# -------------------- VALIDATION HELPERS --------------------
-def _require_usda_key():
-    if not USDA_API_KEY:
-        raise HTTPException(status_code=500, detail="USDA_API_KEY is not set on the server (Railway Variables).")
-
-def _require_gemini_key():
-    if not GEMINI_API_KEY:
-        raise HTTPException(status_code=500, detail="GEMINI_API_KEY is not set on the server (Railway Variables).")
-
-def _require_supabase():
-    if not SUPABASE_URL or not SUPABASE_SERVICE_ROLE_KEY:
-        raise HTTPException(status_code=500, detail="SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY not set on server.")
-
-def _safe_float(x, default=None):
+# -------------------- PLAN HELPERS --------------------
+def plan_rank(plan: Any) -> int:
+    """Return numeric rank for a plan; accepts string or a usage-row dict."""
+    if isinstance(plan, dict):
+        plan = plan.get("plan")
+    p = str(plan or DEFAULT_PLAN).lower()
     try:
-        if x is None:
-            return default
-        return float(x)
-    except Exception:
-        return default
+        return PLAN_ORDER.index(p)
+    except ValueError:
+        return PLAN_ORDER.index(DEFAULT_PLAN)
 
-def _today_date() -> dt.date:
-    return dt.datetime.utcnow().date()
+def plan_at_least(current: Any, required: str) -> bool:
+    return plan_rank(current) >= plan_rank(required)
 
-def _month_start(d: dt.date) -> dt.date:
-    return dt.date(d.year, d.month, 1)
-
-def _digits_only(s: str) -> str:
-    return "".join([c for c in (s or "").strip() if c.isdigit()])
-
-
-# -------------------- SUPABASE REST HELPERS --------------------
+def require_plan(current: Any, required: str, feature: str = "feature") -> None:
+    """Raise 403 if current plan is below required."""
+    if not plan_at_least(current, required):
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "error": "Plan required",
+                "feature": feature,
+                "required_plan": required,
+                "current_plan": (current.get("plan") if isinstance(current, dict) else str(current or DEFAULT_PLAN)),
+            },
+        )
 def supabase_headers() -> Dict[str, str]:
     _require_supabase()
     return {
@@ -337,6 +310,9 @@ def set_user_plan(user_id: str, plan: str) -> Dict[str, Any]:
     stored = sb_upsert(TBL_USER_USAGE, row, on_conflict="user_id")
     return stored
 
+def get_user_plan(user_id: str) -> str:
+    row = get_or_init_usage(user_id)
+    return (row.get("plan") or DEFAULT_PLAN).lower()
 
 def require_user_id(x_user_id: Optional[str], user_id: Optional[str]) -> str:
     uid = (x_user_id or user_id or "").strip()
@@ -598,7 +574,17 @@ def barcode_lookup(
 ):
     uid = require_user_id(x_user_id, user_id)
 
+    # 🔒 barcode requires elite+
+    plan = get_user_plan(uid)
+    require_plan(plan, "elite", feature="barcode")
+
     # consume scan first (so even cache hits count)
+    # Elite+ only feature: barcode scanning
+    pre = get_or_init_usage(uid)
+    pre = normalize_resets(pre)
+    require_plan(pre, "elite", feature="barcode")
+
+    # consume scan (only after plan check)
     usage_row = consume_one_scan(uid)
 
     barcode = _digits_only(code)
@@ -674,6 +660,17 @@ def barcode_manual(
       }
     """
     uid = require_user_id(x_user_id, user_id)
+
+    # 🔒 barcode requires elite+
+    plan = get_user_plan(uid)
+    require_plan(plan, "elite", feature="barcode")
+
+    # Elite+ only feature: barcode manual add
+    pre = get_or_init_usage(uid)
+    pre = normalize_resets(pre)
+    require_plan(pre, "elite", feature="barcode")
+
+    # consume scan (only after plan check)
     usage_row = consume_one_scan(uid)
 
     barcode = _digits_only(str(payload.get("barcode") or ""))
@@ -719,88 +716,186 @@ def barcode_manual(
     }
 
 
-# -------------------- ANALYZE (PHOTO) --------------------
-@app.post("/analyze")
-async def analyze(
-    file: UploadFile = File(...),
-    user_id: Optional[str] = None,
-    x_user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
-):
-    uid = require_user_id(x_user_id, user_id)
 
-    # consume scan first (so failures still count? You can change this later.)
-    usage_row = consume_one_scan(uid)
 
-    contents = await file.read()
-    if not contents:
-        raise HTTPException(status_code=400, detail="Empty file")
+# -------------------- COACHING (PRO+) --------------------
+LEUCINE_THRESHOLD_G = float(os.getenv("LEUCINE_THRESHOLD_G", "2.5") or 2.5)
 
-    try:
-        _ = Image.open(io.BytesIO(contents)).convert("RGB")
-    except Exception:
-        raise HTTPException(status_code=400, detail="Uploaded file is not a valid image")
+PROTEIN_BV_MAP = [
+    ("whey", 104),
+    ("isolate", 104),
+    ("casein", 91),
+    ("milk", 91),
+    ("egg", 100),
+    ("chicken", 80),
+    ("turkey", 80),
+    ("fish", 83),
+    ("tuna", 83),
+    ("salmon", 83),
+    ("beef", 80),
+    ("pork", 80),
+    ("lamb", 80),
+    ("soy", 74),
+    ("tofu", 74),
+    ("lentil", 60),
+    ("beans", 60),
+    ("wheat", 64),
+    ("gluten", 64),
+    ("rice", 60),
+]
 
-    detected_items = gemini_detect_foods(contents)
-    logger.info(f"Detected items: {detected_items}")
-
-    results = []
-    total_kcal = 0.0
-    total_p = total_c = total_f = 0.0
-
-    for d in detected_items:
-        name = d["name"]
-        grams = float(d["grams"])
-        conf = float(d.get("confidence", 0))
-
-        best = usda_search_best(name)
-        if not best:
-            raise HTTPException(status_code=404, detail=f"No USDA match for '{name}'")
-
-        fdc_id = int(best["fdcId"])
-        details = usda_food_details(fdc_id)
-        macros100 = extract_macros_per_100g(details)
-
-        factor = grams / 100.0
-        kcal = macros100["kcal_per_100g"] * factor
-        p = macros100["protein_g_per_100g"] * factor
-        c = macros100["carbs_g_per_100g"] * factor
-        f = macros100["fat_g_per_100g"] * factor
-
-        results.append({
-            "name": name,
-            "grams": round(grams, 1),
-            "confidence": round(conf, 2),
-            "kcal": round(kcal, 1),
-            "macros": {
-                "protein_g": round(p, 1),
-                "carbs_g": round(c, 1),
-                "fat_g": round(f, 1),
-            },
-            "usda": {
-                "fdcId": fdc_id,
-                "description": details.get("description"),
-                "dataType": details.get("dataType"),
-            }
-        })
-
-        total_kcal += kcal
+def estimate_protein_bv(items: List[Dict[str, Any]]) -> int:
+    # Weighted avg by protein grams where possible.
+    total_p = 0.0
+    weighted = 0.0
+    for it in items or []:
+        name = (it.get("name") or "").lower()
+        p = float((it.get("macros") or {}).get("protein_g") or 0.0)
+        bv = 70  # default mixed food
+        for key, val in PROTEIN_BV_MAP:
+            if key in name:
+                bv = val
+                break
         total_p += p
-        total_c += c
-        total_f += f
+        weighted += p * bv
+    if total_p <= 0:
+        return 70
+    return int(round(weighted / total_p))
+
+def compute_satiety_score(total_kcal: float, totals: Dict[str, float], total_grams: float) -> int:
+    # Heuristic 0-100 using protein density + energy density.
+    protein_g = float(totals.get("protein_g") or 0.0)
+    fat_g = float(totals.get("fat_g") or 0.0)
+    carbs_g = float(totals.get("carbs_g") or 0.0)
+
+    if total_kcal <= 0 or total_grams <= 0:
+        return 50
+
+    # Energy density kcal/g (lower is more filling)
+    ed = float(total_kcal) / float(total_grams)
+
+    # Protein percent of calories
+    protein_kcal = protein_g * 4.0
+    protein_pct = (protein_kcal / float(total_kcal)) * 100.0 if total_kcal else 0.0
+
+    # Base score
+    score = 50.0
+
+    # Protein helps
+    score += min(25.0, protein_pct * 0.6)  # up to +25
+
+    # Lower energy density helps
+    # ed ~ 0.5 (salad) => +20, ed ~ 3.0 (dense) => -10
+    score += max(-15.0, min(20.0, (1.5 - ed) * 12.0))
+
+    # Very fatty / sugary meals reduce perceived satiety stability
+    fat_pct = ((fat_g * 9.0) / float(total_kcal)) * 100.0 if total_kcal else 0.0
+    sugar_like = carbs_g / max(1.0, protein_g + fat_g + carbs_g)
+    if fat_pct > 45:
+        score -= 8
+    if sugar_like > 0.65 and ed > 2.0:
+        score -= 8
+
+    return int(max(0, min(100, round(score))))
+
+def compute_coaching(payload: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Pro/Infinite coaching metrics derived from the meal.
+    Uses heuristics only (no medical claims).
+    """
+    total_kcal = float(payload.get("total_kcal") or 0.0)
+    totals = payload.get("totals") or {}
+    items = payload.get("items") or []
+
+    protein_g = float(totals.get("protein_g") or 0.0)
+    carbs_g = float(totals.get("carbs_g") or 0.0)
+    fat_g = float(totals.get("fat_g") or 0.0)
+
+    total_grams = 0.0
+    branded = 0
+    for it in items:
+        try:
+            total_grams += float(it.get("grams") or 0.0)
+        except Exception:
+            pass
+        # USDA dataType heuristic for processing
+        try:
+            if (it.get("usda") or {}).get("dataType") == "Branded":
+                branded += 1
+        except Exception:
+            pass
+
+    # ---- Satiety score (0..100) ----
+    satiety_score = compute_satiety_score(total_kcal, totals, total_grams)
+
+    # ---- Protein bioavailability (BV-ish heuristic) ----
+    bv = estimate_protein_source_bv(items)  # {label, bv, bioavailable_protein_g}
+    # Normalize BV to 0..100 bar
+    bv_bar = max(0.0, min(100.0, float(bv.get("bv") or 0.0)))
+
+    # ---- Leucine & MPS trigger heuristic ----
+    leucine_g = estimate_leucine_g(protein_g)
+    leucine_threshold = 2.5
+    mps_triggered = leucine_g >= leucine_threshold
+
+    # ---- Glycemic load risk (very rough heuristic) ----
+    # Without fiber/ingredient data, approximate from carb load per meal.
+    if carbs_g <= 25:
+        gl_risk = {"level": "low", "reason": "Lower carb load for this meal."}
+    elif carbs_g <= 50:
+        gl_risk = {"level": "medium", "reason": "Moderate carb load; consider pairing with protein/fiber."}
+    else:
+        gl_risk = {"level": "high", "reason": "High carb load; spikes are more likely depending on food type."}
+
+    # ---- Ultra-processed / NOVA-style heuristic ----
+    # Uses branded share + obvious keywords.
+    up_keywords = [
+        "cola", "soda", "soft drink", "chips", "candy", "chocolate", "cookie", "biscuit",
+        "ice cream", "instant", "packaged", "processed", "whey", "protein powder", "mass gainer",
+        "energy drink", "syrup", "ketchup"
+    ]
+    hits = 0
+    for it in items:
+        name = str(it.get("name") or "").lower()
+        if any(k in name for k in up_keywords):
+            hits += 1
+
+    n_items = max(1, len(items))
+    branded_ratio = branded / n_items
+    keyword_ratio = hits / n_items
+
+    # score 0..100, higher = more processed
+    ultra_processed_score = int(max(0, min(100, round((0.65 * branded_ratio + 0.35 * keyword_ratio) * 100))))
+    if ultra_processed_score < 25:
+        nova_class = 1
+    elif ultra_processed_score < 50:
+        nova_class = 2
+    elif ultra_processed_score < 75:
+        nova_class = 3
+    else:
+        nova_class = 4
 
     return {
-        "source": "photo",
-        "total_kcal": round(total_kcal, 1),
-        "totals": {
-            "protein_g": round(total_p, 1),
-            "carbs_g": round(total_c, 1),
-            "fat_g": round(total_f, 1),
+        "satiety": {
+            "score": int(satiety_score),
+            "bar_0_100": int(satiety_score),
         },
-        "items": results,
-        "usage": {
-            "plan": usage_row.get("plan"),
-            "remaining_day": int(usage_row.get("remaining_day") or 0),
-            "remaining_month": int(usage_row.get("remaining_month") or 0),
+        "protein_bioavailability": {
+            "label": bv.get("label"),
+            "bv": float(bv.get("bv") or 0.0),
+            "bar_0_100": float(bv_bar),
+            "bioavailable_protein_g": float(bv.get("bioavailable_protein_g") or 0.0),
+        },
+        "mps": {
+            "leucine_g_est": round(float(leucine_g), 2),
+            "threshold_g": leucine_threshold,
+            "triggered": bool(mps_triggered),
+            "message": "MPS triggered ✅" if mps_triggered else "Not yet ❌ (add more high-quality protein)",
+        },
+        "glycemic_load_risk": gl_risk,
+        "ultra_processed": {
+            "score_0_100": ultra_processed_score,
+            "nova_class": nova_class,
         },
     }
 
