@@ -798,9 +798,15 @@ export default function App() {
           />
 
           {result?.locked?.feature === "coaching" && !isProPlus(activePlan) && (
-            <Text style={styles.coachingLocked}>
-              🔒 Pro feature: Satiety, Protein BV & coaching insights. Tap Upgrade.
-            </Text>
+            <View style={styles.lockedCard}>
+              <Text style={styles.lockedTitle}>🔓 Unlock Pro Coaching</Text>
+              <Text style={styles.lockedBody}>
+                Get Satiety Index, Protein Bioavailability (BV), and MPS (Leucine) insights.
+              </Text>
+              <TouchableOpacity onPress={openPaywall} style={styles.lockedCta}>
+                <Text style={styles.lockedCtaText}>Upgrade to Pro</Text>
+              </TouchableOpacity>
+            </View>
           )}
         </View>
       )}
@@ -1058,6 +1064,25 @@ const styles = StyleSheet.create({
     padding: 14,
   },
   coachingLocked: { marginTop: 8, color: "#ffcf5a", fontWeight: "800" },
+  lockedCard: {
+    marginTop: 12,
+    backgroundColor: "#15151c",
+    borderRadius: 18,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: "#2a2a38",
+  },
+  lockedTitle: { color: "#ffffff", fontWeight: "900", fontSize: 14 },
+  lockedBody: { marginTop: 6, color: "#aeb0c0", lineHeight: 18 },
+  lockedCta: {
+    marginTop: 10,
+    alignSelf: "flex-start",
+    backgroundColor: "#3b82f6",
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 12,
+  },
+  lockedCtaText: { color: "#ffffff", fontWeight: "800" },
   barWrap: {
     height: 10,
     borderRadius: 10,
