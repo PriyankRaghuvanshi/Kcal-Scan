@@ -695,6 +695,9 @@ export default function App() {
         </TouchableOpacity>
       </View>
 
+      <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+
+
       {/* Mode Switch */}
       <View style={styles.modeRow}>
         <TouchableOpacity
@@ -859,7 +862,7 @@ export default function App() {
       })()}
 
       {/* History */}
-      <View style={styles.historyWrap}>
+      <View style={styles.historyWrapScroll}>
         <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
           <Text style={styles.h2}>History</Text>
           <TouchableOpacity style={styles.smallBtn} onPress={clearHistoryAll}>
@@ -884,7 +887,10 @@ export default function App() {
       </View>
 
       {/* Paywall Modal */}
-      <Modal visible={paywallOpen} animationType="slide" onRequestClose={() => setPaywallOpen(false)}>
+      
+      </ScrollView>
+
+<Modal visible={paywallOpen} animationType="slide" onRequestClose={() => setPaywallOpen(false)}>
         <SafeAreaView style={styles.modalWrap}>
           <View style={styles.modalHeader}>
             <Text style={styles.h1}>Upgrade</Text>
@@ -1096,7 +1102,9 @@ const styles = StyleSheet.create({
     backgroundColor: "#5b7cfa",
   },
 
+  scrollContent: { paddingBottom: 120 },
   historyWrap: { marginTop: 12, flex: 1 },
+  historyWrapScroll: { marginTop: 12 },
   historyRow: {
     backgroundColor: "#15151c",
     marginTop: 8,
