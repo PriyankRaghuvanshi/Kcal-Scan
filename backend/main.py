@@ -429,7 +429,7 @@ def plan_sync(
     """
     uid = require_user_id(x_user_id, user_id)
     entitlement = (payload.get("entitlement") or DEFAULT_PLAN).lower()
-    stored = set_user_plan(uid, entitlement)
+    stored = row = set_user_plan(uid, entitlement)
     return {"ok": True, "plan": stored.get("plan")}
 
 
@@ -888,6 +888,7 @@ def compute_coaching(payload: Dict[str, Any]) -> Dict[str, Any]:
         "satiety_score": satiety,
         "protein_bv": bv,
         "bioavailable_protein_g": round(bioavailable_protein_g, 1),
+        "leucine_g": round(leucine_est_g, 2),
         "leucine_est_g": round(leucine_est_g, 2),
         "mps_threshold_g": LEUCINE_THRESHOLD_G,
         "mps_triggered": bool(leucine_est_g >= LEUCINE_THRESHOLD_G),
@@ -1005,5 +1006,6 @@ async def analyze(
         response["locked"] = {"feature": "coaching", "required_plan": "pro"}
 
     return response
+
 
 
