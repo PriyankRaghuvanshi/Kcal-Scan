@@ -4,7 +4,7 @@
     "slug": "calorieclick-ai",
     "version": "1.0.1",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/CalorieClick.png",
     "userInterfaceStyle": "dark",
     "newArchEnabled": true,
     "splash": {
@@ -20,6 +20,11 @@
         "NSCameraUsageDescription": "We need camera access to scan meals and barcodes.",
         "NSAppTransportSecurity": { "NSAllowsArbitraryLoads": true },
         "ITSAppUsesNonExemptEncryption": false
+      "icon": "./assets/CalorieClick.png",
+      "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#000000"
       }
     },
     "android": {
