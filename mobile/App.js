@@ -800,14 +800,17 @@ export default function App() {
             )}
           />
 
-          {result?.locked?.feature === "coaching" && !isProPlus(activePlan) && (
+          {result && !isProPlus(activePlan) && (
             <View style={styles.lockedCard}>
-              <Text style={styles.lockedTitle}>🔓 Unlock Pro Coaching</Text>
+              <Text style={styles.lockedTitle}>🔓 Unlock Satiety + Protein BV + MPS</Text>
               <Text style={styles.lockedBody}>
-                Get Satiety Index, Protein Bioavailability (BV), and MPS (Leucine) insights.
+                Upgrade to Pro or Infinite to see coaching insights:
               </Text>
+              <Text style={styles.lockedBullets}>• Satiety (how filling this meal is)</Text>
+              <Text style={styles.lockedBullets}>• Protein BV (how much protein your body can use)</Text>
+              <Text style={styles.lockedBullets}>• MPS / Leucine (muscle-building “trigger”)</Text>
               <TouchableOpacity onPress={openPaywall} style={styles.lockedCta}>
-                <Text style={styles.lockedCtaText}>Upgrade to Pro</Text>
+                <Text style={styles.lockedCtaText}>Upgrade</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -817,32 +820,42 @@ export default function App() {
       {/* Coaching (Pro/Infinite only) */}
       {isProPlus(activePlan) && result?.coaching && (() => {
         const coaching = result.coaching || {};
-        const sat = num(coaching?.satiety_score);
-        const bv = num(coaching?.protein_bv);
-        const leucine = num(coaching?.leucine_g);
-        const gly = num(coaching?.glycemic_load);
-        const nova = coaching?.nova_label || "";
-        const mpsOk = Boolean(coaching?.mps_triggered || coaching?.mpsTriggered);
-        const thr = num(coaching?.mps_threshold_g) || 2.5;
-
+            const sat = num(coaching?.satiety_score);
+            const bv = num(coaching?.protein_bv);
+            // Leucine fallback: if backend didn’t return it, estimate from protein (~8% of protein is leucine on average)
+            let leucine = num(coaching?.leucine_g);
+            const totalProtein = num(result?.totals?.protein_g ?? result?.totals?.protein_g);
+            if ((!leucine || leucine <= 0) && totalProtein > 0) leucine = totalProtein * 0.08;
+            const thr = num(coaching?.mps_threshold_g) || 2.5;
+            const leucineGap = Math.max(0, thr - leucine);
+            const mpsOk = leucine >= thr;
+            const leucineTips = Array.isArray(coaching?.leucine_tips) ? coaching.leucine_tips : (
+              leucineGap <= 0 ? ["✅ Great — muscle-building signal is triggered for this meal."] :
+              leucineGap <= 0.4 ? ["Add a little more protein to hit the muscle-building threshold.", "Easy add-ons: Greek yogurt, milk, eggs, chicken, or whey."] :
+              leucineGap <= 1.0 ? ["You're close — add a moderate protein boost.", "Good options: extra chicken/fish/eggs, tofu/tempeh, Greek yogurt, or a protein shake."] :
+              ["You're quite short — this meal needs more protein to trigger muscle-building.", "Add a strong protein portion (e.g., chicken/fish/lean meat/tofu) or a protein shake."]
+            );
         const bar = (val, max = 100) => {
           const pct = Math.max(0, Math.min(1, val / max));
           return (
             <View style={styles.barWrap}>
               <View style={[styles.barFill, { width: `${pct * 100}%` }]} />
             </View>
-          );
-        };
-
-        return (
-          <View style={styles.coachingCard}>
-            <Text style={styles.h2}>Coaching Insights</Text>
-
-            <Text style={styles.sub}>Satiety Score: {round1(sat)}/100</Text>
+            <Text style={styles.sub}>Satiety Score (how filling): {round1(sat)}/100</Text>
             {bar(sat, 100)}
 
-            <Text style={styles.sub}>Protein Bioavailability (BV): {round1(bv)}/100</Text>
+            <Text style={styles.sub}>Protein Bioavailability (how much your body uses): {round1(bv)}/100</Text>
             {bar(bv, 100)}
+
+            <Text style={styles.sub}>
+              Leucine / MPS (muscle “trigger”): {leucine.toFixed(2)}g {mpsOk ? "✅" : "❌"}
+            </Text>
+            <Text style={styles.small}>
+              Threshold: {thr.toFixed(1)}g • {mpsOk ? "Triggered" : "Not yet"}
+            </Text>
+            {Array.isArray(leucineTips) && leucineTips.slice(0, 3).map((t, i) => (
+              <Text key={`lt_${i}`} style={styles.small}>• {t}</Text>
+            ))}
 
             <Text style={styles.sub}>
               Leucine Estimate: {leucine.toFixed(2)}g {mpsOk ? "✅" : "❌"}
@@ -1137,4 +1150,3 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
 });
-
