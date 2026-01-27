@@ -800,17 +800,14 @@ export default function App() {
             )}
           />
 
-          {result && !isProPlus(activePlan) && (
+          {result?.locked?.feature === "coaching" && !isProPlus(activePlan) && (
             <View style={styles.lockedCard}>
-              <Text style={styles.lockedTitle}>🔓 Unlock Satiety + Protein BV + MPS</Text>
+              <Text style={styles.lockedTitle}>🔓 Unlock Pro Coaching</Text>
               <Text style={styles.lockedBody}>
-                Upgrade to Pro or Infinite to see coaching insights:
+                Get Satiety Index, Protein Bioavailability (BV), and MPS (Leucine) insights.
               </Text>
-              <Text style={styles.lockedBullets}>• Satiety (how filling this meal is)</Text>
-              <Text style={styles.lockedBullets}>• Protein BV (how much protein your body can use)</Text>
-              <Text style={styles.lockedBullets}>• MPS / Leucine (muscle-building “trigger”)</Text>
               <TouchableOpacity onPress={openPaywall} style={styles.lockedCta}>
-                <Text style={styles.lockedCtaText}>Upgrade</Text>
+                <Text style={styles.lockedCtaText}>Upgrade to Pro</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -822,21 +819,14 @@ export default function App() {
         const coaching = result.coaching || {};
         const sat = num(coaching?.satiety_score);
         const bv = num(coaching?.protein_bv);
-
-        // Leucine: use backend value if present; otherwise estimate ~8% of protein.
-        let leucine = num(coaching?.leucine_g);
-        const totalProtein = num(result?.totals?.protein_g);
-        if ((!Number.isFinite(leucine) || leucine <= 0) && totalProtein > 0) {
-          leucine = totalProtein * 0.08;
-        }
-
+        const leucine = num(coaching?.leucine_g);
+        const gly = num(coaching?.glycemic_load);
+        const nova = coaching?.nova_label || "";
+        const mpsOk = Boolean(coaching?.mps_triggered || coaching?.mpsTriggered);
         const thr = num(coaching?.mps_threshold_g) || 2.5;
-        const leucineGap = Math.max(0, thr - (Number.isFinite(leucine) ? leucine : 0));
-        const mpsOk = Number.isFinite(leucine) ? leucine >= thr : false;
 
-        const bar = (val) => {
-          const v = Number(val);
-          const pct = Number.isFinite(v) ? Math.max(0, Math.min(1, v / 100)) : 0;
+        const bar = (val, max = 100) => {
+          const pct = Math.max(0, Math.min(1, val / max));
           return (
             <View style={styles.barWrap}>
               <View style={[styles.barFill, { width: `${pct * 100}%` }]} />
@@ -845,28 +835,32 @@ export default function App() {
         };
 
         return (
-          <View style={styles.card}>
+          <View style={styles.coachingCard}>
             <Text style={styles.h2}>Coaching Insights</Text>
 
-            <Text style={styles.sub}>Satiety Score (how filling): {round1(sat)}/100</Text>
-            {bar(sat)}
+            <Text style={styles.sub}>Satiety Score: {round1(sat)}/100</Text>
+            {bar(sat, 100)}
 
-            <Text style={[styles.sub, { marginTop: 10 }]}>
-              Protein Bioavailability (how much your body uses): {round1(bv)}/100
+            <Text style={styles.sub}>Protein Bioavailability (BV): {round1(bv)}/100</Text>
+            {bar(bv, 100)}
+
+            <Text style={styles.sub}>
+              Leucine Estimate: {leucine.toFixed(2)}g {mpsOk ? "✅" : "❌"}
             </Text>
-            {bar(bv)}
-
-            <Text style={[styles.sub, { marginTop: 10 }]}>
-              Leucine Estimate (muscle trigger): {Number.isFinite(leucine) ? round2(leucine) : "—"}g {mpsOk ? "✅" : "❌"}
+            <Text style={styles.small}>
+              Threshold: {thr.toFixed(1)}g • {mpsOk ? "Triggered" : "Not yet"}
             </Text>
-            <Text style={styles.small}>Threshold: {thr}g • {mpsOk ? "Triggered" : "Not yet"}</Text>
 
-            {(getLeucineTips(leucineGap) || []).map((t, idx) => (
-              <Text key={`tip-${idx}`} style={styles.tipText}>• {t}</Text>
-            ))}
+            {!!gly && (
+              <Text style={styles.sub}>Glycemic Load (est): {round1(gly)}</Text>
+            )}
+            {!!nova && (
+              <Text style={styles.sub}>Ultra-processed score (NOVA): {nova}</Text>
+            )}
           </View>
         );
       })()}
+
       {/* History */}
       <View style={styles.historyWrapScroll}>
         <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
@@ -1142,9 +1136,5 @@ const styles = StyleSheet.create({
     padding: 16,
     marginTop: 12,
   },
-  tipText: {
-    marginTop: 6,
-    fontSize: 13,
-    opacity: 0.9,
-  },
 });
+
