@@ -57,6 +57,107 @@ DEFAULT_PLAN = "free"
 PLAN_ORDER = ["free", "elite", "advanced", "pro", "infinite"]
 
 
+# -------------------- COACHING (PRO/INFINITE) --------------------
+# Lightweight heuristics computed from macros + item names (no extra APIs).
+
+COACHING_MPS_LEUCINE_THRESHOLD_G = 2.5  # user preference
+
+def _infer_bv_from_name(name: str) -> float:
+    n = (name or "").lower()
+    if any(k in n for k in ["whey", "isolate"]): return 100.0
+    if "egg" in n: return 98.0
+    if any(k in n for k in ["milk", "yogurt", "paneer", "cheese", "curd"]): return 92.0
+    if any(k in n for k in ["chicken", "turkey"]): return 88.0
+    if any(k in n for k in ["fish", "salmon", "tuna", "prawn", "shrimp"]): return 88.0
+    if any(k in n for k in ["beef", "lamb", "pork"]): return 82.0
+    if any(k in n for k in ["soy", "tofu", "tempeh"]): return 74.0
+    if any(k in n for k in ["lentil", "dal", "chickpea", "beans", "rajma"]): return 72.0
+    if any(k in n for k in ["wheat", "gluten", "bread", "pasta"]): return 64.0
+    return 75.0
+
+def _clamp(x: float, lo: float, hi: float) -> float:
+    try:
+        x = float(x)
+    except Exception:
+        return lo
+    return max(lo, min(hi, x))
+
+def _meal_protein_bv(items: List[Dict[str, Any]]) -> float:
+    if not items:
+        return 0.0
+    w_sum = 0.0
+    v_sum = 0.0
+    for it in items:
+        bv = _infer_bv_from_name(str(it.get("name") or ""))
+        p = float(((it.get("macros") or {}).get("protein_g")) or 0.0)
+        w = p if p > 0 else 1.0
+        w_sum += w
+        v_sum += bv * w
+    return (v_sum / w_sum) if w_sum > 0 else 0.0
+
+def _satiety_score(total_kcal: float, protein_g: float, fat_g: float, carbs_g: float) -> float:
+    kcal = float(total_kcal or 0.0)
+    if kcal <= 0:
+        return 0.0
+    p = float(protein_g or 0.0)
+    f = float(fat_g or 0.0)
+    c = float(carbs_g or 0.0)
+
+    p_density = (p / kcal) * 100.0
+    fat_penalty = (f / kcal) * 100.0
+    score = 40.0 + p_density * 40.0 - fat_penalty * 20.0
+    if c > 60 and p < 25:
+        score -= 8.0
+    return _clamp(score, 0.0, 100.0)
+
+def _leucine_estimate_g(protein_g: float) -> float:
+    # Rough leucine fraction of dietary protein (~8%)
+    return float(protein_g or 0.0) * 0.08
+
+def _glycemic_risk(carbs_g: float, items: List[Dict[str, Any]]) -> str:
+    c = float(carbs_g or 0.0)
+    names = " ".join([(it.get("name") or "").lower() for it in (items or [])])
+    sugary = any(k in names for k in ["cola", "soda", "soft drink", "juice", "candy", "chocolate", "nutella", "cake", "cookie", "ice cream", "syrup", "jam"])
+    if c >= 90 or (c >= 70 and sugary):
+        return "High"
+    if c >= 45:
+        return "Medium"
+    return "Low"
+
+def _nova_hint(items: List[Dict[str, Any]]) -> str:
+    names = " ".join([(it.get("name") or "").lower() for it in (items or [])])
+    ultra = any(k in names for k in ["cola", "soda", "chips", "nugget", "sausage", "hot dog", "instant", "ramen", "cookie", "cake", "cereal", "nutella", "protein bar", "ketchup"])
+    if ultra:
+        return "High"
+    whole = any(k in names for k in ["egg", "milk", "yogurt", "chicken", "fish", "rice", "oats", "lentil", "dal", "beans", "banana", "apple", "salad", "vegetable"])
+    return "Low" if whole else "Medium"
+
+def build_coaching(total_kcal: float, totals: Dict[str, float], items: List[Dict[str, Any]]) -> Dict[str, Any]:
+    p = float((totals or {}).get("protein_g") or 0.0)
+    c = float((totals or {}).get("carbs_g") or 0.0)
+    f = float((totals or {}).get("fat_g") or 0.0)
+
+    sat = _satiety_score(total_kcal, p, f, c)
+    bv = _meal_protein_bv(items or [])
+    leu = _leucine_estimate_g(p)
+
+    thr = COACHING_MPS_LEUCINE_THRESHOLD_G
+    gap = max(0.0, thr - leu)
+
+    return {
+        "satiety_score": round(sat, 1),
+        "protein_bv": round(bv, 1),
+        "leucine_estimate_g": round(leu, 2),
+        "leucine_g": round(leu, 2),  # alias
+        "mps_threshold_g": thr,
+        "mps_triggered": leu >= thr,
+        "leucine_gap_g": round(gap, 2),
+        "glycemic_risk": _glycemic_risk(c, items or []),
+        "glycemic_load": round(c * 0.45, 1),  # rough (no GI data)
+        "nova_label": _nova_hint(items or []),
+    }
+
+
 # -------------------- MIDDLEWARE --------------------
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
@@ -890,7 +991,9 @@ async def analyze(
         },
     }
 
-    if not coaching_enabled:
+    if coaching_enabled:
+        response["coaching"] = build_coaching(response["total_kcal"], response["totals"], response["items"])
+    else:
         # UI can use this to show "Upgrade to Pro"
         response["locked"] = {"feature": "coaching", "required_plan": "pro"}
 
