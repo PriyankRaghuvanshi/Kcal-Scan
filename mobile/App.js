@@ -47,6 +47,8 @@ const RC_ANDROID_KEY =
 
 // Offering + entitlements
 const OFFERING_ID = process.env.EXPO_PUBLIC_RC_OFFERING || "main";
+const PLAN_ORDER = ["free","elite","advanced","pro","infinite"];
+
 const ENTITLEMENTS = (process.env.EXPO_PUBLIC_RC_ENTITLEMENTS || "elite,advanced,pro,infinite")
   .split(",")
   .map((x) => x.trim())
@@ -167,11 +169,15 @@ function normalizeBarcodeResponse(json) {
 }
 
 function getActiveEntitlement(customerInfo) {
+  // returns the HIGHEST active entitlement by PLAN_ORDER
   const active = customerInfo?.entitlements?.active || {};
-  for (const k of ENTITLEMENTS) {
-    if (active[k]) return k;
+  const activeKeys = Object.keys(active || {}).map((k) => String(k).toLowerCase());
+  let best = "free";
+  for (const k of activeKeys) {
+    const idx = PLAN_ORDER.indexOf(k);
+    if (idx >= 0 && idx > PLAN_ORDER.indexOf(best)) best = k;
   }
-  return "free";
+  return best;
 }
 
 function formatPrice(pkg) {
@@ -183,20 +189,13 @@ function formatPrice(pkg) {
 }
 
 function pkgTitle(pkg) {
-  const id = (pkg?.identifier || pkg?.product?.identifier || "").toLowerCase();
-
-  // If you encoded entitlement in the product/package identifier, show it nicely
-  for (const ent of ENTITLEMENTS) {
-    if (id.includes(ent.toLowerCase())) return ent.toUpperCase();
-  }
-
-  // Otherwise, fall back to the Store title (this is what usually contains "Elite", "Advanced", etc.)
-  return (
-    pkg?.product?.title ||
-    pkg?.product?.description ||
-    pkg?.identifier ||
-    "Plan"
-  );
+  const id = (pkg?.identifier || "").toLowerCase();
+  // Prefer showing plan name (Elite/Advanced/Pro/Infinite) over billing period
+  if (id.includes("infinite")) return "Infinite";
+  if (id.includes("pro")) return "Pro";
+  if (id.includes("advanced")) return "Advanced";
+  if (id.includes("elite")) return "Elite";
+  return pkg?.product?.title || "Plan";
 }
 
 function planRankFromPkg(pkg) {
@@ -677,7 +676,7 @@ export default function App() {
         <View style={{ flex: 1 }}>
           <Text style={styles.h1}>CalorieClick.ai</Text>
           <Text style={styles.small}>
-            Plan: <Text style={{ fontWeight: "800" }}>{activePlan}</Text>
+            Plan: <Text style={{ fontWeight: "800" }}>{(usage?.plan || activePlan)}</Text>
             {"  •  "}
             Remaining:{" "}
             <Text style={{ fontWeight: "800" }}>
@@ -819,11 +818,16 @@ export default function App() {
         const coaching = result.coaching || {};
         const sat = num(coaching?.satiety_score);
         const bv = num(coaching?.protein_bv);
-        const leucine = num(coaching?.leucine_g);
-        const gly = num(coaching?.glycemic_load);
-        const nova = coaching?.nova_label || "";
-        const mpsOk = Boolean(coaching?.mps_triggered || coaching?.mpsTriggered);
-        const thr = num(coaching?.mps_threshold_g) || 2.5;
+
+        const mps = coaching?.mps || {};
+        const leucine = num(mps?.leucine_g ?? mps?.leucine_estimate_g ?? coaching?.leucine_g);
+        const thr = num(mps?.threshold_g ?? mps?.threshold_leucine_g ?? coaching?.mps_threshold_g) || 2.5;
+        const leucineGap = num(mps?.leucine_gap_g);
+        const mpsOk = Boolean(mps?.mps_ok ?? mps?.triggered ?? coaching?.mps_triggered ?? coaching?.mpsTriggered);
+
+        const gly = num(coaching?.glycemic_load); // optional (may be missing)
+        const nova = coaching?.nova_label || coaching?.ultra_processed_label || ""; // optional (may be missing)
+        const mpsHints = Array.isArray(mps?.hints) ? mps.hints : [];
 
         const bar = (val, max = 100) => {
           const pct = Math.max(0, Math.min(1, val / max));
@@ -845,11 +849,16 @@ export default function App() {
             {bar(bv, 100)}
 
             <Text style={styles.sub}>
-              Leucine Estimate: {leucine.toFixed(2)}g {mpsOk ? "✅" : "❌"}
+              Leucine Estimate (muscle trigger amino acid): {Number.isFinite(leucine) && leucine > 0 ? leucine.toFixed(2) : "-"}g {mpsOk ? "✅" : "❌"}
             </Text>
             <Text style={styles.small}>
-              Threshold: {thr.toFixed(1)}g • {mpsOk ? "Triggered" : "Not yet"}
+              Threshold: {thr.toFixed(1)}g • {mpsOk ? "MPS triggered (good for muscle gain)" : "Not yet (add more protein)"}
             </Text>
+            {!!mpsHints.length && (
+              <Text style={styles.small}>
+                {mpsHints.join(" ")}
+              </Text>
+            )}
 
             {!!gly && (
               <Text style={styles.sub}>Glycemic Load (est): {round1(gly)}</Text>
