@@ -361,13 +361,13 @@ export default function App() {
   }, [userId]);
 
   // ===================== PLAN SYNC =====================
-  async function syncPlanToBackend(entitlement) {
+  async function syncPlanToBackend(entitlement, mode = "purchase") {
     if (!userId) return;
     try {
       const res = await fetch(`${API_BASE}/plan/sync?user_id=${encodeURIComponent(userId)}`, {
         method: "POST",
         headers: backendHeaders(userId, { "Content-Type": "application/json" }),
-        body: JSON.stringify({ entitlement }),
+      body: JSON.stringify({ entitlement, mode }),
       });
       const json = await res.json();
       console.log("plan/sync:", json);
@@ -406,7 +406,7 @@ export default function App() {
       setActivePlan(plan);
 
       // 🔥 sync to backend
-      await syncPlanToBackend(plan);
+      await syncPlanToBackend(plan, "purchase");
 
       Alert.alert("✅ Purchase successful", `Plan activated: ${plan}`);
       setPaywallOpen(false);
@@ -428,7 +428,8 @@ export default function App() {
       setActivePlan(plan);
 
       // 🔥 sync to backend
-      await syncPlanToBackend(plan);
+      // IMPORTANT: restore should NOT refill scan counters.
+      await syncPlanToBackend(plan, "restore");
 
       Alert.alert("✅ Restored", `Active plan: ${plan}`);
       setPaywallOpen(false);
