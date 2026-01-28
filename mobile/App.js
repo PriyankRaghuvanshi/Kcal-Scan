@@ -31,7 +31,8 @@ const API_BASE =
   process.env.EXPO_PUBLIC_API_BASE?.trim() ||
   "https://kcal-scan-production.up.railway.app";
 
-const HISTORY_KEY = "kcal_scan_history_v3";
+const HISTORY_KEY_BASE = "kcal_scan_history_v3";
+const historyKeyForUser = (uid) => `${HISTORY_KEY_BASE}_${uid || "guest"}`;
 const MAX_HISTORY = 50;
 
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL || "";
@@ -47,8 +48,6 @@ const RC_ANDROID_KEY =
 
 // Offering + entitlements
 const OFFERING_ID = process.env.EXPO_PUBLIC_RC_OFFERING || "main";
-const PLAN_ORDER = ["free","elite","advanced","pro","infinite"];
-
 const ENTITLEMENTS = (process.env.EXPO_PUBLIC_RC_ENTITLEMENTS || "elite,advanced,pro,infinite")
   .split(",")
   .map((x) => x.trim())
@@ -168,16 +167,168 @@ function normalizeBarcodeResponse(json) {
   };
 }
 
-function getActiveEntitlement(customerInfo) {
-  // returns the HIGHEST active entitlement by PLAN_ORDER
-  const active = customerInfo?.entitlements?.active || {};
-  const activeKeys = Object.keys(active || {}).map((k) => String(k).toLowerCase());
-  let best = "free";
-  for (const k of activeKeys) {
-    const idx = PLAN_ORDER.indexOf(k);
-    if (idx >= 0 && idx > PLAN_ORDER.indexOf(best)) best = k;
+
+// ===================== COACHING (PRO/INFINITE) =====================
+// These are lightweight heuristics (no extra APIs) so they work for any scan.
+
+// Protein quality guess (BV-like 0..100) from item names.
+function inferBVFromName(name) {
+  const n = String(name || "").toLowerCase();
+  if (/(whey|isolate)/.test(n)) return 100;
+  if (/(egg)/.test(n)) return 98;
+  if (/(milk|yogurt|paneer|cheese|curd)/.test(n)) return 92;
+  if (/(chicken|turkey)/.test(n)) return 88;
+  if (/(fish|salmon|tuna|prawn|shrimp)/.test(n)) return 88;
+  if (/(beef|lamb|pork)/.test(n)) return 82;
+  if (/(soy|tofu|tempeh)/.test(n)) return 74;
+  if (/(lentil|dal|chickpea|beans|kidney|rajma)/.test(n)) return 72;
+  if (/(wheat|gluten|bread|pasta)/.test(n)) return 64;
+  return 75; // mixed/unknown
+}
+
+function clamp01(x) {
+  const n = Number(x);
+  if (!Number.isFinite(n)) return 0;
+  return Math.max(0, Math.min(1, n));
+}
+function clamp0_100(x) {
+  const n = Number(x);
+  if (!Number.isFinite(n)) return 0;
+  return Math.max(0, Math.min(100, n));
+}
+
+// Meal BV is weighted by protein grams per item if available, else simple average.
+function mealProteinBV(items) {
+  const arr = Array.isArray(items) ? items : [];
+  if (!arr.length) return 0;
+
+  let wSum = 0;
+  let vSum = 0;
+
+  for (const it of arr) {
+    const bv = inferBVFromName(it?.name);
+    const p = Number(it?.macros?.protein_g ?? 0) || 0;
+    const w = p > 0 ? p : 1;
+    wSum += w;
+    vSum += bv * w;
   }
-  return best;
+  return wSum > 0 ? vSum / wSum : 0;
+}
+
+// Satiety score (0..100): protein up, energy density up/down is approximated by kcal vs protein/fiber unknown.
+// This is intentionally simple + stable.
+function satietyScore(totalKcal, proteinG, fatG, carbsG) {
+  const kcal = Number(totalKcal) || 0;
+  const p = Number(proteinG) || 0;
+  const f = Number(fatG) || 0;
+  const c = Number(carbsG) || 0;
+
+  if (kcal <= 0) return 0;
+
+  // Protein density: grams per 100 kcal
+  const pDensity = (p / kcal) * 100;
+  // Fat penalty (very energy dense)
+  const fatPenalty = (f / kcal) * 100;
+
+  // Base around protein density
+  let score = 40 + pDensity * 40 - fatPenalty * 20;
+
+  // If lots of carbs without protein, nudge down a bit (more hunger swings)
+  if (c > 60 && p < 25) score -= 8;
+
+  return clamp0_100(score);
+}
+
+// Leucine estimate (g): rough average leucine fraction of protein (~8%).
+function leucineEstimateG(proteinG) {
+  const p = Number(proteinG) || 0;
+  return p * 0.08;
+}
+
+// Glycemic load risk: very rough (based on total carbs + presence of sugary/processed items)
+function glycemicRisk(carbsG, items) {
+  const c = Number(carbsG) || 0;
+  const n = (Array.isArray(items) ? items : []).map((x) => String(x?.name || "").toLowerCase()).join(" ");
+  const sugary = /(cola|soda|soft drink|juice|candy|chocolate|nutella|cake|cookie|ice cream|syrup|jam)/.test(n);
+
+  if (c >= 90 || (c >= 70 && sugary)) return "High";
+  if (c >= 45) return "Medium";
+  return "Low";
+}
+
+// Ultra-processed (NOVA-style) hint: heuristic only.
+function novaHint(items) {
+  const n = (Array.isArray(items) ? items : []).map((x) => String(x?.name || "").toLowerCase()).join(" ");
+  const ultra = /(cola|soda|soft drink|chips|nugget|sausage|hot dog|instant|ramen|cookie|cake|cereal|nutella|protein bar|ketchup)/.test(n);
+  if (ultra) return "High";
+  // if mostly whole foods keywords
+  const whole = /(egg|milk|yogurt|chicken|fish|rice|oats|lentil|dal|beans|banana|apple|salad|vegetable)/.test(n);
+  return whole ? "Low" : "Medium";
+}
+
+function coachingTips(leucineGapG) {
+  if (leucineGapG <= 0) return ["✅ Great — muscle-building signal is triggered for this meal."];
+  if (leucineGapG <= 0.4) {
+    return [
+      "Add a little more protein to hit the muscle-building threshold.",
+      "Easy add-ons: Greek yogurt, milk, eggs, chicken, or whey."
+    ];
+  }
+  if (leucineGapG <= 1.0) {
+    return [
+      "You're close — add a moderate protein boost.",
+      "Good options: extra chicken/fish/eggs, tofu/tempeh, Greek yogurt, or a protein shake."
+    ];
+  }
+  return [
+    "You're quite short — this meal needs more protein to trigger muscle-building.",
+    "Add a strong protein portion (e.g., chicken/fish/lean meat/tofu) or a protein shake."
+  ];
+}
+
+function buildCoaching(result) {
+  const totalKcal = Number(result?.total_kcal ?? 0) || 0;
+  const proteinG = Number(result?.totals?.protein_g ?? 0) || 0;
+  const carbsG = Number(result?.totals?.carbs_g ?? 0) || 0;
+  const fatG = Number(result?.totals?.fat_g ?? 0) || 0;
+  const items = Array.isArray(result?.items) ? result.items : [];
+
+  const sat = satietyScore(totalKcal, proteinG, fatG, carbsG);
+  const bv = mealProteinBV(items);
+  const leu = leucineEstimateG(proteinG);
+
+  const threshold = 2.5; // your target
+  const gap = Math.max(0, threshold - leu);
+
+  return {
+    // Core
+    satiety_score: sat,
+    protein_bv: bv,
+
+    // Leucine + MPS
+    leucine_estimate_g: leu,
+    leucine_g: leu, // backward-compatible alias
+    mps_threshold_g: threshold,
+    mps_triggered: leu >= threshold,
+    leucine_gap_g: gap,
+
+    // Carbs / processing heuristics
+    glycemic_risk: glycemicRisk(carbsG, items),
+    glycemic_load: Math.round((carbsG * 0.45) * 10) / 10, // rough estimate (no GI data)
+    nova_ultra_processed: novaHint(items),
+    nova_label: novaHint(items),
+
+    // Tips
+    tips: coachingTips(gap),
+  };
+}
+
+function getActiveEntitlement(customerInfo) {
+  const active = customerInfo?.entitlements?.active || {};
+  for (const k of ENTITLEMENTS) {
+    if (active[k]) return k;
+  }
+  return "free";
 }
 
 function formatPrice(pkg) {
@@ -189,13 +340,20 @@ function formatPrice(pkg) {
 }
 
 function pkgTitle(pkg) {
-  const id = (pkg?.identifier || "").toLowerCase();
-  // Prefer showing plan name (Elite/Advanced/Pro/Infinite) over billing period
-  if (id.includes("infinite")) return "Infinite";
-  if (id.includes("pro")) return "Pro";
-  if (id.includes("advanced")) return "Advanced";
-  if (id.includes("elite")) return "Elite";
-  return pkg?.product?.title || "Plan";
+  const id = (pkg?.identifier || pkg?.product?.identifier || "").toLowerCase();
+
+  // If you encoded entitlement in the product/package identifier, show it nicely
+  for (const ent of ENTITLEMENTS) {
+    if (id.includes(ent.toLowerCase())) return ent.toUpperCase();
+  }
+
+  // Otherwise, fall back to the Store title (this is what usually contains "Elite", "Advanced", etc.)
+  return (
+    pkg?.product?.title ||
+    pkg?.product?.description ||
+    pkg?.identifier ||
+    "Plan"
+  );
 }
 
 function planRankFromPkg(pkg) {
@@ -267,12 +425,12 @@ export default function App() {
   useEffect(() => {
     (async () => {
       try {
-        const raw = await AsyncStorage.getItem(HISTORY_KEY);
+        const raw = await AsyncStorage.getItem(historyKeyForUser(userId));
         const arr = raw ? JSON.parse(raw) : [];
         if (Array.isArray(arr)) setHistory(arr);
       } catch {}
     })();
-  }, []);
+  }, [userId]);
 
   useEffect(() => {
     if (!HAS_SUPABASE) {
@@ -361,13 +519,13 @@ export default function App() {
   }, [userId]);
 
   // ===================== PLAN SYNC =====================
-  async function syncPlanToBackend(entitlement, mode = "purchase") {
+  async function syncPlanToBackend(entitlement) {
     if (!userId) return;
     try {
       const res = await fetch(`${API_BASE}/plan/sync?user_id=${encodeURIComponent(userId)}`, {
         method: "POST",
         headers: backendHeaders(userId, { "Content-Type": "application/json" }),
-      body: JSON.stringify({ entitlement, mode }),
+        body: JSON.stringify({ entitlement }),
       });
       const json = await res.json();
       console.log("plan/sync:", json);
@@ -406,7 +564,7 @@ export default function App() {
       setActivePlan(plan);
 
       // 🔥 sync to backend
-      await syncPlanToBackend(plan, "purchase");
+      await syncPlanToBackend(plan);
 
       Alert.alert("✅ Purchase successful", `Plan activated: ${plan}`);
       setPaywallOpen(false);
@@ -428,8 +586,7 @@ export default function App() {
       setActivePlan(plan);
 
       // 🔥 sync to backend
-      // IMPORTANT: restore should NOT refill scan counters.
-      await syncPlanToBackend(plan, "restore");
+      await syncPlanToBackend(plan);
 
       Alert.alert("✅ Restored", `Active plan: ${plan}`);
       setPaywallOpen(false);
@@ -485,7 +642,7 @@ export default function App() {
 
   async function clearHistoryAll() {
     try {
-      await AsyncStorage.removeItem(HISTORY_KEY);
+      await AsyncStorage.removeItem(historyKeyForUser(userId));
     } catch {}
     setHistory([]);
   }
@@ -542,7 +699,7 @@ export default function App() {
 
       const newHist = [entry, ...history].slice(0, MAX_HISTORY);
       setHistory(newHist);
-      await AsyncStorage.setItem(HISTORY_KEY, JSON.stringify(newHist));
+      await AsyncStorage.setItem(historyKeyForUser(userId), JSON.stringify(newHist));
 
       await fetchUsage();
     } catch (e) {
@@ -593,7 +750,7 @@ export default function App() {
 
       const newHist = [entry, ...history].slice(0, MAX_HISTORY);
       setHistory(newHist);
-      await AsyncStorage.setItem(HISTORY_KEY, JSON.stringify(newHist));
+      await AsyncStorage.setItem(historyKeyForUser(userId), JSON.stringify(newHist));
 
       await fetchUsage();
     } catch (e) {
@@ -677,7 +834,7 @@ export default function App() {
         <View style={{ flex: 1 }}>
           <Text style={styles.h1}>CalorieClick.ai</Text>
           <Text style={styles.small}>
-            Plan: <Text style={{ fontWeight: "800" }}>{(usage?.plan || activePlan)}</Text>
+            Plan: <Text style={{ fontWeight: "800" }}>{activePlan}</Text>
             {"  •  "}
             Remaining:{" "}
             <Text style={{ fontWeight: "800" }}>
@@ -800,7 +957,7 @@ export default function App() {
             )}
           />
 
-          {result?.locked?.feature === "coaching" && !isProPlus(activePlan) && (
+          {result?.locked?.feature === "coaching" && !isProPlus((usage?.plan || activePlan)) && (
             <View style={styles.lockedCard}>
               <Text style={styles.lockedTitle}>🔓 Unlock Pro Coaching</Text>
               <Text style={styles.lockedBody}>
@@ -815,20 +972,15 @@ export default function App() {
       )}
 
       {/* Coaching (Pro/Infinite only) */}
-      {isProPlus(activePlan) && result?.coaching && (() => {
+      {isProPlus((usage?.plan || activePlan)) && result?.coaching && (() => {
         const coaching = result.coaching || {};
         const sat = num(coaching?.satiety_score);
         const bv = num(coaching?.protein_bv);
-
-        const mps = coaching?.mps || {};
-        const leucine = num(mps?.leucine_g ?? mps?.leucine_estimate_g ?? coaching?.leucine_g);
-        const thr = num(mps?.threshold_g ?? mps?.threshold_leucine_g ?? coaching?.mps_threshold_g) || 2.5;
-        const leucineGap = num(mps?.leucine_gap_g);
-        const mpsOk = Boolean(mps?.mps_ok ?? mps?.triggered ?? coaching?.mps_triggered ?? coaching?.mpsTriggered);
-
-        const gly = num(coaching?.glycemic_load); // optional (may be missing)
-        const nova = coaching?.nova_label || coaching?.ultra_processed_label || ""; // optional (may be missing)
-        const mpsHints = Array.isArray(mps?.hints) ? mps.hints : [];
+        const leucine = num(coaching?.leucine_g);
+        const gly = num(coaching?.glycemic_load);
+        const nova = coaching?.nova_label || "";
+        const mpsOk = Boolean(coaching?.mps_triggered || coaching?.mpsTriggered);
+        const thr = num(coaching?.mps_threshold_g) || 2.5;
 
         const bar = (val, max = 100) => {
           const pct = Math.max(0, Math.min(1, val / max));
@@ -850,16 +1002,11 @@ export default function App() {
             {bar(bv, 100)}
 
             <Text style={styles.sub}>
-              Leucine Estimate (muscle trigger amino acid): {Number.isFinite(leucine) && leucine > 0 ? leucine.toFixed(2) : "-"}g {mpsOk ? "✅" : "❌"}
+              Leucine Estimate: {leucine.toFixed(2)}g {mpsOk ? "✅" : "❌"}
             </Text>
             <Text style={styles.small}>
-              Threshold: {thr.toFixed(1)}g • {mpsOk ? "MPS triggered (good for muscle gain)" : "Not yet (add more protein)"}
+              Threshold: {thr.toFixed(1)}g • {mpsOk ? "Triggered" : "Not yet"}
             </Text>
-            {!!mpsHints.length && (
-              <Text style={styles.small}>
-                {mpsHints.join(" ")}
-              </Text>
-            )}
 
             {!!gly && (
               <Text style={styles.sub}>Glycemic Load (est): {round1(gly)}</Text>
@@ -1147,4 +1294,3 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
 });
-
