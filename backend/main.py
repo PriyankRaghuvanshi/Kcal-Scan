@@ -3,7 +3,6 @@ import os
 import json
 import time
 import logging
-import traceback
 import datetime as dt
 from typing import Any, Dict, Optional, List
 
@@ -23,21 +22,13 @@ logger = logging.getLogger("kcal")
 # -------------------- APP --------------------
 app = FastAPI(title="Kcal Scan API", version="1.0.0")
 
-# --- DEBUG CRASH HANDLER (Fixes silent 502 errors) ---
-# This forces the server to print the actual error to the response
-@app.exception_handler(Exception)
-async def debug_exception_handler(request: Request, exc: Exception):
-    error_msg = traceback.format_exc()
-    logger.error(f"CRASH: {error_msg}")
-    return PlainTextResponse(f"SERVER CRASH: {error_msg}", status_code=500)
-
 @app.get("/__whoami")
 def whoami():
-    return {"whoami": "NEW_BACKEND_WITH_DEBUGGER", "ts": dt.datetime.utcnow().isoformat()}
+    return {"whoami": "NEW_BACKEND_WITH_USAGE", "ts": dt.datetime.utcnow().isoformat()}
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"],   # tighten later
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -61,51 +52,10 @@ TBL_PLAN_LIMITS = "plan_limits"
 TBL_USER_USAGE = "user_usage"
 TBL_BARCODE = "barcode_products"
 
-# Plans
+# Plans (your requirements)
 DEFAULT_PLAN = "free"
 PLAN_ORDER = ["free", "elite", "advanced", "pro", "infinite"]
-PLAN_RANK = {p: i for i, p in enumerate(PLAN_ORDER)}
 
-def plan_at_least(current: Any, required: str) -> bool:
-    """Return True if current plan >= required."""
-    cur = current
-    if isinstance(cur, dict):
-        cur = cur.get("plan")
-    cur = (cur or DEFAULT_PLAN)
-    if not isinstance(cur, str):
-        cur = str(cur)
-    cur = cur.lower().strip()
-
-    req = (required or DEFAULT_PLAN)
-    if not isinstance(req, str):
-        req = str(req)
-    req = req.lower().strip()
-
-    if cur not in PLAN_RANK: cur = DEFAULT_PLAN
-    if req not in PLAN_RANK: req = DEFAULT_PLAN
-
-    return PLAN_RANK.get(cur, 0) >= PLAN_RANK.get(req, 0)
-
-def require_plan(current: Any, required: str, feature: str):
-    """Raise HTTP 402 when current plan is below required plan."""
-    cur = current
-    if isinstance(cur, dict):
-        cur = cur.get("plan")
-    current_plan = (cur or DEFAULT_PLAN)
-    if not isinstance(current_plan, str):
-        current_plan = str(current_plan)
-    current_plan = current_plan.lower().strip()
-
-    if not plan_at_least(current_plan, required):
-        raise HTTPException(
-            status_code=402,
-            detail={
-                "error": "upgrade_required",
-                "feature": feature,
-                "required_plan": required,
-                "current_plan": current_plan,
-            },
-        )
 
 # -------------------- MIDDLEWARE --------------------
 @app.middleware("http")
@@ -114,6 +64,7 @@ async def log_requests(request: Request, call_next):
     resp = await call_next(request)
     logger.info(f"RESPONSE {request.method} {request.url.path} -> {resp.status_code}")
     return resp
+
 
 # -------------------- BASIC ROUTES --------------------
 @app.get("/")
@@ -127,6 +78,7 @@ def health():
 @app.options("/analyze")
 def analyze_options():
     return PlainTextResponse("ok", status_code=200)
+
 
 # -------------------- VALIDATION HELPERS --------------------
 def _require_usda_key():
@@ -143,7 +95,8 @@ def _require_supabase():
 
 def _safe_float(x, default=None):
     try:
-        if x is None: return default
+        if x is None:
+            return default
         return float(x)
     except Exception:
         return default
@@ -156,6 +109,27 @@ def _month_start(d: dt.date) -> dt.date:
 
 def _digits_only(s: str) -> str:
     return "".join([c for c in (s or "").strip() if c.isdigit()])
+
+
+# -------------------- PLAN GATING HELPERS (NEW) --------------------
+def plan_at_least(current: str, required: str) -> bool:
+    try:
+        return PLAN_ORDER.index((current or DEFAULT_PLAN).lower()) >= PLAN_ORDER.index(required.lower())
+    except ValueError:
+        return False
+
+def require_plan(current: str, required: str, feature: str):
+    if not plan_at_least(current, required):
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "error": "upgrade_required",
+                "feature": feature,
+                "required_plan": required,
+                "current_plan": (current or DEFAULT_PLAN).lower(),
+            },
+        )
+
 
 # -------------------- SUPABASE REST HELPERS --------------------
 def supabase_headers() -> Dict[str, str]:
@@ -191,8 +165,10 @@ def sb_patch(table: str, match: Dict[str, str], patch: Dict[str, Any]) -> None:
     url = f"{SUPABASE_URL}/rest/v1/{table}"
     params = {"select": "user_id"}
     params.update(match)
+
     headers = supabase_headers()
     headers["Prefer"] = "return=minimal"
+
     r = requests.patch(url, headers=headers, params=params, data=json.dumps(patch), timeout=20)
     if r.status_code not in (200, 204):
         raise HTTPException(status_code=502, detail={"error": "Supabase update failed", "raw": r.text})
@@ -200,7 +176,12 @@ def sb_patch(table: str, match: Dict[str, str], patch: Dict[str, Any]) -> None:
 
 # -------------------- PLAN / USAGE --------------------
 def get_plan_limits(plan: str) -> Dict[str, int]:
-    """Reads from plan_limits or returns hardcoded defaults."""
+    """
+    Reads from plan_limits:
+      plan text primary key,
+      daily_limit int not null,
+      monthly_limit int not null
+    """
     _require_supabase()
     row = sb_get_one(
         TBL_PLAN_LIMITS,
@@ -211,11 +192,17 @@ def get_plan_limits(plan: str) -> Dict[str, int]:
         },
     )
     if not row:
-        if plan == "free": return {"daily_limit": 25, "monthly_limit": 25}
-        if plan == "elite": return {"daily_limit": 15, "monthly_limit": 50}
-        if plan == "advanced": return {"daily_limit": 20, "monthly_limit": 100}
-        if plan == "pro": return {"daily_limit": 25, "monthly_limit": 1000}
-        if plan == "infinite": return {"daily_limit": 30, "monthly_limit": 10000}
+        # safe fallback if table not seeded
+        if plan == "free":
+            return {"daily_limit": 25, "monthly_limit": 25}
+        if plan == "elite":
+            return {"daily_limit": 15, "monthly_limit": 50}
+        if plan == "advanced":
+            return {"daily_limit": 20, "monthly_limit": 100}
+        if plan == "pro":
+            return {"daily_limit": 25, "monthly_limit": 1000}
+        if plan == "infinite":
+            return {"daily_limit": 30, "monthly_limit": 10000}
         return {"daily_limit": 3, "monthly_limit": 25}
 
     return {
@@ -224,7 +211,18 @@ def get_plan_limits(plan: str) -> Dict[str, int]:
     }
 
 def get_or_init_usage(user_id: str) -> Dict[str, Any]:
+    """
+    user_usage schema expected:
+      user_id uuid primary key references auth.users(id),
+      plan text not null default 'free',
+      remaining_day int not null default 0,
+      remaining_month int not null default 0,
+      day_reset date not null default current_date,
+      month_reset date not null default date_trunc('month', now())::date,
+      updated_at timestamptz not null default now()
+    """
     _require_supabase()
+
     row = sb_get_one(
         TBL_USER_USAGE,
         params={
@@ -233,6 +231,7 @@ def get_or_init_usage(user_id: str) -> Dict[str, Any]:
             "limit": "1",
         },
     )
+
     today = _today_date()
     mstart = _month_start(today)
 
@@ -256,43 +255,42 @@ def get_or_init_usage(user_id: str) -> Dict[str, Any]:
 def normalize_resets(row: Dict[str, Any]) -> Dict[str, Any]:
     """
     If day/month changed, reset counters to plan limits.
-    Now correctly enforces free plan caps if downgrading.
+    BUT: If plan is 'free', do not reset (total lifetime limit).
     """
     user_id = row["user_id"]
     plan = (row.get("plan") or DEFAULT_PLAN).lower()
 
+    # --- CRITICAL: Free plan has NO RESETS (Lifetime 25) ---
+    if plan == "free":
+        return row
+
     today = _today_date()
     mstart = _month_start(today)
 
+    # Parse stored dates
     def parse_date(x) -> Optional[dt.date]:
-        if not x: return None
-        if isinstance(x, dt.date): return x
-        try: return dt.date.fromisoformat(str(x)[:10])
-        except Exception: return None
+        if not x:
+            return None
+        if isinstance(x, dt.date):
+            return x
+        try:
+            return dt.date.fromisoformat(str(x)[:10])
+        except Exception:
+            return None
 
     day_reset = parse_date(row.get("day_reset"))
     month_reset = parse_date(row.get("month_reset"))
 
     lim = get_plan_limits(plan)
+
     patch: Dict[str, Any] = {}
-
-    # === FIX: Enforcement for Free Plan downgrades ===
-    if plan == "free":
-        # If user is free but has excess scans (from previous Pro), clamp them down
-        current_rem_month = int(row.get("remaining_month") or 0)
-        if current_rem_month > lim["monthly_limit"]:
-            patch["remaining_month"] = lim["monthly_limit"]
-            patch["remaining_day"] = lim["daily_limit"]
-    
-    # Standard Time-based Reset
-    if month_reset != mstart:
-        if plan != "free": # Free plan doesn't reset monthly (lifetime)
-             patch["remaining_month"] = lim["monthly_limit"]
-        patch["month_reset"] = str(mstart)
-
     if day_reset != today:
         patch["remaining_day"] = lim["daily_limit"]
         patch["day_reset"] = str(today)
+
+    if month_reset != mstart:
+        patch["remaining_month"] = lim["monthly_limit"]
+        patch["month_reset"] = str(mstart)
 
     if patch:
         patch["updated_at"] = dt.datetime.utcnow().isoformat()
@@ -302,6 +300,10 @@ def normalize_resets(row: Dict[str, Any]) -> Dict[str, Any]:
     return row
 
 def consume_one_scan(user_id: str) -> Dict[str, Any]:
+    """
+    Enforces usage + decrements by 1.
+    Raises HTTP 402 if out of scans.
+    """
     row = get_or_init_usage(user_id)
     row = normalize_resets(row)
 
@@ -319,6 +321,7 @@ def consume_one_scan(user_id: str) -> Dict[str, Any]:
             },
         )
 
+    # Decrement
     rem_day -= 1
     rem_month -= 1
     patch = {
@@ -332,20 +335,11 @@ def consume_one_scan(user_id: str) -> Dict[str, Any]:
 
 def set_user_plan(user_id: str, plan: str) -> Dict[str, Any]:
     """
-    Sets the user's plan.
-    FIX: Only resets counters if the plan effectively changes.
+    When user purchases a plan, set plan and reset counters immediately.
     """
     plan = (plan or DEFAULT_PLAN).lower()
     if plan not in PLAN_ORDER:
         plan = DEFAULT_PLAN
-
-    # 1. Fetch existing to compare
-    existing = get_or_init_usage(user_id)
-    current_plan = (existing.get("plan") or DEFAULT_PLAN).lower()
-
-    # If plan is the same, DO NOT reset counters (prevents "Restore" exploit)
-    if current_plan == plan:
-        return existing
 
     lim = get_plan_limits(plan)
     today = _today_date()
@@ -362,6 +356,44 @@ def set_user_plan(user_id: str, plan: str) -> Dict[str, Any]:
     }
     stored = sb_upsert(TBL_USER_USAGE, row, on_conflict="user_id")
     return stored
+
+
+def set_user_plan_no_reset(user_id: str, plan: str) -> Dict[str, Any]:
+    """\
+    Used for *restore* flows.
+
+    Updates the user's plan WITHOUT refilling scan counters.
+    This prevents users from spamming "Restore Purchases" to refill scans.
+
+    Behavior:
+      - If downgrading, we clamp remaining counts down to the new plan limits.
+      - If upgrading, we keep remaining counts as-is (no bonus refills).
+    """
+    plan = (plan or DEFAULT_PLAN).lower()
+    if plan not in PLAN_ORDER:
+        plan = DEFAULT_PLAN
+
+    # Ensure row exists and any date-based resets are applied first.
+    row = get_or_init_usage(user_id)
+    row = normalize_resets(row)
+
+    lim = get_plan_limits(plan)
+    rem_day = int(row.get("remaining_day") or 0)
+    rem_month = int(row.get("remaining_month") or 0)
+
+    # Never increase counters on restore; only clamp down if needed.
+    new_rem_day = min(rem_day, int(lim.get("daily_limit") or 0))
+    new_rem_month = min(rem_month, int(lim.get("monthly_limit") or 0))
+
+    patch = {
+        "plan": plan,
+        "remaining_day": new_rem_day,
+        "remaining_month": new_rem_month,
+        "updated_at": dt.datetime.utcnow().isoformat(),
+    }
+    sb_patch(TBL_USER_USAGE, {"user_id": f"eq.{user_id}"}, patch)
+    row.update(patch)
+    return row
 
 def get_user_plan(user_id: str) -> str:
     row = get_or_init_usage(user_id)
@@ -391,16 +423,34 @@ def usage(
         "month_reset": row.get("month_reset"),
     }
 
+
 @app.post("/plan/sync")
 def plan_sync(
     payload: Dict[str, Any] = Body(...),
     user_id: Optional[str] = None,
     x_user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
 ):
+    """\
+    Call from mobile after RevenueCat purchase/restore.
+
+    payload:
+      { "entitlement": "elite" | "advanced" | "pro" | "infinite", "mode": "purchase"|"restore" }
+
+    IMPORTANT:
+    - purchase: sets plan AND refills counters to plan limits (new billing period starts)
+    - restore: sets plan BUT does NOT refill counters (prevents restore-spam)
+    - if mode is missing, we treat it as "restore" to avoid accidentally resetting scan limits
+    """
     uid = require_user_id(x_user_id, user_id)
     entitlement = (payload.get("entitlement") or DEFAULT_PLAN).lower()
-    stored = set_user_plan(uid, entitlement)
-    return {"ok": True, "plan": stored.get("plan")}
+    mode = (payload.get("mode") or "restore").lower()  # default safe: no counter reset
+
+    if mode == "restore":
+        stored = set_user_plan_no_reset(uid, entitlement)
+    else:
+        stored = set_user_plan(uid, entitlement)
+
+    return {"ok": True, "plan": stored.get("plan"), "mode": mode}
 
 
 # -------------------- USDA --------------------
@@ -423,7 +473,9 @@ def usda_search_best(query: str) -> Optional[Dict[str, Any]]:
         raise HTTPException(status_code=502, detail=f"USDA search failed: {r.text}")
 
     foods = (r.json() or {}).get("foods", []) or []
-    if not foods: return None
+    if not foods:
+        return None
+
     non_branded = [f for f in foods if f.get("dataType") != "Branded"]
     return non_branded[0] if non_branded else foods[0]
 
@@ -439,13 +491,23 @@ def usda_food_details(fdc_id: int) -> Dict[str, Any]:
     return r.json()
 
 def extract_macros_per_100g(food_details: dict) -> Dict[str, float]:
+    """
+    Uses nutrient numbers:
+      208 Energy (kcal)
+      203 Protein
+      205 Carbohydrate, by difference
+      204 Total lipid (fat)
+    """
     kcal = protein = carbs = fat = None
+
     for n in food_details.get("foodNutrients", []) or []:
         nutrient = n.get("nutrient") or {}
         number = str(nutrient.get("number") or "")
         name = (nutrient.get("name") or "").lower()
         amount = n.get("amount")
-        if amount is None: continue
+        if amount is None:
+            continue
+
         unit = (nutrient.get("unitName") or "").lower()
 
         if number == "208" or ("energy" in name and "kcal" in unit):
@@ -459,7 +521,16 @@ def extract_macros_per_100g(food_details: dict) -> Dict[str, float]:
 
     missing = [k for k, v in {"kcal": kcal, "protein_g": protein, "carbs_g": carbs, "fat_g": fat}.items() if v is None]
     if missing:
-        raise HTTPException(status_code=502, detail={"error": "USDA missing macros", "missing": missing})
+        raise HTTPException(
+            status_code=502,
+            detail={
+                "error": "USDA did not provide required macros for this item",
+                "missing": missing,
+                "fdcId": food_details.get("fdcId"),
+                "description": food_details.get("description"),
+                "dataType": food_details.get("dataType"),
+            },
+        )
 
     return {
         "kcal_per_100g": kcal,
@@ -468,10 +539,15 @@ def extract_macros_per_100g(food_details: dict) -> Dict[str, float]:
         "fat_g_per_100g": fat,
     }
 
+
 # -------------------- GEMINI FOOD DETECTION --------------------
 def gemini_detect_foods(image_bytes: bytes) -> List[Dict[str, Any]]:
+    """
+    Returns list: { name, grams, confidence }
+    Retries on rate limit-ish failures.
+    """
     _require_gemini_key()
-    model = genai.GenerativeModel("gemini-1.5-flash")
+    model = genai.GenerativeModel("gemini-3-flash-preview")
 
     prompt = """
 You are a food recognition assistant.
@@ -482,22 +558,25 @@ Return ONLY valid JSON (no markdown) in this format:
     { "name": "chicken biryani", "grams": 280, "confidence": 0.72 }
   ]
 }
+
 Rules:
 - Use simple, USDA-friendly names.
-- grams must be positive.
-- confidence 0..1.
+- grams must be a positive number.
+- confidence must be 0..1.
+- Never return empty items.
 """
+
     img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+
+    last_err = None
     for attempt in range(4):
         try:
             resp = model.generate_content([prompt, img])
             text = (resp.text or "").strip()
-            # Cleanup markdown if gemini adds it
-            if text.startswith("```json"): text = text[7:]
-            if text.endswith("```"): text = text[:-3]
-            
             data = json.loads(text)
             items = data.get("items", [])
+            if not isinstance(items, list) or not items:
+                raise ValueError("No items list")
             cleaned = []
             for it in items:
                 name = str(it.get("name", "")).strip()
@@ -505,46 +584,64 @@ Rules:
                 conf = float(it.get("confidence", 0) or 0)
                 if name and grams > 0:
                     cleaned.append({"name": name, "grams": grams, "confidence": conf})
-            if not cleaned: raise ValueError("No items")
+            if not cleaned:
+                raise ValueError("No usable items")
             return cleaned
-        except Exception:
+        except Exception as e:
+            last_err = str(e)
+            # backoff
             time.sleep(0.6 * (attempt + 1))
 
-    raise HTTPException(status_code=502, detail={"error": "Gemini failed / invalid JSON"})
+    raise HTTPException(status_code=502, detail={"error": "Gemini failed / invalid JSON", "raw": last_err})
 
-# -------------------- BARCODE --------------------
+
+# -------------------- BARCODE: OpenFoodFacts -> Supabase Cache --------------------
 def openfoodfacts_lookup(barcode: str) -> Dict[str, Any]:
     url = f"{OPENFOODFACTS_BASE}/product/{barcode}.json"
     r = requests.get(url, timeout=20)
     if r.status_code != 200:
         raise HTTPException(status_code=502, detail=f"OpenFoodFacts failed: {r.text}")
+
     data = r.json() or {}
     if data.get("status") != 1:
-        raise HTTPException(status_code=404, detail={"error": "Barcode not found"})
+        raise HTTPException(status_code=404, detail={"error": "Barcode not found", "barcode": barcode})
 
     product = data.get("product") or {}
     nutr = product.get("nutriments") or {}
+
     kcal_100g = _safe_float(nutr.get("energy-kcal_100g"))
     if kcal_100g is None:
         kj_100g = _safe_float(nutr.get("energy_100g"))
-        if kj_100g is not None: kcal_100g = kj_100g / 4.184
+        if kj_100g is not None:
+            kcal_100g = kj_100g / 4.184
 
     protein = _safe_float(nutr.get("proteins_100g"), 0.0) or 0.0
     carbs = _safe_float(nutr.get("carbohydrates_100g"), 0.0) or 0.0
     fat = _safe_float(nutr.get("fat_100g"), 0.0) or 0.0
-    
+
+    name = (product.get("product_name") or product.get("generic_name") or "").strip()
+    brand = (product.get("brands") or "").strip()
+
     if kcal_100g is None:
-        raise HTTPException(status_code=502, detail={"error": "OpenFoodFacts missing energy"})
+        raise HTTPException(
+            status_code=502,
+            detail={
+                "error": "OpenFoodFacts missing energy per 100g",
+                "barcode": barcode,
+                "name": name,
+                "brand": brand,
+            },
+        )
 
     return {
         "barcode": barcode,
-        "name": (product.get("product_name") or product.get("generic_name") or "Unknown").strip(),
-        "brand": (product.get("brands") or "").strip() or None,
+        "name": name or "Unknown product",
+        "brand": brand or None,
         "kcal_per_100g": float(kcal_100g),
         "protein_g_per_100g": float(protein),
         "carbs_g_per_100g": float(carbs),
         "fat_g_per_100g": float(fat),
-        "serving_size_g": None,
+        "serving_size_g": None,  # per-100g only
         "source": "openfoodfacts",
         "raw": data,
         "updated_at": dt.datetime.utcnow().isoformat(),
@@ -552,12 +649,21 @@ def openfoodfacts_lookup(barcode: str) -> Dict[str, Any]:
 
 def supabase_get_barcode(barcode: str) -> Optional[Dict[str, Any]]:
     _require_supabase()
-    return sb_get_one(TBL_BARCODE, params={"barcode": f"eq.{barcode}", "limit": "1"})
+    return sb_get_one(
+        TBL_BARCODE,
+        params={
+            "select": "id,barcode,name,brand,kcal_per_100g,protein_g_per_100g,carbs_g_per_100g,fat_g_per_100g,serving_size_g,source,raw,updated_at",
+            "barcode": f"eq.{barcode}",
+            "limit": "1",
+        },
+    )
 
 def supabase_upsert_barcode(row: Dict[str, Any]) -> Dict[str, Any]:
     _require_supabase()
     return sb_upsert(TBL_BARCODE, row, on_conflict="barcode")
 
+
+# -------------------- BARCODE ENDPOINTS --------------------
 @app.get("/barcode/{code}")
 def barcode_lookup(
     code: str,
@@ -565,128 +671,138 @@ def barcode_lookup(
     x_user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
 ):
     uid = require_user_id(x_user_id, user_id)
+
+    # 🔒 barcode requires elite+
     plan = get_user_plan(uid)
     require_plan(plan, "elite", feature="barcode")
+
+    # consume scan first (so even cache hits count)
     usage_row = consume_one_scan(uid)
 
     barcode = _digits_only(code)
     if not barcode:
-        raise HTTPException(status_code=400, detail={"error": "Invalid barcode"})
+        raise HTTPException(status_code=400, detail={"error": "Invalid barcode", "barcode": code})
 
+    # 1) cache
     cached = supabase_get_barcode(barcode)
     if cached:
         return {
-            "source": "barcode", "barcode": cached["barcode"], "name": cached["name"], "brand": cached["brand"],
+            "source": "barcode",
+            "barcode": cached.get("barcode"),
+            "name": cached.get("name"),
+            "brand": cached.get("brand"),
             "per_100g": {
-                "kcal": float(cached["kcal_per_100g"] or 0),
-                "protein_g": float(cached["protein_g_per_100g"] or 0),
-                "carbs_g": float(cached["carbs_g_per_100g"] or 0),
-                "fat_g": float(cached["fat_g_per_100g"] or 0),
+                "kcal": float(cached.get("kcal_per_100g") or 0),
+                "protein_g": float(cached.get("protein_g_per_100g") or 0),
+                "carbs_g": float(cached.get("carbs_g_per_100g") or 0),
+                "fat_g": float(cached.get("fat_g_per_100g") or 0),
             },
-            "source_db": cached["source"],
-            "usage": usage_row,
+            "source_db": cached.get("source"),
+            "cached": True,
+            "usage": {
+                "plan": usage_row.get("plan"),
+                "remaining_day": int(usage_row.get("remaining_day") or 0),
+                "remaining_month": int(usage_row.get("remaining_month") or 0),
+            },
         }
 
+    # 2) OFF
     off = openfoodfacts_lookup(barcode)
+
+    # 3) store
     stored = supabase_upsert_barcode(off)
+
     return {
-        "source": "barcode", "barcode": stored["barcode"], "name": stored["name"], "brand": stored["brand"],
+        "source": "barcode",
+        "barcode": stored.get("barcode"),
+        "name": stored.get("name"),
+        "brand": stored.get("brand"),
         "per_100g": {
-            "kcal": float(stored["kcal_per_100g"] or 0),
-            "protein_g": float(stored["protein_g_per_100g"] or 0),
-            "carbs_g": float(stored["carbs_g_per_100g"] or 0),
-            "fat_g": float(stored["fat_g_per_100g"] or 0),
+            "kcal": float(stored.get("kcal_per_100g") or 0),
+            "protein_g": float(stored.get("protein_g_per_100g") or 0),
+            "carbs_g": float(stored.get("carbs_g_per_100g") or 0),
+            "fat_g": float(stored.get("fat_g_per_100g") or 0),
         },
-        "source_db": "openfoodfacts",
-        "usage": usage_row,
+        "source_db": stored.get("source") or "openfoodfacts",
+        "cached": False,
+        "usage": {
+            "plan": usage_row.get("plan"),
+            "remaining_day": int(usage_row.get("remaining_day") or 0),
+            "remaining_month": int(usage_row.get("remaining_month") or 0),
+        },
     }
 
-# -------------------- COACHING (PRO+) --------------------
-LEUCINE_THRESHOLD_G = float(os.getenv("LEUCINE_THRESHOLD_G", "2.5") or 2.5)
+@app.post("/barcode/manual")
+def barcode_manual(
+    payload: Dict[str, Any] = Body(...),
+    user_id: Optional[str] = None,
+    x_user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
+):
+    """
+    Manual add when barcode not found.
+    Expected payload:
+      {
+        "barcode": "xxxx",
+        "name": "Product name",
+        "brand": "Brand",
+        "kcal_per_100g": 123,
+        "protein_g_per_100g": 1,
+        "carbs_g_per_100g": 2,
+        "fat_g_per_100g": 3
+      }
+    """
+    uid = require_user_id(x_user_id, user_id)
 
-PROTEIN_BV_MAP = [
-    ("whey", 104), ("isolate", 104), ("casein", 91), ("milk", 91), ("egg", 100),
-    ("chicken", 80), ("turkey", 80), ("fish", 83), ("beef", 80), ("pork", 80),
-    ("soy", 74), ("tofu", 74), ("lentil", 60), ("beans", 60), ("wheat", 64), ("rice", 60),
-]
+    # 🔒 barcode requires elite+
+    plan = get_user_plan(uid)
+    require_plan(plan, "elite", feature="barcode")
 
-def estimate_protein_bv(items: List[Dict[str, Any]]) -> int:
-    total_p = 0.0
-    weighted = 0.0
-    for it in items or []:
-        name = (it.get("name") or "").lower()
-        p = float((it.get("macros") or {}).get("protein_g") or 0.0)
-        bv = 70
-        for key, val in PROTEIN_BV_MAP:
-            if key in name:
-                bv = val
-                break
-        total_p += p
-        weighted += p * bv
-    if total_p <= 0: return 70
-    return int(round(weighted / total_p))
+    usage_row = consume_one_scan(uid)
 
-def estimate_glycemic_load(carbs_g: float, items: List[Dict[str, Any]]) -> float:
-    # Heuristic: Simple GL estimate
-    gl = carbs_g * 0.45 
-    names = " ".join([(x.get("name") or "").lower() for x in items])
-    if any(s in names for s in ["soda", "sugar", "candy", "cake", "cookie", "syrup", "juice", "chocolate", "ice cream"]):
-        gl *= 1.3
-    return round(gl, 1)
+    barcode = _digits_only(str(payload.get("barcode") or ""))
+    if not barcode:
+        raise HTTPException(status_code=400, detail={"error": "Invalid barcode"})
 
-def estimate_nova_group(items: List[Dict[str, Any]]) -> str:
-    names = " ".join([(x.get("name") or "").lower() for x in items])
-    ultra = ["cola", "soda", "nugget", "sausage", "hot dog", "instant", "chips", "candy", "cookie", "cake", "protein bar", "margarine"]
-    whole = ["egg", "milk", "yogurt", "chicken", "fish", "beef", "rice", "oats", "banana", "apple", "spinach"]
-    
-    if any(k in names for k in ultra): return "High"
-    if any(k in names for k in whole): return "Low"
-    return "Medium"
+    row = {
+        "barcode": barcode,
+        "name": (payload.get("name") or "Unknown product").strip(),
+        "brand": (payload.get("brand") or None),
+        "kcal_per_100g": float(payload.get("kcal_per_100g") or 0),
+        "protein_g_per_100g": float(payload.get("protein_g_per_100g") or 0),
+        "carbs_g_per_100g": float(payload.get("carbs_g_per_100g") or 0),
+        "fat_g_per_100g": float(payload.get("fat_g_per_100g") or 0),
+        "serving_size_g": None,
+        "source": "manual",
+        "raw": payload,
+        "updated_at": dt.datetime.utcnow().isoformat(),
+    }
 
-def compute_satiety_score(total_kcal: float, totals: Dict[str, float], total_grams: float) -> int:
-    protein_g = float(totals.get("protein_g") or 0.0)
-    fat_g = float(totals.get("fat_g") or 0.0)
-    carbs_g = float(totals.get("carbs_g") or 0.0)
+    if row["kcal_per_100g"] <= 0:
+        raise HTTPException(status_code=400, detail={"error": "kcal_per_100g must be > 0"})
 
-    if total_kcal <= 0 or total_grams <= 0: return 50
-    ed = float(total_kcal) / float(total_grams)
-    protein_pct = (protein_g * 4.0 / float(total_kcal)) * 100.0 if total_kcal else 0.0
-    
-    score = 50.0 + min(25.0, protein_pct * 0.6) + max(-15.0, min(20.0, (1.5 - ed) * 12.0))
-    fat_pct = ((fat_g * 9.0) / float(total_kcal)) * 100.0 if total_kcal else 0.0
-    if fat_pct > 45: score -= 8
-    
-    return int(max(0, min(100, round(score))))
-
-def compute_coaching(payload: Dict[str, Any]) -> Dict[str, Any]:
-    total_kcal = float(payload.get("total_kcal") or 0.0)
-    totals = payload.get("totals") or {}
-    items = payload.get("items") or []
-
-    total_grams = sum([float(it.get("grams") or 0) for it in items])
-    protein_g = float(totals.get("protein_g") or 0.0)
-    carbs_g = float(totals.get("carbs_g") or 0.0)
-
-    leucine_est_g = protein_g * 0.08
-    bv = estimate_protein_bv(items)
-    bioavailable_protein_g = protein_g * (float(bv) / 100.0)
-    satiety = compute_satiety_score(total_kcal, totals, total_grams)
-    
-    # NEW METRICS
-    gly_load = estimate_glycemic_load(carbs_g, items)
-    nova = estimate_nova_group(items)
-
+    stored = supabase_upsert_barcode(row)
     return {
-        "satiety_score": satiety,
-        "protein_bv": bv,
-        "bioavailable_protein_g": round(bioavailable_protein_g, 1),
-        "leucine_g": round(leucine_est_g, 2),
-        "mps_threshold_g": LEUCINE_THRESHOLD_G,
-        "mps_triggered": bool(leucine_est_g >= LEUCINE_THRESHOLD_G),
-        "glycemic_load": gly_load,
-        "nova_label": nova
+        "ok": True,
+        "stored": True,
+        "barcode": stored.get("barcode"),
+        "name": stored.get("name"),
+        "brand": stored.get("brand"),
+        "per_100g": {
+            "kcal": float(stored.get("kcal_per_100g") or 0),
+            "protein_g": float(stored.get("protein_g_per_100g") or 0),
+            "carbs_g": float(stored.get("carbs_g_per_100g") or 0),
+            "fat_g": float(stored.get("fat_g_per_100g") or 0),
+        },
+        "source_db": stored.get("source") or "manual",
+        "usage": {
+            "plan": usage_row.get("plan"),
+            "remaining_day": int(usage_row.get("remaining_day") or 0),
+            "remaining_month": int(usage_row.get("remaining_month") or 0),
+        },
     }
 
+
+# -------------------- ANALYZE (PHOTO) --------------------
 @app.post("/analyze")
 async def analyze(
     file: UploadFile = File(...),
@@ -694,13 +810,22 @@ async def analyze(
     x_user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
 ):
     uid = require_user_id(x_user_id, user_id)
+
+    # consume scan first (so failures still count? You can change this later.)
     usage_row = consume_one_scan(uid)
 
     contents = await file.read()
-    if not contents: raise HTTPException(status_code=400, detail="Empty file")
+    if not contents:
+        raise HTTPException(status_code=400, detail="Empty file")
+
+    try:
+        _ = Image.open(io.BytesIO(contents)).convert("RGB")
+    except Exception:
+        raise HTTPException(status_code=400, detail="Uploaded file is not a valid image")
 
     detected_items = gemini_detect_foods(contents)
-    
+    logger.info(f"Detected items: {detected_items}")
+
     results = []
     total_kcal = 0.0
     total_p = total_c = total_f = 0.0
@@ -708,39 +833,68 @@ async def analyze(
     for d in detected_items:
         name = d["name"]
         grams = float(d["grams"])
+        conf = float(d.get("confidence", 0))
+
         best = usda_search_best(name)
-        if not best: continue
+        if not best:
+            raise HTTPException(status_code=404, detail=f"No USDA match for '{name}'")
 
-        details = usda_food_details(int(best["fdcId"]))
+        fdc_id = int(best["fdcId"])
+        details = usda_food_details(fdc_id)
         macros100 = extract_macros_per_100g(details)
-        factor = grams / 100.0
 
+        factor = grams / 100.0
         kcal = macros100["kcal_per_100g"] * factor
         p = macros100["protein_g_per_100g"] * factor
         c = macros100["carbs_g_per_100g"] * factor
         f = macros100["fat_g_per_100g"] * factor
 
         results.append({
-            "name": name, "grams": round(grams, 1), "kcal": round(kcal, 1),
-            "macros": {"protein_g": round(p, 1), "carbs_g": round(c, 1), "fat_g": round(f, 1)}
+            "name": name,
+            "grams": round(grams, 1),
+            "confidence": round(conf, 2),
+            "kcal": round(kcal, 1),
+            "macros": {
+                "protein_g": round(p, 1),
+                "carbs_g": round(c, 1),
+                "fat_g": round(f, 1),
+            },
+            "usda": {
+                "fdcId": fdc_id,
+                "description": details.get("description"),
+                "dataType": details.get("dataType"),
+            }
         })
-        total_kcal += kcal
-        total_p += p; total_c += c; total_f += f
 
+        total_kcal += kcal
+        total_p += p
+        total_c += c
+        total_f += f
+
+    # 🔒 coaching is pro+ (we don't block analyze; we just hide coaching fields)
     plan = (usage_row.get("plan") or DEFAULT_PLAN).lower()
     coaching_enabled = plan_at_least(plan, "pro")
 
     response = {
         "source": "photo",
         "total_kcal": round(total_kcal, 1),
-        "totals": {"protein_g": round(total_p, 1), "carbs_g": round(total_c, 1), "fat_g": round(total_f, 1)},
+        "totals": {
+            "protein_g": round(total_p, 1),
+            "carbs_g": round(total_c, 1),
+            "fat_g": round(total_f, 1),
+        },
         "items": results,
-        "usage": usage_row,
+        "usage": {
+            "plan": usage_row.get("plan"),
+            "remaining_day": int(usage_row.get("remaining_day") or 0),
+            "remaining_month": int(usage_row.get("remaining_month") or 0),
+        },
     }
 
-    if coaching_enabled:
-        response["coaching"] = compute_coaching(response)
-    else:
+    if not coaching_enabled:
+        # UI can use this to show "Upgrade to Pro"
         response["locked"] = {"feature": "coaching", "required_plan": "pro"}
 
     return response
+
+
