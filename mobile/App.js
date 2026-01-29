@@ -461,17 +461,37 @@ export default function App() {
             ))}
 
             {/* COACHING UI */}
-            {result.coaching && (
-              <View style={styles.coachingCard}>
-                 <Text style={styles.h2}>Coach Insights</Text>
-                 <Text style={styles.sub}>Satiety: {result.coaching.satiety_score}/100</Text>
-                 <Text style={styles.sub}>Protein BV: {result.coaching.protein_bv}</Text>
-                 <Text style={styles.sub}>Leucine: {result.coaching.leucine_g}g {result.coaching.mps_triggered ? "✅" : "⚠️"}</Text>
-                 {/* NEW METRICS */}
-                 {result.coaching.glycemic_load && <Text style={styles.sub}>Glycemic Load: {result.coaching.glycemic_load}</Text>}
-                 {result.coaching.nova_label && <Text style={styles.sub}>Processing: {result.coaching.nova_label}</Text>}
-              </View>
-            )}
+            {isProPlus((usage?.plan || activePlan)) && result?.coaching && (() => {
+               // Bar helper function
+               const bar = (val, max = 100) => {
+                 const pct = Math.max(0, Math.min(1, val / max));
+                 return (
+                   <View style={styles.barWrap}>
+                     <View style={[styles.barFill, { width: `${pct * 100}%` }]} />
+                   </View>
+                 );
+               };
+
+               const sat = num(result.coaching.satiety_score);
+               const bv = num(result.coaching.protein_bv);
+               
+               return (
+                  <View style={styles.coachingCard}>
+                     <Text style={styles.h2}>Coach Insights</Text>
+                     
+                     <Text style={styles.sub}>Satiety Score (how filling): {round1(sat)}/100</Text>
+                     {bar(sat, 100)}
+
+                     <Text style={styles.sub}>Protein Bioavailability: {round1(bv)}/100</Text>
+                     {bar(bv, 100)}
+
+                     <Text style={styles.sub}>Leucine: {result.coaching.leucine_g}g {result.coaching.mps_triggered ? "✅" : "⚠️"}</Text>
+                     
+                     {result.coaching.glycemic_load && <Text style={styles.sub}>Glycemic Load: {result.coaching.glycemic_load}</Text>}
+                     {result.coaching.nova_label && <Text style={styles.sub}>Processing: {result.coaching.nova_label}</Text>}
+                  </View>
+               );
+            })()}
             
             {result.locked && (
               <View style={styles.lockedCard}>
@@ -539,6 +559,8 @@ const styles = StyleSheet.create({
   actionsRow: { marginTop: 12, flexDirection: "row", gap: 12, alignItems: "center" },
   resultCard: { marginTop: 12, backgroundColor: "#15151c", borderRadius: 18, padding: 14 },
   coachingCard: { marginTop: 12, backgroundColor: "#1f1f29", borderRadius: 12, padding: 12 },
+  barWrap: { height: 8, backgroundColor: "#333", borderRadius: 4, marginTop: 4, marginBottom: 8, overflow: "hidden" },
+  barFill: { height: "100%", backgroundColor: "#5b7cfa" },
   lockedCard: { marginTop: 12, padding: 12, borderWidth: 1, borderColor: "#333", borderRadius: 12 },
   lockedTitle: { color: "#ffcf5a", fontWeight: "bold" },
   lockedBody: { color: "#888", fontSize: 12 },
