@@ -1,740 +1,1054 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+// mobile/App.js
+import React, { useEffect, useRef, useState } from "react";
 import {
+  View,
+  Text,
+  TouchableOpacity,
+  Image,
   Alert,
   ActivityIndicator,
-  SafeAreaView,
-  ScrollView,
+  FlatList,
   StyleSheet,
-  Text,
+  ScrollView,
   TextInput,
-  TouchableOpacity,
-  View,
+  SafeAreaView,
+  KeyboardAvoidingView,
   Platform,
+  Modal,
 } from "react-native";
-import * as ImagePicker from "expo-image-picker";
+
+import { CameraView, useCameraPermissions } from "expo-camera";
+import * as FileSystem from "expo-file-system";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import Purchases from "react-native-purchases";
 import { createClient } from "@supabase/supabase-js";
+import "react-native-url-polyfill/auto";
 
-// ===================== ENV =====================
-const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL;
-const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
-const API_BASE = process.env.EXPO_PUBLIC_API_BASE;
-const RC_IOS_KEY = process.env.EXPO_PUBLIC_RC_IOS_KEY;
-const RC_ANDROID_KEY = process.env.EXPO_PUBLIC_RC_ANDROID_KEY;
-const RC_OFFERING = process.env.EXPO_PUBLIC_RC_OFFERING || "main";
+// RevenueCat
+import Purchases from "react-native-purchases";
 
-const PLAN_ORDER = ["free", "elite", "advanced", "pro", "infinite"];
-const PLAN_RANK = { free: 0, elite: 1, advanced: 2, pro: 3, infinite: 4 };
+// ===================== CONFIG =====================
+const API_BASE =
+  process.env.EXPO_PUBLIC_API_BASE?.trim() ||
+  "https://kcal-scan-production.up.railway.app";
 
-const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const HISTORY_KEY = "kcal_scan_history_v3";
+const historyKey = (uid) => `${HISTORY_KEY}:${uid}`;
+const MAX_HISTORY = 50;
+
+const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL || "";
+const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || "";
+const HAS_SUPABASE = Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
+const supabase = HAS_SUPABASE ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+
+// RevenueCat keys (env preferred)
+const RC_IOS_KEY =
+  process.env.EXPO_PUBLIC_RC_IOS_KEY || "appl_SoteCFCeVzvTTQWIpwbClzFnBdq";
+const RC_ANDROID_KEY =
+  process.env.EXPO_PUBLIC_RC_ANDROID_KEY || "goog_XXXXXXXXXXXXXXXX";
+
+// Offering + entitlements
+const OFFERING_ID = process.env.EXPO_PUBLIC_RC_OFFERING || "main";
+const PLAN_ORDER = ["free","elite","advanced","pro","infinite"];
+
+const ENTITLEMENTS = (process.env.EXPO_PUBLIC_RC_ENTITLEMENTS || "elite,advanced,pro,infinite")
+  .split(",")
+  .map((x) => x.trim())
+  .filter(Boolean);
+
+const BARCODE_COOLDOWN_MS = 1800;
 
 // ===================== HELPERS =====================
-function planAtLeast(current, required) {
-  const c = PLAN_RANK[String(current || "free").toLowerCase()] ?? 0;
-  const r = PLAN_RANK[String(required || "free").toLowerCase()] ?? 0;
-  return c >= r;
+function num(x) {
+  const n = Number(x);
+  return Number.isFinite(n) ? n : 0;
 }
-
-function pickBestActiveEntitlement(customerInfo) {
-  const active = customerInfo?.entitlements?.active || {};
-  let best = "free";
-  let bestRank = 0;
-  for (const k of Object.keys(active)) {
-    const key = String(k || "").toLowerCase();
-    const rank = PLAN_RANK[key];
-    if (rank !== undefined && rank > bestRank) {
-      best = key;
-      bestRank = rank;
-    }
-  }
-  return best;
+function round1(x) {
+  const n = Number(x);
+  return Number.isFinite(n) ? Math.round(n * 10) / 10 : 0;
 }
-
-async function safeJson(res) {
-  const txt = await res.text();
-  try {
-    return JSON.parse(txt);
-  } catch {
-    return { _raw: txt };
-  }
+function nowISO() {
+  return new Date().toISOString();
 }
 
 function backendHeaders(userId, extra = {}) {
+  if (!userId) return { ...extra };
   return {
-    Accept: "application/json",
-    ...(userId ? { "X-User-Id": userId } : {}),
+    "X-User-Id": userId,
+    "x-user-id": userId,
     ...extra,
   };
 }
 
-// ===================== UI COMPONENTS =====================
-function Btn({ title, onPress, kind = "primary", disabled = false }) {
-  return (
-    <TouchableOpacity
-      disabled={disabled}
-      onPress={onPress}
-      style={[
-        styles.btn,
-        kind === "secondary" && styles.btnSecondary,
-        disabled && { opacity: 0.55 },
-      ]}
-    >
-      <Text style={styles.btnText}>{title}</Text>
-    </TouchableOpacity>
-  );
+function pickMacros(obj) {
+  if (!obj) return { protein_g: 0, carbs_g: 0, fat_g: 0 };
+  const protein =
+    obj.protein_g ?? obj.protein ?? obj.p ?? obj.proteinG ?? obj.protein_gm ?? 0;
+  const carbs =
+    obj.carbs_g ?? obj.carbs ?? obj.c ?? obj.carbsG ?? obj.carbs_gm ?? 0;
+  const fat = obj.fat_g ?? obj.fat ?? obj.f ?? obj.fatG ?? obj.fat_gm ?? 0;
+  return { protein_g: num(protein), carbs_g: num(carbs), fat_g: num(fat) };
 }
 
-function Pill({ text, tone = "neutral" }) {
-  return (
-    <View
-      style={[
-        styles.pill,
-        tone === "good" && styles.pillGood,
-        tone === "warn" && styles.pillWarn,
-      ]}
-    >
-      <Text style={styles.pillText}>{text}</Text>
-    </View>
-  );
+function normalizeAnalyzeResponse(json) {
+  const total_kcal = num(json?.total_kcal ?? json?.totalKcal ?? 0);
+
+  const totalsCandidate = json?.totals ?? json?.macros ?? json?.total_macros ?? null;
+  let totals = pickMacros(totalsCandidate);
+
+  const rawItems = Array.isArray(json?.items)
+    ? json.items
+    : Array.isArray(json?.foods)
+      ? json.foods
+      : [];
+
+  const items = rawItems.map((it) => {
+    const kcal = num(it?.kcal ?? it?.calories ?? 0);
+    const grams = num(it?.grams ?? it?.g ?? it?.weight_g ?? 0);
+    const macros = pickMacros(it?.macros ?? it);
+    return {
+      ...it,
+      name: it?.name ?? it?.label ?? it?.food ?? "item",
+      kcal,
+      grams,
+      macros,
+      confidence: it?.confidence ?? it?.conf ?? it?.score,
+    };
+  });
+
+  if (
+    totals.protein_g === 0 &&
+    totals.carbs_g === 0 &&
+    totals.fat_g === 0 &&
+    items.length > 0
+  ) {
+    totals = items.reduce(
+      (acc, it) => ({
+        protein_g: acc.protein_g + num(it?.macros?.protein_g),
+        carbs_g: acc.carbs_g + num(it?.macros?.carbs_g),
+        fat_g: acc.fat_g + num(it?.macros?.fat_g),
+      }),
+      { protein_g: 0, carbs_g: 0, fat_g: 0 }
+    );
+  }
+
+  const computedKcal =
+    total_kcal && total_kcal > 0 ? total_kcal : items.reduce((s, it) => s + num(it.kcal), 0);
+
+  return { ...json, total_kcal: computedKcal, totals, items };
+}
+
+function normalizeBarcodeResponse(json) {
+  const per = json?.per_100g || {};
+  const name = json?.name || "Unknown product";
+  const brand = json?.brand || null;
+
+  const item = {
+    name: brand ? `${name} (${brand})` : name,
+    grams: 100,
+    confidence: 1,
+    kcal: num(per.kcal),
+    macros: {
+      protein_g: num(per.protein_g),
+      carbs_g: num(per.carbs_g),
+      fat_g: num(per.fat_g),
+    },
+    barcode: json?.barcode,
+    source_db: json?.source_db,
+  };
+
+  return {
+    source: "barcode",
+    barcode: json?.barcode,
+    total_kcal: num(per.kcal),
+    totals: {
+      protein_g: num(per.protein_g),
+      carbs_g: num(per.carbs_g),
+      fat_g: num(per.fat_g),
+    },
+    items: [item],
+  };
+}
+
+function getActiveEntitlement(customerInfo) {
+  // returns the HIGHEST active entitlement by PLAN_ORDER
+  const active = customerInfo?.entitlements?.active || {};
+  const activeKeys = Object.keys(active || {}).map((k) => String(k).toLowerCase());
+  let best = "free";
+  for (const k of activeKeys) {
+    const idx = PLAN_ORDER.indexOf(k);
+    if (idx >= 0 && idx > PLAN_ORDER.indexOf(best)) best = k;
+  }
+  return best;
+}
+
+function formatPrice(pkg) {
+  try {
+    return pkg?.product?.priceString || "";
+  } catch {
+    return "";
+  }
+}
+
+function pkgTitle(pkg) {
+  const id = (pkg?.identifier || "").toLowerCase();
+  // Prefer showing plan name (Elite/Advanced/Pro/Infinite) over billing period
+  if (id.includes("infinite")) return "Infinite";
+  if (id.includes("pro")) return "Pro";
+  if (id.includes("advanced")) return "Advanced";
+  if (id.includes("elite")) return "Elite";
+  return pkg?.product?.title || "Plan";
+}
+
+function planRankFromPkg(pkg) {
+  const t = pkgTitle(pkg).toLowerCase();
+  if (t.includes("infinite")) return 4;
+  if (t.includes("pro")) return 3;
+  if (t.includes("advanced")) return 2;
+  if (t.includes("elite")) return 1;
+  return 0;
+}
+
+function isElitePlus(plan) {
+  const p = (plan || "free").toLowerCase();
+  return p === "elite" || p === "advanced" || p === "pro" || p === "infinite";
+}
+
+function isProPlus(plan) {
+  const p = (plan || "free").toLowerCase();
+  return p === "pro" || p === "infinite";
+}
+
+function planSubtitleFromTitle(title) {
+  const t = (title || "").toLowerCase();
+  if (t.includes("elite")) return "Barcode scans + more scans";
+  if (t.includes("advanced")) return "More scans + barcode";
+  if (t.includes("pro")) return "Coaching insights + Satiety/BV + Muscle score";
+  if (t.includes("infinite")) return "Everything + massive scan limits";
+  return "Upgrade to unlock features";
 }
 
 // ===================== APP =====================
 export default function App() {
-  const [session, setSession] = useState(null);
-  const userId = session?.user?.id || null;
+  const cameraRef = useRef(null);
+  const [permission, requestPermission] = useCameraPermissions();
 
+  // Supabase Auth
+  const [authLoading, setAuthLoading] = useState(true);
+  const [session, setSession] = useState(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
-  const [usage, setUsage] = useState(null);
-  const [activePlan, setActivePlan] = useState("free");
-
+  // App state
+  const [photoUri, setPhotoUri] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [planMsg, setPlanMsg] = useState("");
+  const [serverOk, setServerOk] = useState(false);
 
-  const [barcode, setBarcode] = useState("");
   const [result, setResult] = useState(null);
-
   const [history, setHistory] = useState([]);
+  const [selected, setSelected] = useState(null);
 
-  const historyKey = useMemo(
-    () => (userId ? `kcal_history_${userId}` : "kcal_history_anon"),
-    [userId]
-  );
+  // Mode
+  const [mode, setMode] = useState("photo"); // "photo" | "barcode"
+  const lastBarcodeRef = useRef({ code: null, t: 0 });
+  const barcodeBusyRef = useRef(false);
 
-  // ---------- Supabase session ----------
+  // Usage
+  const [usage, setUsage] = useState(null);
+
+  // RevenueCat paywall
+  const [paywallOpen, setPaywallOpen] = useState(false);
+  const [rcLoading, setRcLoading] = useState(false);
+  const [offering, setOffering] = useState(null);
+  const [customerInfo, setCustomerInfo] = useState(null);
+  const [activePlan, setActivePlan] = useState("free");
+  const effectivePlan = (result?.usage?.plan || activePlan || "free").toLowerCase();
+
+  const userId = session?.user?.id || null;
+
+  // ===================== INIT =====================
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => setSession(data?.session || null));
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => setSession(s));
-    return () => sub.subscription.unsubscribe();
+    (async () => {
+      try {
+        if (!userId) {
+          setHistory([]);
+          return;
+        }
+        const raw = await AsyncStorage.getItem(historyKey(userId));
+        const arr = raw ? JSON.parse(raw) : [];
+        if (Array.isArray(arr)) setHistory(arr);
+      } catch {}
+    })();
+  }, [userId]);
+
+  useEffect(() => {
+    if (!HAS_SUPABASE) {
+      setAuthLoading(false);
+      return;
+    }
+
+    supabase.auth.getSession().then(({ data }) => {
+      setSession(data?.session || null);
+      setAuthLoading(false);
+    });
+
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, s) => {
+      setSession(s);
+      setAuthLoading(false);
+    });
+
+    return () => {
+      listener?.subscription?.unsubscribe?.();
+    };
   }, []);
 
-  // ---------- RevenueCat init ----------
+  // Health check
   useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch(`${API_BASE}/health`);
+        setServerOk(res.ok);
+      } catch {
+        setServerOk(false);
+      }
+    })();
+  }, []);
+
+  // Setup camera permission
+  useEffect(() => {
+    if (!permission?.granted) requestPermission();
+  }, [permission]);
+
+  // ===================== REVENUECAT SETUP =====================
+  useEffect(() => {
+    if (!userId) return;
+
     (async () => {
       try {
         const apiKey = Platform.OS === "ios" ? RC_IOS_KEY : RC_ANDROID_KEY;
-        if (!apiKey) return;
-        await Purchases.configure({ apiKey });
+
+        Purchases.setLogLevel(Purchases.LOG_LEVEL.INFO);
+        await Purchases.configure({ apiKey, appUserID: userId });
+
+        const info = await Purchases.getCustomerInfo();
+        setCustomerInfo(info);
+        setActivePlan(getActiveEntitlement(info));
+
+        // preload offerings
+        const offerings = await Purchases.getOfferings();
+        const off = offerings?.current || offerings?.all?.[OFFERING_ID];
+        setOffering(off || null);
       } catch (e) {
-        console.log("Purchases configure failed:", e?.message || e);
+        console.log("RevenueCat init error:", e?.message || e);
       }
     })();
-  }, []);
+  }, [userId]);
 
-  // ---------- Usage ----------
-  async function fetchUsage(uid = userId) {
-    if (!uid) return null;
+  // ===================== BACKEND USAGE =====================
+  async function fetchUsage() {
+    if (!userId) return;
     try {
-      const res = await fetch(`${API_BASE}/usage?user_id=${encodeURIComponent(uid)}`, {
-        headers: backendHeaders(uid),
+      const res = await fetch(`${API_BASE}/usage`, {
+        headers: backendHeaders(userId),
       });
-      const json = await safeJson(res);
-      if (!res.ok) throw new Error(json?.detail || json?._raw || "usage failed");
+      if (!res.ok) {
+        const t = await res.text();
+        throw new Error(t);
+      }
+      const rawText = await res.text();
+      let json = null;
+      try { json = JSON.parse(rawText); } catch (e) { json = null; }
       setUsage(json);
-      if (json?.plan) setActivePlan(String(json.plan).toLowerCase());
-      return json;
     } catch (e) {
       console.log("usage fetch error:", e?.message || e);
-      return null;
     }
   }
 
+  // pull usage on login + after purchase
   useEffect(() => {
-    if (userId) fetchUsage(userId);
+    if (userId) fetchUsage();
   }, [userId]);
 
-  // ---------- History ----------
-  useEffect(() => {
-    (async () => {
-      try {
-        const raw = await AsyncStorage.getItem(historyKey);
-        const list = raw ? JSON.parse(raw) : [];
-        setHistory(Array.isArray(list) ? list : []);
-      } catch {
-        setHistory([]);
-      }
-    })();
-  }, [historyKey]);
+  // ===================== PLAN SYNC =====================
+  
+function planRank(plan) {
+  const order = ["free", "elite", "advanced", "pro", "infinite"];
+  const p = String(plan || "free").toLowerCase();
+  const i = order.indexOf(p);
+  return i >= 0 ? i : 0;
+}
 
-  async function saveHistory(next) {
-    setHistory(next);
-    try {
-      await AsyncStorage.setItem(historyKey, JSON.stringify(next));
-    } catch {}
-  }
+function planFromPackage(pkg) {
+  const candidates = [
+    pkg?.identifier,
+    pkg?.product?.identifier,
+    pkg?.product?.title,
+    pkg?.product?.description,
+  ]
+    .filter(Boolean)
+    .map((s) => String(s).toLowerCase());
 
-  // ---------- Plan sync ----------
-  async function syncPlanToBackend(entitlement, mode) {
-    if (!userId) return null;
+  const hay = candidates.join(" | ");
+  if (hay.includes("infinite")) return "infinite";
+  if (hay.includes("pro")) return "pro";
+  if (hay.includes("advanced")) return "advanced";
+  if (hay.includes("elite")) return "elite";
+  return null;
+}
+
+
+async function syncPlanToBackend(entitlement, mode = "purchase") {
+    if (!userId) return;
     try {
       const res = await fetch(`${API_BASE}/plan/sync?user_id=${encodeURIComponent(userId)}`, {
         method: "POST",
         headers: backendHeaders(userId, { "Content-Type": "application/json" }),
-        body: JSON.stringify({ entitlement, mode: mode || "restore" }),
+      body: JSON.stringify({ entitlement, mode }),
       });
-      const json = await safeJson(res);
-      if (!res.ok) throw new Error(json?.detail || json?._raw || "plan sync failed");
-      return json;
-    } catch (e) {
-      console.log("plan sync error:", e?.message || e);
-      return null;
-    }
-  }
-
-  async function restorePurchases() {
-    try {
-      setLoading(true);
-      setPlanMsg("Restoring purchases...");
-      const info = await Purchases.restorePurchases();
-      const best = pickBestActiveEntitlement(info);
-      await syncPlanToBackend(best, "restore"); // restore should NOT refill scans
+      const rawText = await res.text();
+      let json = null;
+      try { json = JSON.parse(rawText); } catch (e) { json = null; }
+      console.log("plan/sync:", json);
       await fetchUsage();
-      setPlanMsg(best === "free" ? "No active subscription found." : `Restored: ${best.toUpperCase()}`);
     } catch (e) {
-      setPlanMsg("");
-      Alert.alert("Restore failed", e?.message || String(e));
-    } finally {
-      setLoading(false);
+      console.log("plan/sync error:", e?.message || e);
     }
   }
 
-  async function purchasePlan(targetPlan) {
+  // ===================== PURCHASE / RESTORE =====================
+  async function openPaywall() {
+    setPaywallOpen(true);
+    setRcLoading(true);
     try {
-      setLoading(true);
-      setPlanMsg(`Purchasing ${String(targetPlan).toUpperCase()}...`);
-
       const offerings = await Purchases.getOfferings();
-      const offering = offerings?.all?.[RC_OFFERING] || offerings?.current;
-      if (!offering) throw new Error("No RevenueCat offering found.");
+      const off = offerings?.current || offerings?.all?.[OFFERING_ID];
+      setOffering(off || null);
 
-      // find package whose identifier includes the plan name
-      const pkg =
-        (offering.availablePackages || []).find((p) =>
-          String(p?.identifier || "").toLowerCase().includes(String(targetPlan).toLowerCase())
-        ) || null;
+      const info = await Purchases.getCustomerInfo();
+      setCustomerInfo(info);
+      setActivePlan(getActiveEntitlement(info));
+    } catch (e) {
+      console.log("open paywall error:", e?.message || e);
+    } finally {
+      setRcLoading(false);
+    }
+  }
 
-      if (!pkg) throw new Error(`No package found for plan: ${targetPlan}`);
+  async function buyPackage(pkg) {
+  try {
+    setPaywallBusy(true);
 
-      const { customerInfo } = await Purchases.purchasePackage(pkg);
-      const best = pickBestActiveEntitlement(customerInfo);
+    // Determine the plan the user tapped (from package metadata)
+    const target = planFromPackage(pkg);
 
-      // IMPORTANT: only sync the plan that RevenueCat says is ACTIVE NOW.
-      // For downgrades iOS may keep the higher plan until next billing cycle.
-      const mode = "purchase"; // purchase can refill to plan limits (server side)
-      await syncPlanToBackend(best, mode);
+    // Purchase
+    await Purchases.purchasePackage(pkg);
+
+    // Refresh RevenueCat state
+    const info = await Purchases.getCustomerInfo();
+    const activeEnt = getActiveEntitlement(info); // what Apple/RC says is currently active right now
+    setActivePlan(activeEnt);
+
+    // Decide what we should tell backend:
+    // - If the purchase is an upgrade (target >= current), we expect activeEnt to become target (usually immediate)
+    // - If the purchase is a downgrade (target < current), Apple keeps higher plan active until next billing cycle.
+    //   In that case, we keep backend on activeEnt (so the user doesn't lose features early).
+    const backendPlan = activeEnt;
+
+    // Sync to backend as a PURCHASE (this refills counters only on real purchase)
+    await syncPlanToBackend(backendPlan, "purchase");
+
+    // Messaging
+    if (target && planRank(target) < planRank(activeEnt)) {
+      Alert.alert(
+        "Downgrade scheduled",
+        `Your Apple subscription is still ${activeEnt.toUpperCase()} until the next billing cycle. The downgrade to ${target.toUpperCase()} will apply later.`
+      );
+    } else if (target && planRank(target) > planRank(activeEnt)) {
+      Alert.alert(
+        "Purchase pending",
+        `Apple hasn’t switched your plan yet. Current: ${activeEnt.toUpperCase()}. If it doesn’t update soon, use Restore Purchases.`
+      );
+    } else {
+      Alert.alert("Plan updated", `You are now on ${activeEnt.toUpperCase()}.`);
+    }
+
+    await fetchUsage(); // refresh usage from backend after plan sync
+  } catch (e) {
+    console.log("buy error", e);
+    Alert.alert("Purchase failed", String(e?.message || e));
+  } finally {
+    setPaywallBusy(false);
+  }
+}
+
+
+async function restorePurchases() {
+    setRcLoading(true);
+    try {
+      const info = await Purchases.restorePurchases();
+      setCustomerInfo(info);
+
+      const plan = getActiveEntitlement(info);
+      setActivePlan(plan);
+
+      // IMPORTANT: restore should NOT refill scan counters.
+      await syncPlanToBackend(plan, "restore");
       await fetchUsage();
 
-      if (best !== String(targetPlan).toLowerCase()) {
-        setPlanMsg(`Plan active now: ${best.toUpperCase()} (change to ${String(targetPlan).toUpperCase()} may apply next cycle)`);
-      } else {
-        setPlanMsg(`Plan updated: ${best.toUpperCase()}`);
-      }
+      Alert.alert(
+        "Purchases restored",
+        `Your Apple subscription is currently ${plan.toUpperCase()}.\n\nNote: Restore does not refill scan limits — it only syncs your plan.`
+      );
     } catch (e) {
-      setPlanMsg("");
-      Alert.alert("Purchase failed", e?.message || String(e));
+      console.log("restore error", e);
+      Alert.alert("Restore failed", String(e?.message || e));
     } finally {
-      setLoading(false);
+      setRcLoading(false);
     }
   }
 
-  // ---------- Auth ----------
-  async function signIn() {
-    try {
-      setLoading(true);
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: email.trim(),
-        password,
-      });
-      if (error) throw error;
-      setSession(data.session);
-    } catch (e) {
-      Alert.alert("Login failed", e?.message || String(e));
-    } finally {
-      setLoading(false);
-    }
+async function barcodeLookupManual() {
+  const code = String(barcodeManual || "").trim();
+  if (!code) {
+    Alert.alert("Enter barcode", "Type a barcode number first.");
+    return;
   }
+  await barcodeLookup(code);
+}
 
-  async function signUp() {
-    try {
-      setLoading(true);
-      const { data, error } = await supabase.auth.signUp({
-        email: email.trim(),
-        password,
-      });
-      if (error) throw error;
-      setSession(data.session);
-      Alert.alert("Account created", "You can now log in.");
-    } catch (e) {
-      Alert.alert("Sign up failed", e?.message || String(e));
-    } finally {
-      setLoading(false);
-    }
-  }
+  },
+  manualRow: {
+    marginTop: 10,
+    flexDirection: "row",
+    gap: 10,
+    alignItems: "center",
+  },
+  manualInput: {
+    flex: 1,
+    backgroundColor: "#111",
+    borderWidth: 1,
+    borderColor: "#222",
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    color: "#fff",
+  },
+  btn:App.js
+import React, { useEffect, useRef, useState } from "react";
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  Image,
+  Alert,
+  ActivityIndicator,
+  FlatList,
+  StyleSheet,
+  ScrollView,
+  TextInput,
+  SafeAreaView,
+  KeyboardAvoidingView,
+  Platform,
+  Modal,
+} from "react-native";
 
-  async function signOut() {
-    await supabase.auth.signOut();
-    setSession(null);
-    setUsage(null);
-    setActivePlan("free");
-    setResult(null);
-    setPlanMsg("");
-  }
+import { CameraView, useCameraPermissions } from "expo-camera";
+import * as FileSystem from "expo-file-system";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { createClient } from "@supabase/supabase-js";
+import "react-native-url-polyfill/auto";
 
-  // ---------- Analyze ----------
-  async function pickAndAnalyze() {
-    try {
-      if (!userId) return;
+// RevenueCat
+import Purchases from "react-native-purchases";
 
-      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!perm.granted) {
-        Alert.alert("Permission needed", "Please allow photo library access.");
-        return;
-      }
+// ===================== CONFIG =====================
+const API_BASE =
+  process.env.EXPO_PUBLIC_API_BASE?.trim() ||
+  "https://kcal-scan-production.up.railway.app";
 
-      const picked = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        quality: 0.9,
-      });
+const HISTORY_KEY = "kcal_scan_history_v3";
+const historyKey = (uid) => `${HISTORY_KEY}:${uid}`;
+const MAX_HISTORY = 50;
 
-      if (picked.canceled) return;
+const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL || "";
+const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || "";
+const HAS_SUPABASE = Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
+const supabase = HAS_SUPABASE ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
 
-      const asset = picked.assets?.[0];
-      if (!asset?.uri) return;
+// RevenueCat keys (env preferred)
+const RC_IOS_KEY =
+  process.env.EXPO_PUBLIC_RC_IOS_KEY || "appl_SoteCFCeVzvTTQWIpwbClzFnBdq";
+const RC_ANDROID_KEY =
+  process.env.EXPO_PUBLIC_RC_ANDROID_KEY || "goog_XXXXXXXXXXXXXXXX";
 
-      setLoading(true);
-      setResult(null);
+// Offering + entitlements
+const OFFERING_ID = process.env.EXPO_PUBLIC_RC_OFFERING || "main";
+const PLAN_ORDER = ["free","elite","advanced","pro","infinite"];
 
-      const form = new FormData();
-      form.append("file", {
-        uri: asset.uri,
-        name: "photo.jpg",
-        type: "image/jpeg",
-      });
+const ENTITLEMENTS = (process.env.EXPO_PUBLIC_RC_ENTITLEMENTS || "elite,advanced,pro,infinite")
+  .split(",")
+  .map((x) => x.trim())
+  .filter(Boolean);
 
-      const res = await fetch(`${API_BASE}/analyze?user_id=${encodeURIComponent(userId)}`, {
-        method: "POST",
-        headers: backendHeaders(userId),
-        body: form,
-      });
+const BARCODE_COOLDOWN_MS = 1800;
 
-      const json = await safeJson(res);
+// ===================== HELPERS =====================
+function num(x) {
+  const n = Number(x);
+  return Number.isFinite(n) ? n : 0;
+}
+function round1(x) {
+  const n = Number(x);
+  return Number.isFinite(n) ? Math.round(n * 10) / 10 : 0;
+}
+function nowISO() {
+  return new Date().toISOString();
+}
 
-      if (!res.ok) {
-        const msg = json?.detail?.error || json?.detail || json?._raw || "Analyze failed";
-        throw new Error(typeof msg === "string" ? msg : JSON.stringify(msg));
-      }
+function backendHeaders(userId, extra = {}) {
+  if (!userId) return { ...extra };
+  return {
+    "X-User-Id": userId,
+    "x-user-id": userId,
+    ...extra,
+  };
+}
 
-      setResult(json);
+function pickMacros(obj) {
+  if (!obj) return { protein_g: 0, carbs_g: 0, fat_g: 0 };
+  const protein =
+    obj.protein_g ?? obj.protein ?? obj.p ?? obj.proteinG ?? obj.protein_gm ?? 0;
+  const carbs =
+    obj.carbs_g ?? obj.carbs ?? obj.c ?? obj.carbsG ?? obj.carbs_gm ?? 0;
+  const fat = obj.fat_g ?? obj.fat ?? obj.f ?? obj.fatG ?? obj.fat_gm ?? 0;
+  return { protein_g: num(protein), carbs_g: num(carbs), fat_g: num(fat) };
+}
 
-      // History item (isolated per userId by key)
-      const item = {
-        ts: new Date().toISOString(),
-        source: "photo",
-        total_kcal: json?.total_kcal,
-        totals: json?.totals,
-        items: json?.items,
-        coaching: json?.coaching,
-      };
-      await saveHistory([item, ...history].slice(0, 30));
+function normalizeAnalyzeResponse(json) {
+  const total_kcal = num(json?.total_kcal ?? json?.totalKcal ?? 0);
 
-      // refresh usage counters
-      await fetchUsage();
-    } catch (e) {
-      Alert.alert("Analyze error", e?.message || String(e));
-    } finally {
-      setLoading(false);
-    }
-  }
+  const totalsCandidate = json?.totals ?? json?.macros ?? json?.total_macros ?? null;
+  let totals = pickMacros(totalsCandidate);
 
-  // ---------- Barcode lookup (manual input) ----------
-  async function lookupBarcode() {
-    try {
-      if (!userId) return;
-      const code = String(barcode || "").trim();
-      if (!code) return;
+  const rawItems = Array.isArray(json?.items)
+    ? json.items
+    : Array.isArray(json?.foods)
+      ? json.foods
+      : [];
 
-      setLoading(true);
-      setResult(null);
+  const items = rawItems.map((it) => {
+    const kcal = num(it?.kcal ?? it?.calories ?? 0);
+    const grams = num(it?.grams ?? it?.g ?? it?.weight_g ?? 0);
+    const macros = pickMacros(it?.macros ?? it);
+    return {
+      ...it,
+      name: it?.name ?? it?.label ?? it?.food ?? "item",
+      kcal,
+      grams,
+      macros,
+      confidence: it?.confidence ?? it?.conf ?? it?.score,
+    };
+  });
 
-      const res = await fetch(`${API_BASE}/barcode/${encodeURIComponent(code)}?user_id=${encodeURIComponent(userId)}`, {
-        headers: backendHeaders(userId),
-      });
-
-      const json = await safeJson(res);
-
-      if (!res.ok) {
-        // If backend sends upgrade_required detail
-        const d = json?.detail;
-        if (d?.error === "upgrade_required") {
-          setResult({ locked: { feature: d.feature, required_plan: d.required_plan }, usage: json?.usage || null });
-          throw new Error(`Upgrade required: ${String(d.required_plan).toUpperCase()} for ${d.feature}`);
-        }
-        throw new Error(json?.detail?.error || json?.detail || json?._raw || "Barcode lookup failed");
-      }
-
-      setResult(json);
-
-      const item = {
-        ts: new Date().toISOString(),
-        source: "barcode",
-        barcode: json?.barcode,
-        name: json?.name,
-        per_100g: json?.per_100g,
-      };
-      await saveHistory([item, ...history].slice(0, 30));
-      await fetchUsage();
-    } catch (e) {
-      Alert.alert("Barcode", e?.message || String(e));
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  // ---------- Screens ----------
-  if (!session) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.card}>
-          <Text style={styles.h1}>CalorieClick.ai</Text>
-          <Text style={styles.sub}>Login to start scanning.</Text>
-
-          <TextInput
-            value={email}
-            onChangeText={setEmail}
-            autoCapitalize="none"
-            keyboardType="email-address"
-            placeholder="Email"
-            placeholderTextColor="#7c7c93"
-            style={styles.input}
-          />
-          <TextInput
-            value={password}
-            onChangeText={setPassword}
-            placeholder="Password"
-            placeholderTextColor="#7c7c93"
-            secureTextEntry
-            style={styles.input}
-          />
-
-          <Btn title={loading ? "..." : "Login"} onPress={signIn} disabled={loading} />
-          <Btn title={loading ? "..." : "Create account"} kind="secondary" onPress={signUp} disabled={loading} />
-
-          <Text style={styles.small}>
-            Tip: use a simple test password (min 6 chars). Supabase will create the user id automatically.
-          </Text>
-        </View>
-      </SafeAreaView>
+  if (
+    totals.protein_g === 0 &&
+    totals.carbs_g === 0 &&
+    totals.fat_g === 0 &&
+    items.length > 0
+  ) {
+    totals = items.reduce(
+      (acc, it) => ({
+        protein_g: acc.protein_g + num(it?.macros?.protein_g),
+        carbs_g: acc.carbs_g + num(it?.macros?.carbs_g),
+        fat_g: acc.fat_g + num(it?.macros?.fat_g),
+      }),
+      { protein_g: 0, carbs_g: 0, fat_g: 0 }
     );
   }
 
-  const plan = String(activePlan || usage?.plan || "free").toLowerCase();
-  const canBarcode = planAtLeast(plan, "elite");
-  const canCoaching = planAtLeast(plan, "pro");
+  const computedKcal =
+    total_kcal && total_kcal > 0 ? total_kcal : items.reduce((s, it) => s + num(it.kcal), 0);
 
-  const coaching = result?.coaching || null;
-  const locked = result?.locked || null;
-
-  return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
-
-        <View style={styles.topBar}>
-          <Text style={styles.h1}>CalorieClick.ai</Text>
-          <TouchableOpacity onPress={signOut} style={styles.smallBtn}>
-            <Text style={styles.smallBtnText}>Logout</Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.h2}>Your Plan</Text>
-          <View style={styles.rowWrap}>
-            <Pill text={`Plan: ${String(plan).toUpperCase()}`} tone="good" />
-            <Pill text={`Daily: ${usage?.remaining_day ?? "-"}`} />
-            <Pill text={`Monthly: ${usage?.remaining_month ?? "-"}`} />
-          </View>
-
-          <View style={styles.rowWrap}>
-            {PLAN_ORDER.filter(p => p !== "free").map((p) => (
-              <TouchableOpacity
-                key={p}
-                style={[styles.planBtn, plan === p && styles.planBtnActive]}
-                onPress={() => purchasePlan(p)}
-                disabled={loading}
-              >
-                <Text style={styles.planBtnText}>{p.toUpperCase()}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          <View style={styles.rowWrap}>
-            <Btn title={loading ? "..." : "Restore Purchases"} kind="secondary" onPress={restorePurchases} disabled={loading} />
-            <Btn title="Refresh Usage" kind="secondary" onPress={() => fetchUsage()} disabled={loading} />
-          </View>
-
-          {planMsg ? <Text style={styles.small}>{planMsg}</Text> : null}
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.h2}>Scan a Meal (photo)</Text>
-          <Btn title={loading ? "Analyzing..." : "Pick Photo & Analyze"} onPress={pickAndAnalyze} disabled={loading} />
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.h2}>Barcode (Elite+)</Text>
-          {!canBarcode ? (
-            <Text style={styles.lockedText}>🔒 Barcode scanning is unlocked on Elite / Advanced / Pro / Infinite.</Text>
-          ) : null}
-
-          <View style={styles.row}>
-            <TextInput
-              value={barcode}
-              onChangeText={setBarcode}
-              placeholder="Enter barcode number"
-              placeholderTextColor="#7c7c93"
-              style={[styles.input, { flex: 1, marginTop: 0 }]}
-            />
-            <TouchableOpacity
-              style={[styles.smallBtn, { marginLeft: 10 }]}
-              onPress={lookupBarcode}
-              disabled={loading || !canBarcode}
-            >
-              <Text style={styles.smallBtnText}>Lookup</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {loading ? (
-          <View style={styles.centerInline}>
-            <ActivityIndicator />
-            <Text style={styles.small}>Working...</Text>
-          </View>
-        ) : null}
-
-        {result ? (
-          <View style={styles.section}>
-            <Text style={styles.h2}>Result</Text>
-
-            {/* --- Photo result --- */}
-            {result?.source === "photo" ? (
-              <>
-                <Text style={styles.sub}>Total: {result?.total_kcal ?? "-"} kcal</Text>
-                <Text style={styles.sub}>
-                  Macros: P {result?.totals?.protein_g ?? "-"}g • C {result?.totals?.carbs_g ?? "-"}g • F{" "}
-                  {result?.totals?.fat_g ?? "-"}g
-                </Text>
-
-                <View style={{ marginTop: 12 }}>
-                  {(result?.items || []).map((it, idx) => (
-                    <View key={`${it?.name}-${idx}`} style={styles.itemRow}>
-                      <Text style={styles.itemName}>{it?.name}</Text>
-                      <Text style={styles.itemMeta}>
-                        {it?.grams}g • {it?.kcal} kcal • P {it?.macros?.protein_g}g / C {it?.macros?.carbs_g}g / F{" "}
-                        {it?.macros?.fat_g}g
-                      </Text>
-                    </View>
-                  ))}
-                </View>
-
-                {/* --- Coaching (Pro/Infinite only) --- */}
-                {!coaching ? (
-                  <View style={styles.lockedBox}>
-                    <Text style={styles.lockedTitle}>🔒 Unlock Pro for Coaching Insights</Text>
-                    <Text style={styles.lockedText}>
-                      Pro + Infinite includes: Satiety, Protein BV, Leucine/MPS, Glycemic Load, Ultra‑Processed score.
-                    </Text>
-                  </View>
-                ) : (
-                  <View style={styles.coachBox}>
-                    <Text style={styles.h2}>Coaching Insights (Pro+)</Text>
-
-                    <Text style={styles.sub}>
-                      Satiety Score (how filling): {round1(coaching?.satiety_score)}/100{" "}
-                      <Text style={styles.dim}>({coaching?.layman_terms?.satiety || "how full you’ll feel"})</Text>
-                    </Text>
-
-                    <Text style={styles.sub}>
-                      Protein BV (how much you use): {round1(coaching?.protein_bv_score)}/100{" "}
-                      <Text style={styles.dim}>({coaching?.layman_terms?.protein_bv || "protein quality"})</Text>
-                    </Text>
-
-                    <Text style={styles.sub}>
-                      Leucine estimate: {round1(coaching?.leucine_estimate_g)}g{" "}
-                      <Text style={styles.dim}>({coaching?.layman_terms?.leucine || "muscle-building trigger"})</Text>
-                    </Text>
-
-                    <Text style={styles.sub}>
-                      MPS Threshold: {round1(coaching?.mps_threshold_g)}g •{" "}
-                      {coaching?.mps_triggered ? "✅ MPS triggered" : "❌ Not yet"}
-                    </Text>
-
-                    {coaching?.glycemic_load ? (
-                      <Text style={styles.sub}>
-                        Glycemic load: {round1(coaching?.glycemic_load?.gl)} ({coaching?.glycemic_load?.level}){" "}
-                        <Text style={styles.dim}>({coaching?.layman_terms?.glycemic_load || "blood sugar spike risk"})</Text>
-                      </Text>
-                    ) : null}
-
-                    {coaching?.ultra_processed_score !== undefined ? (
-                      <Text style={styles.sub}>
-                        Ultra‑processed score: {round1(coaching?.ultra_processed_score)}/10{" "}
-                        <Text style={styles.dim}>({coaching?.layman_terms?.ultra_processed || "how processed it is"})</Text>
-                      </Text>
-                    ) : null}
-
-                    {(coaching?.messages || []).length ? (
-                      <View style={{ marginTop: 10 }}>
-                        {(coaching.messages || []).map((m, i) => (
-                          <Text key={`m-${i}`} style={styles.msgLine}>
-                            • {m}
-                          </Text>
-                        ))}
-                      </View>
-                    ) : null}
-                  </View>
-                )}
-              </>
-            ) : null}
-
-            {/* --- Barcode result --- */}
-            {result?.source === "barcode" ? (
-              <>
-                <Text style={styles.sub}>
-                  {result?.name} {result?.brand ? `(${result.brand})` : ""}
-                </Text>
-                <Text style={styles.sub}>
-                  Per 100g: {result?.per_100g?.kcal} kcal • P {result?.per_100g?.protein_g}g • C{" "}
-                  {result?.per_100g?.carbs_g}g • F {result?.per_100g?.fat_g}g
-                </Text>
-              </>
-            ) : null}
-
-            {/* Locked from backend */}
-            {locked ? (
-              <View style={styles.lockedBox}>
-                <Text style={styles.lockedTitle}>🔒 Locked feature: {locked.feature}</Text>
-                <Text style={styles.lockedText}>Required plan: {String(locked.required_plan).toUpperCase()}</Text>
-              </View>
-            ) : null}
-          </View>
-        ) : null}
-
-        <View style={styles.section}>
-          <Text style={styles.h2}>History</Text>
-          <Text style={styles.small}>History is saved per user.</Text>
-
-          {history.length === 0 ? (
-            <Text style={styles.sub}>No scans yet.</Text>
-          ) : (
-            history.map((h, idx) => (
-              <View key={`${h?.ts}-${idx}`} style={styles.historyRow}>
-                <Text style={styles.historyTitle}>
-                  {h?.source === "barcode" ? `Barcode: ${h?.name || h?.barcode}` : `Meal: ${h?.total_kcal || "-"} kcal`}
-                </Text>
-                <Text style={styles.small}>{new Date(h.ts).toLocaleString()}</Text>
-              </View>
-            ))
-          )}
-
-          <Btn
-            title="Clear history"
-            kind="secondary"
-            onPress={() => saveHistory([])}
-            disabled={loading}
-          />
-        </View>
-
-      </ScrollView>
-    </SafeAreaView>
-  );
+  return { ...json, total_kcal: computedKcal, totals, items };
 }
 
-function round1(x) {
-  const n = Number(x);
-  if (Number.isFinite(n)) return Math.round(n * 10) / 10;
-  return "-";
+function normalizeBarcodeResponse(json) {
+  const per = json?.per_100g || {};
+  const name = json?.name || "Unknown product";
+  const brand = json?.brand || null;
+
+  const item = {
+    name: brand ? `${name} (${brand})` : name,
+    grams: 100,
+    confidence: 1,
+    kcal: num(per.kcal),
+    macros: {
+      protein_g: num(per.protein_g),
+      carbs_g: num(per.carbs_g),
+      fat_g: num(per.fat_g),
+    },
+    barcode: json?.barcode,
+    source_db: json?.source_db,
+  };
+
+  return {
+    source: "barcode",
+    barcode: json?.barcode,
+    total_kcal: num(per.kcal),
+    totals: {
+      protein_g: num(per.protein_g),
+      carbs_g: num(per.carbs_g),
+      fat_g: num(per.fat_g),
+    },
+    items: [item],
+  };
 }
 
-// ===================== STYLES =====================
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#0b0b0f", padding: 14 },
-  centerInline: { justifyContent: "center", alignItems: "center", padding: 18 },
+function getActiveEntitlement(customerInfo) {
+  // returns the HIGHEST active entitlement by PLAN_ORDER
+  const active = customerInfo?.entitlements?.active || {};
+  const activeKeys = Object.keys(active || {}).map((k) => String(k).toLowerCase());
+  let best = "free";
+  for (const k of activeKeys) {
+    const idx = PLAN_ORDER.indexOf(k);
+    if (idx >= 0 && idx > PLAN_ORDER.indexOf(best)) best = k;
+  }
+  return best;
+}
 
-  card: { marginTop: 60, backgroundColor: "#15151c", borderRadius: 18, padding: 18 },
-  topBar: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 8 },
-  section: { marginTop: 18, backgroundColor: "#15151c", borderRadius: 18, padding: 16 },
+function formatPrice(pkg) {
+  try {
+    return pkg?.product?.priceString || "";
+  } catch {
+    return "";
+  }
+}
 
-  h1: { fontSize: 24, fontWeight: "900", color: "white" },
-  h2: { fontSize: 18, fontWeight: "800", color: "white" },
-  sub: { marginTop: 6, color: "#c7c7d8" },
-  small: { marginTop: 8, color: "#9a9ab1", fontSize: 12 },
-  dim: { color: "#9a9ab1", fontSize: 12 },
+function pkgTitle(pkg) {
+  const id = (pkg?.identifier || "").toLowerCase();
+  // Prefer showing plan name (Elite/Advanced/Pro/Infinite) over billing period
+  if (id.includes("infinite")) return "Infinite";
+  if (id.includes("pro")) return "Pro";
+  if (id.includes("advanced")) return "Advanced";
+  if (id.includes("elite")) return "Elite";
+  return pkg?.product?.title || "Plan";
+}
 
-  input: {
-    marginTop: 12,
-    backgroundColor: "#1c1c25",
-    borderRadius: 14,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    color: "white",
-  },
+function planRankFromPkg(pkg) {
+  const t = pkgTitle(pkg).toLowerCase();
+  if (t.includes("infinite")) return 4;
+  if (t.includes("pro")) return 3;
+  if (t.includes("advanced")) return 2;
+  if (t.includes("elite")) return 1;
+  return 0;
+}
 
-  btn: { marginTop: 12, backgroundColor: "#5b7cfa", borderRadius: 14, paddingVertical: 12, alignItems: "center" },
-  btnSecondary: { backgroundColor: "#303043" },
-  btnText: { color: "white", fontWeight: "900" },
+function isElitePlus(plan) {
+  const p = (plan || "free").toLowerCase();
+  return p === "elite" || p === "advanced" || p === "pro" || p === "infinite";
+}
 
-  smallBtn: { backgroundColor: "#1c1c25", paddingHorizontal: 12, paddingVertical: 10, borderRadius: 12 },
-  smallBtnText: { color: "white", fontWeight: "800" },
+function isProPlus(plan) {
+  const p = (plan || "free").toLowerCase();
+  return p === "pro" || p === "infinite";
+}
 
-  row: { flexDirection: "row", alignItems: "center", marginTop: 12 },
-  rowWrap: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", marginTop: 10, gap: 8 },
+function planSubtitleFromTitle(title) {
+  const t = (title || "").toLowerCase();
+  if (t.includes("elite")) return "Barcode scans + more scans";
+  if (t.includes("advanced")) return "More scans + barcode";
+  if (t.includes("pro")) return "Coaching insights + Satiety/BV + Muscle score";
+  if (t.includes("infinite")) return "Everything + massive scan limits";
+  return "Upgrade to unlock features";
+}
 
-  planBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    backgroundColor: "#1c1c25",
-    borderRadius: 12,
-  },
-  planBtnActive: { backgroundColor: "#2f4bdc" },
-  planBtnText: { color: "white", fontWeight: "900" },
+// ===================== APP =====================
+export default function App() {
+  const cameraRef = useRef(null);
+  const [permission, requestPermission] = useCameraPermissions();
 
-  pill: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, backgroundColor: "#1c1c25" },
-  pillGood: { backgroundColor: "#1f4f2a" },
-  pillWarn: { backgroundColor: "#5a3a1b" },
-  pillText: { color: "white", fontWeight: "800", fontSize: 12 },
+  // Supabase Auth
+  const [authLoading, setAuthLoading] = useState(true);
+  const [session, setSession] = useState(null);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
 
-  itemRow: { marginTop: 10, padding: 10, borderRadius: 14, backgroundColor: "#1c1c25" },
-  itemName: { color: "white", fontWeight: "900" },
-  itemMeta: { color: "#c7c7d8", marginTop: 4 },
+  // App state
+  const [photoUri, setPhotoUri] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [serverOk, setServerOk] = useState(false);
 
-  lockedBox: { marginTop: 14, padding: 12, borderRadius: 14, backgroundColor: "#1c1c25" },
-  lockedTitle: { color: "white", fontWeight: "900" },
-  lockedText: { color: "#c7c7d8", marginTop: 6 },
+  const [result, setResult] = useState(null);
+  const [history, setHistory] = useState([]);
+  const [selected, setSelected] = useState(null);
 
-  coachBox: { marginTop: 14, padding: 12, borderRadius: 14, backgroundColor: "#11111a", borderWidth: 1, borderColor: "#2a2a3a" },
-  msgLine: { color: "#c7c7d8", marginTop: 6 },
+  // Mode
+  const [mode, setMode] = useState("photo"); // "photo" | "barcode"
+  const lastBarcodeRef = useRef({ code: null, t: 0 });
+  const barcodeBusyRef = useRef(false);
 
-  historyRow: { marginTop: 10, padding: 10, borderRadius: 14, backgroundColor: "#1c1c25" },
-  historyTitle: { color: "white", fontWeight: "900" },
-});
+  // Usage
+  const [usage, setUsage] = useState(null);
+
+  // RevenueCat paywall
+  const [paywallOpen, setPaywallOpen] = useState(false);
+  const [rcLoading, setRcLoading] = useState(false);
+  const [offering, setOffering] = useState(null);
+  const [customerInfo, setCustomerInfo] = useState(null);
+  const [activePlan, setActivePlan] = useState("free");
+  const effectivePlan = (result?.usage?.plan || activePlan || "free").toLowerCase();
+
+  const userId = session?.user?.id || null;
+
+  // ===================== INIT =====================
+  useEffect(() => {
+    (async () => {
+      try {
+        if (!userId) {
+          setHistory([]);
+          return;
+        }
+        const raw = await AsyncStorage.getItem(historyKey(userId));
+        const arr = raw ? JSON.parse(raw) : [];
+        if (Array.isArray(arr)) setHistory(arr);
+      } catch {}
+    })();
+  }, [userId]);
+
+  useEffect(() => {
+    if (!HAS_SUPABASE) {
+      setAuthLoading(false);
+      return;
+    }
+
+    supabase.auth.getSession().then(({ data }) => {
+      setSession(data?.session || null);
+      setAuthLoading(false);
+    });
+
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, s) => {
+      setSession(s);
+      setAuthLoading(false);
+    });
+
+    return () => {
+      listener?.subscription?.unsubscribe?.();
+    };
+  }, []);
+
+  // Health check
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch(`${API_BASE}/health`);
+        setServerOk(res.ok);
+      } catch {
+        setServerOk(false);
+      }
+    })();
+  }, []);
+
+  // Setup camera permission
+  useEffect(() => {
+    if (!permission?.granted) requestPermission();
+  }, [permission]);
+
+  // ===================== REVENUECAT SETUP =====================
+  useEffect(() => {
+    if (!userId) return;
+
+    (async () => {
+      try {
+        const apiKey = Platform.OS === "ios" ? RC_IOS_KEY : RC_ANDROID_KEY;
+
+        Purchases.setLogLevel(Purchases.LOG_LEVEL.INFO);
+        await Purchases.configure({ apiKey, appUserID: userId });
+
+        const info = await Purchases.getCustomerInfo();
+        setCustomerInfo(info);
+        setActivePlan(getActiveEntitlement(info));
+
+        // preload offerings
+        const offerings = await Purchases.getOfferings();
+        const off = offerings?.current || offerings?.all?.[OFFERING_ID];
+        setOffering(off || null);
+      } catch (e) {
+        console.log("RevenueCat init error:", e?.message || e);
+      }
+    })();
+  }, [userId]);
+
+  // ===================== BACKEND USAGE =====================
+  async function fetchUsage() {
+    if (!userId) return;
+    try {
+      const res = await fetch(`${API_BASE}/usage`, {
+        headers: backendHeaders(userId),
+      });
+      if (!res.ok) {
+        const t = await res.text();
+        throw new Error(t);
+      }
+      const rawText = await res.text();
+      let json = null;
+      try { json = JSON.parse(rawText); } catch (e) { json = null; }
+      setUsage(json);
+    } catch (e) {
+      console.log("usage fetch error:", e?.message || e);
+    }
+  }
+
+  // pull usage on login + after purchase
+  useEffect(() => {
+    if (userId) fetchUsage();
+  }, [userId]);
+
+  // ===================== PLAN SYNC =====================
+  
+function planRank(plan) {
+  const order = ["free", "elite", "advanced", "pro", "infinite"];
+  const p = String(plan || "free").toLowerCase();
+  const i = order.indexOf(p);
+  return i >= 0 ? i : 0;
+}
+
+function planFromPackage(pkg) {
+  const candidates = [
+    pkg?.identifier,
+    pkg?.product?.identifier,
+    pkg?.product?.title,
+    pkg?.product?.description,
+  ]
+    .filter(Boolean)
+    .map((s) => String(s).toLowerCase());
+
+  const hay = candidates.join(" | ");
+  if (hay.includes("infinite")) return "infinite";
+  if (hay.includes("pro")) return "pro";
+  if (hay.includes("advanced")) return "advanced";
+  if (hay.includes("elite")) return "elite";
+  return null;
+}
+
+
+async function syncPlanToBackend(entitlement, mode = "purchase") {
+    if (!userId) return;
+    try {
+      const res = await fetch(`${API_BASE}/plan/sync?user_id=${encodeURIComponent(userId)}`, {
+        method: "POST",
+        headers: backendHeaders(userId, { "Content-Type": "application/json" }),
+      body: JSON.stringify({ entitlement, mode }),
+      });
+      const rawText = await res.text();
+      let json = null;
+      try { json = JSON.parse(rawText); } catch (e) { json = null; }
+      console.log("plan/sync:", json);
+      await fetchUsage();
+    } catch (e) {
+      console.log("plan/sync error:", e?.message || e);
+    }
+  }
+
+  // ===================== PURCHASE / RESTORE =====================
+  async function openPaywall() {
+    setPaywallOpen(true);
+    setRcLoading(true);
+    try {
+      const offerings = await Purchases.getOfferings();
+      const off = offerings?.current || offerings?.all?.[OFFERING_ID];
+      setOffering(off || null);
+
+      const info = await Purchases.getCustomerInfo();
+      setCustomerInfo(info);
+      setActivePlan(getActiveEntitlement(info));
+    } catch (e) {
+      console.log("open paywall error:", e?.message || e);
+    } finally {
+      setRcLoading(false);
+    }
+  }
+
+  async function buyPackage(pkg) {
+  try {
+    setPaywallBusy(true);
+
+    // Determine the plan the user tapped (from package metadata)
+    const target = planFromPackage(pkg);
+
+    // Purchase
+    await Purchases.purchasePackage(pkg);
+
+    // Refresh RevenueCat state
+    const info = await Purchases.getCustomerInfo();
+    const activeEnt = getActiveEntitlement(info); // what Apple/RC says is currently active right now
+    setActivePlan(activeEnt);
+
+    // Decide what we should tell backend:
+    // - If the purchase is an upgrade (target >= current), we expect activeEnt to become target (usually immediate)
+    // - If the purchase is a downgrade (target < current), Apple keeps higher plan active until next billing cycle.
+    //   In that case, we keep backend on activeEnt (so the user doesn't lose features early).
+    const backendPlan = activeEnt;
+
+    // Sync to backend as a PURCHASE (this refills counters only on real purchase)
+    await syncPlanToBackend(backendPlan, "purchase");
+
+    // Messaging
+    if (target && planRank(target) < planRank(activeEnt)) {
+      Alert.alert(
+        "Downgrade scheduled",
+        `Your Apple subscription is still ${activeEnt.toUpperCase()} until the next billing cycle. The downgrade to ${target.toUpperCase()} will apply later.`
+      );
+    } else if (target && planRank(target) > planRank(activeEnt)) {
+      Alert.alert(
+        "Purchase pending",
+        `Apple hasn’t switched your plan yet. Current: ${activeEnt.toUpperCase()}. If it doesn’t update soon, use Restore Purchases.`
+      );
+    } else {
+      Alert.alert("Plan updated", `You are now on ${activeEnt.toUpperCase()}.`);
+    }
+
+    await fetchUsage(); // refresh usage from backend after plan sync
+  } catch (e) {
+    console.log("buy error", e);
+    Alert.alert("Purchase failed", String(e?.message || e));
+  } finally {
+    setPaywallBusy(false);
+  }
+}
+
+
+async function restorePurchases() {
+    setRcLoading(true);
+    try {
+      const info = await Purchases.restorePurchases();
+      setCustomerInfo(info);
+
+      const plan = getActiveEntitlement(info);
+      setActivePlan(plan);
+
+      // IMPORTANT: restore should NOT refill scan counters.
+      await syncPlanToBackend(plan, "restore");
+      await fetchUsage();
+
+      Alert.alert(
+        "Purchases restored",
+        `Your Apple subscription is currently ${plan.toUpperCase()}.\n\nNote: Restore does not refill scan limits — it only syncs your plan.`
+      );
+    } catch (e) {
+      console.log("restore error", e);
+      Alert.alert("Restore failed", String(e?.message || e));
+    } finally {
+      setRcLoading(false);
+    }
+  }
+
+async function barcodeLookupManual() {
+  const code = String(barcodeManual || "").trim();
+  if (!code) {
+    Alert.alert("Enter barcode", "Type a barcode number first.");
+    return;
+  }
+  await barcodeLookup(code);
+}
+
+
