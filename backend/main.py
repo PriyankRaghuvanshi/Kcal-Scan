@@ -23,16 +23,17 @@ logger = logging.getLogger("kcal")
 # -------------------- APP --------------------
 app = FastAPI(title="Kcal Scan API", version="1.0.0")
 
-# --- DEBUG HANDLER (Shows crash errors in curl response) ---
+# --- DEBUG CRASH HANDLER (Fixes silent 502 errors) ---
+# This forces the server to print the actual error to the response
 @app.exception_handler(Exception)
 async def debug_exception_handler(request: Request, exc: Exception):
     error_msg = traceback.format_exc()
     logger.error(f"CRASH: {error_msg}")
-    return PlainTextResponse(str(error_msg), status_code=500)
+    return PlainTextResponse(f"SERVER CRASH: {error_msg}", status_code=500)
 
 @app.get("/__whoami")
 def whoami():
-    return {"whoami": "NEW_BACKEND_WITH_USAGE_FIXED", "ts": dt.datetime.utcnow().isoformat()}
+    return {"whoami": "NEW_BACKEND_WITH_DEBUGGER", "ts": dt.datetime.utcnow().isoformat()}
 
 app.add_middleware(
     CORSMiddleware,
