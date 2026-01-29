@@ -111,7 +111,7 @@ def _digits_only(s: str) -> str:
     return "".join([c for c in (s or "").strip() if c.isdigit()])
 
 
-# -------------------- PLAN GATING HELPERS (NEW) --------------------
+# -------------------- PLAN GATING HELPERS --------------------
 def plan_at_least(current: str, required: str) -> bool:
     try:
         return PLAN_ORDER.index((current or DEFAULT_PLAN).lower()) >= PLAN_ORDER.index(required.lower())
@@ -129,6 +129,193 @@ def require_plan(current: str, required: str, feature: str):
                 "current_plan": (current or DEFAULT_PLAN).lower(),
             },
         )
+
+
+# -------------------- COACHING (PRO+) HELPERS --------------------
+def _clamp(x: float, lo: float, hi: float) -> float:
+    return max(lo, min(hi, x))
+
+def _round1(x: float) -> float:
+    try:
+        return round(float(x), 1)
+    except Exception:
+        return 0.0
+
+def estimate_leucine_g(total_protein_g: float) -> float:
+    # Simple, practical estimate: ~8% of protein grams is leucine for mixed diets
+    return max(0.0, float(total_protein_g or 0.0) * 0.08)
+
+def leucine_messages(leucine_g: float, threshold_g: float = 2.5) -> List[str]:
+    gap = threshold_g - leucine_g
+    if gap <= 0:
+        return ["✅ Great — muscle-building signal is triggered for this meal."]
+    if gap <= 0.4:
+        return [
+            "You're very close — add a small protein boost to trigger muscle-building.",
+            "Easy add-ons: Greek yogurt, milk, eggs, chicken, or whey."
+        ]
+    if gap <= 1.0:
+        return [
+            "You're close — add a moderate protein boost to trigger muscle-building.",
+            "Good options: extra chicken/fish/eggs, tofu/tempeh, Greek yogurt, or a protein shake."
+        ]
+    return [
+        "You're quite short — this meal needs more protein to trigger muscle-building.",
+        "Add a strong protein portion (chicken/fish/lean meat/tofu) or a protein shake."
+    ]
+
+def estimate_protein_bv_score(items: List[Dict[str, Any]]) -> float:
+    """
+    Heuristic "Protein Bioavailability" score 0-100.
+    We approximate based on detected food keywords (best match wins).
+    """
+    text = " ".join([(it.get("name") or "") for it in (items or [])]).lower()
+
+    # Common BV-ish references (approx / heuristic)
+    candidates = [
+        (104, ["whey", "isolate"]),
+        (100, ["egg"]),
+        (95, ["milk", "yogurt", "cheese"]),
+        (90, ["fish", "salmon", "tuna"]),
+        (88, ["chicken", "turkey"]),
+        (85, ["beef", "pork", "lamb"]),
+        (78, ["soy", "tofu", "tempeh"]),
+        (70, ["beans", "lentil", "chickpea"]),
+        (65, ["wheat", "gluten", "bread", "pasta"]),
+    ]
+    best = 70
+    for score, keys in candidates:
+        if any(k in text for k in keys):
+            best = max(best, score)
+    return float(_clamp(best, 0, 100))
+
+def estimate_ultra_processed_score(items: List[Dict[str, Any]]) -> float:
+    """
+    NOVA-style rough score 0-10 (higher = more ultra-processed).
+    Keyword-based heuristic.
+    """
+    text = " ".join([(it.get("name") or "") for it in (items or [])]).lower()
+
+    high = ["cola", "soda", "soft drink", "chips", "fries", "nugget", "ketchup", "mayo", "nutella", "candy", "chocolate", "cookie", "ice cream"]
+    medium = ["burger", "sausage", "hot dog", "pizza", "white bread", "instant", "cereal"]
+
+    score = 2.0
+    if any(k in text for k in medium):
+        score += 3.0
+    if any(k in text for k in high):
+        score += 5.0
+
+    return float(_clamp(score, 0, 10))
+
+def estimate_glycemic_load(items: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """
+    GL ~= sum(carbs_g * GI/100). We do not have true GI, so we estimate GI from keywords.
+    Returns: { gl: number, level: "low|medium|high|very_high" }
+    """
+    def est_gi(name: str) -> float:
+        n = (name or "").lower()
+        if any(k in n for k in ["cola", "soda", "soft drink"]):
+            return 95
+        if any(k in n for k in ["fries", "chips"]):
+            return 75
+        if any(k in n for k in ["white rice", "rice", "bread", "bun", "pasta"]):
+            return 70
+        if any(k in n for k in ["ketchup"]):
+            return 55
+        if any(k in n for k in ["apple", "banana", "fruit"]):
+            return 50
+        if any(k in n for k in ["burger"]):
+            return 50
+        return 55
+
+    gl_total = 0.0
+    for it in (items or []):
+        carbs = 0.0
+        try:
+            carbs = float(((it.get("macros") or {}).get("carbs_g")) or 0.0)
+        except Exception:
+            carbs = 0.0
+        gi = est_gi(it.get("name") or "")
+        gl_total += carbs * (gi / 100.0)
+
+    gl_total = float(max(0.0, gl_total))
+
+    if gl_total < 10:
+        level = "low"
+    elif gl_total < 20:
+        level = "medium"
+    elif gl_total < 30:
+        level = "high"
+    else:
+        level = "very_high"
+
+    return {"gl": _round1(gl_total), "level": level}
+
+def estimate_satiety_score(total_kcal: float, totals: Dict[str, float]) -> float:
+    """
+    Satiety score 0-100 (heuristic):
+      - higher protein fraction increases satiety
+      - higher fat fraction slightly reduces satiety per calorie (energy dense)
+    Fiber/water/volume not available from USDA here, so we keep it simple.
+    """
+    kcal = float(total_kcal or 0.0)
+    if kcal <= 0:
+        return 0.0
+
+    p_g = float(totals.get("protein_g") or 0.0)
+    f_g = float(totals.get("fat_g") or 0.0)
+
+    p_cal = p_g * 4.0
+    f_cal = f_g * 9.0
+
+    p_frac = _clamp(p_cal / kcal, 0.0, 1.0)
+    f_frac = _clamp(f_cal / kcal, 0.0, 1.0)
+
+    score = 35 + (85 * p_frac) - (35 * f_frac)
+    return float(_clamp(score, 0, 100))
+
+def build_coaching(total_kcal: float, totals: Dict[str, float], items: List[Dict[str, Any]]) -> Dict[str, Any]:
+    protein_g = float(totals.get("protein_g") or 0.0)
+
+    leucine_g = estimate_leucine_g(protein_g)
+    leucine_threshold = 2.5
+    mps_triggered = leucine_g >= leucine_threshold
+
+    satiety = estimate_satiety_score(total_kcal, totals)
+    bv = estimate_protein_bv_score(items)
+    up = estimate_ultra_processed_score(items)
+    gl = estimate_glycemic_load(items)
+
+    # Layman terms (simple)
+    layman = {
+        "satiety": "How filling this meal is (higher = you’ll feel full longer).",
+        "protein_bv": "Protein quality (how well your body can use the protein).",
+        "leucine": "Leucine is the key amino acid that helps switch on muscle-building.",
+        "glycemic_load": "Sugar-spike risk from carbs (higher = bigger blood sugar spike).",
+        "ultra_processed": "How processed the food is (higher = more ultra-processed).",
+    }
+
+    return {
+        "satiety_score": _round1(satiety),
+        "protein_bv_score": _round1(bv),
+        "leucine_estimate_g": _round1(leucine_g),
+        "mps_threshold_g": _round1(leucine_threshold),
+        "mps_triggered": bool(mps_triggered),
+        "glycemic_load": gl,
+        "ultra_processed_score": _round1(up),
+
+        # Ready-to-display copy for UI
+        "layman_terms": layman,
+        "messages": (
+            leucine_messages(leucine_g, threshold_g=leucine_threshold)
+            + [
+                f"Satiety Score: {_round1(satiety)}/100 — {layman['satiety']}",
+                f"Protein Bioavailability: {_round1(bv)}/100 — {layman['protein_bv']}",
+                f"Glycemic Load: {gl['gl']} ({gl['level']}) — {layman['glycemic_load']}",
+                f"Ultra-Processed Score: {_round1(up)}/10 — {layman['ultra_processed']}",
+            ]
+        ),
+    }
 
 
 # -------------------- SUPABASE REST HELPERS --------------------
@@ -176,12 +363,6 @@ def sb_patch(table: str, match: Dict[str, str], patch: Dict[str, Any]) -> None:
 
 # -------------------- PLAN / USAGE --------------------
 def get_plan_limits(plan: str) -> Dict[str, int]:
-    """
-    Reads from plan_limits:
-      plan text primary key,
-      daily_limit int not null,
-      monthly_limit int not null
-    """
     _require_supabase()
     row = sb_get_one(
         TBL_PLAN_LIMITS,
@@ -192,7 +373,6 @@ def get_plan_limits(plan: str) -> Dict[str, int]:
         },
     )
     if not row:
-        # safe fallback if table not seeded
         if plan == "free":
             return {"daily_limit": 25, "monthly_limit": 25}
         if plan == "elite":
@@ -211,16 +391,6 @@ def get_plan_limits(plan: str) -> Dict[str, int]:
     }
 
 def get_or_init_usage(user_id: str) -> Dict[str, Any]:
-    """
-    user_usage schema expected:
-      user_id uuid primary key references auth.users(id),
-      plan text not null default 'free',
-      remaining_day int not null default 0,
-      remaining_month int not null default 0,
-      day_reset date not null default current_date,
-      month_reset date not null default date_trunc('month', now())::date,
-      updated_at timestamptz not null default now()
-    """
     _require_supabase()
 
     row = sb_get_one(
@@ -253,21 +423,16 @@ def get_or_init_usage(user_id: str) -> Dict[str, Any]:
     return row
 
 def normalize_resets(row: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    If day/month changed, reset counters to plan limits.
-    BUT: If plan is 'free', do not reset (total lifetime limit).
-    """
     user_id = row["user_id"]
     plan = (row.get("plan") or DEFAULT_PLAN).lower()
 
-    # --- CRITICAL: Free plan has NO RESETS (Lifetime 25) ---
+    # Free plan = lifetime 25 (no resets)
     if plan == "free":
         return row
 
     today = _today_date()
     mstart = _month_start(today)
 
-    # Parse stored dates
     def parse_date(x) -> Optional[dt.date]:
         if not x:
             return None
@@ -282,8 +447,8 @@ def normalize_resets(row: Dict[str, Any]) -> Dict[str, Any]:
     month_reset = parse_date(row.get("month_reset"))
 
     lim = get_plan_limits(plan)
-
     patch: Dict[str, Any] = {}
+
     if day_reset != today:
         patch["remaining_day"] = lim["daily_limit"]
         patch["day_reset"] = str(today)
@@ -300,10 +465,6 @@ def normalize_resets(row: Dict[str, Any]) -> Dict[str, Any]:
     return row
 
 def consume_one_scan(user_id: str) -> Dict[str, Any]:
-    """
-    Enforces usage + decrements by 1.
-    Raises HTTP 402 if out of scans.
-    """
     row = get_or_init_usage(user_id)
     row = normalize_resets(row)
 
@@ -321,7 +482,6 @@ def consume_one_scan(user_id: str) -> Dict[str, Any]:
             },
         )
 
-    # Decrement
     rem_day -= 1
     rem_month -= 1
     patch = {
@@ -334,9 +494,6 @@ def consume_one_scan(user_id: str) -> Dict[str, Any]:
     return row
 
 def set_user_plan(user_id: str, plan: str) -> Dict[str, Any]:
-    """
-    When user purchases a plan, set plan and reset counters immediately.
-    """
     plan = (plan or DEFAULT_PLAN).lower()
     if plan not in PLAN_ORDER:
         plan = DEFAULT_PLAN
@@ -357,23 +514,11 @@ def set_user_plan(user_id: str, plan: str) -> Dict[str, Any]:
     stored = sb_upsert(TBL_USER_USAGE, row, on_conflict="user_id")
     return stored
 
-
 def set_user_plan_no_reset(user_id: str, plan: str) -> Dict[str, Any]:
-    """\
-    Used for *restore* flows.
-
-    Updates the user's plan WITHOUT refilling scan counters.
-    This prevents users from spamming "Restore Purchases" to refill scans.
-
-    Behavior:
-      - If downgrading, we clamp remaining counts down to the new plan limits.
-      - If upgrading, we keep remaining counts as-is (no bonus refills).
-    """
     plan = (plan or DEFAULT_PLAN).lower()
     if plan not in PLAN_ORDER:
         plan = DEFAULT_PLAN
 
-    # Ensure row exists and any date-based resets are applied first.
     row = get_or_init_usage(user_id)
     row = normalize_resets(row)
 
@@ -381,7 +526,6 @@ def set_user_plan_no_reset(user_id: str, plan: str) -> Dict[str, Any]:
     rem_day = int(row.get("remaining_day") or 0)
     rem_month = int(row.get("remaining_month") or 0)
 
-    # Never increase counters on restore; only clamp down if needed.
     new_rem_day = min(rem_day, int(lim.get("daily_limit") or 0))
     new_rem_month = min(rem_month, int(lim.get("monthly_limit") or 0))
 
@@ -430,20 +574,9 @@ def plan_sync(
     user_id: Optional[str] = None,
     x_user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
 ):
-    """\
-    Call from mobile after RevenueCat purchase/restore.
-
-    payload:
-      { "entitlement": "elite" | "advanced" | "pro" | "infinite", "mode": "purchase"|"restore" }
-
-    IMPORTANT:
-    - purchase: sets plan AND refills counters to plan limits (new billing period starts)
-    - restore: sets plan BUT does NOT refill counters (prevents restore-spam)
-    - if mode is missing, we treat it as "restore" to avoid accidentally resetting scan limits
-    """
     uid = require_user_id(x_user_id, user_id)
     entitlement = (payload.get("entitlement") or DEFAULT_PLAN).lower()
-    mode = (payload.get("mode") or "restore").lower()  # default safe: no counter reset
+    mode = (payload.get("mode") or "restore").lower()
 
     if mode == "restore":
         stored = set_user_plan_no_reset(uid, entitlement)
@@ -491,13 +624,6 @@ def usda_food_details(fdc_id: int) -> Dict[str, Any]:
     return r.json()
 
 def extract_macros_per_100g(food_details: dict) -> Dict[str, float]:
-    """
-    Uses nutrient numbers:
-      208 Energy (kcal)
-      203 Protein
-      205 Carbohydrate, by difference
-      204 Total lipid (fat)
-    """
     kcal = protein = carbs = fat = None
 
     for n in food_details.get("foodNutrients", []) or []:
@@ -542,10 +668,6 @@ def extract_macros_per_100g(food_details: dict) -> Dict[str, float]:
 
 # -------------------- GEMINI FOOD DETECTION --------------------
 def gemini_detect_foods(image_bytes: bytes) -> List[Dict[str, Any]]:
-    """
-    Returns list: { name, grams, confidence }
-    Retries on rate limit-ish failures.
-    """
     _require_gemini_key()
     model = genai.GenerativeModel("gemini-3-flash-preview")
 
@@ -589,7 +711,6 @@ Rules:
             return cleaned
         except Exception as e:
             last_err = str(e)
-            # backoff
             time.sleep(0.6 * (attempt + 1))
 
     raise HTTPException(status_code=502, detail={"error": "Gemini failed / invalid JSON", "raw": last_err})
@@ -641,7 +762,7 @@ def openfoodfacts_lookup(barcode: str) -> Dict[str, Any]:
         "protein_g_per_100g": float(protein),
         "carbs_g_per_100g": float(carbs),
         "fat_g_per_100g": float(fat),
-        "serving_size_g": None,  # per-100g only
+        "serving_size_g": None,
         "source": "openfoodfacts",
         "raw": data,
         "updated_at": dt.datetime.utcnow().isoformat(),
@@ -676,14 +797,12 @@ def barcode_lookup(
     plan = get_user_plan(uid)
     require_plan(plan, "elite", feature="barcode")
 
-    # consume scan first (so even cache hits count)
     usage_row = consume_one_scan(uid)
 
     barcode = _digits_only(code)
     if not barcode:
         raise HTTPException(status_code=400, detail={"error": "Invalid barcode", "barcode": code})
 
-    # 1) cache
     cached = supabase_get_barcode(barcode)
     if cached:
         return {
@@ -706,10 +825,7 @@ def barcode_lookup(
             },
         }
 
-    # 2) OFF
     off = openfoodfacts_lookup(barcode)
-
-    # 3) store
     stored = supabase_upsert_barcode(off)
 
     return {
@@ -738,19 +854,6 @@ def barcode_manual(
     user_id: Optional[str] = None,
     x_user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
 ):
-    """
-    Manual add when barcode not found.
-    Expected payload:
-      {
-        "barcode": "xxxx",
-        "name": "Product name",
-        "brand": "Brand",
-        "kcal_per_100g": 123,
-        "protein_g_per_100g": 1,
-        "carbs_g_per_100g": 2,
-        "fat_g_per_100g": 3
-      }
-    """
     uid = require_user_id(x_user_id, user_id)
 
     # 🔒 barcode requires elite+
@@ -811,7 +914,6 @@ async def analyze(
 ):
     uid = require_user_id(x_user_id, user_id)
 
-    # consume scan first (so failures still count? You can change this later.)
     usage_row = consume_one_scan(uid)
 
     contents = await file.read()
@@ -871,7 +973,6 @@ async def analyze(
         total_c += c
         total_f += f
 
-    # 🔒 coaching is pro+ (we don't block analyze; we just hide coaching fields)
     plan = (usage_row.get("plan") or DEFAULT_PLAN).lower()
     coaching_enabled = plan_at_least(plan, "pro")
 
@@ -891,10 +992,18 @@ async def analyze(
         },
     }
 
-    if not coaching_enabled:
-        # UI can use this to show "Upgrade to Pro"
+    if coaching_enabled:
+        response["coaching"] = build_coaching(
+            total_kcal=total_kcal,
+            totals={
+                "protein_g": total_p,
+                "carbs_g": total_c,
+                "fat_g": total_f,
+            },
+            items=results,
+        )
+    else:
         response["locked"] = {"feature": "coaching", "required_plan": "pro"}
 
     return response
-
 
