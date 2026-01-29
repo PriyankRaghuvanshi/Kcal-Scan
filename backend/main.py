@@ -3,6 +3,7 @@ import os
 import json
 import time
 import logging
+import traceback
 import datetime as dt
 from typing import Any, Dict, Optional, List
 
@@ -21,12 +22,14 @@ logger = logging.getLogger("kcal")
 
 # -------------------- APP --------------------
 app = FastAPI(title="Kcal Scan API", version="1.0.0")
+
+# --- DEBUG HANDLER (Shows crash errors in curl response) ---
 @app.exception_handler(Exception)
 async def debug_exception_handler(request: Request, exc: Exception):
-    import traceback
     error_msg = traceback.format_exc()
     logger.error(f"CRASH: {error_msg}")
     return PlainTextResponse(str(error_msg), status_code=500)
+
 @app.get("/__whoami")
 def whoami():
     return {"whoami": "NEW_BACKEND_WITH_USAGE_FIXED", "ts": dt.datetime.utcnow().isoformat()}
@@ -57,10 +60,9 @@ TBL_PLAN_LIMITS = "plan_limits"
 TBL_USER_USAGE = "user_usage"
 TBL_BARCODE = "barcode_products"
 
-# Plans (your requirements)
+# Plans
 DEFAULT_PLAN = "free"
 PLAN_ORDER = ["free", "elite", "advanced", "pro", "infinite"]
-
 PLAN_RANK = {p: i for i, p in enumerate(PLAN_ORDER)}
 
 def plan_at_least(current: Any, required: str) -> bool:
@@ -78,8 +80,8 @@ def plan_at_least(current: Any, required: str) -> bool:
         req = str(req)
     req = req.lower().strip()
 
-    if not cur in PLAN_RANK: cur = DEFAULT_PLAN
-    if not req in PLAN_RANK: req = DEFAULT_PLAN
+    if cur not in PLAN_RANK: cur = DEFAULT_PLAN
+    if req not in PLAN_RANK: req = DEFAULT_PLAN
 
     return PLAN_RANK.get(cur, 0) >= PLAN_RANK.get(req, 0)
 
@@ -125,7 +127,6 @@ def health():
 def analyze_options():
     return PlainTextResponse("ok", status_code=200)
 
-
 # -------------------- VALIDATION HELPERS --------------------
 def _require_usda_key():
     if not USDA_API_KEY:
@@ -154,7 +155,6 @@ def _month_start(d: dt.date) -> dt.date:
 
 def _digits_only(s: str) -> str:
     return "".join([c for c in (s or "").strip() if c.isdigit()])
-
 
 # -------------------- SUPABASE REST HELPERS --------------------
 def supabase_headers() -> Dict[str, str]:
@@ -199,9 +199,7 @@ def sb_patch(table: str, match: Dict[str, str], patch: Dict[str, Any]) -> None:
 
 # -------------------- PLAN / USAGE --------------------
 def get_plan_limits(plan: str) -> Dict[str, int]:
-    """
-    Reads from plan_limits or returns hardcoded defaults.
-    """
+    """Reads from plan_limits or returns hardcoded defaults."""
     _require_supabase()
     row = sb_get_one(
         TBL_PLAN_LIMITS,
@@ -265,7 +263,6 @@ def normalize_resets(row: Dict[str, Any]) -> Dict[str, Any]:
     today = _today_date()
     mstart = _month_start(today)
 
-    # Parse stored dates
     def parse_date(x) -> Optional[dt.date]:
         if not x: return None
         if isinstance(x, dt.date): return x
@@ -288,7 +285,7 @@ def normalize_resets(row: Dict[str, Any]) -> Dict[str, Any]:
     
     # Standard Time-based Reset
     if month_reset != mstart:
-        if plan != "free": # Free plan doesn't reset monthly (lifetime), but if logic changes, add here.
+        if plan != "free": # Free plan doesn't reset monthly (lifetime)
              patch["remaining_month"] = lim["monthly_limit"]
         patch["month_reset"] = str(mstart)
 
@@ -470,11 +467,10 @@ def extract_macros_per_100g(food_details: dict) -> Dict[str, float]:
         "fat_g_per_100g": fat,
     }
 
-
 # -------------------- GEMINI FOOD DETECTION --------------------
 def gemini_detect_foods(image_bytes: bytes) -> List[Dict[str, Any]]:
     _require_gemini_key()
-    model = genai.GenerativeModel("gemini-1.5-flash") # Updated model name recommendation
+    model = genai.GenerativeModel("gemini-1.5-flash")
 
     prompt = """
 You are a food recognition assistant.
@@ -514,7 +510,6 @@ Rules:
             time.sleep(0.6 * (attempt + 1))
 
     raise HTTPException(status_code=502, detail={"error": "Gemini failed / invalid JSON"})
-
 
 # -------------------- BARCODE --------------------
 def openfoodfacts_lookup(barcode: str) -> Dict[str, Any]:
@@ -604,7 +599,6 @@ def barcode_lookup(
         "source_db": "openfoodfacts",
         "usage": usage_row,
     }
-
 
 # -------------------- COACHING (PRO+) --------------------
 LEUCINE_THRESHOLD_G = float(os.getenv("LEUCINE_THRESHOLD_G", "2.5") or 2.5)
