@@ -21,7 +21,12 @@ logger = logging.getLogger("kcal")
 
 # -------------------- APP --------------------
 app = FastAPI(title="Kcal Scan API", version="1.0.0")
-
+@app.exception_handler(Exception)
+async def debug_exception_handler(request: Request, exc: Exception):
+    import traceback
+    error_msg = traceback.format_exc()
+    logger.error(f"CRASH: {error_msg}")
+    return PlainTextResponse(str(error_msg), status_code=500)
 @app.get("/__whoami")
 def whoami():
     return {"whoami": "NEW_BACKEND_WITH_USAGE_FIXED", "ts": dt.datetime.utcnow().isoformat()}
