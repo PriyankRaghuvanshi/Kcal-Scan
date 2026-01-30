@@ -6,6 +6,7 @@ import {
   Image,
   Alert,
   ActivityIndicator,
+  FlatList,
   StyleSheet,
   ScrollView,
   TextInput,
@@ -16,382 +17,372 @@ import {
 } from "react-native";
 
 import { CameraView, useCameraPermissions } from "expo-camera";
+import * as FileSystem from "expo-file-system";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { createClient } from "@supabase/supabase-js";
+import "react-native-url-polyfill/auto";
 
-/**
- * CalorieClick.ai — TestFlight-ready single-file app.
- * - Uses real camera (not photo library) for meal scanning
- * - Uses camera barcode scanning + manual barcode input
- * - No expo-file-system, no expo-image-manipulator (avoids build errors)
- * - Coaching insights locked to Pro+ based on backend plan
- * - History isolated per user (stored under key history_<userId>)
- * - Login uses Email+Password fields and derives a deterministic userId (no Supabase Auth required)
- */
+// RevenueCat
+import Purchases from "react-native-purchases";
 
-const API_BASE = "https://kcal-scan-production.up.railway.app";
-const MPS_THRESHOLD_G = 2.5;
+// ===================== CONFIG =====================
+const API_BASE =
+  process.env.EXPO_PUBLIC_API_BASE?.trim() ||
+  "https://kcal-scan-production.up.railway.app";
 
-// -------------------- small helpers --------------------
+const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL || "";
+const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || "";
+const HAS_SUPABASE = Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
+const supabase = HAS_SUPABASE ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+
+const HISTORY_KEY = "kcal_scan_history_v3";
+const historyKey = (uid) => `${HISTORY_KEY}:${uid}`;
+const MAX_HISTORY = 50;
+
+const RC_IOS_KEY = process.env.EXPO_PUBLIC_RC_IOS_KEY || "";
+const RC_ANDROID_KEY = process.env.EXPO_PUBLIC_RC_ANDROID_KEY || "";
+const OFFERING_ID = process.env.EXPO_PUBLIC_RC_OFFERING || "main";
+const PLAN_ORDER = ["free", "elite", "advanced", "pro", "infinite"];
+const ENTITLEMENTS = (process.env.EXPO_PUBLIC_RC_ENTITLEMENTS || "elite,advanced,pro,infinite")
+  .split(",")
+  .map((x) => x.trim())
+  .filter(Boolean);
+
+// barcode scan cooldown (avoid duplicate reads)
+const BARCODE_COOLDOWN_MS = 1400;
+
+// ===================== HELPERS =====================
+function num(x) {
+  const n = Number(x);
+  return Number.isFinite(n) ? n : 0;
+}
 function round1(x) {
   const n = Number(x);
-  if (!Number.isFinite(n)) return 0;
-  return Math.round(n * 10) / 10;
+  return Number.isFinite(n) ? Math.round(n * 10) / 10 : 0;
 }
-
-function clamp01(x) {
-  const n = Number(x);
-  if (!Number.isFinite(n)) return 0;
-  return Math.max(0, Math.min(1, n));
+function planAtLeast(current, required) {
+  const c = (current || "free").toLowerCase();
+  const r = (required || "free").toLowerCase();
+  return PLAN_ORDER.indexOf(c) >= PLAN_ORDER.indexOf(r);
 }
-
-function planRank(plan) {
-  const p = String(plan || "free").toLowerCase();
-  const order = ["free", "elite", "advanced", "pro", "infinite"];
-  const idx = order.indexOf(p);
-  return idx === -1 ? 0 : idx;
+function pickHighestEntitlement(active) {
+  // active: array of entitlement ids/names
+  const normalized = (active || []).map((x) => String(x || "").toLowerCase());
+  // ensure only known entitlements
+  const valid = normalized.filter((x) => PLAN_ORDER.includes(x));
+  if (!valid.length) return null;
+  // pick highest
+  valid.sort((a, b) => PLAN_ORDER.indexOf(a) - PLAN_ORDER.indexOf(b));
+  return valid[valid.length - 1];
 }
-
-// Simple deterministic "UUID-like" ID from a string (not cryptographic).
-// This is purely to isolate per-user usage/history without a full auth system.
-function hashToUuid(input) {
-  const str = String(input || "");
-  let h1 = 0x811c9dc5;
-  for (let i = 0; i < str.length; i++) {
-    h1 ^= str.charCodeAt(i);
-    h1 = (h1 * 0x01000193) >>> 0;
-  }
-  const hex = (n, len) => n.toString(16).padStart(len, "0");
-  const a = hex(h1, 8);
-  const b = hex((h1 ^ 0xabcdef01) >>> 0, 4);
-  const c = hex((h1 ^ 0x12345678) >>> 0, 4);
-  const d = hex((h1 ^ 0x0fedcba9) >>> 0, 4);
-  const e = hex((h1 ^ 0x9e3779b9) >>> 0, 8) + hex((h1 ^ 0x7f4a7c15) >>> 0, 4);
-  return `${a}-${b}-${c}-${d}-${e}`;
-}
-
 async function safeJson(res) {
-  const text = await res.text();
+  const t = await res.text();
   try {
-    return { ok: true, json: JSON.parse(text) };
+    return JSON.parse(t);
   } catch (e) {
-    return { ok: false, text };
+    // This is the common "Unexpected token" in app when backend returns HTML/text.
+    throw new Error(t?.slice(0, 220) || "Non-JSON response");
   }
 }
+async function apiGetUsage(userId) {
+  const res = await fetch(`${API_BASE}/usage?user_id=${encodeURIComponent(userId)}`, {
+    headers: { accept: "application/json" },
+  });
+  return await safeJson(res);
+}
+async function apiPlanSync(userId, entitlement, mode) {
+  const res = await fetch(`${API_BASE}/plan/sync?user_id=${encodeURIComponent(userId)}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", accept: "application/json" },
+    body: JSON.stringify({ entitlement, mode }),
+  });
+  return await safeJson(res);
+}
 
-// -------------------- UI primitives --------------------
-function Pill({ label, value }) {
+// ===================== UI HELPERS =====================
+function Meter({ label, value, max = 100, help, locked, lockedText }) {
+  const pct = Math.max(0, Math.min(1, num(value) / num(max)));
   return (
-    <View style={styles.pill}>
-      <Text style={styles.pillLabel}>{label}</Text>
-      <Text style={styles.pillValue}>{value}</Text>
+    <View style={styles.meter}>
+      <View style={styles.meterTop}>
+        <Text style={styles.meterLabel}>{label}</Text>
+        {locked ? (
+          <Text style={styles.lockedTag}>{lockedText || "Locked 🔒"}</Text>
+        ) : (
+          <Text style={styles.meterValue}>{round1(value)}/{max}</Text>
+        )}
+      </View>
+      <Text style={styles.meterHelp}>{help}</Text>
+      <View style={styles.barOuter}>
+        <View style={[styles.barFill, { width: `${pct * 100}%` }]} />
+      </View>
     </View>
   );
 }
 
-function PrimaryButton({ title, onPress, disabled }) {
-  return (
-    <TouchableOpacity
-      onPress={onPress}
-      disabled={!!disabled}
-      style={[styles.btn, disabled ? styles.btnDisabled : null]}
-      activeOpacity={0.85}
-    >
-      <Text style={styles.btnText}>{title}</Text>
-    </TouchableOpacity>
-  );
-}
+export default function App() {
+  // ===== Auth (Supabase) =====
+  const [session, setSession] = useState(null);
+  const [authEmail, setAuthEmail] = useState("");
+  const [authPass, setAuthPass] = useState("");
+  const [authBusy, setAuthBusy] = useState(false);
 
-function GhostButton({ title, onPress }) {
-  return (
-    <TouchableOpacity onPress={onPress} style={styles.btnGhost} activeOpacity={0.85}>
-      <Text style={styles.btnGhostText}>{title}</Text>
-    </TouchableOpacity>
-  );
-}
+  // ===== Plan / Usage =====
+  const [userId, setUserId] = useState(null);
+  const [usage, setUsage] = useState(null);
+  const plan = (usage?.plan || "free").toLowerCase();
 
-function Bar({ value, max }) {
-  const pct = clamp01((Number(value) || 0) / (Number(max) || 1));
-  return (
-    <View style={styles.barBg}>
-      <View style={[styles.barFill, { width: `${pct * 100}%` }]} />
-    </View>
-  );
-}
-
-// -------------------- Camera modal --------------------
-function CameraModal({ visible, onClose, onCaptured }) {
-  const camRef = useRef(null);
-  const [perm, requestPerm] = useCameraPermissions();
+  // ===== Photo Scan =====
+  const [photoUri, setPhotoUri] = useState(null);
+  const [result, setResult] = useState(null);
   const [busy, setBusy] = useState(false);
 
-  useEffect(() => {
-    if (visible && !perm?.granted) requestPerm();
-  }, [visible, perm, requestPerm]);
-
-  const canUse = !!perm?.granted;
-
-  const take = async () => {
-    try {
-      if (!camRef.current) return;
-      setBusy(true);
-      const photo = await camRef.current.takePictureAsync({ quality: 0.75, skipProcessing: true });
-      if (photo?.uri) onCaptured(photo.uri);
-      onClose();
-    } catch (e) {
-      Alert.alert("Camera", String(e?.message || e));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
-      <SafeAreaView style={styles.camWrap}>
-        <View style={styles.camTopRow}>
-          <GhostButton title="Close" onPress={onClose} />
-          <Text style={styles.camTitle}>Take a photo</Text>
-          <View style={{ width: 90 }} />
-        </View>
-
-        {!canUse ? (
-          <View style={styles.centerPad}>
-            <Text style={styles.muted}>Camera permission is required.</Text>
-            <PrimaryButton title="Allow camera" onPress={requestPerm} />
-          </View>
-        ) : (
-          <View style={styles.camBody}>
-            <CameraView ref={camRef} style={styles.camPreview} facing="back" />
-            <View style={styles.captureRow}>
-              <TouchableOpacity
-                onPress={take}
-                disabled={busy}
-                style={[styles.captureBtn, busy ? styles.btnDisabled : null]}
-              >
-                {busy ? <ActivityIndicator /> : <Text style={styles.captureText}>Capture</Text>}
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
-      </SafeAreaView>
-    </Modal>
-  );
-}
-
-// -------------------- Barcode modal --------------------
-function BarcodeModal({ visible, onClose, onDetected }) {
-  const [perm, requestPerm] = useCameraPermissions();
-  const [scanned, setScanned] = useState(false);
-
-  useEffect(() => {
-    if (visible) {
-      setScanned(false);
-      if (!perm?.granted) requestPerm();
-    }
-  }, [visible, perm, requestPerm]);
-
-  const canUse = !!perm?.granted;
-
-  return (
-    <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
-      <SafeAreaView style={styles.camWrap}>
-        <View style={styles.camTopRow}>
-          <GhostButton title="Close" onPress={onClose} />
-          <Text style={styles.camTitle}>Scan barcode</Text>
-          <View style={{ width: 90 }} />
-        </View>
-
-        {!canUse ? (
-          <View style={styles.centerPad}>
-            <Text style={styles.muted}>Camera permission is required.</Text>
-            <PrimaryButton title="Allow camera" onPress={requestPerm} />
-          </View>
-        ) : (
-          <View style={styles.camBody}>
-            <CameraView
-              style={styles.camPreview}
-              facing="back"
-              onBarcodeScanned={(e) => {
-                if (scanned) return;
-                setScanned(true);
-                const code = String(e?.data || "").trim();
-                if (code) onDetected(code);
-                onClose();
-              }}
-            />
-            <View style={styles.scanHintBox}>
-              <Text style={styles.scanHintText}>Align the barcode inside the frame</Text>
-            </View>
-          </View>
-        )}
-      </SafeAreaView>
-    </Modal>
-  );
-}
-
-// -------------------- Main app --------------------
-function AppInner() {
-  // session
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [userId, setUserId] = useState(null);
-  const [loggingIn, setLoggingIn] = useState(false);
-
-  // usage
-  const [plan, setPlan] = useState("free");
-  const [remainingDay, setRemainingDay] = useState(0);
-  const [remainingMonth, setRemainingMonth] = useState(0);
-
-  // scan state
-  const [photoUri, setPhotoUri] = useState(null);
-  const [cameraOpen, setCameraOpen] = useState(false);
-  const [analyzing, setAnalyzing] = useState(false);
-  const [result, setResult] = useState(null);
-
-  // barcode state
-  const [barcodeOpen, setBarcodeOpen] = useState(false);
-  const [barcodeManual, setBarcodeManual] = useState("");
-  const [barcodeResult, setBarcodeResult] = useState(null);
-  const [barcodeBusy, setBarcodeBusy] = useState(false);
-
-  // coaching
-  const [coaching, setCoaching] = useState(null);
-  const [locked, setLocked] = useState(null);
-
-  // history
+  // ===== History (isolated by user id) =====
   const [history, setHistory] = useState([]);
 
-  const coachingUnlocked = useMemo(() => planRank(plan) >= planRank("pro"), [plan]);
+  // ===== Camera Modal =====
+  const [camOpen, setCamOpen] = useState(false);
+  const camRef = useRef(null);
+  const [permission, requestPermission] = useCameraPermissions();
 
-  // ---------- init ----------
+  // ===== Barcode Modal =====
+  const [barcodeOpen, setBarcodeOpen] = useState(false);
+  const [barcodeManual, setBarcodeManual] = useState("");
+  const [barcodeBusy, setBarcodeBusy] = useState(false);
+  const lastBarcodeAt = useRef(0);
+
+  // ===== RevenueCat =====
+  const [rcReady, setRcReady] = useState(false);
+  const [offerings, setOfferings] = useState(null);
+  const [rcCustomerInfo, setRcCustomerInfo] = useState(null);
+  const [rcBusy, setRcBusy] = useState(false);
+
+  // ===== Derived gating =====
+  const canBarcode = planAtLeast(plan, "elite");
+  const canCoaching = planAtLeast(plan, "pro");
+
+  // ===================== INIT =====================
   useEffect(() => {
     (async () => {
-      const storedUserId = await AsyncStorage.getItem("cc_user_id");
-      const storedEmail = await AsyncStorage.getItem("cc_email");
-      if (storedEmail) setEmail(storedEmail);
-      if (storedUserId) setUserId(storedUserId);
+      if (!HAS_SUPABASE) return;
+      const { data } = await supabase.auth.getSession();
+      setSession(data?.session || null);
+      supabase.auth.onAuthStateChange((_event, sess) => setSession(sess || null));
     })();
   }, []);
 
-  // load usage/history when user changes
+  useEffect(() => {
+    // derive userId from session
+    const uid = session?.user?.id || null;
+    setUserId(uid);
+  }, [session]);
+
   useEffect(() => {
     if (!userId) return;
-    refreshAll();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    refreshUsage();
+    loadHistory();
   }, [userId]);
 
-  const historyKey = useMemo(() => (userId ? `cc_history_${userId}` : null), [userId]);
+  async function refreshUsage() {
+    if (!userId) return;
+    try {
+      const u = await apiGetUsage(userId);
+      setUsage(u);
+    } catch (e) {
+      console.log("usage error", String(e));
+    }
+  }
 
   async function loadHistory() {
-    if (!historyKey) return;
-    const raw = await AsyncStorage.getItem(historyKey);
-    if (!raw) {
-      setHistory([]);
-      return;
-    }
     try {
-      const parsed = JSON.parse(raw);
+      const raw = await AsyncStorage.getItem(historyKey(userId));
+      const parsed = raw ? JSON.parse(raw) : [];
       setHistory(Array.isArray(parsed) ? parsed : []);
     } catch {
       setHistory([]);
     }
   }
 
-  async function saveHistory(next) {
-    if (!historyKey) return;
-    setHistory(next);
-    await AsyncStorage.setItem(historyKey, JSON.stringify(next));
-  }
-
-  async function fetchUsage() {
-    if (!userId) return;
-    const res = await fetch(`${API_BASE}/usage?user_id=${encodeURIComponent(userId)}`);
-    const parsed = await safeJson(res);
-    if (!parsed.ok) throw new Error(`Usage not JSON: ${String(parsed.text).slice(0, 160)}`);
-    const u = parsed.json;
-    setPlan(String(u?.plan || "free").toLowerCase());
-    setRemainingDay(Number(u?.remaining_day ?? 0));
-    setRemainingMonth(Number(u?.remaining_month ?? 0));
-  }
-
-  async function refreshAll() {
+  async function pushHistory(entry) {
     try {
-      await fetchUsage();
-      await loadHistory();
+      const next = [entry, ...(history || [])].slice(0, MAX_HISTORY);
+      setHistory(next);
+      await AsyncStorage.setItem(historyKey(userId), JSON.stringify(next));
+    } catch {}
+  }
+
+  // ===================== RevenueCat =====================
+  useEffect(() => {
+    (async () => {
+      try {
+        const apiKey = Platform.OS === "ios" ? RC_IOS_KEY : RC_ANDROID_KEY;
+        if (!apiKey) return;
+        Purchases.configure({ apiKey });
+        setRcReady(true);
+
+        // initial load
+        const info = await Purchases.getCustomerInfo();
+        setRcCustomerInfo(info);
+
+        const offs = await Purchases.getOfferings();
+        setOfferings(offs);
+      } catch (e) {
+        console.log("RC init error", e);
+      }
+    })();
+  }, []);
+
+  const activeEntitlements = useMemo(() => {
+    const active = rcCustomerInfo?.entitlements?.active || {};
+    return Object.keys(active).map((k) => k.toLowerCase());
+  }, [rcCustomerInfo]);
+
+  async function syncPlanToBackend(mode) {
+    if (!userId) return;
+    const highest = pickHighestEntitlement(activeEntitlements);
+    // If nothing active, keep free.
+    const ent = highest || "free";
+
+    try {
+      await apiPlanSync(userId, ent, mode); // backend prevents restore from refilling scans
+      await refreshUsage();
     } catch (e) {
-      Alert.alert("Refresh failed", String(e?.message || e));
+      Alert.alert("Plan sync failed", String(e).slice(0, 180));
     }
   }
 
-  function resetScreenForNextScan() {
-    setPhotoUri(null);
-    setResult(null);
-    setCoaching(null);
-    setLocked(null);
-    setBarcodeResult(null);
-    setBarcodeManual("");
+  async function restorePurchases() {
+    try {
+      setRcBusy(true);
+      const info = await Purchases.restorePurchases();
+      setRcCustomerInfo(info);
+      await syncPlanToBackend("restore");
+      Alert.alert("Restored", "Purchases restored and plan synced.");
+    } catch (e) {
+      Alert.alert("Restore failed", String(e).slice(0, 180));
+    } finally {
+      setRcBusy(false);
+    }
   }
 
-  // ---------- login/logout ----------
-  async function login() {
+  async function purchaseEntitlement(entitlement) {
+    // Buy a package that matches entitlement (best effort).
     try {
-      setLoggingIn(true);
-      const em = String(email || "").trim().toLowerCase();
-      const pw = String(password || "");
-      if (!em || !pw) {
-        Alert.alert("Login", "Enter email and password.");
+      if (!offerings?.current) {
+        Alert.alert("Not ready", "Offerings not loaded yet.");
         return;
       }
-      const uid = hashToUuid(`${em}|${pw}`);
-      await AsyncStorage.setItem("cc_user_id", uid);
-      await AsyncStorage.setItem("cc_email", em);
-      setUserId(uid);
-      // isolate state immediately
-      resetScreenForNextScan();
-      setHistory([]);
+      setRcBusy(true);
+
+      // Find a package whose identifier contains the entitlement name.
+      const packages = offerings.current.availablePackages || [];
+      const target = packages.find((p) =>
+        String(p?.identifier || "").toLowerCase().includes(entitlement.toLowerCase())
+      );
+
+      if (!target) {
+        Alert.alert("Not found", `No package found for ${entitlement}. Check RevenueCat offering.`);
+        return;
+      }
+
+      const { customerInfo } = await Purchases.purchasePackage(target);
+      setRcCustomerInfo(customerInfo);
+
+      // IMPORTANT: send purchase mode so backend may reset counters (new period)
+      await apiPlanSync(userId, entitlement, "purchase");
+      await refreshUsage();
+
+      Alert.alert("Purchased", `Upgraded to ${entitlement}.`);
+    } catch (e) {
+      const msg = String(e?.message || e);
+      if (msg.toLowerCase().includes("cancel")) return;
+      Alert.alert("Purchase failed", msg.slice(0, 200));
     } finally {
-      setLoggingIn(false);
+      setRcBusy(false);
     }
   }
 
-  async function logout() {
-    await AsyncStorage.removeItem("cc_user_id");
-    await AsyncStorage.removeItem("cc_email");
-    setUserId(null);
-    setPassword("");
-    setPlan("free");
-    setRemainingDay(0);
-    setRemainingMonth(0);
-    resetScreenForNextScan();
-    setHistory([]);
+  // ===================== AUTH =====================
+  async function signIn() {
+    if (!HAS_SUPABASE) {
+      Alert.alert("Missing Supabase env", "Set EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY");
+      return;
+    }
+    setAuthBusy(true);
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email: authEmail.trim(),
+        password: authPass,
+      });
+      if (error) throw error;
+    } catch (e) {
+      Alert.alert("Login failed", String(e?.message || e));
+    } finally {
+      setAuthBusy(false);
+    }
   }
 
-  // ---------- plan sync (RevenueCat hook) ----------
-  // Your existing UI likely calls this after purchase/restore.
-  // IMPORTANT: mode must be 'purchase' on new purchase, and 'restore' on restore.
-  async function planSync(entitlement, mode) {
+  async function signUp() {
+    if (!HAS_SUPABASE) {
+      Alert.alert("Missing Supabase env", "Set EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY");
+      return;
+    }
+    setAuthBusy(true);
+    try {
+      const { error } = await supabase.auth.signUp({
+        email: authEmail.trim(),
+        password: authPass,
+      });
+      if (error) throw error;
+      Alert.alert("Check email", "Confirm your email, then log in.");
+    } catch (e) {
+      Alert.alert("Signup failed", String(e?.message || e));
+    } finally {
+      setAuthBusy(false);
+    }
+  }
+
+  async function signOut() {
+    try {
+      await supabase.auth.signOut();
+    } catch {}
+  }
+
+  // ===================== CAMERA (PHOTO) =====================
+  async function openCamera() {
+    const { granted } = permission || {};
+    if (!granted) {
+      const r = await requestPermission();
+      if (!r?.granted) {
+        Alert.alert("Camera permission", "Please allow camera access.");
+        return;
+      }
+    }
+    setCamOpen(true);
+  }
+
+  async function takePhoto() {
+    try {
+      if (!camRef.current) return;
+      const photo = await camRef.current.takePictureAsync({ quality: 0.85, skipProcessing: true });
+      if (!photo?.uri) return;
+      setPhotoUri(photo.uri);
+      setCamOpen(false);
+    } catch (e) {
+      Alert.alert("Camera error", String(e).slice(0, 180));
+    }
+  }
+
+  // ===================== ANALYZE =====================
+  async function analyzePhoto() {
     if (!userId) return;
-    const res = await fetch(`${API_BASE}/plan/sync?user_id=${encodeURIComponent(userId)}` , {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ entitlement, mode }),
-    });
-    const parsed = await safeJson(res);
-    if (!parsed.ok) throw new Error(`Plan sync not JSON: ${String(parsed.text).slice(0, 160)}`);
-    await fetchUsage();
-  }
-
-  // ---------- analyze ----------
-  async function analyze() {
-    if (!userId) {
-      Alert.alert("Login required", "Please login first.");
-      return;
-    }
     if (!photoUri) {
-      Alert.alert("No photo", "Tap Open Camera and capture a meal photo.");
+      Alert.alert("No photo", "Take a photo first.");
       return;
     }
+    setBusy(true);
+    setResult(null);
 
-    setAnalyzing(true);
     try {
       const form = new FormData();
       form.append("file", {
@@ -402,625 +393,523 @@ function AppInner() {
 
       const res = await fetch(`${API_BASE}/analyze?user_id=${encodeURIComponent(userId)}`, {
         method: "POST",
-        headers: { Accept: "application/json" },
+        headers: {
+          accept: "application/json",
+        },
         body: form,
       });
 
-      const parsed = await safeJson(res);
-      if (!parsed.ok) {
-        throw new Error(`Server returned non-JSON. First bytes: ${String(parsed.text).slice(0, 160)}`);
-      }
-      const data = parsed.json;
-
-      if (!res.ok) {
-        const msg = data?.detail ? JSON.stringify(data.detail) : JSON.stringify(data);
-        throw new Error(msg);
-      }
-
+      const data = await safeJson(res);
       setResult(data);
-      setCoaching(data?.coaching || null);
-      setLocked(data?.locked || null);
+      await refreshUsage();
 
-      // usage refresh
-      const u = data?.usage;
-      if (u) {
-        setPlan(String(u?.plan || "free").toLowerCase());
-        setRemainingDay(Number(u?.remaining_day ?? remainingDay));
-        setRemainingMonth(Number(u?.remaining_month ?? remainingMonth));
-      } else {
-        await fetchUsage();
-      }
-
-      // store history entry
-      const entry = {
-        ts: new Date().toISOString(),
-        photoUri,
-        total_kcal: data?.total_kcal ?? null,
-        totals: data?.totals ?? null,
-        items: data?.items ?? [],
-        coaching: data?.coaching ?? null,
-      };
-      const next = [entry, ...(history || [])].slice(0, 50);
-      await saveHistory(next);
+      await pushHistory({
+        ts: nowISO(),
+        kind: "photo",
+        total_kcal: data?.total_kcal,
+        totals: data?.totals,
+        items: data?.items,
+        coaching: data?.coaching || null,
+        locked: data?.locked || null,
+      });
     } catch (e) {
-      Alert.alert("Analyze failed", String(e?.message || e));
+      Alert.alert("Analyze failed", String(e).slice(0, 220));
     } finally {
-      setAnalyzing(false);
+      setBusy(false);
     }
   }
 
-  // ---------- barcode ----------
+  // ===================== BARCODE =====================
+  async function openBarcodeScanner() {
+    if (!canBarcode) {
+      Alert.alert("Locked 🔒", "Barcode scanning is Elite+.");
+      return;
+    }
+    const { granted } = permission || {};
+    if (!granted) {
+      const r = await requestPermission();
+      if (!r?.granted) {
+        Alert.alert("Camera permission", "Please allow camera access.");
+        return;
+      }
+    }
+    setBarcodeManual("");
+    setBarcodeOpen(true);
+  }
+
   async function barcodeLookup(code) {
-    if (!userId) {
-      Alert.alert("Login required", "Please login first.");
-      return;
-    }
-    const digits = String(code || "").replace(/\D/g, "");
-    if (!digits) {
-      Alert.alert("Barcode", "Invalid barcode.");
-      return;
-    }
+    if (!userId) return;
+    if (!code) return;
 
     setBarcodeBusy(true);
     try {
-      const res = await fetch(`${API_BASE}/barcode/${digits}?user_id=${encodeURIComponent(userId)}`);
-      const parsed = await safeJson(res);
-      if (!parsed.ok) throw new Error(`Barcode not JSON: ${String(parsed.text).slice(0, 160)}`);
-      const data = parsed.json;
+      const res = await fetch(`${API_BASE}/barcode/${encodeURIComponent(code)}?user_id=${encodeURIComponent(userId)}`, {
+        headers: { accept: "application/json" },
+      });
+      const data = await safeJson(res);
 
-      if (!res.ok) {
-        const msg = data?.detail ? JSON.stringify(data.detail) : JSON.stringify(data);
-        throw new Error(msg);
-      }
-
-      setBarcodeResult(data);
-
-      // usage refresh
-      const u = data?.usage;
-      if (u) {
-        setPlan(String(u?.plan || "free").toLowerCase());
-        setRemainingDay(Number(u?.remaining_day ?? remainingDay));
-        setRemainingMonth(Number(u?.remaining_month ?? remainingMonth));
-      } else {
-        await fetchUsage();
-      }
+      Alert.alert("Barcode result", `${data?.name || "Product"}\n${round1(data?.per_100g?.kcal)} kcal / 100g`);
+      await refreshUsage();
+      await pushHistory({
+        ts: nowISO(),
+        kind: "barcode",
+        barcode: data?.barcode,
+        name: data?.name,
+        brand: data?.brand,
+        per_100g: data?.per_100g,
+      });
     } catch (e) {
-      Alert.alert("Barcode failed", String(e?.message || e));
+      Alert.alert("Barcode failed", String(e).slice(0, 220));
     } finally {
       setBarcodeBusy(false);
     }
   }
 
-  // ---------- render ----------
-  if (!userId) {
+  async function onBarcodeScanned({ data }) {
+    const now = Date.now();
+    if (now - lastBarcodeAt.current < BARCODE_COOLDOWN_MS) return;
+    lastBarcodeAt.current = now;
+
+    const code = String(data || "").trim();
+    if (!code) return;
+    setBarcodeOpen(false);
+    await barcodeLookup(code);
+  }
+
+  // ===================== RENDER: LOGIN =====================
+  if (!session) {
     return (
-      <SafeAreaView style={styles.root}>
+      <SafeAreaView style={styles.safe}>
         <KeyboardAvoidingView
-          style={{ flex: 1 }}
+          style={styles.safe}
           behavior={Platform.OS === "ios" ? "padding" : undefined}
         >
-          <View style={styles.loginWrap}>
-            <Text style={styles.title}>CalorieClick.ai</Text>
-            <Text style={styles.muted}>Login to sync scans + history per user.</Text>
+          <View style={styles.container}>
+            <Text style={styles.h1}>CalorieClick.ai</Text>
+            <Text style={styles.p}>Log in to scan meals and track your history.</Text>
 
-            <Text style={styles.label}>Email</Text>
             <TextInput
-              value={email}
-              onChangeText={setEmail}
-              placeholder="you@example.com"
-              placeholderTextColor="#6e6e6e"
+              style={styles.input}
+              placeholder="Email"
+              placeholderTextColor="#777"
               autoCapitalize="none"
-              keyboardType="email-address"
-              style={styles.input}
+              value={authEmail}
+              onChangeText={setAuthEmail}
             />
-
-            <Text style={styles.label}>Password</Text>
             <TextInput
-              value={password}
-              onChangeText={setPassword}
-              placeholder="password"
-              placeholderTextColor="#6e6e6e"
-              secureTextEntry
               style={styles.input}
+              placeholder="Password"
+              placeholderTextColor="#777"
+              secureTextEntry
+              value={authPass}
+              onChangeText={setAuthPass}
             />
 
-            <PrimaryButton title={loggingIn ? "Signing in..." : "Login"} onPress={login} disabled={loggingIn} />
+            <View style={{ flexDirection: "row", gap: 10 }}>
+              <TouchableOpacity style={styles.primaryBtn} onPress={signIn} disabled={authBusy}>
+                {authBusy ? <ActivityIndicator /> : <Text style={styles.btnText}>Login</Text>}
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.secondaryBtn} onPress={signUp} disabled={authBusy}>
+                <Text style={styles.btnText}>Sign up</Text>
+              </TouchableOpacity>
+            </View>
 
-            <Text style={[styles.muted, { marginTop: 12 }]}>Note: this is a lightweight TestFlight login (no Apple ID / Supabase auth yet).</Text>
+            {!HAS_SUPABASE ? (
+              <Text style={[styles.p, { marginTop: 14, color: "#ffbdbd" }]}>
+                Missing Supabase env vars. Add EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY.
+              </Text>
+            ) : null}
           </View>
         </KeyboardAvoidingView>
       </SafeAreaView>
     );
   }
 
-  const totalKcal = result?.total_kcal;
-  const totals = result?.totals || {};
+  // ===================== RENDER: APP =====================
+  const coaching = result?.coaching || null;
+  const locked = result?.locked || null;
 
   return (
-    <SafeAreaView style={styles.root}>
+    <SafeAreaView style={styles.safe}>
       <ScrollView contentContainerStyle={styles.container}>
-        <View style={styles.headerRow}>
-          <Text style={styles.title}>CalorieClick.ai</Text>
-          <View style={styles.headerButtons}>
-            <GhostButton
-              title="Refresh"
-              onPress={async () => {
-                resetScreenForNextScan();
-                await refreshAll();
-              }}
-            />
-            <GhostButton title="Logout" onPress={logout} />
+
+        <View style={styles.topRow}>
+          <View>
+            <Text style={styles.h1}>CalorieClick.ai</Text>
+            <Text style={styles.p}>Plan: <Text style={styles.plan}>{plan}</Text></Text>
           </View>
+          <TouchableOpacity style={styles.smallBtn} onPress={signOut}>
+            <Text style={styles.smallBtnText}>Logout</Text>
+          </TouchableOpacity>
         </View>
 
-        <View style={styles.pillsRow}>
-          <Pill label="Plan" value={plan} />
-          <Pill label="Day" value={String(remainingDay)} />
-          <Pill label="Month" value={String(remainingMonth)} />
-        </View>
-
-        {/* Meal scan */}
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>Meal scan</Text>
+          <Text style={styles.cardTitle}>Scans left</Text>
+          <Text style={styles.big}>
+            {usage ? `${usage.remaining_day} today • ${usage.remaining_month} this month` : "…"}
+          </Text>
+          <View style={styles.row}>
+            <TouchableOpacity style={styles.secondaryBtn} onPress={refreshUsage}>
+              <Text style={styles.btnText}>Refresh</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.secondaryBtn} onPress={restorePurchases} disabled={rcBusy || !rcReady}>
+              <Text style={styles.btnText}>{rcBusy ? "…" : "Restore"}</Text>
+            </TouchableOpacity>
+          </View>
+          <Text style={styles.tiny}>
+            Restore does NOT refill scans (only syncs your plan).
+          </Text>
+        </View>
+
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Scan a meal</Text>
 
           {photoUri ? (
-            <Image source={{ uri: photoUri }} style={styles.photo} />
+            <Image source={{ uri: photoUri }} style={styles.preview} />
           ) : (
-            <View style={styles.photoEmpty}>
-              <Text style={styles.muted}>No photo yet. Tap Open Camera.</Text>
+            <View style={styles.previewEmpty}>
+              <Text style={styles.previewText}>No photo yet</Text>
             </View>
           )}
 
           <View style={styles.row}>
-            <PrimaryButton title="Open Camera" onPress={() => setCameraOpen(true)} />
-            <PrimaryButton title={analyzing ? "Analyzing..." : "Analyze"} onPress={analyze} disabled={analyzing} />
+            <TouchableOpacity style={styles.primaryBtn} onPress={openCamera}>
+              <Text style={styles.btnText}>Open Camera</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.primaryBtn} onPress={analyzePhoto} disabled={busy || !photoUri}>
+              {busy ? <ActivityIndicator /> : <Text style={styles.btnText}>Analyze</Text>}
+            </TouchableOpacity>
           </View>
 
           {result ? (
-            <View style={{ marginTop: 12 }}>
-              <Text style={styles.h2}>Total: {round1(totalKcal)} kcal</Text>
-              <Text style={styles.muted2}>
-                Protein {round1(totals?.protein_g)}g · Carbs {round1(totals?.carbs_g)}g · Fat {round1(totals?.fat_g)}g
+            <View style={{ marginTop: 14 }}>
+              <Text style={styles.big}>Total: {round1(result.total_kcal)} kcal</Text>
+              <Text style={styles.p}>
+                Protein {round1(result?.totals?.protein_g)}g • Carbs {round1(result?.totals?.carbs_g)}g • Fat {round1(result?.totals?.fat_g)}g
               </Text>
 
-              <Text style={[styles.h3, { marginTop: 12 }]}>Items</Text>
-              {(result?.items || []).map((it, idx) => (
-                <View key={`${it?.name || "item"}-${idx}`} style={styles.itemRow}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.itemName}>{String(it?.name || "").toLowerCase()}</Text>
-                    <Text style={styles.muted2}>{round1(it?.grams)}g</Text>
-                  </View>
-                  <Text style={styles.itemKcal}>{round1(it?.kcal)} kcal</Text>
+              <Text style={[styles.cardTitle, { marginTop: 12 }]}>Items</Text>
+              {(result.items || []).map((it, idx) => (
+                <View key={idx} style={styles.itemRow}>
+                  <Text style={styles.itemName}>{it.name}</Text>
+                  <Text style={styles.itemMeta}>{round1(it.grams)}g • {round1(it.kcal)} kcal</Text>
                 </View>
               ))}
-            </View>
-          ) : null}
-        </View>
 
-        {/* Coaching */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Coaching insights</Text>
+              <Text style={[styles.cardTitle, { marginTop: 14 }]}>Coaching insights</Text>
 
-          {!coachingUnlocked ? (
-            <View style={styles.lockedBox}>
-              <Text style={styles.lockedTitle}>Locked 🔒</Text>
-              <Text style={styles.lockedText}>
-                Satiety, Protein BV, Leucine, Glycemic load and Ultra-processed score are Pro+.
-              </Text>
-              <Text style={styles.muted2}>Upgrade to Pro or Infinite to unlock.</Text>
-            </View>
-          ) : coaching ? (
-            <View>
-              <Text style={styles.sub}>Satiety Score: {round1(coaching?.satiety_score)}/100</Text>
-              <Bar value={coaching?.satiety_score} max={100} />
-
-              <Text style={styles.sub}>Protein Bioavailability (BV): {round1(coaching?.protein_bv_score)}/100</Text>
-              <Bar value={coaching?.protein_bv_score} max={100} />
-
-              <Text style={styles.sub}>
-                Leucine Estimate: {round1(coaching?.leucine_estimate_g)}g {coaching?.mps_triggered ? "✅" : ""}
-              </Text>
-              <Text style={styles.muted2}>Threshold: {round1(coaching?.mps_threshold_g || MPS_THRESHOLD_G)}g · {coaching?.mps_triggered ? "Triggered" : "Not triggered"}</Text>
-
-              <View style={{ marginTop: 10 }}>
-                <Text style={styles.sub}>Glycemic Load: {round1(coaching?.glycemic_load?.gl)} ({String(coaching?.glycemic_load?.level || "").replaceAll("_", " ")})</Text>
-                <Text style={styles.sub}>Ultra-Processed Score: {round1(coaching?.ultra_processed_score)}/10</Text>
-              </View>
-
-              {(coaching?.messages || []).length ? (
-                <View style={{ marginTop: 10 }}>
-                  {(coaching.messages || []).map((m, i) => (
-                    <Text key={`m-${i}`} style={styles.bullet}>• {m}</Text>
-                  ))}
+              {!canCoaching ? (
+                <View style={styles.lockedBox}>
+                  <Text style={styles.lockedTitle}>Locked 🔒</Text>
+                  <Text style={styles.p}>Satiety, Protein BV, Leucine, Glycemic load and Ultra-processed score are Pro+.</Text>
+                  <Text style={styles.tiny}>Upgrade to Pro or Infinite to unlock these insights.</Text>
                 </View>
-              ) : null}
-            </View>
-          ) : (
-            <Text style={styles.muted}>Run an analysis to see coaching insights.</Text>
-          )}
+              ) : coaching ? (
+                <View style={{ marginTop: 8 }}>
+                  <Meter
+                    label="Satiety Score"
+                    value={coaching.satiety_score}
+                    max={100}
+                    help={coaching?.layman_terms?.satiety || "How filling this meal is."}
+                  />
+                  <Meter
+                    label="Protein Bioavailability"
+                    value={coaching.protein_bv_score}
+                    max={100}
+                    help={coaching?.layman_terms?.protein_bv || "How well your body can use the protein."}
+                  />
 
-          {/* If backend says locked (e.g., it sent locked: coaching), show hint */}
-          {locked?.feature === "coaching" ? (
-            <Text style={[styles.muted2, { marginTop: 8 }]}>Backend: coaching locked, required plan = {locked?.required_plan}</Text>
+                  <View style={styles.meter}>
+                    <View style={styles.meterTop}>
+                      <Text style={styles.meterLabel}>Leucine estimate</Text>
+                      <Text style={styles.meterValue}>{round1(coaching.leucine_estimate_g)}g</Text>
+                    </View>
+                    <Text style={styles.meterHelp}>
+                      {coaching?.layman_terms?.leucine || "Key amino acid that helps switch on muscle-building."}
+                    </Text>
+                    <Text style={styles.tiny}>
+                      MPS trigger: {round1(coaching.mps_threshold_g)}g • {coaching.mps_triggered ? "✅ Triggered" : "❌ Not yet"}
+                    </Text>
+                  </View>
+
+                  <View style={styles.meter}>
+                    <View style={styles.meterTop}>
+                      <Text style={styles.meterLabel}>Glycemic load</Text>
+                      <Text style={styles.meterValue}>{round1(coaching?.glycemic_load?.gl)} ({coaching?.glycemic_load?.level || "-"})</Text>
+                    </View>
+                    <Text style={styles.meterHelp}>
+                      {coaching?.layman_terms?.glycemic_load || "Sugar-spike risk from carbs."}
+                    </Text>
+                  </View>
+
+                  <View style={styles.meter}>
+                    <View style={styles.meterTop}>
+                      <Text style={styles.meterLabel}>Ultra-processed score</Text>
+                      <Text style={styles.meterValue}>{round1(coaching.ultra_processed_score)}/10</Text>
+                    </View>
+                    <Text style={styles.meterHelp}>
+                      {coaching?.layman_terms?.ultra_processed || "How processed the food is."}
+                    </Text>
+                  </View>
+
+                  {(coaching.messages || []).length ? (
+                    <View style={{ marginTop: 10 }}>
+                      {(coaching.messages || []).map((m, i) => (
+                        <Text key={i} style={styles.p}>• {m}</Text>
+                      ))}
+                    </View>
+                  ) : null}
+                </View>
+              ) : locked ? (
+                <View style={styles.lockedBox}>
+                  <Text style={styles.lockedTitle}>Locked 🔒</Text>
+                  <Text style={styles.p}>Upgrade to Pro to unlock coaching insights.</Text>
+                </View>
+              ) : (
+                <Text style={styles.tiny}>No coaching data returned.</Text>
+              )}
+            </View>
           ) : null}
         </View>
 
-        {/* Barcode */}
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Barcode</Text>
-          <Text style={styles.muted2}>Elite+ can scan barcodes to fetch macros (OpenFoodFacts).</Text>
+          <Text style={styles.p}>Elite+ can scan barcodes to fetch macros (OpenFoodFacts).</Text>
 
-          {planRank(plan) < planRank("elite") ? (
-            <View style={[styles.lockedBox, { marginTop: 10 }]}>
-              <Text style={styles.lockedTitle}>Locked 🔒</Text>
-              <Text style={styles.lockedText}>Barcode scanning requires Elite or higher.</Text>
-            </View>
-          ) : (
-            <>
-              <PrimaryButton title={barcodeBusy ? "Working..." : "Scan barcode"} onPress={() => setBarcodeOpen(true)} disabled={barcodeBusy} />
+          <View style={styles.row}>
+            <TouchableOpacity style={styles.primaryBtn} onPress={openBarcodeScanner} disabled={!canBarcode}>
+              <Text style={styles.btnText}>{canBarcode ? "Scan barcode" : "Locked 🔒"}</Text>
+            </TouchableOpacity>
+          </View>
 
-              <View style={styles.manualRow}>
-                <TextInput
-                  value={barcodeManual}
-                  onChangeText={setBarcodeManual}
-                  placeholder="Enter barcode manually"
-                  placeholderTextColor="#6e6e6e"
-                  style={[styles.input, { flex: 1, marginBottom: 0 }]}
-                  keyboardType="number-pad"
-                />
-                <TouchableOpacity
-                  onPress={() => barcodeLookup(barcodeManual)}
-                  style={styles.manualBtn}
-                  disabled={barcodeBusy}
-                >
-                  <Text style={styles.manualBtnText}>Lookup</Text>
-                </TouchableOpacity>
-              </View>
-
-              {barcodeResult ? (
-                <View style={{ marginTop: 12 }}>
-                  <Text style={styles.h3}>{barcodeResult?.name || "Product"}</Text>
-                  {barcodeResult?.brand ? <Text style={styles.muted2}>{barcodeResult.brand}</Text> : null}
-                  <Text style={styles.muted2}>Per 100g:</Text>
-                  <Text style={styles.muted2}>
-                    {round1(barcodeResult?.per_100g?.kcal)} kcal · P {round1(barcodeResult?.per_100g?.protein_g)}g · C {round1(barcodeResult?.per_100g?.carbs_g)}g · F 
-{round1(barcodeResult?.per_100g?.fat_g)}g
-                  </Text>
-                </View>
-              ) : null}
-            </>
-          )}
+          <View style={styles.manualRow}>
+            <TextInput
+              value={barcodeManual}
+              onChangeText={setBarcodeManual}
+              style={styles.manualInput}
+              placeholder="Enter barcode manually"
+              placeholderTextColor="#777"
+              keyboardType="number-pad"
+            />
+            <TouchableOpacity
+              style={styles.secondaryBtn}
+              onPress={() => barcodeLookup(barcodeManual.trim())}
+              disabled={!canBarcode || barcodeBusy || !barcodeManual.trim()}
+            >
+              <Text style={styles.btnText}>{barcodeBusy ? "…" : "Lookup"}</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
-        {/* Upgrade (TestFlight simulation buttons) */}
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Upgrade</Text>
-          <Text style={styles.muted2}>TestFlight: simulate purchase/restore syncing with backend.</Text>
+          <Text style={styles.p}>TestFlight: use these buttons to simulate purchases.</Text>
 
           <View style={styles.rowWrap}>
-            {[
-              { p: "elite", price: "ELITE" },
-              { p: "advanced", price: "ADVANCED" },
-              { p: "pro", price: "PRO" },
-              { p: "infinite", price: "INFINITE" },
-            ].map((x) => (
+            {["elite", "advanced", "pro", "infinite"].map((p) => (
               <TouchableOpacity
-                key={x.p}
-                style={styles.upBtn}
-                onPress={async () => {
-                  try {
-                    // Simulate a PURCHASE (should refill limits). Use mode='restore' only for restore button.
-                    await planSync(x.p, "purchase");
-                    Alert.alert("Plan updated", `Plan is now ${x.p}`);
-                  } catch (e) {
-                    Alert.alert("Upgrade failed", String(e?.message || e));
-                  }
-                }}
+                key={p}
+                style={styles.secondaryBtn}
+                onPress={() => purchaseEntitlement(p)}
+                disabled={rcBusy || !rcReady}
               >
-                <Text style={styles.upBtnText}>{x.price}</Text>
+                <Text style={styles.btnText}>{p.toUpperCase()}</Text>
               </TouchableOpacity>
             ))}
-
-            <TouchableOpacity
-              style={[styles.upBtn, styles.restoreBtn]}
-              onPress={async () => {
-                try {
-                  // NOTE: in real app, use RevenueCat restore to get entitlement, then call planSync(entitlement,'restore')
-                  await planSync(plan, "restore");
-                  Alert.alert("Restore", "Restore synced to backend (no scan refill). ");
-                } catch (e) {
-                  Alert.alert("Restore failed", String(e?.message || e));
-                }
-              }}
-            >
-              <Text style={styles.upBtnText}>Restore</Text>
-            </TouchableOpacity>
           </View>
+
+          <Text style={styles.tiny}>
+            If you see “next billing cycle”, that’s Apple subscription behavior. Purchases are handled by RevenueCat.
+          </Text>
         </View>
 
-        {/* History */}
         <View style={styles.card}>
-          <View style={styles.historyHeader}>
-            <Text style={styles.cardTitle}>History (this user only)</Text>
-            <TouchableOpacity
-              style={styles.clearHistoryBtn}
-              onPress={async () => {
-                await saveHistory([]);
-              }}
-            >
-              <Text style={styles.clearHistoryText}>Clear</Text>
-            </TouchableOpacity>
-          </View>
-
+          <Text style={styles.cardTitle}>History (this user only)</Text>
           {history?.length ? (
-            history.map((h, idx) => (
-              <View key={`h-${idx}`} style={styles.histRow}>
-                <Image source={{ uri: h.photoUri }} style={styles.histThumb} />
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.itemName}>{round1(h.total_kcal)} kcal</Text>
-                  <Text style={styles.muted2}>{new Date(h.ts).toLocaleString()}</Text>
+            <FlatList
+              scrollEnabled={false}
+              data={history}
+              keyExtractor={(it, idx) => String(it.ts || idx)}
+              renderItem={({ item }) => (
+                <View style={styles.histRow}>
+                  <Text style={styles.histTitle}>
+                    {item.kind === "barcode" ? `Barcode: ${item.name || item.barcode}` : `Meal: ${round1(item.total_kcal)} kcal`}
+                  </Text>
+                  <Text style={styles.tiny}>{item.ts}</Text>
                 </View>
-              </View>
-            ))
+              )}
+            />
           ) : (
-            <Text style={styles.muted}>No history yet.</Text>
+            <Text style={styles.tiny}>No history yet.</Text>
           )}
         </View>
 
-        <View style={{ height: 20 }} />
+        <View style={{ height: 30 }} />
       </ScrollView>
 
-      <CameraModal
-        visible={cameraOpen}
-        onClose={() => setCameraOpen(false)}
-        onCaptured={(uri) => {
-          // when changing user, old photo should not persist
-          setPhotoUri(uri);
-          setResult(null);
-          setCoaching(null);
-          setLocked(null);
-        }}
-      />
+      {/* CAMERA MODAL */}
+      <Modal visible={camOpen} animationType="slide">
+        <SafeAreaView style={styles.modalSafe}>
+          <View style={styles.modalTop}>
+            <TouchableOpacity style={styles.smallBtn} onPress={() => setCamOpen(false)}>
+              <Text style={styles.smallBtnText}>Close</Text>
+            </TouchableOpacity>
+            <Text style={styles.modalTitle}>Take a photo</Text>
+            <View style={{ width: 70 }} />
+          </View>
 
-      <BarcodeModal
-        visible={barcodeOpen}
-        onClose={() => setBarcodeOpen(false)}
-        onDetected={(code) => barcodeLookup(code)}
-      />
+          <CameraView ref={camRef} style={styles.camera} facing="back" />
+
+          <View style={styles.modalBottom}>
+            <TouchableOpacity style={styles.primaryBtn} onPress={takePhoto}>
+              <Text style={styles.btnText}>Capture</Text>
+            </TouchableOpacity>
+          </View>
+        </SafeAreaView>
+      </Modal>
+
+      {/* BARCODE MODAL (expo-camera barcode scanning, no expo-barcode-scanner dependency) */}
+      <Modal visible={barcodeOpen} animationType="slide">
+        <SafeAreaView style={styles.modalSafe}>
+          <View style={styles.modalTop}>
+            <TouchableOpacity style={styles.smallBtn} onPress={() => setBarcodeOpen(false)}>
+              <Text style={styles.smallBtnText}>Close</Text>
+            </TouchableOpacity>
+            <Text style={styles.modalTitle}>Scan barcode</Text>
+            <View style={{ width: 70 }} />
+          </View>
+
+          <CameraView
+            style={styles.camera}
+            facing="back"
+            barcodeScannerSettings={{ barcodeTypes: ["ean13", "ean8", "upc_a", "upc_e", "code128", "code39", "qr"] }}
+            onBarcodeScanned={barcodeBusy ? undefined : onBarcodeScanned}
+          />
+
+          <View style={styles.modalBottom}>
+            <Text style={styles.tiny}>Point camera at barcode. It will auto-detect.</Text>
+          </View>
+        </SafeAreaView>
+      </Modal>
     </SafeAreaView>
   );
 }
 
-// -------------------- styles --------------------
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: "#000" },
-  container: { padding: 16, paddingBottom: 40 },
+  safe: { flex: 1, backgroundColor: "#000" },
+  container: { padding: 16, gap: 12 },
+  h1: { fontSize: 24, fontWeight: "800", color: "#fff" },
+  p: { fontSize: 14, color: "#cfcfcf", lineHeight: 20 },
+  tiny: { fontSize: 12, color: "#8c8c8c", lineHeight: 18 },
+  plan: { color: "#fff", fontWeight: "700" },
 
-  title: { color: "#fff", fontSize: 32, fontWeight: "900" },
-  muted: { color: "#9aa0a6", marginTop: 8 },
-  muted2: { color: "#9aa0a6", marginTop: 4 },
-
-  headerRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  headerButtons: { flexDirection: "row", gap: 10 },
-
-  pillsRow: { flexDirection: "row", gap: 10, marginTop: 12, marginBottom: 12, flexWrap: "wrap" },
-  pill: {
-    backgroundColor: "#121212",
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderWidth: 1,
-    borderColor: "#1f1f1f",
-    flexDirection: "row",
-    gap: 8,
-    alignItems: "center",
-  },
-  pillLabel: { color: "#7b7b7b", fontSize: 12, fontWeight: "700" },
-  pillValue: { color: "#fff", fontSize: 12, fontWeight: "900" },
+  topRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  row: { flexDirection: "row", gap: 10, marginTop: 10 },
+  rowWrap: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginTop: 10 },
 
   card: {
     backgroundColor: "#0b0b0b",
     borderRadius: 18,
-    padding: 14,
     borderWidth: 1,
-    borderColor: "#161616",
-    marginTop: 12,
+    borderColor: "#1c1c1c",
+    padding: 14,
   },
-  cardTitle: { color: "#fff", fontSize: 18, fontWeight: "900" },
+  cardTitle: { color: "#fff", fontWeight: "800", fontSize: 16 },
+  big: { color: "#fff", fontWeight: "800", fontSize: 18, marginTop: 6 },
 
-  row: { flexDirection: "row", gap: 10, marginTop: 10 },
-  rowWrap: { flexDirection: "row", gap: 10, marginTop: 10, flexWrap: "wrap" },
-
-  btn: {
-    backgroundColor: "#2f6bff",
+  input: {
+    backgroundColor: "#111",
+    borderWidth: 1,
+    borderColor: "#222",
     borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    color: "#fff",
+    marginTop: 8,
+  },
+
+  primaryBtn: {
+    backgroundColor: "#2563eb",
     paddingVertical: 12,
     paddingHorizontal: 14,
+    borderRadius: 14,
+    alignItems: "center",
     flex: 1,
-    alignItems: "center",
   },
-  btnDisabled: { opacity: 0.6 },
-  btnText: { color: "#fff", fontWeight: "900" },
-
-  btnGhost: {
-    backgroundColor: "#121212",
-    borderWidth: 1,
-    borderColor: "#1f1f1f",
-    borderRadius: 14,
-    paddingVertical: 10,
+  secondaryBtn: {
+    backgroundColor: "#151515",
+    paddingVertical: 12,
     paddingHorizontal: 14,
-  },
-  btnGhostText: { color: "#fff", fontWeight: "800" },
-
-  photo: { width: "100%", height: 220, borderRadius: 14, marginTop: 10 },
-  photoEmpty: {
-    height: 220,
     borderRadius: 14,
+    alignItems: "center",
+  },
+  btnText: { color: "#fff", fontWeight: "800" },
+
+  smallBtn: {
+    backgroundColor: "#151515",
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    alignItems: "center",
+  },
+  smallBtnText: { color: "#fff", fontWeight: "700" },
+
+  preview: { width: "100%", height: 220, borderRadius: 16, marginTop: 10 },
+  previewEmpty: {
+    width: "100%",
+    height: 220,
+    borderRadius: 16,
     marginTop: 10,
+    backgroundColor: "#111",
     borderWidth: 1,
-    borderColor: "#1f1f1f",
-    alignItems: "center",
+    borderColor: "#222",
     justifyContent: "center",
-  },
-
-  h2: { color: "#fff", fontSize: 22, fontWeight: "900" },
-  h3: { color: "#fff", fontSize: 16, fontWeight: "900" },
-
-  itemRow: {
-    flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: "#151515",
   },
-  itemName: { color: "#fff", fontWeight: "800", fontSize: 14 },
-  itemKcal: { color: "#fff", fontWeight: "900" },
+  previewText: { color: "#777" },
+
+  itemRow: { marginTop: 8, paddingBottom: 8, borderBottomWidth: 1, borderBottomColor: "#161616" },
+  itemName: { color: "#fff", fontWeight: "800" },
+  itemMeta: { color: "#9c9c9c", marginTop: 2, fontSize: 12 },
 
   lockedBox: {
     marginTop: 10,
     backgroundColor: "#101010",
     borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#222",
     padding: 12,
-    borderWidth: 1,
-    borderColor: "#1f1f1f",
   },
-  lockedTitle: { color: "#fff", fontWeight: "900", marginBottom: 4 },
-  lockedText: { color: "#c8c8c8" },
+  lockedTitle: { color: "#fff", fontWeight: "900", marginBottom: 6 },
 
-  sub: { color: "#fff", marginTop: 10, fontWeight: "800" },
-  barBg: { height: 10, borderRadius: 999, backgroundColor: "#151515", marginTop: 6, overflow: "hidden" },
-  barFill: { height: 10, borderRadius: 999, backgroundColor: "#2f6bff" },
+  meter: { marginTop: 10, backgroundColor: "#0f0f0f", padding: 12, borderRadius: 14, borderWidth: 1, borderColor: "#1c1c1c" },
+  meterTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  meterLabel: { color: "#fff", fontWeight: "900" },
+  meterValue: { color: "#fff", fontWeight: "800" },
+  meterHelp: { color: "#9c9c9c", marginTop: 6, fontSize: 12, lineHeight: 18 },
+  barOuter: { height: 10, backgroundColor: "#1a1a1a", borderRadius: 999, marginTop: 10, overflow: "hidden" },
+  barFill: { height: 10, backgroundColor: "#22c55e", borderRadius: 999 },
 
-  bullet: { color: "#d7d7d7", marginTop: 6 },
+  lockedTag: { color: "#fff", fontWeight: "800", backgroundColor: "#2a2a2a", paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999 },
 
-  manualRow: { flexDirection: "row", gap: 10, marginTop: 10, alignItems: "center" },
-  manualBtn: {
-    backgroundColor: "#1a1a1a",
+  manualRow: { marginTop: 10, flexDirection: "row", gap: 10, alignItems: "center" },
+  manualInput: {
+    flex: 1,
+    backgroundColor: "#111",
+    borderWidth: 1,
+    borderColor: "#222",
     borderRadius: 12,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    borderWidth: 1,
-    borderColor: "#2a2a2a",
-  },
-  manualBtnText: { color: "#fff", fontWeight: "900" },
-
-  upBtn: {
-    backgroundColor: "#121212",
-    borderWidth: 1,
-    borderColor: "#1f1f1f",
-    borderRadius: 999,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-  },
-  upBtnText: { color: "#fff", fontWeight: "900" },
-  restoreBtn: { borderColor: "#2f6bff" },
-
-  historyHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  clearHistoryBtn: {
-    backgroundColor: "#121212",
-    borderWidth: 1,
-    borderColor: "#1f1f1f",
-    borderRadius: 12,
-    paddingVertical: 8,
     paddingHorizontal: 12,
-  },
-  clearHistoryText: { color: "#fff", fontWeight: "900" },
-  histRow: { flexDirection: "row", gap: 12, alignItems: "center", marginTop: 12 },
-  histThumb: { width: 54, height: 54, borderRadius: 10, backgroundColor: "#111" },
-
-  input: {
-    backgroundColor: "#0e0e0e",
-    borderWidth: 1,
-    borderColor: "#1f1f1f",
-    borderRadius: 12,
-    padding: 12,
+    paddingVertical: 10,
     color: "#fff",
-    marginBottom: 12,
   },
-  label: { color: "#c8c8c8", fontWeight: "800", marginTop: 12, marginBottom: 6 },
 
-  loginWrap: { padding: 16, flex: 1, justifyContent: "center" },
+  histRow: { paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: "#151515" },
+  histTitle: { color: "#fff", fontWeight: "800" },
 
-  // camera/barcode modal
-  camWrap: { flex: 1, backgroundColor: "#000" },
-  camTopRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 12, paddingTop: 6 },
-  camTitle: { color: "#fff", fontWeight: "900", fontSize: 16 },
-  camBody: { flex: 1 },
-  camPreview: { flex: 1 },
-  centerPad: { flex: 1, justifyContent: "center", alignItems: "center", padding: 16, gap: 12 },
-  captureRow: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 18,
-    paddingHorizontal: 16,
-    alignItems: "center",
-  },
-  captureBtn: {
-    width: "100%",
-    backgroundColor: "#2f6bff",
-    borderRadius: 16,
-    paddingVertical: 14,
-    alignItems: "center",
-  },
-  captureText: { color: "#fff", fontWeight: "900", fontSize: 16 },
-  scanHintBox: {
-    position: "absolute",
-    left: 16,
-    right: 16,
-    bottom: 18,
-    backgroundColor: "rgba(0,0,0,0.55)",
-    padding: 12,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.12)",
-  },
-  scanHintText: { color: "#fff", fontWeight: "800", textAlign: "center" },
+  modalSafe: { flex: 1, backgroundColor: "#000" },
+  modalTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 12 },
+  modalTitle: { color: "#fff", fontWeight: "900", fontSize: 16 },
+  camera: { flex: 1 },
+  modalBottom: { padding: 12, backgroundColor: "#000" },
 });
-
-// -------------------- CRASH GUARD (avoid white screen) --------------------
-class ErrorBoundary extends React.Component {
-  constructor(props) {
-    super(props);
-    this.state = { error: null, info: null };
-  }
-  componentDidCatch(error, info) {
-    console.log("[ErrorBoundary]", error);
-    this.setState({ error, info });
-  }
-  render() {
-    if (this.state.error) {
-      const msg = String(this.state.error?.message || this.state.error || "Unknown error");
-      return (
-        <SafeAreaView style={{ flex: 1, backgroundColor: "#000" }}>
-          <View style={{ flex: 1, padding: 18, justifyContent: "center" }}>
-            <Text style={{ color: "#fff", fontSize: 22, fontWeight: "900", marginBottom: 8 }}>
-              App crashed
-            </Text>
-            <Text style={{ color: "#ddd", marginBottom: 12 }}>
-              {msg}
-            </Text>
-            <Text style={{ color: "#888", marginBottom: 18 }}>
-              If this is a TestFlight white screen, this message helps us pinpoint the exact cause.
-            </Text>
-            <Pressable
-              onPress={() => this.setState({ error: null, info: null })}
-              style={{ backgroundColor: "#2b6cff", paddingVertical: 12, borderRadius: 14, alignItems: "center" }}
-            >
-              <Text style={{ color: "#fff", fontWeight: "900" }}>Try again</Text>
-            </Pressable>
-          </View>
-        </SafeAreaView>
-      );
-    }
-    return this.props.children;
-  }
-}
-
-export default function App() {
-  return (
-    <ErrorBoundary>
-      <AppInner />
-    </ErrorBoundary>
-  );
-}
