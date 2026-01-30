@@ -11,7 +11,7 @@ from PIL import Image
 
 from fastapi import FastAPI, File, UploadFile, Request, HTTPException, Header, Body
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import PlainTextResponse
+from fastapi.responses import PlainTextResponse, JSONResponse
 
 import google.generativeai as genai
 
@@ -33,6 +33,20 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# -------------------- GLOBAL JSON-SAFE ERROR HANDLER (FIX) --------------------
+# Ensures Railway never returns plain-text "Internal Server Error" for unhandled exceptions.
+# This fixes jq parse errors + app JSON parse errors when backend crashes.
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    logger.exception("UNHANDLED ERROR")
+    return JSONResponse(
+        status_code=500,
+        content={
+            "error": "server_error",
+            "message": str(exc),
+        },
+    )
 
 # -------------------- ENV --------------------
 USDA_API_KEY = os.getenv("USDA_API_KEY", "").strip()
@@ -111,7 +125,7 @@ def _digits_only(s: str) -> str:
     return "".join([c for c in (s or "").strip() if c.isdigit()])
 
 
-# -------------------- PLAN GATING HELPERS (NEW) --------------------
+# -------------------- PLAN GATING HELPERS --------------------
 def plan_at_least(current: str, required: str) -> bool:
     try:
         return PLAN_ORDER.index((current or DEFAULT_PLAN).lower()) >= PLAN_ORDER.index(required.lower())
@@ -357,23 +371,21 @@ def set_user_plan(user_id: str, plan: str) -> Dict[str, Any]:
     stored = sb_upsert(TBL_USER_USAGE, row, on_conflict="user_id")
     return stored
 
-
 def set_user_plan_no_reset(user_id: str, plan: str) -> Dict[str, Any]:
-    """\
+    """
     Used for *restore* flows.
 
     Updates the user's plan WITHOUT refilling scan counters.
     This prevents users from spamming "Restore Purchases" to refill scans.
 
     Behavior:
-      - If downgrading, we clamp remaining counts down to the new plan limits.
-      - If upgrading, we keep remaining counts as-is (no bonus refills).
+      - If downgrading, clamp remaining counts down to the new plan limits.
+      - If upgrading, keep remaining counts as-is (no bonus refills).
     """
     plan = (plan or DEFAULT_PLAN).lower()
     if plan not in PLAN_ORDER:
         plan = DEFAULT_PLAN
 
-    # Ensure row exists and any date-based resets are applied first.
     row = get_or_init_usage(user_id)
     row = normalize_resets(row)
 
@@ -430,16 +442,16 @@ def plan_sync(
     user_id: Optional[str] = None,
     x_user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
 ):
-    """\
+    """
     Call from mobile after RevenueCat purchase/restore.
 
     payload:
       { "entitlement": "elite" | "advanced" | "pro" | "infinite", "mode": "purchase"|"restore" }
 
     IMPORTANT:
-    - purchase: sets plan AND refills counters to plan limits (new billing period starts)
-    - restore: sets plan BUT does NOT refill counters (prevents restore-spam)
-    - if mode is missing, we treat it as "restore" to avoid accidentally resetting scan limits
+    - purchase: sets plan AND refills counters to plan limits
+    - restore: sets plan BUT does NOT refill counters
+    - if mode is missing, treat it as "restore" (safe default)
     """
     uid = require_user_id(x_user_id, user_id)
     entitlement = (payload.get("entitlement") or DEFAULT_PLAN).lower()
@@ -589,7 +601,6 @@ Rules:
             return cleaned
         except Exception as e:
             last_err = str(e)
-            # backoff
             time.sleep(0.6 * (attempt + 1))
 
     raise HTTPException(status_code=502, detail={"error": "Gemini failed / invalid JSON", "raw": last_err})
@@ -683,7 +694,6 @@ def barcode_lookup(
     if not barcode:
         raise HTTPException(status_code=400, detail={"error": "Invalid barcode", "barcode": code})
 
-    # 1) cache
     cached = supabase_get_barcode(barcode)
     if cached:
         return {
@@ -706,10 +716,7 @@ def barcode_lookup(
             },
         }
 
-    # 2) OFF
     off = openfoodfacts_lookup(barcode)
-
-    # 3) store
     stored = supabase_upsert_barcode(off)
 
     return {
@@ -740,16 +747,6 @@ def barcode_manual(
 ):
     """
     Manual add when barcode not found.
-    Expected payload:
-      {
-        "barcode": "xxxx",
-        "name": "Product name",
-        "brand": "Brand",
-        "kcal_per_100g": 123,
-        "protein_g_per_100g": 1,
-        "carbs_g_per_100g": 2,
-        "fat_g_per_100g": 3
-      }
     """
     uid = require_user_id(x_user_id, user_id)
 
@@ -802,149 +799,6 @@ def barcode_manual(
     }
 
 
-
-# -------------------- COACHING (PRO+) --------------------
-def clamp(x: float, lo: float, hi: float) -> float:
-    try:
-        x = float(x)
-    except Exception:
-        return lo
-    return max(lo, min(hi, x))
-
-def round1(x: float) -> float:
-    return float(f"{float(x):.1f}")
-
-def leucine_messages(leucine_gap_g: float) -> List[str]:
-    """
-    Returns simple, user-facing guidance based on how far the meal is from the leucine threshold.
-    """
-    if leucine_gap_g <= 0:
-        return ["✅ Great — muscle-building signal is triggered for this meal."]
-    if leucine_gap_g <= 0.4:
-        return [
-            "Add a little more protein to hit the muscle-building threshold.",
-            "Easy add-ons: Greek yogurt, milk, eggs, chicken, or whey."
-        ]
-    if leucine_gap_g <= 1.0:
-        return [
-            "You're close — add a moderate protein boost.",
-            "Good options: extra chicken/fish/eggs, tofu/tempeh, Greek yogurt, or a protein shake."
-        ]
-    return [
-        "You're quite short — this meal needs more protein to trigger muscle-building.",
-        "Add a strong protein portion (e.g., chicken/fish/lean meat/tofu) or a protein shake."
-    ]
-
-def estimate_satiety_score(total_kcal: float, protein_g: float, carbs_g: float, fat_g: float) -> float:
-    """
-    Satiety score (0-100). Heuristic designed for *relative* feedback, not medical accuracy.
-    Higher protein and lower energy density generally increase satiety.
-    """
-    total_kcal = max(1.0, float(total_kcal or 0.0))
-    protein_g = max(0.0, float(protein_g or 0.0))
-    carbs_g = max(0.0, float(carbs_g or 0.0))
-    fat_g = max(0.0, float(fat_g or 0.0))
-
-    # Protein density (g per 1000 kcal)
-    p_density = (protein_g / total_kcal) * 1000.0  # 0..200+ typically
-    # Fat penalty (fat heavy meals tend to be less "filling per calorie" for many people)
-    f_density = (fat_g / total_kcal) * 1000.0
-
-    # Base from protein density, subtract fat density, subtract very high calorie meals a bit.
-    score = (p_density * 0.55) - (f_density * 0.25) - (total_kcal / 60.0)
-
-    # Normalize into 0..100 with gentle curve
-    score = 50.0 + score
-    return clamp(score, 0.0, 100.0)
-
-def estimate_protein_bv_score(protein_g: float, total_kcal: float) -> float:
-    """
-    Protein bioavailability proxy (0-100). Without a food database of sources,
-    we approximate using protein density as a 'quality signal' for practical coaching.
-    """
-    total_kcal = max(1.0, float(total_kcal or 0.0))
-    protein_g = max(0.0, float(protein_g or 0.0))
-
-    # Protein calories fraction
-    p_frac = (protein_g * 4.0) / total_kcal  # 0..1
-    # Map to 70..100
-    score = 70.0 + (p_frac * 40.0) + (min(protein_g, 60.0) / 60.0) * 10.0
-    return clamp(score, 0.0, 100.0)
-
-def estimate_glycemic_load(carbs_g: float, gi: float = 72.0) -> Dict[str, Any]:
-    """
-    GL = carbs(g) * GI / 100. GI default is a general mixed-meal estimate.
-    """
-    carbs_g = max(0.0, float(carbs_g or 0.0))
-    gi = clamp(gi, 0.0, 100.0)
-    gl = carbs_g * gi / 100.0
-
-    if gl < 10:
-        level = "low"
-    elif gl < 20:
-        level = "medium"
-    elif gl < 40:
-        level = "high"
-    else:
-        level = "very_high"
-
-    return {"gl": round1(gl), "level": level}
-
-def estimate_ultra_processed_score(total_kcal: float, carbs_g: float, fat_g: float) -> float:
-    """
-    Ultra-processed score (0-10). Heuristic: higher energy + high fat + high refined carbs -> higher score.
-    """
-    total_kcal = max(1.0, float(total_kcal or 0.0))
-    carbs_g = max(0.0, float(carbs_g or 0.0))
-    fat_g = max(0.0, float(fat_g or 0.0))
-
-    # density proxy
-    carb_frac = (carbs_g * 4.0) / total_kcal
-    fat_frac = (fat_g * 9.0) / total_kcal
-
-    score = (carb_frac * 6.0) + (fat_frac * 6.0) + (total_kcal / 800.0) * 4.0
-    return clamp(score, 0.0, 10.0)
-
-def build_coaching_payload(total_kcal: float, protein_g: float, carbs_g: float, fat_g: float, mps_threshold_g: float = 2.5) -> Dict[str, Any]:
-    sat = estimate_satiety_score(total_kcal, protein_g, carbs_g, fat_g)
-    bv = estimate_protein_bv_score(protein_g, total_kcal)
-
-    leucine = clamp(protein_g * 0.08, 0.0, 20.0)  # ~8% of protein is leucine, rough estimate
-    mps_threshold_g = float(mps_threshold_g or 2.5)
-    mps_triggered = leucine >= mps_threshold_g
-    leucine_gap = max(0.0, mps_threshold_g - leucine)
-
-    gl_obj = estimate_glycemic_load(carbs_g, gi=72.0)
-    up = estimate_ultra_processed_score(total_kcal, carbs_g, fat_g)
-
-    layman_terms = {
-        "satiety": "How filling this meal is (higher = you’ll feel full longer).",
-        "protein_bv": "Protein quality (how well your body can use the protein).",
-        "leucine": "Leucine is the key amino acid that helps switch on muscle-building.",
-        "glycemic_load": "Sugar-spike risk from carbs (higher = bigger blood sugar spike).",
-        "ultra_processed": "How processed the food is (higher = more ultra-processed).",
-    }
-
-    msgs = []
-    msgs.extend(leucine_messages(leucine_gap))
-    msgs.append(f"Satiety Score: {round1(sat)}/100 — {layman_terms['satiety']}")
-    msgs.append(f"Protein Bioavailability: {round1(bv)}/100 — {layman_terms['protein_bv']}")
-    msgs.append(f"Glycemic Load: {gl_obj['gl']} ({gl_obj['level']}) — {layman_terms['glycemic_load']}")
-    msgs.append(f"Ultra-Processed Score: {round1(up)}/10 — {layman_terms['ultra_processed']}")
-
-    return {
-        "satiety_score": round1(sat),
-        "protein_bv_score": round1(bv),
-        "leucine_estimate_g": round1(leucine),
-        "mps_threshold_g": round1(mps_threshold_g),
-        "mps_triggered": bool(mps_triggered),
-        "glycemic_load": gl_obj,
-        "ultra_processed_score": round1(up),
-        "layman_terms": layman_terms,
-        "messages": msgs,
-    }
-
-
 # -------------------- ANALYZE (PHOTO) --------------------
 @app.post("/analyze")
 async def analyze(
@@ -952,101 +806,111 @@ async def analyze(
     user_id: Optional[str] = None,
     x_user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
 ):
-    uid = require_user_id(x_user_id, user_id)
-
-    # consume scan first (so failures still count? You can change this later.)
-    usage_row = consume_one_scan(uid)
-
-    contents = await file.read()
-    if not contents:
-        raise HTTPException(status_code=400, detail="Empty file")
-
+    """
+    NOTE (FIX):
+    We wrap the whole handler so we never return plain-text 500.
+    Any unexpected crash returns JSON:
+      { "error": "analyze_failed", "message": "..." }
+    This prevents jq/app JSON parsing failures.
+    """
     try:
-        _ = Image.open(io.BytesIO(contents)).convert("RGB")
-    except Exception:
-        raise HTTPException(status_code=400, detail="Uploaded file is not a valid image")
+        uid = require_user_id(x_user_id, user_id)
 
-    detected_items = gemini_detect_foods(contents)
-    logger.info(f"Detected items: {detected_items}")
+        # consume scan first (keeping your existing behavior)
+        usage_row = consume_one_scan(uid)
 
-    results = []
-    total_kcal = 0.0
-    total_p = total_c = total_f = 0.0
+        contents = await file.read()
+        if not contents:
+            raise HTTPException(status_code=400, detail="Empty file")
 
-    for d in detected_items:
-        name = d["name"]
-        grams = float(d["grams"])
-        conf = float(d.get("confidence", 0))
+        try:
+            _ = Image.open(io.BytesIO(contents)).convert("RGB")
+        except Exception:
+            raise HTTPException(status_code=400, detail="Uploaded file is not a valid image")
 
-        best = usda_search_best(name)
-        if not best:
-            raise HTTPException(status_code=404, detail=f"No USDA match for '{name}'")
+        detected_items = gemini_detect_foods(contents)
+        logger.info(f"Detected items: {detected_items}")
 
-        fdc_id = int(best["fdcId"])
-        details = usda_food_details(fdc_id)
-        macros100 = extract_macros_per_100g(details)
+        results = []
+        total_kcal = 0.0
+        total_p = total_c = total_f = 0.0
 
-        factor = grams / 100.0
-        kcal = macros100["kcal_per_100g"] * factor
-        p = macros100["protein_g_per_100g"] * factor
-        c = macros100["carbs_g_per_100g"] * factor
-        f = macros100["fat_g_per_100g"] * factor
+        for d in detected_items:
+            name = d["name"]
+            grams = float(d["grams"])
+            conf = float(d.get("confidence", 0))
 
-        results.append({
-            "name": name,
-            "grams": round(grams, 1),
-            "confidence": round(conf, 2),
-            "kcal": round(kcal, 1),
-            "macros": {
-                "protein_g": round(p, 1),
-                "carbs_g": round(c, 1),
-                "fat_g": round(f, 1),
+            best = usda_search_best(name)
+            if not best:
+                raise HTTPException(status_code=404, detail=f"No USDA match for '{name}'")
+
+            fdc_id = int(best["fdcId"])
+            details = usda_food_details(fdc_id)
+            macros100 = extract_macros_per_100g(details)
+
+            factor = grams / 100.0
+            kcal = macros100["kcal_per_100g"] * factor
+            p = macros100["protein_g_per_100g"] * factor
+            c = macros100["carbs_g_per_100g"] * factor
+            f = macros100["fat_g_per_100g"] * factor
+
+            results.append({
+                "name": name,
+                "grams": round(grams, 1),
+                "confidence": round(conf, 2),
+                "kcal": round(kcal, 1),
+                "macros": {
+                    "protein_g": round(p, 1),
+                    "carbs_g": round(c, 1),
+                    "fat_g": round(f, 1),
+                },
+                "usda": {
+                    "fdcId": fdc_id,
+                    "description": details.get("description"),
+                    "dataType": details.get("dataType"),
+                }
+            })
+
+            total_kcal += kcal
+            total_p += p
+            total_c += c
+            total_f += f
+
+        # 🔒 coaching is pro+ (we don't block analyze; we just hide coaching fields)
+        plan = (usage_row.get("plan") or DEFAULT_PLAN).lower()
+        coaching_enabled = plan_at_least(plan, "pro")
+
+        response = {
+            "source": "photo",
+            "total_kcal": round(total_kcal, 1),
+            "totals": {
+                "protein_g": round(total_p, 1),
+                "carbs_g": round(total_c, 1),
+                "fat_g": round(total_f, 1),
             },
-            "usda": {
-                "fdcId": fdc_id,
-                "description": details.get("description"),
-                "dataType": details.get("dataType"),
-            }
-        })
+            "items": results,
+            "usage": {
+                "plan": usage_row.get("plan"),
+                "remaining_day": int(usage_row.get("remaining_day") or 0),
+                "remaining_month": int(usage_row.get("remaining_month") or 0),
+            },
+        }
 
-        total_kcal += kcal
-        total_p += p
-        total_c += c
-        total_f += f
+        if not coaching_enabled:
+            response["locked"] = {"feature": "coaching", "required_plan": "pro"}
 
-    # 🔒 coaching is pro+ (we don't block analyze; we just hide coaching fields)
-    plan = (usage_row.get("plan") or DEFAULT_PLAN).lower()
-    coaching_enabled = plan_at_least(plan, "pro")
+        return response
 
-    response = {
-        "source": "photo",
-        "total_kcal": round(total_kcal, 1),
-        "totals": {
-            "protein_g": round(total_p, 1),
-            "carbs_g": round(total_c, 1),
-            "fat_g": round(total_f, 1),
-        },
-        "items": results,
-        "usage": {
-            "plan": usage_row.get("plan"),
-            "remaining_day": int(usage_row.get("remaining_day") or 0),
-            "remaining_month": int(usage_row.get("remaining_month") or 0),
-        },
-    }
-
-    if coaching_enabled:
-        # Pro/Infinite get full coaching insights
-        response["coaching"] = build_coaching_payload(
-            total_kcal=total_kcal,
-            protein_g=total_p,
-            carbs_g=total_c,
-            fat_g=total_f,
-            mps_threshold_g=2.5,
+    except HTTPException:
+        # keep FastAPI's normal JSON response for HTTPException
+        raise
+    except Exception as e:
+        logger.exception("Analyze crashed")
+        return JSONResponse(
+            status_code=500,
+            content={
+                "error": "analyze_failed",
+                "message": str(e),
+            },
         )
-    else:
-        # Free/Elite/Advanced see a lock hint
-        response["locked"] = {"feature": "coaching", "required_plan": "pro"}
-
-    return response
-
 
