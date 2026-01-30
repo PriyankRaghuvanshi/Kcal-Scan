@@ -99,6 +99,15 @@ async function apiPlanSync(userId, entitlement, mode) {
   return await safeJson(res);
 }
 
+function nowISO() {
+  try {
+    return new Date().toISOString();
+  } catch {
+    // fallback for very old JS engines
+    return String(Date.now());
+  }
+}
+
 // ===================== UI HELPERS =====================
 function Meter({ label, value, max = 100, help, locked, lockedText }) {
   const pct = Math.max(0, Math.min(1, num(value) / num(max)));
@@ -204,12 +213,29 @@ export default function App() {
   }
 
   async function pushHistory(entry) {
-    try {
-      const next = [entry, ...(history || [])].slice(0, MAX_HISTORY);
-      setHistory(next);
-      await AsyncStorage.setItem(historyKey(userId), JSON.stringify(next));
-    } catch {}
-  }
+  try {
+    const key = historyKey(userId);
+    const raw = await AsyncStorage.getItem(key);
+    const existing = raw ? JSON.parse(raw) : [];
+    const arr = Array.isArray(existing) ? existing : [];
+    const next = [entry, ...arr].slice(0, MAX_HISTORY);
+    setHistory(next);
+    await AsyncStorage.setItem(key, JSON.stringify(next));
+  } catch {}
+}
+
+async function clearHistory() {
+  if (!userId) return;
+  try {
+    await AsyncStorage.removeItem(historyKey(userId));
+  } catch {}
+  setHistory([]);
+}
+
+function clearCurrentScan() {
+  setPhotoUri(null);
+  setResult(null);
+}
 
   // ===================== RevenueCat =====================
   useEffect(() => {
@@ -581,6 +607,16 @@ export default function App() {
             </TouchableOpacity>
           </View>
 
+          <View style={styles.row}>
+            <TouchableOpacity
+              style={styles.secondaryBtn}
+              onPress={clearCurrentScan}
+              disabled={!photoUri && !result}
+            >
+              <Text style={styles.btnText}>Clear current scan</Text>
+            </TouchableOpacity>
+          </View>
+
           {result ? (
             <View style={{ marginTop: 14 }}>
               <Text style={styles.big}>Total: {round1(result.total_kcal)} kcal</Text>
@@ -725,6 +761,11 @@ export default function App() {
 
         <View style={styles.card}>
           <Text style={styles.cardTitle}>History (this user only)</Text>
+          <View style={styles.row}>
+            <TouchableOpacity style={styles.secondaryBtn} onPress={clearHistory} disabled={!history?.length}>
+              <Text style={styles.btnText}>Clear history</Text>
+            </TouchableOpacity>
+          </View>
           {history?.length ? (
             <FlatList
               scrollEnabled={false}
@@ -761,7 +802,7 @@ export default function App() {
           <CameraView ref={camRef} style={styles.camera} facing="back" />
 
           <View style={styles.modalBottom}>
-            <TouchableOpacity style={styles.primaryBtn} onPress={takePhoto}>
+            <TouchableOpacity style={[styles.primaryBtn, styles.captureBtn]} onPress={takePhoto}>
               <Text style={styles.btnText}>Capture</Text>
             </TouchableOpacity>
           </View>
@@ -911,5 +952,5 @@ const styles = StyleSheet.create({
   modalTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 12 },
   modalTitle: { color: "#fff", fontWeight: "900", fontSize: 16 },
   camera: { flex: 1 },
-  modalBottom: { padding: 12, backgroundColor: "#000" },
+  modalBottom: { padding: 12, paddingBottom: 24, backgroundColor: "#000" },
 });
