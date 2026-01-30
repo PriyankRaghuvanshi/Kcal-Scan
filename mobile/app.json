@@ -6,14 +6,12 @@
     "orientation": "portrait",
     "icon": "./assets/CalorieClick.png",
     "userInterfaceStyle": "light",
-    "newArchEnabled": true,
-
+    "newArchEnabled": false,
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
-
     "ios": {
       "bundleIdentifier": "com.priyank.calorieclick",
       "supportsTablet": true,
@@ -22,10 +20,11 @@
         "NSAppTransportSecurity": {
           "NSAllowsArbitraryLoads": true
         },
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSPhotoLibraryUsageDescription": "We need access to your photos if you choose an existing image to analyze.",
+        "NSPhotoLibraryAddUsageDescription": "We need permission to save images if you export or save results."
       }
     },
-
     "android": {
       "package": "com.priyank.calorieclick",
       "adaptiveIcon": {
@@ -33,27 +32,33 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "permissions": ["android.permission.CAMERA"]
+      "permissions": [
+        "android.permission.CAMERA"
+      ]
     },
-
     "web": {
       "favicon": "./assets/favicon.png"
     },
-
     "extra": {
       "eas": {
         "projectId": "bade0b52-fdda-452c-b6f3-76247faf377d"
       },
-
       "API_BASE": "https://kcal-scan-production.up.railway.app",
       "ANALYZE_URL": "https://kcal-scan-production.up.railway.app/analyze",
       "BARCODE_LOOKUP_URL": "https://kcal-scan-production.up.railway.app/barcode",
       "ENTITLEMENT_URL": "https://kcal-scan-production.up.railway.app/entitlement/upsert",
       "USAGE_URL": "https://kcal-scan-production.up.railway.app/usage",
-
       "REVENUECAT_OFFERING": "main",
       "REVENUECAT_IOS_API_KEY": "appl_SoteCFCeVzvTTQWIpwbClzFnBdq"
-    }
+    },
+    "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow CalorieClick.ai to access your camera to scan meals and barcodes."
+        }
+      ]
+    ]
   }
 }
 
