@@ -906,4 +906,4 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   captureText: { color: "#fff", fontWeight: "900", fontSize: 16 },
-};
+});
