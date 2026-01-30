@@ -229,7 +229,7 @@ function BarcodeModal({ visible, onClose, onDetected }) {
 }
 
 // -------------------- Main app --------------------
-export default function App() {
+function AppInner() {
   // session
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -976,4 +976,51 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255,255,255,0.12)",
   },
   scanHintText: { color: "#fff", fontWeight: "800", textAlign: "center" },
-});x
+});
+
+// -------------------- CRASH GUARD (avoid white screen) --------------------
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { error: null, info: null };
+  }
+  componentDidCatch(error, info) {
+    console.log("[ErrorBoundary]", error);
+    this.setState({ error, info });
+  }
+  render() {
+    if (this.state.error) {
+      const msg = String(this.state.error?.message || this.state.error || "Unknown error");
+      return (
+        <SafeAreaView style={{ flex: 1, backgroundColor: "#000" }}>
+          <View style={{ flex: 1, padding: 18, justifyContent: "center" }}>
+            <Text style={{ color: "#fff", fontSize: 22, fontWeight: "900", marginBottom: 8 }}>
+              App crashed
+            </Text>
+            <Text style={{ color: "#ddd", marginBottom: 12 }}>
+              {msg}
+            </Text>
+            <Text style={{ color: "#888", marginBottom: 18 }}>
+              If this is a TestFlight white screen, this message helps us pinpoint the exact cause.
+            </Text>
+            <Pressable
+              onPress={() => this.setState({ error: null, info: null })}
+              style={{ backgroundColor: "#2b6cff", paddingVertical: 12, borderRadius: 14, alignItems: "center" }}
+            >
+              <Text style={{ color: "#fff", fontWeight: "900" }}>Try again</Text>
+            </Pressable>
+          </View>
+        </SafeAreaView>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+export default function App() {
+  return (
+    <ErrorBoundary>
+      <AppInner />
+    </ErrorBoundary>
+  );
+}
