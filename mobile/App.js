@@ -17,7 +17,6 @@ import {
 
 import { CameraView, useCameraPermissions } from "expo-camera";
 import * as FileSystem from "expo-file-system";
-import * as ImageManipulator from "expo-image-manipulator";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 /**
@@ -241,12 +240,8 @@ export default function App() {
       });
       if (!photo?.uri) return;
       // Reduce size to avoid huge uploads (faster + fewer crashes)
-      const manipulated = await ImageManipulator.manipulateAsync(
-        photo.uri,
-        [{ resize: { width: 1024 } }],
-        { compress: 0.85, format: ImageManipulator.SaveFormat.JPEG }
-      );
-      setPhotoUri(manipulated.uri);
+      // Keep original photo uri (install expo-image-manipulator if you want resizing/compression)
+      setPhotoUri(photo.uri);
       setCameraOpen(false);
     } catch (e) {
       Alert.alert("Camera", String(e?.message || e));
