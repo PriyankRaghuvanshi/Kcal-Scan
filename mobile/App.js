@@ -952,5 +952,5 @@ const styles = StyleSheet.create({
   modalTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 12 },
   modalTitle: { color: "#fff", fontWeight: "900", fontSize: 16 },
   camera: { flex: 1 },
-  modalBottom: { padding: 12, paddingBottom: 24, backgroundColor: "#000" },
+  modalBottom: { padding: 12, paddingBottom: 48, backgroundColor: "#000" },
 });
