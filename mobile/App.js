@@ -243,6 +243,8 @@ function clearCurrentScan() {
       try {
         const apiKey = Platform.OS === "ios" ? RC_IOS_KEY : RC_ANDROID_KEY;
         if (!apiKey) return;
+        // IMPORTANT: configure once; we will logIn/logOut with your Supabase userId
+        // so the plan does NOT bleed across users/devices.
         Purchases.configure({ apiKey });
         setRcReady(true);
 
@@ -257,6 +259,26 @@ function clearCurrentScan() {
       }
     })();
   }, []);
+
+  // Tie RevenueCat identity to Supabase userId.
+  // This prevents the "free user suddenly becomes infinite" issue caused by
+  // device-level anonymous RevenueCat IDs carrying old sandbox entitlements.
+  useEffect(() => {
+    if (!rcReady || !userId) return;
+    (async () => {
+      try {
+        // Log in as the current Supabase user.
+        const { customerInfo } = await Purchases.logIn(String(userId));
+        setRcCustomerInfo(customerInfo);
+
+        // Refresh offerings (optional but keeps UI consistent).
+        const offs = await Purchases.getOfferings();
+        setOfferings(offs);
+      } catch (e) {
+        console.log("RC logIn error", e);
+      }
+    })();
+  }, [rcReady, userId]);
 
   const activeEntitlements = useMemo(() => {
     const active = rcCustomerInfo?.entitlements?.active || {};
@@ -370,6 +392,13 @@ function clearCurrentScan() {
 
   async function signOut() {
     try {
+      // Ensure RevenueCat user resets so next login doesn't inherit entitlements.
+      if (rcReady) {
+        try {
+          await Purchases.logOut();
+          setRcCustomerInfo(null);
+        } catch {}
+      }
       await supabase.auth.signOut();
     } catch {}
   }
@@ -803,7 +832,7 @@ function clearCurrentScan() {
 
           <View style={styles.modalBottom}>
             <TouchableOpacity style={[styles.primaryBtn, styles.captureBtn]} onPress={takePhoto}>
-              <Text style={styles.btnText}>Capture</Text>
+              <Text style={styles.captureText}>Capture</Text>
             </TouchableOpacity>
           </View>
         </SafeAreaView>
@@ -952,5 +981,23 @@ const styles = StyleSheet.create({
   modalTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 12 },
   modalTitle: { color: "#fff", fontWeight: "900", fontSize: 16 },
   camera: { flex: 1 },
-  modalBottom: { padding: 12, paddingBottom: 48, backgroundColor: "#000" },
+  // Keep bottom CTA fully visible above iPhone home indicator.
+  modalBottom: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    padding: 12,
+    paddingBottom: Platform.OS === "ios" ? 34 : 16,
+    backgroundColor: "#000",
+  },
+  captureBtn: {
+    flex: 0,
+    width: "100%",
+    maxWidth: 560,
+    alignSelf: "center",
+    minHeight: 52,
+    justifyContent: "center",
+  },
+  captureText: { color: "#fff", fontWeight: "900", fontSize: 16 },
 });
