@@ -1,3 +1,6 @@
+const PRIVACY_URL = "https://sites.google.com/view/calorieclickai/privacy-policy";
+const TERMS_URL = "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/";
+
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
@@ -13,7 +16,8 @@ import {
   SafeAreaView,
   KeyboardAvoidingView,
   Platform,
-  Modal,
+  Modal,,
+  Linking
 } from "react-native";
 
 import { CameraView, useCameraPermissions } from "expo-camera";
@@ -763,6 +767,59 @@ function clearCurrentScan() {
               <Text style={styles.btnText}>Clear history</Text>
             </TouchableOpacity>
           </View>
+
+          {/* Subscription disclosure (App Store Review 3.1.2) */}
+          <View style={{ marginTop: 10 }}>
+            <Text style={styles.muted}>
+              Subscriptions are billed monthly and auto-renew unless cancelled at least 24 hours before the end of the current period. Payment will be charged to your Apple ID account at 
+confirmation of purchase. You can manage or cancel your subscription in Apple ID Settings.
+            </Text>
+
+            <Text style={[styles.muted, { marginTop: 8 }]}>
+              Available monthly plans (price shown in your local currency):
+            </Text>
+
+            {(() => {
+              const priceFor = (keys) => {
+                const pkgs = offerings?.current?.availablePackages || [];
+                const pkg = pkgs.find((p) => {
+                  const id = (p?.product?.identifier || p?.identifier || "").toLowerCase();
+                  return keys.some((k) => id.includes(k));
+                });
+                return pkg?.product?.priceString || null;
+              };
+
+              const items = [
+                { title: "Elite", keys: ["calorieclick_elite", "elite"] },
+                { title: "Advanced", keys: ["advanced"] },
+                { title: "Pro", keys: ["pro"] },
+                { title: "Infinite", keys: ["infinite"] },
+              ];
+
+              return (
+                <View style={{ marginTop: 6 }}>
+                  {items.map((it) => {
+                    const price = priceFor(it.keys);
+                    return (
+                      <Text key={it.title} style={styles.muted}>
+                        • {it.title} — {price ? `${price}/month` : "Monthly subscription"}
+                      </Text>
+                    );
+                  })}
+                </View>
+              );
+            })()}
+
+            <View style={{ marginTop: 10, flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
+              <TouchableOpacity onPress={() => Linking.openURL(PRIVACY_URL)}>
+                <Text style={styles.link}>Privacy Policy</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => Linking.openURL(TERMS_URL)}>
+                <Text style={styles.link}>Terms of Use (EULA)</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
           {history?.length ? (
             <FlatList
               scrollEnabled={false}
@@ -950,4 +1007,10 @@ const styles = StyleSheet.create({
   modalTitle: { color: "#fff", fontWeight: "900", fontSize: 16 },
   camera: { flex: 1 },
   modalBottom: { padding: 12, paddingBottom: 48, backgroundColor: "#000" },
+
+  link: {
+    color: "#4da3ff",
+    textDecorationLine: "underline",
+    fontSize: 12,
+  },
 });
