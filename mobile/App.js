@@ -1,6 +1,3 @@
-const PRIVACY_URL = "https://sites.google.com/view/calorieclickai/privacy-policy";
-const TERMS_URL = "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/";
-
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
@@ -17,7 +14,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Modal,
-  Linking
+  Linking,
 } from "react-native";
 
 import { CameraView, useCameraPermissions } from "expo-camera";
@@ -28,6 +25,18 @@ import "react-native-url-polyfill/auto";
 
 // RevenueCat
 import Purchases from "react-native-purchases";
+
+// ===================== SUBSCRIPTION (App Review 3.1.2) =====================
+const PRIVACY_URL = "https://sites.google.com/view/calorieclickai/privacy-policy";
+const TERMS_URL = "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/";
+
+// Requested AUD prices (shown in UI)
+const SUBSCRIPTION_FALLBACK_PRICES_AUD = {
+  elite: "$9.99 AUD / month",
+  advanced: "$19.99 AUD / month",
+  pro: "$39.99 AUD / month",
+  infinite: "$149.99 AUD / month",
+};
 
 // ===================== CONFIG =====================
 const API_BASE =
@@ -70,12 +79,9 @@ function planAtLeast(current, required) {
   return PLAN_ORDER.indexOf(c) >= PLAN_ORDER.indexOf(r);
 }
 function pickHighestEntitlement(active) {
-  // active: array of entitlement ids/names
   const normalized = (active || []).map((x) => String(x || "").toLowerCase());
-  // ensure only known entitlements
   const valid = normalized.filter((x) => PLAN_ORDER.includes(x));
   if (!valid.length) return null;
-  // pick highest
   valid.sort((a, b) => PLAN_ORDER.indexOf(a) - PLAN_ORDER.indexOf(b));
   return valid[valid.length - 1];
 }
@@ -84,7 +90,6 @@ async function safeJson(res) {
   try {
     return JSON.parse(t);
   } catch (e) {
-    // This is the common "Unexpected token" in app when backend returns HTML/text.
     throw new Error(t?.slice(0, 220) || "Non-JSON response");
   }
 }
@@ -107,7 +112,6 @@ function nowISO() {
   try {
     return new Date().toISOString();
   } catch {
-    // fallback for very old JS engines
     return String(Date.now());
   }
 }
@@ -122,7 +126,9 @@ function Meter({ label, value, max = 100, help, locked, lockedText }) {
         {locked ? (
           <Text style={styles.lockedTag}>{lockedText || "Locked 🔒"}</Text>
         ) : (
-          <Text style={styles.meterValue}>{round1(value)}/{max}</Text>
+          <Text style={styles.meterValue}>
+            {round1(value)}/{max}
+          </Text>
         )}
       </View>
       <Text style={styles.meterHelp}>{help}</Text>
@@ -185,7 +191,6 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    // derive userId from session
     const uid = session?.user?.id || null;
     setUserId(uid);
   }, [session]);
@@ -217,29 +222,29 @@ export default function App() {
   }
 
   async function pushHistory(entry) {
-  try {
-    const key = historyKey(userId);
-    const raw = await AsyncStorage.getItem(key);
-    const existing = raw ? JSON.parse(raw) : [];
-    const arr = Array.isArray(existing) ? existing : [];
-    const next = [entry, ...arr].slice(0, MAX_HISTORY);
-    setHistory(next);
-    await AsyncStorage.setItem(key, JSON.stringify(next));
-  } catch {}
-}
+    try {
+      const key = historyKey(userId);
+      const raw = await AsyncStorage.getItem(key);
+      const existing = raw ? JSON.parse(raw) : [];
+      const arr = Array.isArray(existing) ? existing : [];
+      const next = [entry, ...arr].slice(0, MAX_HISTORY);
+      setHistory(next);
+      await AsyncStorage.setItem(key, JSON.stringify(next));
+    } catch {}
+  }
 
-async function clearHistory() {
-  if (!userId) return;
-  try {
-    await AsyncStorage.removeItem(historyKey(userId));
-  } catch {}
-  setHistory([]);
-}
+  async function clearHistory() {
+    if (!userId) return;
+    try {
+      await AsyncStorage.removeItem(historyKey(userId));
+    } catch {}
+    setHistory([]);
+  }
 
-function clearCurrentScan() {
-  setPhotoUri(null);
-  setResult(null);
-}
+  function clearCurrentScan() {
+    setPhotoUri(null);
+    setResult(null);
+  }
 
   // ===================== RevenueCat =====================
   useEffect(() => {
@@ -250,7 +255,6 @@ function clearCurrentScan() {
         Purchases.configure({ apiKey });
         setRcReady(true);
 
-        // initial load
         const info = await Purchases.getCustomerInfo();
         setRcCustomerInfo(info);
 
@@ -270,11 +274,10 @@ function clearCurrentScan() {
   async function syncPlanToBackend(mode) {
     if (!userId) return;
     const highest = pickHighestEntitlement(activeEntitlements);
-    // If nothing active, keep free.
     const ent = highest || "free";
 
     try {
-      await apiPlanSync(userId, ent, mode); // backend prevents restore from refilling scans
+      await apiPlanSync(userId, ent, mode);
       await refreshUsage();
     } catch (e) {
       Alert.alert("Plan sync failed", String(e).slice(0, 180));
@@ -296,7 +299,6 @@ function clearCurrentScan() {
   }
 
   async function purchaseEntitlement(entitlement) {
-    // Buy a package that matches entitlement (best effort).
     try {
       if (!offerings?.current) {
         Alert.alert("Not ready", "Offerings not loaded yet.");
@@ -304,7 +306,6 @@ function clearCurrentScan() {
       }
       setRcBusy(true);
 
-      // Find a package whose identifier contains the entitlement name.
       const packages = offerings.current.availablePackages || [];
       const target = packages.find((p) =>
         String(p?.identifier || "").toLowerCase().includes(entitlement.toLowerCase())
@@ -318,7 +319,6 @@ function clearCurrentScan() {
       const { customerInfo } = await Purchases.purchasePackage(target);
       setRcCustomerInfo(customerInfo);
 
-      // IMPORTANT: send purchase mode so backend may reset counters (new period)
       await apiPlanSync(userId, entitlement, "purchase");
       await refreshUsage();
 
@@ -423,9 +423,7 @@ function clearCurrentScan() {
 
       const res = await fetch(`${API_BASE}/analyze?user_id=${encodeURIComponent(userId)}`, {
         method: "POST",
-        headers: {
-          accept: "application/json",
-        },
+        headers: { accept: "application/json" },
         body: form,
       });
 
@@ -473,9 +471,10 @@ function clearCurrentScan() {
 
     setBarcodeBusy(true);
     try {
-      const res = await fetch(`${API_BASE}/barcode/${encodeURIComponent(code)}?user_id=${encodeURIComponent(userId)}`, {
-        headers: { accept: "application/json" },
-      });
+      const res = await fetch(
+        `${API_BASE}/barcode/${encodeURIComponent(code)}?user_id=${encodeURIComponent(userId)}`,
+        { headers: { accept: "application/json" } }
+      );
       const data = await safeJson(res);
 
       Alert.alert("Barcode result", `${data?.name || "Product"}\n${round1(data?.per_100g?.kcal)} kcal / 100g`);
@@ -510,10 +509,7 @@ function clearCurrentScan() {
   if (!session) {
     return (
       <SafeAreaView style={styles.safe}>
-        <KeyboardAvoidingView
-          style={styles.safe}
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
-        >
+        <KeyboardAvoidingView style={styles.safe} behavior={Platform.OS === "ios" ? "padding" : undefined}>
           <View style={styles.container}>
             <Text style={styles.h1}>CalorieClick.ai</Text>
             <Text style={styles.p}>Log in to scan meals and track your history.</Text>
@@ -559,14 +555,17 @@ function clearCurrentScan() {
   const coaching = result?.coaching || null;
   const locked = result?.locked || null;
 
+  const subscriptionPriceText = (key) => SUBSCRIPTION_FALLBACK_PRICES_AUD[key] || "Monthly subscription";
+
   return (
     <SafeAreaView style={styles.safe}>
       <ScrollView contentContainerStyle={styles.container}>
-
         <View style={styles.topRow}>
           <View>
             <Text style={styles.h1}>CalorieClick.ai</Text>
-            <Text style={styles.p}>Plan: <Text style={styles.plan}>{plan}</Text></Text>
+            <Text style={styles.p}>
+              Plan: <Text style={styles.plan}>{plan}</Text>
+            </Text>
           </View>
           <TouchableOpacity style={styles.smallBtn} onPress={signOut}>
             <Text style={styles.smallBtnText}>Logout</Text>
@@ -575,9 +574,7 @@ function clearCurrentScan() {
 
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Scans left</Text>
-          <Text style={styles.big}>
-            {usage ? `${usage.remaining_day} today • ${usage.remaining_month} this month` : "…"}
-          </Text>
+          <Text style={styles.big}>{usage ? `${usage.remaining_day} today • ${usage.remaining_month} this month` : "…"}</Text>
           <View style={styles.row}>
             <TouchableOpacity style={styles.secondaryBtn} onPress={refreshUsage}>
               <Text style={styles.btnText}>Refresh</Text>
@@ -586,9 +583,7 @@ function clearCurrentScan() {
               <Text style={styles.btnText}>{rcBusy ? "…" : "Restore"}</Text>
             </TouchableOpacity>
           </View>
-          <Text style={styles.tiny}>
-            Restore does NOT refill scans (only syncs your plan).
-          </Text>
+          <Text style={styles.tiny}>Restore does NOT refill scans (only syncs your plan).</Text>
         </View>
 
         <View style={styles.card}>
@@ -612,11 +607,7 @@ function clearCurrentScan() {
           </View>
 
           <View style={styles.row}>
-            <TouchableOpacity
-              style={styles.secondaryBtn}
-              onPress={clearCurrentScan}
-              disabled={!photoUri && !result}
-            >
+            <TouchableOpacity style={styles.secondaryBtn} onPress={clearCurrentScan} disabled={!photoUri && !result}>
               <Text style={styles.btnText}>Clear current scan</Text>
             </TouchableOpacity>
           </View>
@@ -625,14 +616,17 @@ function clearCurrentScan() {
             <View style={{ marginTop: 14 }}>
               <Text style={styles.big}>Total: {round1(result.total_kcal)} kcal</Text>
               <Text style={styles.p}>
-                Protein {round1(result?.totals?.protein_g)}g • Carbs {round1(result?.totals?.carbs_g)}g • Fat {round1(result?.totals?.fat_g)}g
+                Protein {round1(result?.totals?.protein_g)}g • Carbs {round1(result?.totals?.carbs_g)}g • Fat{" "}
+                {round1(result?.totals?.fat_g)}g
               </Text>
 
               <Text style={[styles.cardTitle, { marginTop: 12 }]}>Items</Text>
               {(result.items || []).map((it, idx) => (
                 <View key={idx} style={styles.itemRow}>
                   <Text style={styles.itemName}>{it.name}</Text>
-                  <Text style={styles.itemMeta}>{round1(it.grams)}g • {round1(it.kcal)} kcal</Text>
+                  <Text style={styles.itemMeta}>
+                    {round1(it.grams)}g • {round1(it.kcal)} kcal
+                  </Text>
                 </View>
               ))}
 
@@ -675,11 +669,11 @@ function clearCurrentScan() {
                   <View style={styles.meter}>
                     <View style={styles.meterTop}>
                       <Text style={styles.meterLabel}>Glycemic load</Text>
-                      <Text style={styles.meterValue}>{round1(coaching?.glycemic_load?.gl)} ({coaching?.glycemic_load?.level || "-"})</Text>
+                      <Text style={styles.meterValue}>
+                        {round1(coaching?.glycemic_load?.gl)} ({coaching?.glycemic_load?.level || "-"})
+                      </Text>
                     </View>
-                    <Text style={styles.meterHelp}>
-                      {coaching?.layman_terms?.glycemic_load || "Sugar-spike risk from carbs."}
-                    </Text>
+                    <Text style={styles.meterHelp}>{coaching?.layman_terms?.glycemic_load || "Sugar-spike risk from carbs."}</Text>
                   </View>
 
                   <View style={styles.meter}>
@@ -695,7 +689,9 @@ function clearCurrentScan() {
                   {(coaching.messages || []).length ? (
                     <View style={{ marginTop: 10 }}>
                       {(coaching.messages || []).map((m, i) => (
-                        <Text key={i} style={styles.p}>• {m}</Text>
+                        <Text key={i} style={styles.p}>
+                          • {m}
+                        </Text>
                       ))}
                     </View>
                   ) : null}
@@ -758,57 +754,28 @@ function clearCurrentScan() {
             ))}
           </View>
 
-        </View>
+          {/* Required subscription info for App Review */}
+          <View style={{ marginTop: 12 }}>
+            <Text style={styles.muted}>Service: CalorieClick.ai – Food Scan</Text>
+            <Text style={[styles.muted, { marginTop: 6 }]}>
+              Length: Monthly (auto-renewing) subscription. Each subscription period provides access to the plan features for that month.
+            </Text>
+            <Text style={[styles.muted, { marginTop: 6 }]}>
+              What you get: Elite unlocks barcode scanning; Advanced increases scan limits; Pro unlocks coaching insights; Infinite provides the highest limits and all features.
+            </Text>
 
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>History (this user only)</Text>
-          <View style={styles.row}>
-            <TouchableOpacity style={styles.secondaryBtn} onPress={clearHistory} disabled={!history?.length}>
-              <Text style={styles.btnText}>Clear history</Text>
-            </TouchableOpacity>
-          </View>
+            <Text style={[styles.muted, { marginTop: 8 }]}>Prices (AUD):</Text>
+            <View style={{ marginTop: 6 }}>
+              <Text style={styles.muted}>• Elite — {subscriptionPriceText("elite")}</Text>
+              <Text style={styles.muted}>• Advanced — {subscriptionPriceText("advanced")}</Text>
+              <Text style={styles.muted}>• Pro — {subscriptionPriceText("pro")}</Text>
+              <Text style={styles.muted}>• Infinite — {subscriptionPriceText("infinite")}</Text>
+            </View>
 
-          {/* Subscription disclosure (App Store Review 3.1.2) */}
-          <View style={{ marginTop: 10 }}>
-            <Text style={styles.muted}>
+            <Text style={[styles.muted, { marginTop: 8 }]}>
               Subscriptions are billed monthly and auto-renew unless cancelled at least 24 hours before the end of the current period. Payment will be charged to your Apple ID account at 
 confirmation of purchase. You can manage or cancel your subscription in Apple ID Settings.
             </Text>
-
-            <Text style={[styles.muted, { marginTop: 8 }]}>
-              Available monthly plans (price shown in your local currency):
-            </Text>
-
-            {(() => {
-              const priceFor = (keys) => {
-                const pkgs = offerings?.current?.availablePackages || [];
-                const pkg = pkgs.find((p) => {
-                  const id = (p?.product?.identifier || p?.identifier || "").toLowerCase();
-                  return keys.some((k) => id.includes(k));
-                });
-                return pkg?.product?.priceString || null;
-              };
-
-              const items = [
-                { title: "Elite", keys: ["calorieclick_elite", "elite"] },
-                { title: "Advanced", keys: ["advanced"] },
-                { title: "Pro", keys: ["pro"] },
-                { title: "Infinite", keys: ["infinite"] },
-              ];
-
-              return (
-                <View style={{ marginTop: 6 }}>
-                  {items.map((it) => {
-                    const price = priceFor(it.keys);
-                    return (
-                      <Text key={it.title} style={styles.muted}>
-                        • {it.title} — {price ? `${price}/month` : "Monthly subscription"}
-                      </Text>
-                    );
-                  })}
-                </View>
-              );
-            })()}
 
             <View style={{ marginTop: 10, flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
               <TouchableOpacity onPress={() => Linking.openURL(PRIVACY_URL)}>
@@ -818,6 +785,15 @@ confirmation of purchase. You can manage or cancel your subscription in Apple ID
                 <Text style={styles.link}>Terms of Use (EULA)</Text>
               </TouchableOpacity>
             </View>
+          </View>
+        </View>
+
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>History (this user only)</Text>
+          <View style={styles.row}>
+            <TouchableOpacity style={styles.secondaryBtn} onPress={clearHistory} disabled={!history?.length}>
+              <Text style={styles.btnText}>Clear history</Text>
+            </TouchableOpacity>
           </View>
 
           {history?.length ? (
@@ -863,7 +839,7 @@ confirmation of purchase. You can manage or cancel your subscription in Apple ID
         </SafeAreaView>
       </Modal>
 
-      {/* BARCODE MODAL (expo-camera barcode scanning, no expo-barcode-scanner dependency) */}
+      {/* BARCODE MODAL */}
       <Modal visible={barcodeOpen} animationType="slide">
         <SafeAreaView style={styles.modalSafe}>
           <View style={styles.modalTop}>
@@ -896,6 +872,7 @@ const styles = StyleSheet.create({
   h1: { fontSize: 24, fontWeight: "800", color: "#fff" },
   p: { fontSize: 14, color: "#cfcfcf", lineHeight: 20 },
   tiny: { fontSize: 12, color: "#8c8c8c", lineHeight: 18 },
+  muted: { fontSize: 12, color: "#bdbdbd", lineHeight: 18 },
   plan: { color: "#fff", fontWeight: "700" },
 
   topRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
@@ -1012,5 +989,6 @@ const styles = StyleSheet.create({
     color: "#4da3ff",
     textDecorationLine: "underline",
     fontSize: 12,
+    fontWeight: "700",
   },
 });
