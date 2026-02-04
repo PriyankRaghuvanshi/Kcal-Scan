@@ -30,7 +30,11 @@ import Purchases from "react-native-purchases";
 const PRIVACY_URL = "https://sites.google.com/view/calorieclickai/privacy-policy";
 const TERMS_URL = "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/";
 
-// Requested AUD prices (shown in UI)
+// Pricing note for App Review & international launch
+const SUBSCRIPTION_PRICE_NOTE =
+  "Prices are shown in the App Store and may vary by country or region.";
+
+// Fallback display prices (for review clarity; actual purchase price is shown by the App Store)
 const SUBSCRIPTION_FALLBACK_PRICES_AUD = {
   elite: "$9.99 AUD / month",
   advanced: "$19.99 AUD / month",
@@ -90,6 +94,7 @@ async function safeJson(res) {
   try {
     return JSON.parse(t);
   } catch (e) {
+    // Common case: backend returned HTML/text; surface the first part.
     throw new Error(t?.slice(0, 220) || "Non-JSON response");
   }
 }
@@ -574,7 +579,9 @@ export default function App() {
 
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Scans left</Text>
-          <Text style={styles.big}>{usage ? `${usage.remaining_day} today • ${usage.remaining_month} this month` : "…"}</Text>
+          <Text style={styles.big}>
+            {usage ? `${usage.remaining_day} today • ${usage.remaining_month} this month` : "…"}
+          </Text>
           <View style={styles.row}>
             <TouchableOpacity style={styles.secondaryBtn} onPress={refreshUsage}>
               <Text style={styles.btnText}>Refresh</Text>
@@ -635,7 +642,9 @@ export default function App() {
               {!canCoaching ? (
                 <View style={styles.lockedBox}>
                   <Text style={styles.lockedTitle}>Locked 🔒</Text>
-                  <Text style={styles.p}>Satiety, Protein BV, Leucine, Glycemic load and Ultra-processed score are Pro+.</Text>
+                  <Text style={styles.p}>
+                    Satiety, Protein BV, Leucine, Glycemic load and Ultra-processed score are Pro+.
+                  </Text>
                   <Text style={styles.tiny}>Upgrade to Pro or Infinite to unlock these insights.</Text>
                 </View>
               ) : coaching ? (
@@ -662,7 +671,8 @@ export default function App() {
                       {coaching?.layman_terms?.leucine || "Key amino acid that helps switch on muscle-building."}
                     </Text>
                     <Text style={styles.tiny}>
-                      MPS trigger: {round1(coaching.mps_threshold_g)}g • {coaching.mps_triggered ? "✅ Triggered" : "❌ Not yet"}
+                      MPS trigger: {round1(coaching.mps_threshold_g)}g •{" "}
+                      {coaching.mps_triggered ? "✅ Triggered" : "❌ Not yet"}
                     </Text>
                   </View>
 
@@ -673,7 +683,9 @@ export default function App() {
                         {round1(coaching?.glycemic_load?.gl)} ({coaching?.glycemic_load?.level || "-"})
                       </Text>
                     </View>
-                    <Text style={styles.meterHelp}>{coaching?.layman_terms?.glycemic_load || "Sugar-spike risk from carbs."}</Text>
+                    <Text style={styles.meterHelp}>
+                      {coaching?.layman_terms?.glycemic_load || "Sugar-spike risk from carbs."}
+                    </Text>
                   </View>
 
                   <View style={styles.meter}>
@@ -754,17 +766,21 @@ export default function App() {
             ))}
           </View>
 
-          {/* Required subscription info for App Review */}
+          {/* Required subscription info for App Review (Guideline 3.1.2) */}
           <View style={{ marginTop: 12 }}>
             <Text style={styles.muted}>Service: CalorieClick.ai – Food Scan</Text>
             <Text style={[styles.muted, { marginTop: 6 }]}>
-              Length: Monthly (auto-renewing) subscription. Each subscription period provides access to the plan features for that month.
+              Length: Monthly (auto-renewing) subscription. Each subscription period provides access to the plan features
+              for that month.
             </Text>
             <Text style={[styles.muted, { marginTop: 6 }]}>
-              What you get: Elite unlocks barcode scanning; Advanced increases scan limits; Pro unlocks coaching insights; Infinite provides the highest limits and all features.
+              What you get: Elite unlocks barcode scanning; Advanced increases scan limits; Pro unlocks coaching insights;
+              Infinite provides the highest limits and all features.
             </Text>
 
-            <Text style={[styles.muted, { marginTop: 8 }]}>Prices (AUD):</Text>
+            <Text style={[styles.muted, { marginTop: 8 }]}>Prices (example):</Text>
+            <Text style={[styles.muted, { marginTop: 2 }]}>{SUBSCRIPTION_PRICE_NOTE}</Text>
+
             <View style={{ marginTop: 6 }}>
               <Text style={styles.muted}>• Elite — {subscriptionPriceText("elite")}</Text>
               <Text style={styles.muted}>• Advanced — {subscriptionPriceText("advanced")}</Text>
@@ -773,8 +789,9 @@ export default function App() {
             </View>
 
             <Text style={[styles.muted, { marginTop: 8 }]}>
-              Subscriptions are billed monthly and auto-renew unless cancelled at least 24 hours before the end of the current period. Payment will be charged to your Apple ID account at 
-confirmation of purchase. You can manage or cancel your subscription in Apple ID Settings.
+              Subscriptions are billed monthly and auto-renew unless cancelled at least 24 hours before the end of the
+              current period. Payment will be charged to your Apple ID account at confirmation of purchase. You can
+              manage or cancel your subscription in Apple ID Settings.
             </Text>
 
             <View style={{ marginTop: 10, flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
@@ -804,7 +821,9 @@ confirmation of purchase. You can manage or cancel your subscription in Apple ID
               renderItem={({ item }) => (
                 <View style={styles.histRow}>
                   <Text style={styles.histTitle}>
-                    {item.kind === "barcode" ? `Barcode: ${item.name || item.barcode}` : `Meal: ${round1(item.total_kcal)} kcal`}
+                    {item.kind === "barcode"
+                      ? `Barcode: ${item.name || item.barcode}`
+                      : `Meal: ${round1(item.total_kcal)} kcal`}
                   </Text>
                   <Text style={styles.tiny}>{item.ts}</Text>
                 </View>
@@ -853,7 +872,9 @@ confirmation of purchase. You can manage or cancel your subscription in Apple ID
           <CameraView
             style={styles.camera}
             facing="back"
-            barcodeScannerSettings={{ barcodeTypes: ["ean13", "ean8", "upc_a", "upc_e", "code128", "code39", "qr"] }}
+            barcodeScannerSettings={{
+              barcodeTypes: ["ean13", "ean8", "upc_a", "upc_e", "code128", "code39", "qr"],
+            }}
             onBarcodeScanned={barcodeBusy ? undefined : onBarcodeScanned}
           />
 
@@ -954,7 +975,14 @@ const styles = StyleSheet.create({
   },
   lockedTitle: { color: "#fff", fontWeight: "900", marginBottom: 6 },
 
-  meter: { marginTop: 10, backgroundColor: "#0f0f0f", padding: 12, borderRadius: 14, borderWidth: 1, borderColor: "#1c1c1c" },
+  meter: {
+    marginTop: 10,
+    backgroundColor: "#0f0f0f",
+    padding: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#1c1c1c",
+  },
   meterTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   meterLabel: { color: "#fff", fontWeight: "900" },
   meterValue: { color: "#fff", fontWeight: "800" },
@@ -962,7 +990,14 @@ const styles = StyleSheet.create({
   barOuter: { height: 10, backgroundColor: "#1a1a1a", borderRadius: 999, marginTop: 10, overflow: "hidden" },
   barFill: { height: 10, backgroundColor: "#22c55e", borderRadius: 999 },
 
-  lockedTag: { color: "#fff", fontWeight: "800", backgroundColor: "#2a2a2a", paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999 },
+  lockedTag: {
+    color: "#fff",
+    fontWeight: "800",
+    backgroundColor: "#2a2a2a",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
+  },
 
   manualRow: { marginTop: 10, flexDirection: "row", gap: 10, alignItems: "center" },
   manualInput: {
