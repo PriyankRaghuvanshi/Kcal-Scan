@@ -34,13 +34,6 @@ const TERMS_URL = "https://www.apple.com/legal/internet-services/itunes/dev/stde
 const SUBSCRIPTION_PRICE_NOTE =
   "Prices are shown in the App Store and may vary by country or region.";
 
-// Fallback display prices (for review clarity; actual purchase price is shown by the App Store)
-const SUBSCRIPTION_FALLBACK_PRICES_AUD = {
-  elite: "$9.99 AUD / month",
-  advanced: "$19.99 AUD / month",
-  pro: "$39.99 AUD / month",
-  infinite: "$149.99 AUD / month",
-};
 
 // ===================== CONFIG =====================
 const API_BASE =
@@ -275,6 +268,27 @@ export default function App() {
     const active = rcCustomerInfo?.entitlements?.active || {};
     return Object.keys(active).map((k) => k.toLowerCase());
   }, [rcCustomerInfo]);
+
+  const priceByEntitlement = useMemo(() => {
+    const map = {};
+    const pkgs = offerings?.current?.availablePackages || [];
+    for (const p of pkgs) {
+      const id = String(p?.identifier || "").toLowerCase();
+      const prod = p?.product;
+      const price =
+        prod?.priceString ||
+        prod?.localizedPriceString ||
+        (prod?.currencyCode && prod?.price ? `${prod.price} ${prod.currencyCode}` : null);
+
+      if (!price) continue;
+
+      for (const ent of ["elite", "advanced", "pro", "infinite"]) {
+        if (id.includes(ent) && !map[ent]) map[ent] = price;
+      }
+    }
+    return map;
+  }, [offerings]);
+
 
   async function syncPlanToBackend(mode) {
     if (!userId) return;
@@ -560,7 +574,7 @@ export default function App() {
   const coaching = result?.coaching || null;
   const locked = result?.locked || null;
 
-  const subscriptionPriceText = (key) => SUBSCRIPTION_FALLBACK_PRICES_AUD[key] || "Monthly subscription";
+  const subscriptionPriceText = (key) => priceByEntitlement?.[key] || (rcReady ? "Loading…" : "See App Store");
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -778,7 +792,7 @@ export default function App() {
               Infinite provides the highest limits and all features.
             </Text>
 
-            <Text style={[styles.muted, { marginTop: 8 }]}>Prices (example):</Text>
+            <Text style={[styles.muted, { marginTop: 8 }]}>Prices (per month):</Text>
             <Text style={[styles.muted, { marginTop: 2 }]}>{SUBSCRIPTION_PRICE_NOTE}</Text>
 
             <View style={{ marginTop: 6 }}>
