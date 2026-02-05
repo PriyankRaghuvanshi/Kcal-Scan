@@ -49,8 +49,6 @@ const HEALTH_SOURCES = [
   { title: "WHO: Healthy diet (general nutrition guidance)", url: "https://www.who.int/news-room/fact-sheets/detail/healthy-diet" },
 ];
 
-
-
 // ===================== CONFIG =====================
 const API_BASE =
   process.env.EXPO_PUBLIC_API_BASE?.trim() ||
