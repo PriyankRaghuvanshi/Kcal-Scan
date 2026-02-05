@@ -36,6 +36,21 @@ const SUBSCRIPTION_PRICE_NOTE =
   "Prices are shown in the App Store and may vary by country or region.";
 
 
+// Health / medical info disclaimer + citations (App Review 1.4.1)
+const HEALTH_DISCLAIMER =
+  "CalorieClick.ai provides general nutrition estimates and wellness insights for informational purposes only and is not medical advice. Consult a qualified health professional for personal medical 
+guidance.";
+
+const HEALTH_SOURCES = [
+  { title: "USDA FoodData Central (nutrition reference)", url: "https://fdc.nal.usda.gov/" },
+  { title: "NIH MedlinePlus: Protein in diet", url: "https://medlineplus.gov/ency/article/002467.htm" },
+  { title: "International Tables of Glycemic Index (concept reference)", url: "https://diabetesjournals.org/care/article/34/9/2281/28564/International-Tables-of-Glycemic-Index-and" },
+  { title: "NOVA classification (ultra-processed foods concept)", url: "https://www.fsp.usp.br/nupens/en/nova-classification-2/" },
+  { title: "WHO: Healthy diet (general nutrition guidance)", url: "https://www.who.int/news-room/fact-sheets/detail/healthy-diet" },
+];
+
+
+
 // ===================== CONFIG =====================
 const API_BASE =
   process.env.EXPO_PUBLIC_API_BASE?.trim() ||
@@ -730,7 +745,21 @@ export default function App() {
                 </View>
               ) : (
                 <Text style={styles.tiny}>No coaching data returned.</Text>
-              )}
+
+
+{/* Health disclaimer + sources (Guideline 1.4.1) */}
+<View style={{ marginTop: 14 }}>
+  <Text style={styles.muted}>{HEALTH_DISCLAIMER}</Text>
+  <Text style={[styles.muted, { marginTop: 10, fontWeight: "800" }]}>Sources</Text>
+  <View style={{ marginTop: 6, gap: 8 }}>
+    {HEALTH_SOURCES.map((s) => (
+      <TouchableOpacity key={s.url} onPress={() => Linking.openURL(s.url)}>
+        <Text style={styles.link}>• {s.title}</Text>
+      </TouchableOpacity>
+    ))}
+  </View>
+</View>
+
             </View>
           ) : null}
         </View>
