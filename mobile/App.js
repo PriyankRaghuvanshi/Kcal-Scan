@@ -47,7 +47,7 @@ const HEALTH_SOURCES = [
     title: "International Tables of Glycemic Index (concept reference)",
     url: "https://diabetesjournals.org/care/article/34/9/2281/28564/International-Tables-of-Glycemic-Index-and",
   },
-  { title: "NOVA classification (ultra-processed foods concept)", url: "https://www.fsp.usp.br/nupens/en/nova-classification-2/" },
+  { title: "NOVA classification (ultra-processed foods concept)", url: "https://iris.paho.org/handle/10665.2/55887" },
   { title: "WHO: Healthy diet (general nutrition guidance)", url: "https://www.who.int/news-room/fact-sheets/detail/healthy-diet" },
 ];
 
