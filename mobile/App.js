@@ -37,9 +37,8 @@ const SUBSCRIPTION_PRICE_NOTE =
 
 
 // Health / medical info disclaimer + citations (App Review 1.4.1)
-const HEALTH_DISCLAIMER =
-  "CalorieClick.ai provides general nutrition estimates and wellness insights for informational purposes only and is not medical advice. Consult a qualified health professional for personal medical 
-guidance.";
+const HEALTH_DISCLAIMER = `CalorieClick.ai provides general nutrition estimates and wellness insights for informational purposes only and is not medical advice. Consult a qualified health 
+professional for personal medical guidance.`;
 
 const HEALTH_SOURCES = [
   { title: "USDA FoodData Central (nutrition reference)", url: "https://fdc.nal.usda.gov/" },
