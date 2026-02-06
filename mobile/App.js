@@ -1,4 +1,4 @@
-// buildref: 2026-02-04
+// build: 2026-02-04
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
@@ -44,10 +44,15 @@ guidance.";
 const HEALTH_SOURCES = [
   { title: "USDA FoodData Central (nutrition reference)", url: "https://fdc.nal.usda.gov/" },
   { title: "NIH MedlinePlus: Protein in diet", url: "https://medlineplus.gov/ency/article/002467.htm" },
-  { title: "International Tables of Glycemic Index (concept reference)", url: "https://diabetesjournals.org/care/article/34/9/2281/28564/International-Tables-of-Glycemic-Index-and" },
+  {
+    title: "International Tables of Glycemic Index (concept reference)",
+    url: "https://diabetesjournals.org/care/article/34/9/2281/28564/International-Tables-of-Glycemic-Index-and",
+  },
   { title: "NOVA classification (ultra-processed foods concept)", url: "https://www.fsp.usp.br/nupens/en/nova-classification-2/" },
   { title: "WHO: Healthy diet (general nutrition guidance)", url: "https://www.who.int/news-room/fact-sheets/detail/healthy-diet" },
 ];
+
+
 
 // ===================== CONFIG =====================
 const API_BASE =
@@ -743,20 +748,26 @@ export default function App() {
                 </View>
               ) : (
                 <Text style={styles.tiny}>No coaching data returned.</Text>
+              )}
 
+              {/* Health disclaimer + sources (Guideline 1.4.1) */}
+              <View style={{ marginTop: 14 }}>
+                <Text style={styles.muted}>{HEALTH_DISCLAIMER}</Text>
 
-{/* Health disclaimer + sources (Guideline 1.4.1) */}
-<View style={{ marginTop: 14 }}>
-  <Text style={styles.muted}>{HEALTH_DISCLAIMER}</Text>
-  <Text style={[styles.muted, { marginTop: 10, fontWeight: "800" }]}>Sources</Text>
-  <View style={{ marginTop: 6, gap: 8 }}>
-    {HEALTH_SOURCES.map((s) => (
-      <TouchableOpacity key={s.url} onPress={() => Linking.openURL(s.url)}>
-        <Text style={styles.link}>• {s.title}</Text>
-      </TouchableOpacity>
-    ))}
-  </View>
-</View>
+                <Text style={[styles.muted, { marginTop: 10, fontWeight: "800" }]}>Sources</Text>
+
+                <View style={{ marginTop: 6 }}>
+                  {HEALTH_SOURCES.map((s) => (
+                    <TouchableOpacity
+                      key={s.url}
+                      onPress={() => Linking.openURL(s.url)}
+                      style={{ marginBottom: 8 }}
+                    >
+                      <Text style={styles.link}>• {s.title}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
 
             </View>
           ) : null}
@@ -846,6 +857,26 @@ export default function App() {
             </View>
           </View>
         </View>
+
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Health notice</Text>
+          <Text style={[styles.muted, { marginTop: 6 }]}>{HEALTH_DISCLAIMER}</Text>
+
+          <Text style={[styles.muted, { marginTop: 10, fontWeight: "800" }]}>Sources</Text>
+          <View style={{ marginTop: 6 }}>
+            {HEALTH_SOURCES.map((s) => (
+              <TouchableOpacity
+                key={s.url}
+                onPress={() => Linking.openURL(s.url)}
+                style={{ marginBottom: 8 }}
+              >
+                <Text style={styles.link}>• {s.title}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+
+
 
         <View style={styles.card}>
           <Text style={styles.cardTitle}>History (this user only)</Text>
