@@ -1,35 +1,30 @@
- {
+{
   "expo": {
-    "scheme": "calorieclickai",
     "name": "CalorieClick AI",
     "slug": "calorieclick-ai",
-    "version": "1.0.1",
+    "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/CalorieClick.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": false,
-
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
-
     "ios": {
-      "icon": "./assets/CalorieClick.png",
       "bundleIdentifier": "com.priyank.calorieclick",
       "supportsTablet": true,
       "infoPlist": {
         "NSCameraUsageDescription": "We need camera access to scan meals and barcodes.",
-        "NSPhotoLibraryUsageDescription": "We need access to your photos if you choose an existing image to analyze.",
-        "NSPhotoLibraryAddUsageDescription": "We need permission to save images if you export or save results.",
-        "ITSAppUsesNonExemptEncryption": false,
         "NSAppTransportSecurity": {
           "NSAllowsArbitraryLoads": true
-        }
+        },
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSPhotoLibraryUsageDescription": "We need access to your photos if you choose an existing image to analyze.",
+        "NSPhotoLibraryAddUsageDescription": "We need permission to save images if you export or save results."
       }
     },
-
     "android": {
       "package": "com.priyank.calorieclick",
       "adaptiveIcon": {
@@ -41,11 +36,9 @@
         "android.permission.CAMERA"
       ]
     },
-
     "web": {
       "favicon": "./assets/favicon.png"
     },
-
     "extra": {
       "eas": {
         "projectId": "bade0b52-fdda-452c-b6f3-76247faf377d"
@@ -58,7 +51,6 @@
       "REVENUECAT_OFFERING": "main",
       "REVENUECAT_IOS_API_KEY": "appl_SoteCFCeVzvTTQWIpwbClzFnBdq"
     },
-
     "plugins": [
       [
         "expo-camera",
