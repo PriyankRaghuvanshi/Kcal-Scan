@@ -76,6 +76,11 @@ const ENTITLEMENTS = (process.env.EXPO_PUBLIC_RC_ENTITLEMENTS || "elite,advanced
   .map((x) => x.trim())
   .filter(Boolean);
 
+// OPTIONAL: If you have a custom deep link redirect (recommended for Google OAuth),
+// set EXPO_PUBLIC_OAUTH_REDIRECT_TO to your app scheme URL.
+// Example: "calorieclickai://auth-callback"
+const OAUTH_REDIRECT_TO = process.env.EXPO_PUBLIC_OAUTH_REDIRECT_TO || "";
+
 // barcode scan cooldown (avoid duplicate reads)
 const BARCODE_COOLDOWN_MS = 1400;
 
@@ -161,6 +166,11 @@ export default function App() {
   const [authEmail, setAuthEmail] = useState("");
   const [authPass, setAuthPass] = useState("");
   const [authBusy, setAuthBusy] = useState(false);
+
+  // ===== NEW: Google + Phone OTP login =====
+  const [phone, setPhone] = useState("");
+  const [otp, setOtp] = useState("");
+  const [otpSent, setOtpSent] = useState(false);
 
   // ===== Plan / Usage =====
   const [userId, setUserId] = useState(null);
@@ -415,6 +425,95 @@ export default function App() {
     } catch {}
   }
 
+  // ===== NEW: Google OAuth =====
+  async function signInWithGoogle() {
+    if (!HAS_SUPABASE) {
+      Alert.alert("Missing Supabase env", "Set EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY");
+      return;
+    }
+    setAuthBusy(true);
+    try {
+      const options = OAUTH_REDIRECT_TO?.trim()
+        ? { redirectTo: OAUTH_REDIRECT_TO.trim() }
+        : undefined;
+
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options,
+      });
+
+      if (error) throw error;
+      // Session is handled by onAuthStateChange
+    } catch (e) {
+      Alert.alert("Google login failed", String(e?.message || e).slice(0, 220));
+    } finally {
+      setAuthBusy(false);
+    }
+  }
+
+  // ===== NEW: Phone OTP =====
+  function normalizePhone(p) {
+    return String(p || "").replace(/\s+/g, "").trim();
+  }
+
+  async function sendOtp() {
+    if (!HAS_SUPABASE) {
+      Alert.alert("Missing Supabase env", "Set EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY");
+      return;
+    }
+    const p = normalizePhone(phone);
+    if (!p || p.length < 8) {
+      Alert.alert("Phone number", "Enter phone number with country code, e.g. +61XXXXXXXXX");
+      return;
+    }
+    setAuthBusy(true);
+    try {
+      const { error } = await supabase.auth.signInWithOtp({
+        phone: p,
+        options: { shouldCreateUser: true },
+      });
+      if (error) throw error;
+
+      setOtpSent(true);
+      Alert.alert("OTP sent", "Check your SMS and enter the 6-digit code.");
+    } catch (e) {
+      Alert.alert("OTP failed", String(e?.message || e).slice(0, 220));
+    } finally {
+      setAuthBusy(false);
+    }
+  }
+
+  async function verifyOtp() {
+    if (!HAS_SUPABASE) {
+      Alert.alert("Missing Supabase env", "Set EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY");
+      return;
+    }
+    const p = normalizePhone(phone);
+    const code = String(otp || "").replace(/\s+/g, "").trim();
+    if (!p || !code) {
+      Alert.alert("OTP", "Enter phone number and OTP code.");
+      return;
+    }
+
+    setAuthBusy(true);
+    try {
+      const { error } = await supabase.auth.verifyOtp({
+        phone: p,
+        token: code,
+        type: "sms",
+      });
+      if (error) throw error;
+
+      // Session is handled by onAuthStateChange
+      setOtp("");
+      setOtpSent(false);
+    } catch (e) {
+      Alert.alert("Verify failed", String(e?.message || e).slice(0, 220));
+    } finally {
+      setAuthBusy(false);
+    }
+  }
+
   // ===================== CAMERA (PHOTO) =====================
   async function openCamera() {
     const { granted } = permission || {};
@@ -550,6 +649,72 @@ export default function App() {
           <View style={styles.container}>
             <Text style={styles.h1}>CalorieClick.ai</Text>
             <Text style={styles.p}>Log in to scan meals and track your history.</Text>
+
+            {/* Google login */}
+            <TouchableOpacity style={styles.googleBtn} onPress={signInWithGoogle} disabled={authBusy}>
+              {authBusy ? <ActivityIndicator /> : <Text style={styles.btnText}>Continue with Google</Text>}
+            </TouchableOpacity>
+
+            {/* Divider */}
+            <View style={styles.dividerRow}>
+              <View style={styles.dividerLine} />
+              <Text style={styles.dividerText}>or</Text>
+              <View style={styles.dividerLine} />
+            </View>
+
+            {/* Phone OTP */}
+            <TextInput
+              style={styles.input}
+              placeholder="Phone (e.g. +61XXXXXXXXX)"
+              placeholderTextColor="#777"
+              autoCapitalize="none"
+              keyboardType="phone-pad"
+              value={phone}
+              onChangeText={setPhone}
+            />
+
+            {otpSent ? (
+              <>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Enter OTP"
+                  placeholderTextColor="#777"
+                  autoCapitalize="none"
+                  keyboardType="number-pad"
+                  value={otp}
+                  onChangeText={setOtp}
+                />
+
+                <View style={{ flexDirection: "row", gap: 10 }}>
+                  <TouchableOpacity style={styles.primaryBtn} onPress={verifyOtp} disabled={authBusy}>
+                    {authBusy ? <ActivityIndicator /> : <Text style={styles.btnText}>Verify OTP</Text>}
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.secondaryBtn}
+                    onPress={() => {
+                      setOtp("");
+                      setOtpSent(false);
+                    }}
+                    disabled={authBusy}
+                  >
+                    <Text style={styles.btnText}>Change</Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            ) : (
+              <View style={{ flexDirection: "row", gap: 10 }}>
+                <TouchableOpacity style={styles.primaryBtn} onPress={sendOtp} disabled={authBusy}>
+                  {authBusy ? <ActivityIndicator /> : <Text style={styles.btnText}>Send OTP</Text>}
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* Divider */}
+            <View style={styles.dividerRow}>
+              <View style={styles.dividerLine} />
+              <Text style={styles.dividerText}>or email</Text>
+              <View style={styles.dividerLine} />
+            </View>
 
             <TextInput
               style={styles.input}
@@ -1010,6 +1175,29 @@ const styles = StyleSheet.create({
   },
   btnText: { color: "#fff", fontWeight: "800" },
 
+  // NEW: Google button
+  googleBtn: {
+    backgroundColor: "#151515",
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 14,
+    alignItems: "center",
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: "#2a2a2a",
+  },
+
+  // NEW: divider
+  dividerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginTop: 14,
+    marginBottom: 4,
+  },
+  dividerLine: { flex: 1, height: 1, backgroundColor: "#1e1e1e" },
+  dividerText: { color: "#8c8c8c", fontSize: 12, fontWeight: "700" },
+
   smallBtn: {
     backgroundColor: "#151515",
     paddingVertical: 8,
@@ -1099,3 +1287,4 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
 });
+
