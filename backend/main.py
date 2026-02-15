@@ -51,6 +51,8 @@ SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "").strip()
 TBL_PLAN_LIMITS = "plan_limits"
 TBL_USER_USAGE = "user_usage"
 TBL_BARCODE = "barcode_products"
+TBL_USER_GOALS = "user_goals"
+TBL_DAILY_TOTALS = "daily_totals"
 
 # Plans (your requirements)
 DEFAULT_PLAN = "free"
@@ -172,6 +174,183 @@ def sb_patch(table: str, match: Dict[str, str], patch: Dict[str, Any]) -> None:
     r = requests.patch(url, headers=headers, params=params, data=json.dumps(patch), timeout=20)
     if r.status_code not in (200, 204):
         raise HTTPException(status_code=502, detail={"error": "Supabase update failed", "raw": r.text})
+
+
+
+# -------------------- GOALS / DAILY TOTALS --------------------
+def get_user_goals(user_id: str) -> Dict[str, Any]:
+    """
+    Reads from user_goals (recommended schema):
+      user_id uuid primary key references auth.users(id),
+      kcal_goal numeric,
+      protein_goal_g numeric,
+      carbs_goal_g numeric,
+      fat_goal_g numeric,
+      vitamin_d_goal_ug numeric,
+      vitamin_b12_goal_ug numeric,
+      iron_goal_mg numeric,
+      magnesium_goal_mg numeric,
+      updated_at timestamptz not null default now()
+    All fields optional; app can show remaining if present.
+    """
+    _require_supabase()
+    row = sb_get_one(
+        TBL_USER_GOALS,
+        params={
+            "select": "*",
+            "user_id": f"eq.{user_id}",
+            "limit": "1",
+        },
+    )
+    return row or {"user_id": user_id}
+
+def upsert_user_goals(user_id: str, goals: Dict[str, Any]) -> Dict[str, Any]:
+    _require_supabase()
+    clean = {"user_id": user_id, "updated_at": dt.datetime.utcnow().isoformat()}
+    # allowlist expected keys
+    allow = {
+        "kcal_goal",
+        "protein_goal_g",
+        "carbs_goal_g",
+        "fat_goal_g",
+        "vitamin_d_goal_ug",
+        "vitamin_b12_goal_ug",
+        "iron_goal_mg",
+        "magnesium_goal_mg",
+    }
+    for k in allow:
+        if k in goals and goals[k] is not None:
+            clean[k] = goals[k]
+    return sb_upsert(TBL_USER_GOALS, clean, on_conflict="user_id")
+
+def _day_iso(d: Optional[str]) -> str:
+    if d:
+        try:
+            return dt.date.fromisoformat(str(d)[:10]).isoformat()
+        except Exception:
+            pass
+    return _today_date().isoformat()
+
+def get_daily_totals(user_id: str, day: Optional[str] = None) -> Dict[str, Any]:
+    """
+    Reads from daily_totals (recommended schema):
+      user_id uuid,
+      day date,
+      total_kcal numeric default 0,
+      protein_g numeric default 0,
+      carbs_g numeric default 0,
+      fat_g numeric default 0,
+      fiber_g numeric default 0,
+      sugar_g numeric default 0,
+      sodium_mg numeric default 0,
+      vitamin_d_ug numeric default 0,
+      vitamin_b12_ug numeric default 0,
+      iron_mg numeric default 0,
+      magnesium_mg numeric default 0,
+      updated_at timestamptz not null default now(),
+      primary key (user_id, day)
+    """
+    _require_supabase()
+    day_iso = _day_iso(day)
+    row = sb_get_one(
+        TBL_DAILY_TOTALS,
+        params={
+            "select": "*",
+            "user_id": f"eq.{user_id}",
+            "day": f"eq.{day_iso}",
+            "limit": "1",
+        },
+    )
+    if row:
+        return row
+    # if missing, return zeros (don't write yet)
+    return {
+        "user_id": user_id,
+        "day": day_iso,
+        "total_kcal": 0,
+        "protein_g": 0,
+        "carbs_g": 0,
+        "fat_g": 0,
+        "fiber_g": 0,
+        "sugar_g": 0,
+        "sodium_mg": 0,
+        "vitamin_d_ug": 0,
+        "vitamin_b12_ug": 0,
+        "iron_mg": 0,
+        "magnesium_mg": 0,
+    }
+
+def add_to_daily_totals(user_id: str, increments: Dict[str, Any], day: Optional[str] = None) -> Dict[str, Any]:
+    """
+    Adds the meal totals to daily_totals row for (user_id, day).
+    Non-atomic read+write is OK for MVP.
+    """
+    _require_supabase()
+    day_iso = _day_iso(day)
+    current = sb_get_one(
+        TBL_DAILY_TOTALS,
+        params={
+            "select": "*",
+            "user_id": f"eq.{user_id}",
+            "day": f"eq.{day_iso}",
+            "limit": "1",
+        },
+    ) or {"user_id": user_id, "day": day_iso}
+
+    # numeric fields we accumulate
+    fields = [
+        "total_kcal",
+        "protein_g",
+        "carbs_g",
+        "fat_g",
+        "fiber_g",
+        "sugar_g",
+        "sodium_mg",
+        "vitamin_d_ug",
+        "vitamin_b12_ug",
+        "iron_mg",
+        "magnesium_mg",
+    ]
+
+    new_row = {"user_id": user_id, "day": day_iso, "updated_at": dt.datetime.utcnow().isoformat()}
+    for f in fields:
+        cur = float(current.get(f) or 0.0)
+        inc = float(increments.get(f) or 0.0)
+        new_row[f] = cur + inc
+
+    # composite key upsert
+    stored = sb_upsert(TBL_DAILY_TOTALS, new_row, on_conflict="user_id,day")
+    return stored
+
+def build_daily_summary(user_id: str, day: Optional[str] = None) -> Dict[str, Any]:
+    totals = get_daily_totals(user_id, day)
+    goals = get_user_goals(user_id)
+
+    def num(x):
+        try:
+            return float(x)
+        except Exception:
+            return None
+
+    # compute remaining only where goal present
+    remaining = {}
+    mapping = [
+        ("kcal_goal", "total_kcal", "kcal_left"),
+        ("protein_goal_g", "protein_g", "protein_g_left"),
+        ("carbs_goal_g", "carbs_g", "carbs_g_left"),
+        ("fat_goal_g", "fat_g", "fat_g_left"),
+        ("vitamin_d_goal_ug", "vitamin_d_ug", "vitamin_d_ug_left"),
+        ("vitamin_b12_goal_ug", "vitamin_b12_ug", "vitamin_b12_ug_left"),
+        ("iron_goal_mg", "iron_mg", "iron_mg_left"),
+        ("magnesium_goal_mg", "magnesium_mg", "magnesium_mg_left"),
+    ]
+    for gk, tk, outk in mapping:
+        g = num(goals.get(gk))
+        t = num(totals.get(tk))
+        if g is not None and t is not None:
+            remaining[outk] = max(0.0, g - t)
+
+    return {"day": totals.get("day"), "totals": totals, "goals": goals, "remaining": remaining}
 
 
 # -------------------- PLAN / USAGE --------------------
@@ -454,6 +633,35 @@ def plan_sync(
 
 
 
+
+@app.get("/goals")
+def get_goals(
+    user_id: Optional[str] = None,
+    x_user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
+):
+    uid = require_user_id(x_user_id, user_id)
+    return get_user_goals(uid)
+
+@app.post("/goals")
+def set_goals(
+    payload: Dict[str, Any] = Body(...),
+    user_id: Optional[str] = None,
+    x_user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
+):
+    uid = require_user_id(x_user_id, user_id)
+    stored = upsert_user_goals(uid, payload or {})
+    return {"ok": True, "goals": stored}
+
+@app.get("/daily/summary")
+def daily_summary(
+    day: Optional[str] = None,
+    user_id: Optional[str] = None,
+    x_user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
+):
+    uid = require_user_id(x_user_id, user_id)
+    return build_daily_summary(uid, day)
+
+
 # -------------------- HTTP RETRY HELPERS --------------------
 def _request_with_retries(method: str, url: str, *, retries: int = 3, timeout: int = 40, retry_statuses=(429, 500, 502, 503, 504), **kwargs):
     """Basic retry wrapper for flaky upstreams (USDA). Always raises JSON-friendly HTTPException."""
@@ -577,6 +785,95 @@ def extract_macros_per_100g(food_details: dict) -> Dict[str, float]:
         "fat_g_per_100g": fat,
     }
 
+
+
+# -------------------- MICRONUTRIENTS (USDA) --------------------
+def _convert_unit(amount: float, from_unit: str, to_unit: str) -> Optional[float]:
+    """Convert between g/mg/ug and IU->ug (Vitamin D). Returns None if unsupported."""
+    if amount is None:
+        return None
+
+    fu = (from_unit or "").strip().lower().replace("µ", "u")
+    tu = (to_unit or "").strip().lower().replace("µ", "u")
+
+    if fu == tu:
+        return float(amount)
+
+    # IU conversion (only handle Vitamin D; 1 IU = 0.025 µg)
+    if fu == "iu" and tu in ("ug", "mcg"):
+        return float(amount) * 0.025
+
+    # Mass conversions
+    factors = {"g": 1_000_000.0, "mg": 1_000.0, "ug": 1.0, "mcg": 1.0}
+    if fu not in factors or tu not in factors:
+        return None
+
+    # Convert to µg base then to target
+    ug_val = float(amount) * factors[fu]
+    return ug_val / factors[tu]
+
+
+def extract_micros_per_100g(food_details: dict) -> Dict[str, Any]:
+    """
+    Extract key micronutrients per 100g from USDA food details.
+
+    Nutrient numbers used by USDA:
+      - Vitamin D (D2 + D3): 324
+      - Vitamin B12: 418
+      - Iron: 303
+      - Magnesium: 304
+      - Calcium: 301
+      - Potassium: 306
+      - Sodium: 307
+      - Fiber, total dietary: 291
+
+    Returns values with consistent units:
+      vitamin_d_ug, vitamin_b12_ug, iron_mg, magnesium_mg,
+      calcium_mg, potassium_mg, sodium_mg, fiber_g
+    Missing nutrients are returned as 0.0 (not all foods report all micros).
+    """
+    wanted = {
+        "324": ("vitamin_d_ug", "ug"),
+        "418": ("vitamin_b12_ug", "ug"),
+        "303": ("iron_mg", "mg"),
+        "304": ("magnesium_mg", "mg"),
+        "301": ("calcium_mg", "mg"),
+        "306": ("potassium_mg", "mg"),
+        "307": ("sodium_mg", "mg"),
+        "291": ("fiber_g", "g"),
+    }
+
+    out = {k: 0.0 for _, (k, _) in wanted.items()}
+
+    for n in food_details.get("foodNutrients", []) or []:
+        nutrient = n.get("nutrient") or {}
+        number = str(nutrient.get("number") or "").strip()
+        if number not in wanted:
+            continue
+
+        amount = n.get("amount")
+        if amount is None:
+            continue
+
+        unit = (nutrient.get("unitName") or "").strip()
+        key, target_unit = wanted[number]
+        conv = _convert_unit(float(amount), unit, target_unit)
+        if conv is None:
+            continue
+        out[key] = float(conv)
+
+    # Helpful metadata for UI
+    out["_units"] = {
+        "vitamin_d_ug": "µg",
+        "vitamin_b12_ug": "µg",
+        "iron_mg": "mg",
+        "magnesium_mg": "mg",
+        "calcium_mg": "mg",
+        "potassium_mg": "mg",
+        "sodium_mg": "mg",
+        "fiber_g": "g",
+    }
+    return out
 
 # -------------------- GEMINI FOOD DETECTION --------------------
 def gemini_detect_foods(image_bytes: bytes) -> List[Dict[str, Any]]:
@@ -1011,6 +1308,18 @@ async def analyze(
     total_kcal = 0.0
     total_p = total_c = total_f = 0.0
 
+    # Micronutrient totals (same keys as extract_micros_per_100g, without _units)
+    total_micros = {
+        "vitamin_d_ug": 0.0,
+        "vitamin_b12_ug": 0.0,
+        "iron_mg": 0.0,
+        "magnesium_mg": 0.0,
+        "calcium_mg": 0.0,
+        "potassium_mg": 0.0,
+        "sodium_mg": 0.0,
+        "fiber_g": 0.0,
+    }
+
     for d in detected_items:
         name = d["name"]
         grams = float(d["grams"])
@@ -1023,8 +1332,20 @@ async def analyze(
         fdc_id = int(best["fdcId"])
         details = usda_food_details(fdc_id)
         macros100 = extract_macros_per_100g(details)
+        micros100 = extract_micros_per_100g(details)
 
         factor = grams / 100.0
+        kcal = macros100["kcal_per_100g"] * factor
+        p = macros100["protein_g_per_100g"] * factor
+        c = macros100["carbs_g_per_100g"] * factor
+        f = macros100["fat_g_per_100g"] * factor
+
+        micros = {}
+        for k, v in (micros100 or {}).items():
+            if k == "_units":
+                continue
+            micros[k] = round(float(v) * factor, 3)
+
         kcal = macros100["kcal_per_100g"] * factor
         p = macros100["protein_g_per_100g"] * factor
         c = macros100["carbs_g_per_100g"] * factor
@@ -1040,6 +1361,9 @@ async def analyze(
                 "carbs_g": round(c, 1),
                 "fat_g": round(f, 1),
             },
+            "micros": micros,
+            "micros_units": micros100.get("_units"),
+
             "usda": {
                 "fdcId": fdc_id,
                 "description": details.get("description"),
@@ -1052,6 +1376,11 @@ async def analyze(
         total_c += c
         total_f += f
 
+        for mk, mv in micros.items():
+            if mk in total_micros:
+                total_micros[mk] += float(mv)
+
+
     # 🔒 coaching is pro+ (we don't block analyze; we just hide coaching fields)
     plan = (usage_row.get("plan") or DEFAULT_PLAN).lower()
     coaching_enabled = plan_at_least(plan, "pro")
@@ -1063,6 +1392,26 @@ async def analyze(
             "protein_g": round(total_p, 1),
             "carbs_g": round(total_c, 1),
             "fat_g": round(total_f, 1),
+        },
+        "micronutrients": {
+            "vitamin_d_ug": round(total_micros["vitamin_d_ug"], 3),
+            "vitamin_b12_ug": round(total_micros["vitamin_b12_ug"], 3),
+            "iron_mg": round(total_micros["iron_mg"], 3),
+            "magnesium_mg": round(total_micros["magnesium_mg"], 3),
+            "calcium_mg": round(total_micros["calcium_mg"], 3),
+            "potassium_mg": round(total_micros["potassium_mg"], 3),
+            "sodium_mg": round(total_micros["sodium_mg"], 3),
+            "fiber_g": round(total_micros["fiber_g"], 3),
+            "_units": {
+                "vitamin_d_ug": "µg",
+                "vitamin_b12_ug": "µg",
+                "iron_mg": "mg",
+                "magnesium_mg": "mg",
+                "calcium_mg": "mg",
+                "potassium_mg": "mg",
+                "sodium_mg": "mg",
+                "fiber_g": "g"
+            }
         },
         "items": results,
         "usage": {
@@ -1085,6 +1434,26 @@ async def analyze(
         # Free/Elite/Advanced see a lock hint
         response["locked"] = {"feature": "coaching", "required_plan": "pro"}
 
+    # ---- DAILY TOTALS (non-blocking) ----
+    try:
+        inc = {
+            "total_kcal": float(total_kcal or 0.0),
+            "protein_g": float(total_p or 0.0),
+            "carbs_g": float(total_c or 0.0),
+            "fat_g": float(total_f or 0.0),
+            "fiber_g": float(total_micros.get("fiber_g") or 0.0),
+            "sodium_mg": float(total_micros.get("sodium_mg") or 0.0),
+            "vitamin_d_ug": float(total_micros.get("vitamin_d_ug") or 0.0),
+            "vitamin_b12_ug": float(total_micros.get("vitamin_b12_ug") or 0.0),
+            "iron_mg": float(total_micros.get("iron_mg") or 0.0),
+            "magnesium_mg": float(total_micros.get("magnesium_mg") or 0.0),
+        }
+        _ = add_to_daily_totals(uid, inc)
+        response["daily"] = build_daily_summary(uid)
+    except Exception as e:
+        logger.warning(f"Daily totals update skipped: {e}")
+
     return response
+
 
 
