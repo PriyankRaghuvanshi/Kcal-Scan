@@ -1,4 +1,4 @@
-// // build: 2026-02-16
+// build: 2026-02-04
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
@@ -743,9 +743,9 @@ async function analyzePhoto() {
               <Text style={styles.p}>
                 Protein {round1(result?.totals?.protein_g)}g • Carbs {round1(result?.totals?.carbs_g)}g • Fat{" "}
                 {round1(result?.totals?.fat_g)}g
-              
+              </Text>
 
-{/* Micronutrients (Free) */}
+              {/* Micronutrients (Free) */}
 {result?.micros ? (
   <View style={{ marginTop: 10 }}>
     <Text style={styles.cardTitle}>Micronutrients</Text>
