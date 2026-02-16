@@ -25,13 +25,10 @@ import { createClient } from "@supabase/supabase-js";
 import "react-native-url-polyfill/auto";
 
 // OAuth helpers (Google)
-import * as WebBrowser from "expo-web-browser";
 import * as AuthSession from "expo-auth-session";
 
 // RevenueCat
 import Purchases from "react-native-purchases";
-
-WebBrowser.maybeCompleteAuthSession();
 
 // ===================== SUBSCRIPTION (App Review 3.1.2) =====================
 const PRIVACY_URL = "https://sites.google.com/view/calorieclickai/privacy-policy";
@@ -185,6 +182,8 @@ export default function App() {
   const [photoUri, setPhotoUri] = useState(null);
   const [result, setResult] = useState(null);
   const [dailySummary, setDailySummary] = useState(null);
+  const [goals, setGoals] = useState(null);
+  const [goalsBusy, setGoalsBusy] = useState(false);
   const [busy, setBusy] = useState(false);
 
   // ===== History (isolated by user id) =====
@@ -229,6 +228,8 @@ export default function App() {
   useEffect(() => {
     if (!userId) return;
     refreshUsage();
+    ensureGoals();
+    fetchDailySummary();
     loadHistory();
   }, [userId]);
 
@@ -431,46 +432,64 @@ export default function App() {
   }
 
   // ===== NEW: Google OAuth =====
-  async function signInWithGoogle() {
+  
+async function signInWithGoogle() {
   try {
+    // Use Supabase OAuth URL + Expo AuthSession (works reliably in TestFlight)
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo: redirectUri },
+      options: { redirectTo: redirectUri, skipBrowserRedirect: true },
     });
     if (error) throw error;
     if (!data?.url) throw new Error("No OAuth URL returned");
 
-    const result = await WebBrowser.openAuthSessionAsync(data.url, redirectUri);
-    if (result.type !== "success" || !result.url) return;
+    const res = await AuthSession.startAsync({
+      authUrl: data.url,
+      returnUrl: redirectUri,
+    });
 
-    const parsed = AuthSession.parseUrl(result.url);
-    const code = parsed?.params?.code;
+    if (res.type !== "success" || !res.url) {
+      // dismissed / cancelled / error
+      if (res.type === "error" && res.params?.error_description) {
+        throw new Error(res.params.error_description);
+      }
+      return;
+    }
 
-    if (code) {
-      const { error: exErr } = await supabase.auth.exchangeCodeForSession(code);
+    // Preferred: PKCE exchange via code
+    let codeParam = null;
+    try {
+      const u = new URL(res.url);
+      codeParam = u.searchParams.get("code");
+    } catch (_) {}
+
+    if (!codeParam) {
+      const m = String(res.url).match(/[?&]code=([^&]+)/);
+      codeParam = m ? decodeURIComponent(m[1]) : null;
+    }
+
+    if (codeParam && typeof supabase.auth.exchangeCodeForSession === "function") {
+      const { error: exErr } = await supabase.auth.exchangeCodeForSession(codeParam);
       if (exErr) throw exErr;
       return;
     }
 
-    const access_token = parsed?.params?.access_token;
-    const refresh_token = parsed?.params?.refresh_token;
-    if (access_token && refresh_token) {
-      const { error: setErr } = await supabase.auth.setSession({ access_token, refresh_token });
-      if (setErr) throw setErr;
+    // Fallback for older/newer SDKs: attempt session extraction from return URL
+    if (typeof supabase.auth.getSessionFromUrl === "function") {
+      const { error: urlErr } = await supabase.auth.getSessionFromUrl({ url: res.url, storeSession: true });
+      if (urlErr) throw urlErr;
+      return;
     }
+
+    throw new Error("Supabase OAuth exchange not supported by this SDK version");
   } catch (e) {
-    Alert.alert("Google login failed", e?.message || "Please try again.");
+    console.log("Google login failed", e);
+    Alert.alert("Google login failed", e?.message || String(e));
   }
 }
 
-  // ===== NEW: Phone OTP =====
-  function normalizePhone(p) {
-    return String(p || "").replace(/\s+/g, "").trim();
-  }
 
-
-  // ===================== CAMERA (PHOTO) =====================
-  async function openCamera() {
+async function openCamera() {
     const { granted } = permission || {};
     if (!granted) {
       const r = await requestPermission();
@@ -513,6 +532,59 @@ export default function App() {
   }
 }
 
+
+  async function fetchGoals() {
+    if (!userId) return null;
+    try {
+      const res = await fetch(`${API_BASE}/goals?user_id=${encodeURIComponent(userId)}`);
+      const j = await safeJson(res);
+      return j?.goals || null;
+    } catch (e) {
+      console.log("fetchGoals failed", e);
+      return null;
+    }
+  }
+
+  async function upsertDefaultGoals() {
+    if (!userId) return null;
+    const defaults = {
+      user_id: userId,
+      kcal: 2000,
+      protein_g: 150,
+      carbs_g: 200,
+      fat_g: 70,
+      fiber_g: 30,
+    };
+    try {
+      const res = await fetch(`${API_BASE}/goals`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(defaults),
+      });
+      const j = await safeJson(res);
+      return j?.goals || defaults;
+    } catch (e) {
+      console.log("upsertDefaultGoals failed", e);
+      return defaults;
+    }
+  }
+
+  async function ensureGoals() {
+    if (!userId) return;
+    setGoalsBusy(true);
+    try {
+      let g = await fetchGoals();
+      // If no goals exist, set sensible defaults so "Remaining today" works out of the box
+      if (!g || !g.kcal || Number(g.kcal) <= 0) {
+        g = await upsertDefaultGoals();
+      }
+      setGoals(g);
+    } finally {
+      setGoalsBusy(false);
+    }
+  }
+
+
 async function analyzePhoto() {
     if (!userId) return;
     if (!photoUri) {
@@ -537,7 +609,9 @@ async function analyzePhoto() {
       });
 
       const data = await safeJson(res);
-      setResult(data);
+      const normalized = { ...data };
+      if (!normalized.micros && normalized?.totals?.micros) normalized.micros = normalized.totals.micros;
+      setResult(normalized);
       fetchDailySummary();
       await refreshUsage();
 
