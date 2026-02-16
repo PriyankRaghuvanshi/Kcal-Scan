@@ -165,7 +165,7 @@ function Meter({ label, value, max = 100, help, locked, lockedText }) {
 export default function App() {
   // ===== Auth (Supabase) =====
   const [session, setSession] = useState(null);
-  const redirectUri = AuthSession.makeRedirectUri({ scheme: \"calorieclickai\", path: \"auth-callback\" });
+  const redirectUri = AuthSession.makeRedirectUri({ scheme: "calorieclickai", path: "auth-callback" });
   const [authEmail, setAuthEmail] = useState("");
   const [authPass, setAuthPass] = useState("");
   const [authBusy, setAuthBusy] = useState(false);
