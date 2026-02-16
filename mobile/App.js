@@ -96,6 +96,23 @@ function round1(x) {
   const n = Number(x);
   return Number.isFinite(n) ? Math.round(n * 10) / 10 : 0;
 }
+
+function extractQueryParam(url, key) {
+  try {
+    const qIndex = url.indexOf("?");
+    if (qIndex === -1) return null;
+    const query = url.slice(qIndex + 1);
+    const parts = query.split("&");
+    for (const part of parts) {
+      const [k, v] = part.split("=");
+      if (decodeURIComponent(k || "") === key) return decodeURIComponent(v || "");
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 function planAtLeast(current, required) {
   const c = (current || "free").toLowerCase();
   const r = (required || "free").toLowerCase();
@@ -532,6 +549,29 @@ async function openCamera() {
   }
 }
 
+async function upsertGoals(nextGoals) {
+  const uid = userId || session?.user?.id;
+  if (!uid) return;
+  try {
+    const payload = {
+      kcal: Number(nextGoals.kcal) || 0,
+      protein_g: Number(nextGoals.protein_g) || 0,
+      carbs_g: Number(nextGoals.carbs_g) || 0,
+      fat_g: Number(nextGoals.fat_g) || 0,
+      fiber_g: Number(nextGoals.fiber_g) || 0,
+    };
+    const res = await apiPost(`/goals?user_id=${encodeURIComponent(uid)}`, payload);
+    const g = res?.goals || payload;
+    setGoals(g);
+    setGoalsDraft(g);
+    setGoalsModal(false);
+    await fetchDailySummary(uid);
+  } catch (e) {
+    Alert.alert("Goals update failed", e?.message || String(e));
+  }
+}
+
+
 
   async function fetchGoals() {
     if (!userId) return null;
@@ -783,6 +823,14 @@ async function analyzePhoto() {
             </TouchableOpacity>
           </View>
           <Text style={styles.tiny}>Restore does NOT refill scans (only syncs your plan).</Text>
+          <View style={{ marginTop: 12, flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+            <Text style={styles.tiny}>
+              Goals: {Math.round(goals?.kcal || 0)} kcal • P {round1(goals?.protein_g || 0)}g • C {round1(goals?.carbs_g || 0)}g • F {round1(goals?.fat_g || 0)}g
+            </Text>
+            <TouchableOpacity style={styles.smallBtn} onPress={() => { setGoalsDraft(goals || DEFAULT_GOALS); setGoalsModal(true); }}>
+              <Text style={styles.smallBtnText}>Edit</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         <View style={styles.card}>
@@ -824,8 +872,8 @@ async function analyzePhoto() {
   <View style={{ marginTop: 10 }}>
     <Text style={styles.cardTitle}>Micronutrients</Text>
     <Text style={styles.p}>
-      Fiber {round1(result.micros.fiber_g)}g • Vit D {round1(result.micros.vitamin_d_mcg)}µg • B12{" "}
-      {round1(result.micros.vitamin_b12_mcg)}µg
+      Fiber {round1(result.micros.fiber_g ?? result.micros.fiber)}g • Vit D {round1(result.micros.vitamin_d_ug ?? result.micros.vitamin_d_mcg)}µg • B12{" "}
+      {round1(result.micros.vitamin_b12_ug ?? result.micros.vitamin_b12_mcg)}µg
     </Text>
     <Text style={styles.p}>
       Iron {round1(result.micros.iron_mg)}mg • Magnesium {round1(result.micros.magnesium_mg)}mg
@@ -1095,7 +1143,78 @@ async function analyzePhoto() {
         </View>
 
         <View style={{ height: 30 }} />
-      </ScrollView>
+      
+        <Modal visible={goalsModal} transparent animationType="fade" onRequestClose={() => setGoalsModal(false)}>
+          <View style={styles.modalBackdrop}>
+            <View style={styles.modalCard}>
+              <Text style={styles.cardTitle}>Daily goals</Text>
+              <Text style={styles.tiny}>Set targets so “Remaining today” becomes meaningful.</Text>
+
+              <View style={{ marginTop: 12 }}>
+                <Text style={styles.label}>Calories (kcal)</Text>
+                <TextInput
+                  style={styles.input}
+                  keyboardType="numeric"
+                  value={String(goalsDraft?.kcal ?? "")}
+                  onChangeText={(v) => setGoalsDraft((g) => ({ ...g, kcal: v }))}
+                  placeholder="e.g., 2200"
+                  placeholderTextColor="#666"
+                />
+
+                <Text style={styles.label}>Protein (g)</Text>
+                <TextInput
+                  style={styles.input}
+                  keyboardType="numeric"
+                  value={String(goalsDraft?.protein_g ?? "")}
+                  onChangeText={(v) => setGoalsDraft((g) => ({ ...g, protein_g: v }))}
+                  placeholder="e.g., 160"
+                  placeholderTextColor="#666"
+                />
+
+                <Text style={styles.label}>Carbs (g)</Text>
+                <TextInput
+                  style={styles.input}
+                  keyboardType="numeric"
+                  value={String(goalsDraft?.carbs_g ?? "")}
+                  onChangeText={(v) => setGoalsDraft((g) => ({ ...g, carbs_g: v }))}
+                  placeholder="e.g., 220"
+                  placeholderTextColor="#666"
+                />
+
+                <Text style={styles.label}>Fat (g)</Text>
+                <TextInput
+                  style={styles.input}
+                  keyboardType="numeric"
+                  value={String(goalsDraft?.fat_g ?? "")}
+                  onChangeText={(v) => setGoalsDraft((g) => ({ ...g, fat_g: v }))}
+                  placeholder="e.g., 70"
+                  placeholderTextColor="#666"
+                />
+
+                <Text style={styles.label}>Fiber (g)</Text>
+                <TextInput
+                  style={styles.input}
+                  keyboardType="numeric"
+                  value={String(goalsDraft?.fiber_g ?? "")}
+                  onChangeText={(v) => setGoalsDraft((g) => ({ ...g, fiber_g: v }))}
+                  placeholder="e.g., 30"
+                  placeholderTextColor="#666"
+                />
+              </View>
+
+              <View style={{ flexDirection: "row", gap: 10, marginTop: 14 }}>
+                <TouchableOpacity style={[styles.btn, { flex: 1, backgroundColor: "#2c2c2c" }]} onPress={() => setGoalsModal(false)}>
+                  <Text style={styles.btnText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.btn, { flex: 1 }]} onPress={() => upsertGoals(goalsDraft)}>
+                  <Text style={styles.btnText}>Save</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+
+</ScrollView>
 
       {/* CAMERA MODAL */}
       <Modal visible={camOpen} animationType="slide">
