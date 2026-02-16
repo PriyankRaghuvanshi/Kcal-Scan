@@ -1,4 +1,4 @@
-\// build: 2026-02-04
+// build: 2026-02-04
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
@@ -91,6 +91,13 @@ const OAUTH_REDIRECT_TO = process.env.EXPO_PUBLIC_OAUTH_REDIRECT_TO || "";
 
 // barcode scan cooldown (avoid duplicate reads)
 const BARCODE_COOLDOWN_MS = 1400;
+const DEFAULT_GOALS = {
+  kcal: 2000,
+  protein_g: 150,
+  carbs_g: 200,
+  fat_g: 70,
+  fiber_g: 30,
+};
 
 // ===================== HELPERS =====================
 function num(x) {
@@ -117,6 +124,41 @@ function extractQueryParam(url, key) {
     return null;
   }
 }
+function extractHashParam(url, key) {
+  try {
+    const hashIndex = url.indexOf("#");
+    if (hashIndex === -1) return null;
+    const hash = url.slice(hashIndex + 1);
+    const parts = hash.split("&");
+    for (const part of parts) {
+      const [k, v] = part.split("=");
+      if (decodeURIComponent(k || "") === key) return decodeURIComponent(v || "");
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+function normalizeMicros(raw) {
+  if (!raw || typeof raw !== "object") return null;
+  const hasAny =
+    raw.fiber_g != null ||
+    raw.fiber != null ||
+    raw.vitamin_d_ug != null ||
+    raw.vitamin_d_mcg != null ||
+    raw.vitamin_b12_ug != null ||
+    raw.vitamin_b12_mcg != null ||
+    raw.iron_mg != null ||
+    raw.magnesium_mg != null;
+  if (!hasAny) return null;
+  return {
+    fiber_g: num(raw.fiber_g ?? raw.fiber),
+    vitamin_d_ug: num(raw.vitamin_d_ug ?? raw.vitamin_d_mcg),
+    vitamin_b12_ug: num(raw.vitamin_b12_ug ?? raw.vitamin_b12_mcg),
+    iron_mg: num(raw.iron_mg),
+    magnesium_mg: num(raw.magnesium_mg),
+  };
+}
 
 function planAtLeast(current, required) {
   const c = (current || "free").toLowerCase();
@@ -132,12 +174,30 @@ function pickHighestEntitlement(active) {
 }
 async function safeJson(res) {
   const t = await res.text();
-  try {
-    return JSON.parse(t);
-  } catch (e) {
-    // Common case: backend returned HTML/text; surface the first part.
-    throw new Error(t?.slice(0, 220) || "Non-JSON response");
+  if (!t) {
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return {};
   }
+
+  let parsed = null;
+  try {
+    parsed = JSON.parse(t);
+  } catch {
+    const fallback = t?.slice(0, 220) || "Non-JSON response";
+    if (!res.ok) throw new Error(`HTTP ${res.status}: ${fallback}`);
+    throw new Error(fallback);
+  }
+
+  if (!res.ok) {
+    const msg =
+      parsed?.error ||
+      parsed?.message ||
+      parsed?.detail ||
+      parsed?.msg ||
+      `HTTP ${res.status}`;
+    throw new Error(String(msg));
+  }
+  return parsed;
 }
 async function apiGetUsage(userId) {
   const res = await fetch(`${API_BASE}/usage?user_id=${encodeURIComponent(userId)}`, {
@@ -150,6 +210,14 @@ async function apiPlanSync(userId, entitlement, mode) {
     method: "POST",
     headers: { "Content-Type": "application/json", accept: "application/json" },
     body: JSON.stringify({ entitlement, mode }),
+  });
+  return await safeJson(res);
+}
+async function apiPost(path, payload) {
+  const res = await fetch(`${API_BASE}${path}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", accept: "application/json" },
+    body: JSON.stringify(payload || {}),
   });
   return await safeJson(res);
 }
@@ -205,6 +273,8 @@ export default function App() {
   const [result, setResult] = useState(null);
   const [dailySummary, setDailySummary] = useState(null);
   const [goals, setGoals] = useState(null);
+  const [goalsDraft, setGoalsDraft] = useState(DEFAULT_GOALS);
+  const [goalsModal, setGoalsModal] = useState(false);
   const [goalsBusy, setGoalsBusy] = useState(false);
   const [busy, setBusy] = useState(false);
 
@@ -231,15 +301,61 @@ export default function App() {
   // ===== Derived gating =====
   const canBarcode = planAtLeast(plan, "elite");
   const canCoaching = planAtLeast(plan, "pro");
+  const remainingToday = useMemo(() => {
+    const g = goals || DEFAULT_GOALS;
+    const apiRemaining = dailySummary?.remaining;
+    if (apiRemaining && typeof apiRemaining === "object") {
+      return {
+        kcal: round1(Math.max(0, num(apiRemaining.kcal))),
+        protein_g: round1(Math.max(0, num(apiRemaining.protein_g))),
+        carbs_g: round1(Math.max(0, num(apiRemaining.carbs_g))),
+        fat_g: round1(Math.max(0, num(apiRemaining.fat_g))),
+        fiber_g: round1(Math.max(0, num(apiRemaining.fiber_g))),
+      };
+    }
+
+    const totals = dailySummary?.totals || {};
+    const consumed = {
+      kcal: num(dailySummary?.total_kcal ?? totals?.kcal ?? totals?.total_kcal),
+      protein_g: num(totals?.protein_g),
+      carbs_g: num(totals?.carbs_g),
+      fat_g: num(totals?.fat_g),
+      fiber_g: num(totals?.fiber_g ?? totals?.micros?.fiber_g ?? totals?.micros?.fiber),
+    };
+
+    return {
+      kcal: round1(Math.max(0, num(g.kcal) - consumed.kcal)),
+      protein_g: round1(Math.max(0, num(g.protein_g) - consumed.protein_g)),
+      carbs_g: round1(Math.max(0, num(g.carbs_g) - consumed.carbs_g)),
+      fat_g: round1(Math.max(0, num(g.fat_g) - consumed.fat_g)),
+      fiber_g: round1(Math.max(0, num(g.fiber_g) - consumed.fiber_g)),
+    };
+  }, [dailySummary, goals]);
 
   // ===================== INIT =====================
   useEffect(() => {
+    let cancelled = false;
+    let unsub = null;
+
     (async () => {
       if (!HAS_SUPABASE) return;
-      const { data } = await supabase.auth.getSession();
-      setSession(data?.session || null);
-      supabase.auth.onAuthStateChange((_event, sess) => setSession(sess || null));
+      try {
+        const { data } = await supabase.auth.getSession();
+        if (!cancelled) setSession(data?.session || null);
+      } catch (e) {
+        console.log("getSession failed", String(e));
+      }
+
+      const { data } = supabase.auth.onAuthStateChange((_event, sess) => {
+        if (!cancelled) setSession(sess || null);
+      });
+      unsub = data?.subscription?.unsubscribe || null;
     })();
+
+    return () => {
+      cancelled = true;
+      if (typeof unsub === "function") unsub();
+    };
   }, []);
 
   useEffect(() => {
@@ -454,44 +570,66 @@ export default function App() {
   }
 
   // ===== NEW: Google OAuth =====
-  
-async function signInWithGoogle() {
-  try {
-    // 1) Ask Supabase for the OAuth URL (PKCE)
-    const { data, error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo: redirectUri,
-        // Important for native apps: don't auto-redirect in JS
-        skipBrowserRedirect: true,
-      },
-    });
-    if (error) throw error;
-    if (!data?.url) throw new Error("No OAuth URL returned");
-
-    // 2) Open the OAuth session in a browser tab and wait for the deep-link redirect back
-    const result = await WebBrowser.openAuthSessionAsync(data.url, redirectUri);
-    if (result.type !== "success" || !result.url) {
-      // cancelled/dismissed
+  async function signInWithGoogle() {
+    if (!HAS_SUPABASE) {
+      Alert.alert("Missing Supabase env", "Set EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY");
       return;
     }
 
-    // 3) Extract the "code" from the returned URL, then exchange for a Supabase session
-    const u = new URL(result.url);
-    const codeParam = u.searchParams.get("code");
-    if (!codeParam) throw new Error("No auth code returned");
+    setAuthBusy(true);
+    try {
+      if (typeof supabase?.auth?.signInWithOAuth !== "function") {
+        throw new Error("Google OAuth is unavailable in this app build.");
+      }
+      if (typeof WebBrowser.openAuthSessionAsync !== "function") {
+        throw new Error("Auth browser helper is unavailable.");
+      }
 
-    const { data: sessionData, error: exchErr } = await supabase.auth.exchangeCodeForSession(codeParam);
-    if (exchErr) throw exchErr;
+      const redirectTo = OAUTH_REDIRECT_TO?.trim() || redirectUri;
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo,
+          skipBrowserRedirect: true,
+        },
+      });
+      if (error) throw error;
+      if (!data?.url) throw new Error("No OAuth URL returned");
 
-    if (!sessionData?.session) {
-      throw new Error("No session returned");
+      const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
+      if (result.type !== "success" || !result.url) return;
+
+      const callbackUrl = result.url;
+      const codeParam = extractQueryParam(callbackUrl, "code");
+      if (codeParam && typeof supabase.auth.exchangeCodeForSession === "function") {
+        const { data: sessionData, error: exchErr } = await supabase.auth.exchangeCodeForSession(codeParam);
+        if (exchErr) throw exchErr;
+        if (!sessionData?.session) throw new Error("No session returned");
+        return;
+      }
+
+      const accessToken =
+        extractQueryParam(callbackUrl, "access_token") || extractHashParam(callbackUrl, "access_token");
+      const refreshToken =
+        extractQueryParam(callbackUrl, "refresh_token") || extractHashParam(callbackUrl, "refresh_token");
+      if (accessToken && refreshToken && typeof supabase.auth.setSession === "function") {
+        const { data: setData, error: setErr } = await supabase.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken,
+        });
+        if (setErr) throw setErr;
+        if (!setData?.session) throw new Error("No session returned");
+        return;
+      }
+
+      throw new Error("Google callback did not include a valid auth session.");
+    } catch (e) {
+      console.log("Google login error:", e);
+      Alert.alert("Google login failed", String(e?.message || e));
+    } finally {
+      setAuthBusy(false);
     }
-  } catch (e) {
-    console.log("Google login error:", e);
-    Alert.alert("Google login failed", String(e?.message || e));
   }
-}
 
 
 async function openCamera() {
@@ -520,44 +658,41 @@ async function openCamera() {
 
   // ===================== ANALYZE =====================
   async function fetchDailySummary(forceUserId) {
-  try {
-    const uid = forceUserId || session?.user?.id;
-    if (!uid) return;
-    const url = `${API_BASE}/daily/summary?user_id=${encodeURIComponent(uid)}`;
-    const res = await fetch(url, { method: "GET", headers: { accept: "application/json" } });
-    if (!res.ok) {
+    try {
+      const uid = forceUserId || session?.user?.id;
+      if (!uid) return;
+      const url = `${API_BASE}/daily/summary?user_id=${encodeURIComponent(uid)}`;
+      const res = await fetch(url, { method: "GET", headers: { accept: "application/json" } });
+      const data = await safeJson(res);
+      const micros = normalizeMicros(data?.micros || data?.totals?.micros);
+      setDailySummary({ ...data, micros });
+    } catch (e) {
       setDailySummary(null);
-      return;
     }
-    const data = await res.json();
-      if (!data.micros && data?.totals?.micros) data.micros = data.totals.micros;
-    setDailySummary(data);
-  } catch (e) {
-    setDailySummary(null);
   }
-}
 
-async function upsertGoals(nextGoals) {
-  const uid = userId || session?.user?.id;
-  if (!uid) return;
-  try {
-    const payload = {
-      kcal: Number(nextGoals.kcal) || 0,
-      protein_g: Number(nextGoals.protein_g) || 0,
-      carbs_g: Number(nextGoals.carbs_g) || 0,
-      fat_g: Number(nextGoals.fat_g) || 0,
-      fiber_g: Number(nextGoals.fiber_g) || 0,
-    };
-    const res = await apiPost(`/goals?user_id=${encodeURIComponent(uid)}`, payload);
-    const g = res?.goals || payload;
-    setGoals(g);
-    setGoalsDraft(g);
-    setGoalsModal(false);
-    await fetchDailySummary(uid);
-  } catch (e) {
-    Alert.alert("Goals update failed", e?.message || String(e));
+  async function upsertGoals(nextGoals) {
+    const uid = userId || session?.user?.id;
+    if (!uid) return;
+    const source = nextGoals || DEFAULT_GOALS;
+    try {
+      const payload = {
+        kcal: Number(source.kcal) || 0,
+        protein_g: Number(source.protein_g) || 0,
+        carbs_g: Number(source.carbs_g) || 0,
+        fat_g: Number(source.fat_g) || 0,
+        fiber_g: Number(source.fiber_g) || 0,
+      };
+      const res = await apiPost(`/goals?user_id=${encodeURIComponent(uid)}`, payload);
+      const g = res?.goals || payload;
+      setGoals(g);
+      setGoalsDraft(g);
+      setGoalsModal(false);
+      await fetchDailySummary(uid);
+    } catch (e) {
+      Alert.alert("Goals update failed", e?.message || String(e));
+    }
   }
-}
 
 
 
@@ -577,11 +712,7 @@ async function upsertGoals(nextGoals) {
     if (!userId) return null;
     const defaults = {
       user_id: userId,
-      kcal: 2000,
-      protein_g: 150,
-      carbs_g: 200,
-      fat_g: 70,
-      fiber_g: 30,
+      ...DEFAULT_GOALS,
     };
     try {
       const res = await fetch(`${API_BASE}/goals`, {
@@ -607,6 +738,7 @@ async function upsertGoals(nextGoals) {
         g = await upsertDefaultGoals();
       }
       setGoals(g);
+      setGoalsDraft(g || DEFAULT_GOALS);
     } finally {
       setGoalsBusy(false);
     }
@@ -637,8 +769,10 @@ async function analyzePhoto() {
       });
 
       const data = await safeJson(res);
-      const normalized = { ...data };
-      if (!normalized.micros && normalized?.totals?.micros) normalized.micros = normalized.totals.micros;
+      const normalized = {
+        ...data,
+        micros: normalizeMicros(data?.micros || data?.totals?.micros),
+      };
       setResult(normalized);
       fetchDailySummary();
       await refreshUsage();
@@ -819,6 +953,12 @@ async function analyzePhoto() {
               <Text style={styles.smallBtnText}>Edit</Text>
             </TouchableOpacity>
           </View>
+          <View style={{ marginTop: 8 }}>
+            <Text style={styles.p}>Protein left today: {round1(remainingToday.protein_g)}g</Text>
+            <Text style={styles.tiny}>
+              Remaining: {round1(remainingToday.kcal)} kcal • C {round1(remainingToday.carbs_g)}g • F {round1(remainingToday.fat_g)}g • Fiber {round1(remainingToday.fiber_g)}g
+            </Text>
+          </View>
         </View>
 
         <View style={styles.card}>
@@ -866,20 +1006,6 @@ async function analyzePhoto() {
     <Text style={styles.p}>
       Iron {round1(result.micros.iron_mg)}mg • Magnesium {round1(result.micros.magnesium_mg)}mg
     </Text>
-  </View>
-) : null}
-
-{/* Remaining today */}
-{dailySummary?.remaining ? (
-  <View style={{ marginTop: 12 }}>
-    <Text style={styles.cardTitle}>Remaining today</Text>
-    <Text style={styles.p}>
-      {round1(dailySummary.remaining.kcal)} kcal • Protein {round1(dailySummary.remaining.protein_g)}g • Carbs{" "}
-      {round1(dailySummary.remaining.carbs_g)}g • Fat {round1(dailySummary.remaining.fat_g)}g
-    </Text>
-    {dailySummary?.remaining?.fiber_g != null ? (
-      <Text style={styles.tiny}>Fiber left: {round1(dailySummary.remaining.fiber_g)}g</Text>
-    ) : null}
   </View>
 ) : null}
 
@@ -1303,7 +1429,16 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     alignItems: "center",
   },
+  btn: {
+    backgroundColor: "#2563eb",
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   btnText: { color: "#fff", fontWeight: "800" },
+  label: { color: "#d7d7d7", marginTop: 8, fontSize: 13, fontWeight: "700" },
 
   // NEW: Google button
   googleBtn: {
@@ -1405,10 +1540,27 @@ const styles = StyleSheet.create({
   histTitle: { color: "#fff", fontWeight: "800" },
 
   modalSafe: { flex: 1, backgroundColor: "#000" },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.62)",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 16,
+  },
+  modalCard: {
+    width: "100%",
+    maxWidth: 460,
+    backgroundColor: "#0d0d0d",
+    borderWidth: 1,
+    borderColor: "#262626",
+    borderRadius: 18,
+    padding: 14,
+  },
   modalTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 12 },
   modalTitle: { color: "#fff", fontWeight: "900", fontSize: 16 },
   camera: { flex: 1 },
   modalBottom: { padding: 12, paddingBottom: 48, backgroundColor: "#000" },
+  captureBtn: { minWidth: 140, alignSelf: "center" },
 
   link: {
     color: "#4da3ff",
