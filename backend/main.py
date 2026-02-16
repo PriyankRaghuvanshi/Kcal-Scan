@@ -2,6 +2,7 @@ import io
 import os
 import json
 import time
+import re
 import logging
 import datetime as dt
 from typing import Any, Dict, Optional, List
@@ -178,7 +179,107 @@ def sb_patch(table: str, match: Dict[str, str], patch: Dict[str, Any]) -> None:
 
 
 # -------------------- GOALS / DAILY TOTALS --------------------
-def get_user_goals(user_id: str) -> Dict[str, Any]:
+GOAL_KEY_ALIASES = {
+    "kcal": ("kcal", "kcal_goal"),
+    "protein_g": ("protein_g", "protein_goal_g"),
+    "carbs_g": ("carbs_g", "carbs_goal_g"),
+    "fat_g": ("fat_g", "fat_goal_g"),
+    "fiber_g": ("fiber_g", "fiber_goal_g"),
+    "vitamin_d_ug": ("vitamin_d_ug", "vitamin_d_goal_ug"),
+    "vitamin_b12_ug": ("vitamin_b12_ug", "vitamin_b12_goal_ug"),
+    "iron_mg": ("iron_mg", "iron_goal_mg"),
+    "magnesium_mg": ("magnesium_mg", "magnesium_goal_mg"),
+}
+GOAL_STORAGE_MODERN = {
+    "kcal_goal": ("kcal_goal", "kcal"),
+    "protein_goal_g": ("protein_goal_g", "protein_g"),
+    "carbs_goal_g": ("carbs_goal_g", "carbs_g"),
+    "fat_goal_g": ("fat_goal_g", "fat_g"),
+    "fiber_goal_g": ("fiber_goal_g", "fiber_g"),
+    "vitamin_d_goal_ug": ("vitamin_d_goal_ug", "vitamin_d_ug"),
+    "vitamin_b12_goal_ug": ("vitamin_b12_goal_ug", "vitamin_b12_ug"),
+    "iron_goal_mg": ("iron_goal_mg", "iron_mg"),
+    "magnesium_goal_mg": ("magnesium_goal_mg", "magnesium_mg"),
+}
+GOAL_STORAGE_LEGACY = {
+    "kcal": ("kcal", "kcal_goal"),
+    "protein_g": ("protein_g", "protein_goal_g"),
+    "carbs_g": ("carbs_g", "carbs_goal_g"),
+    "fat_g": ("fat_g", "fat_goal_g"),
+    "fiber_g": ("fiber_g", "fiber_goal_g"),
+    "vitamin_d_ug": ("vitamin_d_ug", "vitamin_d_goal_ug"),
+    "vitamin_b12_ug": ("vitamin_b12_ug", "vitamin_b12_goal_ug"),
+    "iron_mg": ("iron_mg", "iron_goal_mg"),
+    "magnesium_mg": ("magnesium_mg", "magnesium_goal_mg"),
+}
+
+
+def _first_present_float(src: Dict[str, Any], keys: tuple) -> Optional[float]:
+    for k in keys:
+        if k in src and src.get(k) is not None:
+            v = _safe_float(src.get(k))
+            if v is not None:
+                return v
+    return None
+
+
+def _normalize_goals_record(user_id: str, row: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    src = row or {}
+    out: Dict[str, Any] = {
+        "user_id": src.get("user_id") or user_id,
+        "updated_at": src.get("updated_at"),
+    }
+    for canonical, aliases in GOAL_KEY_ALIASES.items():
+        val = _first_present_float(src, aliases)
+        out[canonical] = val
+
+    # Backward compatibility for older clients expecting *_goal fields.
+    out["kcal_goal"] = out.get("kcal")
+    out["protein_goal_g"] = out.get("protein_g")
+    out["carbs_goal_g"] = out.get("carbs_g")
+    out["fat_goal_g"] = out.get("fat_g")
+    out["fiber_goal_g"] = out.get("fiber_g")
+    out["vitamin_d_goal_ug"] = out.get("vitamin_d_ug")
+    out["vitamin_b12_goal_ug"] = out.get("vitamin_b12_ug")
+    out["iron_goal_mg"] = out.get("iron_mg")
+    out["magnesium_goal_mg"] = out.get("magnesium_mg")
+    return out
+
+
+def _goal_payload_for_storage(user_id: str, goals: Dict[str, Any], mapping: Dict[str, tuple]) -> Dict[str, Any]:
+    clean: Dict[str, Any] = {"user_id": user_id, "updated_at": dt.datetime.utcnow().isoformat()}
+    src = goals or {}
+    for target, aliases in mapping.items():
+        v = _first_present_float(src, aliases)
+        if v is not None:
+            clean[target] = v
+    return clean
+
+
+def _sb_upsert_with_column_fallback(table: str, row: Dict[str, Any], on_conflict: str) -> Dict[str, Any]:
+    """
+    Tries upsert and drops unknown columns if schema differs across deploys.
+    """
+    payload = dict(row or {})
+    max_attempts = max(1, len(payload))
+    for _ in range(max_attempts):
+        try:
+            return sb_upsert(table, payload, on_conflict=on_conflict)
+        except HTTPException as e:
+            detail = e.detail if isinstance(e.detail, dict) else {"raw": str(e.detail)}
+            raw = str(detail.get("raw") or "")
+            m = re.search(r'column "([^"]+)"', raw)
+            if m:
+                bad_col = m.group(1)
+                if bad_col in payload and bad_col not in ("user_id",):
+                    logger.warning(f"Dropping unknown column during upsert: {bad_col}")
+                    payload.pop(bad_col, None)
+                    continue
+            raise
+    return payload
+
+
+def get_user_goals_raw(user_id: str) -> Optional[Dict[str, Any]]:
     """
     Reads from user_goals (recommended schema):
       user_id uuid primary key references auth.users(id),
@@ -202,26 +303,40 @@ def get_user_goals(user_id: str) -> Dict[str, Any]:
             "limit": "1",
         },
     )
-    return row or {"user_id": user_id}
+    return row
+
+
+def get_user_goals(user_id: str) -> Dict[str, Any]:
+    return _normalize_goals_record(user_id, get_user_goals_raw(user_id))
+
 
 def upsert_user_goals(user_id: str, goals: Dict[str, Any]) -> Dict[str, Any]:
     _require_supabase()
-    clean = {"user_id": user_id, "updated_at": dt.datetime.utcnow().isoformat()}
-    # allowlist expected keys
-    allow = {
-        "kcal_goal",
-        "protein_goal_g",
-        "carbs_goal_g",
-        "fat_goal_g",
-        "vitamin_d_goal_ug",
-        "vitamin_b12_goal_ug",
-        "iron_goal_mg",
-        "magnesium_goal_mg",
-    }
-    for k in allow:
-        if k in goals and goals[k] is not None:
-            clean[k] = goals[k]
-    return sb_upsert(TBL_USER_GOALS, clean, on_conflict="user_id")
+    incoming = goals or {}
+    existing = get_user_goals_raw(user_id) or {}
+
+    has_legacy_cols = any(k in existing for k in GOAL_STORAGE_LEGACY.keys())
+    write_orders = (
+        (GOAL_STORAGE_LEGACY, GOAL_STORAGE_MODERN)
+        if has_legacy_cols
+        else (GOAL_STORAGE_MODERN, GOAL_STORAGE_LEGACY)
+    )
+
+    last_err: Optional[Exception] = None
+    for mapping in write_orders:
+        clean = _goal_payload_for_storage(user_id, incoming, mapping)
+        if len(clean.keys()) <= 2:
+            continue
+        try:
+            stored = _sb_upsert_with_column_fallback(TBL_USER_GOALS, clean, on_conflict="user_id")
+            return _normalize_goals_record(user_id, stored)
+        except Exception as e:
+            last_err = e
+            continue
+
+    if last_err:
+        raise last_err
+    return get_user_goals(user_id)
 
 def _day_iso(d: Optional[str]) -> str:
     if d:
@@ -323,7 +438,16 @@ def add_to_daily_totals(user_id: str, increments: Dict[str, Any], day: Optional[
     return stored
 
 def build_daily_summary(user_id: str, day: Optional[str] = None) -> Dict[str, Any]:
-    totals = get_daily_totals(user_id, day)
+    totals = dict(get_daily_totals(user_id, day) or {})
+    totals["kcal"] = _safe_float(totals.get("total_kcal"), 0.0) or 0.0
+    totals["micros"] = {
+        "fiber_g": _safe_float(totals.get("fiber_g"), 0.0) or 0.0,
+        "vitamin_d_ug": _safe_float(totals.get("vitamin_d_ug"), 0.0) or 0.0,
+        "vitamin_b12_ug": _safe_float(totals.get("vitamin_b12_ug"), 0.0) or 0.0,
+        "iron_mg": _safe_float(totals.get("iron_mg"), 0.0) or 0.0,
+        "magnesium_mg": _safe_float(totals.get("magnesium_mg"), 0.0) or 0.0,
+        "sodium_mg": _safe_float(totals.get("sodium_mg"), 0.0) or 0.0,
+    }
     goals = get_user_goals(user_id)
 
     def num(x):
@@ -332,23 +456,26 @@ def build_daily_summary(user_id: str, day: Optional[str] = None) -> Dict[str, An
         except Exception:
             return None
 
-    # compute remaining only where goal present
+    # compute remaining where goal exists; expose both legacy and app-friendly key names
     remaining = {}
     mapping = [
-        ("kcal_goal", "total_kcal", "kcal_left"),
-        ("protein_goal_g", "protein_g", "protein_g_left"),
-        ("carbs_goal_g", "carbs_g", "carbs_g_left"),
-        ("fat_goal_g", "fat_g", "fat_g_left"),
-        ("vitamin_d_goal_ug", "vitamin_d_ug", "vitamin_d_ug_left"),
-        ("vitamin_b12_goal_ug", "vitamin_b12_ug", "vitamin_b12_ug_left"),
-        ("iron_goal_mg", "iron_mg", "iron_mg_left"),
-        ("magnesium_goal_mg", "magnesium_mg", "magnesium_mg_left"),
+        ("kcal", "total_kcal", "kcal"),
+        ("protein_g", "protein_g", "protein_g"),
+        ("carbs_g", "carbs_g", "carbs_g"),
+        ("fat_g", "fat_g", "fat_g"),
+        ("fiber_g", "fiber_g", "fiber_g"),
+        ("vitamin_d_ug", "vitamin_d_ug", "vitamin_d_ug"),
+        ("vitamin_b12_ug", "vitamin_b12_ug", "vitamin_b12_ug"),
+        ("iron_mg", "iron_mg", "iron_mg"),
+        ("magnesium_mg", "magnesium_mg", "magnesium_mg"),
     ]
     for gk, tk, outk in mapping:
         g = num(goals.get(gk))
         t = num(totals.get(tk))
         if g is not None and t is not None:
-            remaining[outk] = max(0.0, g - t)
+            left = max(0.0, g - t)
+            remaining[outk] = left
+            remaining[f"{outk}_left"] = left
 
     return {"day": totals.get("day"), "totals": totals, "goals": goals, "remaining": remaining}
 
@@ -579,7 +706,11 @@ def get_user_plan(user_id: str) -> str:
     return (row.get("plan") or DEFAULT_PLAN).lower()
 
 def require_user_id(x_user_id: Optional[str], user_id: Optional[str]) -> str:
-    uid = (x_user_id or user_id or "").strip()
+    h = (x_user_id or "").strip()
+    q = (user_id or "").strip()
+    if h and q and h != q:
+        raise HTTPException(status_code=401, detail="Conflicting user ids in header and query.")
+    uid = h or q
     if not uid:
         raise HTTPException(status_code=401, detail="Missing user id. Pass X-User-Id header or ?user_id=...")
     return uid
@@ -640,7 +771,7 @@ def get_goals(
     x_user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
 ):
     uid = require_user_id(x_user_id, user_id)
-    return get_user_goals(uid)
+    return {"ok": True, "goals": get_user_goals(uid)}
 
 @app.post("/goals")
 def set_goals(
@@ -688,8 +819,7 @@ def _is_html(text: str) -> bool:
     return t.startswith("<!doctype") or t.startswith("<html") or "<html" in t[:200]
 
 # -------------------- USDA --------------------
-def usda_search_best(query: str) -> Optional[Dict[str, Any]]:
-
+def usda_search_candidates(query: str) -> List[Dict[str, Any]]:
     _require_usda_key()
     payload = {
         "query": query,
@@ -713,11 +843,13 @@ def usda_search_best(query: str) -> Optional[Dict[str, Any]]:
         )
 
     foods = (r.json() or {}).get("foods", []) or []
-    if not foods:
-        return None
-
     non_branded = [f for f in foods if f.get("dataType") != "Branded"]
-    return non_branded[0] if non_branded else foods[0]
+    return non_branded + [f for f in foods if f.get("dataType") == "Branded"]
+
+
+def usda_search_best(query: str) -> Optional[Dict[str, Any]]:
+    candidates = usda_search_candidates(query)
+    return candidates[0] if candidates else None
 
 def usda_food_details(fdc_id: int) -> Dict[str, Any]:
 
@@ -1319,20 +1451,54 @@ async def analyze(
         "sodium_mg": 0.0,
         "fiber_g": 0.0,
     }
+    item_warnings: List[Dict[str, Any]] = []
 
     for d in detected_items:
         name = d["name"]
         grams = float(d["grams"])
         conf = float(d.get("confidence", 0))
 
-        best = usda_search_best(name)
-        if not best:
-            raise HTTPException(status_code=404, detail=f"No USDA match for '{name}'")
+        candidates = usda_search_candidates(name)
+        details = None
+        macros100 = None
+        micros100 = None
+        fdc_id = None
+        last_item_err = None
+        for cand in candidates[:6]:
+            try:
+                fdc_id = int(cand["fdcId"])
+                maybe_details = usda_food_details(fdc_id)
+                maybe_macros = extract_macros_per_100g(maybe_details)
+                maybe_micros = extract_micros_per_100g(maybe_details)
+                details = maybe_details
+                macros100 = maybe_macros
+                micros100 = maybe_micros
+                break
+            except Exception as e:
+                last_item_err = str(getattr(e, "detail", e))
+                continue
 
-        fdc_id = int(best["fdcId"])
-        details = usda_food_details(fdc_id)
-        macros100 = extract_macros_per_100g(details)
-        micros100 = extract_micros_per_100g(details)
+        if not details or not macros100:
+            item_warnings.append(
+                {
+                    "name": name,
+                    "warning": "nutrition_lookup_failed",
+                    "detail": (last_item_err or "No usable USDA match found")[:220],
+                }
+            )
+            results.append(
+                {
+                    "name": name,
+                    "grams": round(grams, 1),
+                    "confidence": round(conf, 2),
+                    "kcal": 0.0,
+                    "macros": {"protein_g": 0.0, "carbs_g": 0.0, "fat_g": 0.0},
+                    "micros": {},
+                    "micros_units": None,
+                    "unverified": True,
+                }
+            )
+            continue
 
         factor = grams / 100.0
         kcal = macros100["kcal_per_100g"] * factor
@@ -1345,11 +1511,6 @@ async def analyze(
             if k == "_units":
                 continue
             micros[k] = round(float(v) * factor, 3)
-
-        kcal = macros100["kcal_per_100g"] * factor
-        p = macros100["protein_g_per_100g"] * factor
-        c = macros100["carbs_g_per_100g"] * factor
-        f = macros100["fat_g_per_100g"] * factor
 
         results.append({
             "name": name,
@@ -1366,8 +1527,8 @@ async def analyze(
 
             "usda": {
                 "fdcId": fdc_id,
-                "description": details.get("description"),
-                "dataType": details.get("dataType"),
+                "description": (details or {}).get("description"),
+                "dataType": (details or {}).get("dataType"),
             }
         })
 
@@ -1385,34 +1546,40 @@ async def analyze(
     plan = (usage_row.get("plan") or DEFAULT_PLAN).lower()
     coaching_enabled = plan_at_least(plan, "pro")
 
+    micros_payload = {
+        "vitamin_d_ug": round(total_micros["vitamin_d_ug"], 3),
+        "vitamin_b12_ug": round(total_micros["vitamin_b12_ug"], 3),
+        "iron_mg": round(total_micros["iron_mg"], 3),
+        "magnesium_mg": round(total_micros["magnesium_mg"], 3),
+        "calcium_mg": round(total_micros["calcium_mg"], 3),
+        "potassium_mg": round(total_micros["potassium_mg"], 3),
+        "sodium_mg": round(total_micros["sodium_mg"], 3),
+        "fiber_g": round(total_micros["fiber_g"], 3),
+        "_units": {
+            "vitamin_d_ug": "µg",
+            "vitamin_b12_ug": "µg",
+            "iron_mg": "mg",
+            "magnesium_mg": "mg",
+            "calcium_mg": "mg",
+            "potassium_mg": "mg",
+            "sodium_mg": "mg",
+            "fiber_g": "g",
+        },
+    }
+
     response = {
         "source": "photo",
         "total_kcal": round(total_kcal, 1),
         "totals": {
+            "kcal": round(total_kcal, 1),
+            "total_kcal": round(total_kcal, 1),
             "protein_g": round(total_p, 1),
             "carbs_g": round(total_c, 1),
             "fat_g": round(total_f, 1),
+            "micros": micros_payload,
         },
-        "micronutrients": {
-            "vitamin_d_ug": round(total_micros["vitamin_d_ug"], 3),
-            "vitamin_b12_ug": round(total_micros["vitamin_b12_ug"], 3),
-            "iron_mg": round(total_micros["iron_mg"], 3),
-            "magnesium_mg": round(total_micros["magnesium_mg"], 3),
-            "calcium_mg": round(total_micros["calcium_mg"], 3),
-            "potassium_mg": round(total_micros["potassium_mg"], 3),
-            "sodium_mg": round(total_micros["sodium_mg"], 3),
-            "fiber_g": round(total_micros["fiber_g"], 3),
-            "_units": {
-                "vitamin_d_ug": "µg",
-                "vitamin_b12_ug": "µg",
-                "iron_mg": "mg",
-                "magnesium_mg": "mg",
-                "calcium_mg": "mg",
-                "potassium_mg": "mg",
-                "sodium_mg": "mg",
-                "fiber_g": "g"
-            }
-        },
+        "micros": micros_payload,
+        "micronutrients": micros_payload,
         "items": results,
         "usage": {
             "plan": usage_row.get("plan"),
@@ -1420,6 +1587,8 @@ async def analyze(
             "remaining_month": int(usage_row.get("remaining_month") or 0),
         },
     }
+    if item_warnings:
+        response["warnings"] = item_warnings[:8]
 
     if coaching_enabled:
         # Pro/Infinite get full coaching insights
@@ -1454,6 +1623,4 @@ async def analyze(
         logger.warning(f"Daily totals update skipped: {e}")
 
     return response
-
-
 
