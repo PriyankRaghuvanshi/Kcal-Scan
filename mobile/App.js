@@ -452,7 +452,12 @@ export default function App() {
   
 async function signInWithGoogle() {
   try {
-    // Use Supabase OAuth URL + Expo AuthSession (works reliably in TestFlight)
+    // NOTE: Supabase mobile OAuth requires supabase-js v2 (exchangeCodeForSession).
+    if (typeof supabase?.auth?.exchangeCodeForSession !== "function") {
+      throw new Error(        "Google OAuth needs @supabase/supabase-js v2. Run: npm i @supabase/supabase-js@^2 and rebuild."
+      );
+    }
+
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: { redirectTo: redirectUri, skipBrowserRedirect: true },
@@ -473,32 +478,13 @@ async function signInWithGoogle() {
       return;
     }
 
-    // Preferred: PKCE exchange via code
-    let codeParam = null;
-    try {
-      const u = new URL(res.url);
-      codeParam = u.searchParams.get("code");
-    } catch (_) {}
+    // Extract `code` without relying on URL() (more compatible on iOS/JS engines)
+    const match = String(res.url).match(/[?&]code=([^&]+)/);
+    const codeParam = match ? decodeURIComponent(match[1]) : null;
+    if (!codeParam) throw new Error("OAuth callback missing code");
 
-    if (!codeParam) {
-      const m = String(res.url).match(/[?&]code=([^&]+)/);
-      codeParam = m ? decodeURIComponent(m[1]) : null;
-    }
-
-    if (codeParam && typeof supabase.auth.exchangeCodeForSession === "function") {
-      const { error: exErr } = await supabase.auth.exchangeCodeForSession(codeParam);
-      if (exErr) throw exErr;
-      return;
-    }
-
-    // Fallback for older/newer SDKs: attempt session extraction from return URL
-    if (typeof supabase.auth.getSessionFromUrl === "function") {
-      const { error: urlErr } = await supabase.auth.getSessionFromUrl({ url: res.url, storeSession: true });
-      if (urlErr) throw urlErr;
-      return;
-    }
-
-    throw new Error("Supabase OAuth exchange not supported by this SDK version");
+    const { error: exErr } = await supabase.auth.exchangeCodeForSession(codeParam);
+    if (exErr) throw exErr;
   } catch (e) {
     console.log("Google login failed", e);
     Alert.alert("Google login failed", e?.message || String(e));
@@ -533,7 +519,7 @@ async function openCamera() {
   // ===================== ANALYZE =====================
   async function fetchDailySummary(forceUserId) {
   try {
-    const uid = forceUserId || session?.user?.id;
+      const uid = forceUserId || session?.user?.id || userId;
     if (!uid) return;
     const url = `${API_BASE}/daily/summary?user_id=${encodeURIComponent(uid)}`;
     const res = await fetch(url, { method: "GET", headers: { accept: "application/json" } });
@@ -892,6 +878,15 @@ async function analyzePhoto() {
     {dailySummary?.remaining?.fiber_g != null ? (
       <Text style={styles.tiny}>Fiber left: {round1(dailySummary.remaining.fiber_g)}g</Text>
     ) : null}
+    {dailySummary?.remaining ? (() => {
+      const r = dailySummary.remaining;
+      const parts = [];
+      if (r.vitamin_d_ug != null) parts.push(`Vit D left: ${round1(r.vitamin_d_ug)}µg`);
+      if (r.vitamin_b12_ug != null) parts.push(`B12 left: ${round1(r.vitamin_b12_ug)}µg`);
+      if (r.iron_mg != null) parts.push(`Iron left: ${round1(r.iron_mg)}mg`);
+      if (r.magnesium_mg != null) parts.push(`Mg left: ${round1(r.magnesium_mg)}mg`);
+      return parts.length ? <Text style={styles.tiny}>{parts.join(" • ")}</Text> : null;
+    })() : null}
   </View>
 ) : null}
 
