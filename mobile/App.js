@@ -1,4 +1,4 @@
-// build: 2026-02-04
+\// build: 2026-02-04
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
@@ -27,8 +27,13 @@ import "react-native-url-polyfill/auto";
 // OAuth helpers (Google)
 import * as AuthSession from "expo-auth-session";
 
+
+import * as WebBrowser from "expo-web-browser";
 // RevenueCat
 import Purchases from "react-native-purchases";
+
+
+WebBrowser.maybeCompleteAuthSession();
 
 // ===================== SUBSCRIPTION (App Review 3.1.2) =====================
 const PRIVACY_URL = "https://sites.google.com/view/calorieclickai/privacy-policy";
@@ -95,21 +100,6 @@ function num(x) {
 function round1(x) {
   const n = Number(x);
   return Number.isFinite(n) ? Math.round(n * 10) / 10 : 0;
-}
-
-function getRemaining(dailySummary, goals) {
-  const totals = dailySummary?.totals || {};
-  const g = goals || {};
-  const rem = dailySummary?.remaining || {};
-  // If backend already computed remaining and it's non-null, use it.
-  const hasBackend = rem && (rem.kcal != null || rem.protein_g != null || rem.carbs_g != null || rem.fat_g != null);
-  if (hasBackend) return rem;
-  // Client-side fallback: goals - totals (never below 0)
-  const kcal = Math.max(0, (g.kcal || 0) - (totals.kcal || 0));
-  const protein_g = Math.max(0, (g.protein_g || 0) - (totals.protein_g || 0));
-  const carbs_g = Math.max(0, (g.carbs_g || 0) - (totals.carbs_g || 0));
-  const fat_g = Math.max(0, (g.fat_g || 0) - (totals.fat_g || 0));
-  return { kcal, protein_g, carbs_g, fat_g };
 }
 
 function extractQueryParam(url, key) {
@@ -465,108 +455,40 @@ export default function App() {
 
   // ===== NEW: Google OAuth =====
   
-function getUrlParam(url, key) {
-  try {
-    const u = new URL(url);
-    return u.searchParams.get(key);
-  } catch {
-    return null;
-  }
-}
-
-function parseTokensFromUrl(url) {
-  try {
-    // tokens can be in query (?access_token=) or hash (#access_token=)
-    const parts = url.split("#");
-    const hash = parts[1] || "";
-    const query = url.split("?")[1] || "";
-    const all = [query, hash].filter(Boolean).join("&");
-    const params = new URLSearchParams(all);
-    const access_token = params.get("access_token");
-    const refresh_token = params.get("refresh_token");
-    return { access_token, refresh_token };
-  } catch {
-    return null;
-  }
-}
-
 async function signInWithGoogle() {
   try {
-    if (!HAS_SUPABASE || !supabase?.auth) {
-      Alert.alert("Google login failed", "Supabase is not configured. Add EXPO_PUBLIC_SUPABASE_URL + EXPO_PUBLIC_SUPABASE_ANON in EAS secrets.");
+    // 1) Ask Supabase for the OAuth URL (PKCE)
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: redirectUri,
+        // Important for native apps: don't auto-redirect in JS
+        skipBrowserRedirect: true,
+      },
+    });
+    if (error) throw error;
+    if (!data?.url) throw new Error("No OAuth URL returned");
+
+    // 2) Open the OAuth session in a browser tab and wait for the deep-link redirect back
+    const result = await WebBrowser.openAuthSessionAsync(data.url, redirectUri);
+    if (result.type !== "success" || !result.url) {
+      // cancelled/dismissed
       return;
     }
 
-    // Ask Supabase for the provider URL (support both supabase-js v2 and v1)
-    let authUrl = null;
+    // 3) Extract the "code" from the returned URL, then exchange for a Supabase session
+    const u = new URL(result.url);
+    const codeParam = u.searchParams.get("code");
+    if (!codeParam) throw new Error("No auth code returned");
 
-    if (typeof supabase.auth.signInWithOAuth === "function") {
-      const { data, error } = await supabase.auth.signInWithOAuth({
-        provider: "google",
-        options: {
-          redirectTo: redirectUri,
-          skipBrowserRedirect: true,
-        },
-      });
-      if (error) throw error;
-      authUrl = data?.url || null;
-    } else if (typeof supabase.auth.signIn === "function") {
-      const { url, error } = await supabase.auth.signIn(
-        { provider: "google" },
-        { redirectTo: redirectUri }
-      );
-      if (error) throw error;
-      authUrl = url || null;
-    } else {
-      Alert.alert(
-        "Google login failed",
-        "Your @supabase/supabase-js version is too old. Please upgrade to v2: npm i @supabase/supabase-js@^2"
-      );
-      return;
+    const { data: sessionData, error: exchErr } = await supabase.auth.exchangeCodeForSession(codeParam);
+    if (exchErr) throw exchErr;
+
+    if (!sessionData?.session) {
+      throw new Error("No session returned");
     }
-
-    if (!authUrl) {
-      throw new Error("No auth URL returned from Supabase.");
-    }
-
-    // Open the consent screen in-app and wait for redirect back
-    const res = await AuthSession.startAsync({ authUrl, returnUrl: redirectUri });
-    if (res.type !== "success" || !res.url) return;
-
-    const redirectedUrl = res.url;
-
-    // Prefer code exchange (PKCE) when available (supabase-js v2)
-    const code = getUrlParam(redirectedUrl, "code");
-    if (code && typeof supabase.auth.exchangeCodeForSession === "function") {
-      const { error } = await supabase.auth.exchangeCodeForSession(code);
-      if (error) throw error;
-      return;
-    }
-
-    // Fallback for implicit flow or older clients: parse tokens from URL
-    const tokens = parseTokensFromUrl(redirectedUrl);
-
-    if (tokens?.access_token) {
-      if (typeof supabase.auth.setSession === "function") {
-        const { error } = await supabase.auth.setSession({
-          access_token: tokens.access_token,
-          refresh_token: tokens.refresh_token || "",
-        });
-        if (error) throw error;
-        return;
-      }
-      if (typeof supabase.auth.setAuth === "function") {
-        supabase.auth.setAuth(tokens.access_token);
-        // best-effort: fetch session/user
-        return;
-      }
-    }
-
-    Alert.alert(
-      "Google login failed",
-      "No code or token returned. Double-check Supabase Redirect URLs include: calorieclickai://auth-callback"
-    );
   } catch (e) {
+    console.log("Google login error:", e);
     Alert.alert("Google login failed", String(e?.message || e));
   }
 }
