@@ -1,4 +1,4 @@
- {
+{
   "expo": {
     "scheme": "calorieclickai",
     "name": "CalorieClick AI",
@@ -8,13 +8,11 @@
     "icon": "./assets/CalorieClick.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": false,
-
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
-
     "ios": {
       "icon": "./assets/CalorieClick.png",
       "bundleIdentifier": "com.priyank.calorieclick",
@@ -29,7 +27,6 @@
         }
       }
     },
-
     "android": {
       "package": "com.priyank.calorieclick",
       "adaptiveIcon": {
@@ -41,11 +38,9 @@
         "android.permission.CAMERA"
       ]
     },
-
     "web": {
       "favicon": "./assets/favicon.png"
     },
-
     "extra": {
       "eas": {
         "projectId": "bade0b52-fdda-452c-b6f3-76247faf377d"
@@ -58,15 +53,14 @@
       "REVENUECAT_OFFERING": "main",
       "REVENUECAT_IOS_API_KEY": "appl_SoteCFCeVzvTTQWIpwbClzFnBdq"
     },
-
     "plugins": [
       [
         "expo-camera",
         {
           "cameraPermission": "Allow CalorieClick.ai to access your camera to scan meals and barcodes."
         }
-      ]
+      ],
+      "expo-web-browser"
     ]
   }
 }
-
