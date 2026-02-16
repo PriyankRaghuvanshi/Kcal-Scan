@@ -363,6 +363,22 @@ export default function App() {
     setUserId(uid);
   }, [session]);
 
+  // Reset user-scoped UI state immediately when account changes to avoid cross-account leakage on screen.
+  useEffect(() => {
+    setPhotoUri(null);
+    setResult(null);
+    setDailySummary(null);
+    setHistory([]);
+    setBarcodeManual("");
+    setBarcodeOpen(false);
+    setCamOpen(false);
+    if (!userId) {
+      setGoals(null);
+      setGoalsDraft(DEFAULT_GOALS);
+      setUsage(null);
+    }
+  }, [userId]);
+
   useEffect(() => {
     if (!userId) return;
     refreshUsage();
@@ -567,6 +583,16 @@ export default function App() {
     try {
       await supabase.auth.signOut();
     } catch {}
+    setPhotoUri(null);
+    setResult(null);
+    setDailySummary(null);
+    setHistory([]);
+    setGoals(null);
+    setGoalsDraft(DEFAULT_GOALS);
+    setGoalsModal(false);
+    setBarcodeManual("");
+    setBarcodeOpen(false);
+    setCamOpen(false);
   }
 
   // ===== NEW: Google OAuth =====
