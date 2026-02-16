@@ -24,6 +24,10 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { createClient } from "@supabase/supabase-js";
 import "react-native-url-polyfill/auto";
 
+// OAuth helpers (Google)
+import * as WebBrowser from "expo-web-browser";
+import * as AuthSession from "expo-auth-session";
+
 // RevenueCat
 import Purchases from "react-native-purchases";
 
@@ -628,12 +632,10 @@ async function analyzePhoto() {
             {/* Divider */}
             <View style={styles.dividerRow}>
               <View style={styles.dividerLine} />
-              <Text style={styles.dividerText}>or</Text>
-            <View style={styles.dividerRow}>
-              <View style={styles.dividerLine} />
               <Text style={styles.dividerText}>or email</Text>
               <View style={styles.dividerLine} />
             </View>
+
 
             <TextInput
               style={styles.input}
