@@ -27,6 +27,8 @@ import "react-native-url-polyfill/auto";
 // RevenueCat
 import Purchases from "react-native-purchases";
 
+WebBrowser.maybeCompleteAuthSession();
+
 // ===================== SUBSCRIPTION (App Review 3.1.2) =====================
 const PRIVACY_URL = "https://sites.google.com/view/calorieclickai/privacy-policy";
 const TERMS_URL = "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/";
@@ -163,14 +165,12 @@ function Meter({ label, value, max = 100, help, locked, lockedText }) {
 export default function App() {
   // ===== Auth (Supabase) =====
   const [session, setSession] = useState(null);
+  const redirectUri = AuthSession.makeRedirectUri({ scheme: \"calorieclickai\", path: \"auth-callback\" });
   const [authEmail, setAuthEmail] = useState("");
   const [authPass, setAuthPass] = useState("");
   const [authBusy, setAuthBusy] = useState(false);
 
   // ===== NEW: Google + Phone OTP login =====
-  const [phone, setPhone] = useState("");
-  const [otp, setOtp] = useState("");
-  const [otpSent, setOtpSent] = useState(false);
 
   // ===== Plan / Usage =====
   const [userId, setUserId] = useState(null);
@@ -180,6 +180,7 @@ export default function App() {
   // ===== Photo Scan =====
   const [photoUri, setPhotoUri] = useState(null);
   const [result, setResult] = useState(null);
+  const [dailySummary, setDailySummary] = useState(null);
   const [busy, setBusy] = useState(false);
 
   // ===== History (isolated by user id) =====
@@ -427,92 +428,42 @@ export default function App() {
 
   // ===== NEW: Google OAuth =====
   async function signInWithGoogle() {
-    if (!HAS_SUPABASE) {
-      Alert.alert("Missing Supabase env", "Set EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY");
+  try {
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: { redirectTo: redirectUri },
+    });
+    if (error) throw error;
+    if (!data?.url) throw new Error("No OAuth URL returned");
+
+    const result = await WebBrowser.openAuthSessionAsync(data.url, redirectUri);
+    if (result.type !== "success" || !result.url) return;
+
+    const parsed = AuthSession.parseUrl(result.url);
+    const code = parsed?.params?.code;
+
+    if (code) {
+      const { error: exErr } = await supabase.auth.exchangeCodeForSession(code);
+      if (exErr) throw exErr;
       return;
     }
-    setAuthBusy(true);
-    try {
-      const options = OAUTH_REDIRECT_TO?.trim()
-        ? { redirectTo: OAUTH_REDIRECT_TO.trim() }
-        : undefined;
 
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: "google",
-        options,
-      });
-
-      if (error) throw error;
-      // Session is handled by onAuthStateChange
-    } catch (e) {
-      Alert.alert("Google login failed", String(e?.message || e).slice(0, 220));
-    } finally {
-      setAuthBusy(false);
+    const access_token = parsed?.params?.access_token;
+    const refresh_token = parsed?.params?.refresh_token;
+    if (access_token && refresh_token) {
+      const { error: setErr } = await supabase.auth.setSession({ access_token, refresh_token });
+      if (setErr) throw setErr;
     }
+  } catch (e) {
+    Alert.alert("Google login failed", e?.message || "Please try again.");
   }
+}
 
   // ===== NEW: Phone OTP =====
   function normalizePhone(p) {
     return String(p || "").replace(/\s+/g, "").trim();
   }
 
-  async function sendOtp() {
-    if (!HAS_SUPABASE) {
-      Alert.alert("Missing Supabase env", "Set EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY");
-      return;
-    }
-    const p = normalizePhone(phone);
-    if (!p || p.length < 8) {
-      Alert.alert("Phone number", "Enter phone number with country code, e.g. +61XXXXXXXXX");
-      return;
-    }
-    setAuthBusy(true);
-    try {
-      const { error } = await supabase.auth.signInWithOtp({
-        phone: p,
-        options: { shouldCreateUser: true },
-      });
-      if (error) throw error;
-
-      setOtpSent(true);
-      Alert.alert("OTP sent", "Check your SMS and enter the 6-digit code.");
-    } catch (e) {
-      Alert.alert("OTP failed", String(e?.message || e).slice(0, 220));
-    } finally {
-      setAuthBusy(false);
-    }
-  }
-
-  async function verifyOtp() {
-    if (!HAS_SUPABASE) {
-      Alert.alert("Missing Supabase env", "Set EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY");
-      return;
-    }
-    const p = normalizePhone(phone);
-    const code = String(otp || "").replace(/\s+/g, "").trim();
-    if (!p || !code) {
-      Alert.alert("OTP", "Enter phone number and OTP code.");
-      return;
-    }
-
-    setAuthBusy(true);
-    try {
-      const { error } = await supabase.auth.verifyOtp({
-        phone: p,
-        token: code,
-        type: "sms",
-      });
-      if (error) throw error;
-
-      // Session is handled by onAuthStateChange
-      setOtp("");
-      setOtpSent(false);
-    } catch (e) {
-      Alert.alert("Verify failed", String(e?.message || e).slice(0, 220));
-    } finally {
-      setAuthBusy(false);
-    }
-  }
 
   // ===================== CAMERA (PHOTO) =====================
   async function openCamera() {
@@ -540,7 +491,25 @@ export default function App() {
   }
 
   // ===================== ANALYZE =====================
-  async function analyzePhoto() {
+  async function fetchDailySummary(forceUserId) {
+  try {
+    const uid = forceUserId || session?.user?.id;
+    if (!uid) return;
+    const url = `${API_BASE}/daily/summary?user_id=${encodeURIComponent(uid)}`;
+    const res = await fetch(url, { method: "GET", headers: { accept: "application/json" } });
+    if (!res.ok) {
+      setDailySummary(null);
+      return;
+    }
+    const data = await res.json();
+      if (!data.micros && data?.totals?.micros) data.micros = data.totals.micros;
+    setDailySummary(data);
+  } catch (e) {
+    setDailySummary(null);
+  }
+}
+
+async function analyzePhoto() {
     if (!userId) return;
     if (!photoUri) {
       Alert.alert("No photo", "Take a photo first.");
@@ -565,6 +534,7 @@ export default function App() {
 
       const data = await safeJson(res);
       setResult(data);
+      fetchDailySummary();
       await refreshUsage();
 
       await pushHistory({
@@ -659,57 +629,6 @@ export default function App() {
             <View style={styles.dividerRow}>
               <View style={styles.dividerLine} />
               <Text style={styles.dividerText}>or</Text>
-              <View style={styles.dividerLine} />
-            </View>
-
-            {/* Phone OTP */}
-            <TextInput
-              style={styles.input}
-              placeholder="Phone (e.g. +61XXXXXXXXX)"
-              placeholderTextColor="#777"
-              autoCapitalize="none"
-              keyboardType="phone-pad"
-              value={phone}
-              onChangeText={setPhone}
-            />
-
-            {otpSent ? (
-              <>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Enter OTP"
-                  placeholderTextColor="#777"
-                  autoCapitalize="none"
-                  keyboardType="number-pad"
-                  value={otp}
-                  onChangeText={setOtp}
-                />
-
-                <View style={{ flexDirection: "row", gap: 10 }}>
-                  <TouchableOpacity style={styles.primaryBtn} onPress={verifyOtp} disabled={authBusy}>
-                    {authBusy ? <ActivityIndicator /> : <Text style={styles.btnText}>Verify OTP</Text>}
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.secondaryBtn}
-                    onPress={() => {
-                      setOtp("");
-                      setOtpSent(false);
-                    }}
-                    disabled={authBusy}
-                  >
-                    <Text style={styles.btnText}>Change</Text>
-                  </TouchableOpacity>
-                </View>
-              </>
-            ) : (
-              <View style={{ flexDirection: "row", gap: 10 }}>
-                <TouchableOpacity style={styles.primaryBtn} onPress={sendOtp} disabled={authBusy}>
-                  {authBusy ? <ActivityIndicator /> : <Text style={styles.btnText}>Send OTP</Text>}
-                </TouchableOpacity>
-              </View>
-            )}
-
-            {/* Divider */}
             <View style={styles.dividerRow}>
               <View style={styles.dividerLine} />
               <Text style={styles.dividerText}>or email</Text>
@@ -822,7 +741,35 @@ export default function App() {
               <Text style={styles.p}>
                 Protein {round1(result?.totals?.protein_g)}g • Carbs {round1(result?.totals?.carbs_g)}g • Fat{" "}
                 {round1(result?.totals?.fat_g)}g
-              </Text>
+              
+
+{/* Micronutrients (Free) */}
+{result?.micros ? (
+  <View style={{ marginTop: 10 }}>
+    <Text style={styles.cardTitle}>Micronutrients</Text>
+    <Text style={styles.p}>
+      Fiber {round1(result.micros.fiber_g)}g • Vit D {round1(result.micros.vitamin_d_mcg)}µg • B12{" "}
+      {round1(result.micros.vitamin_b12_mcg)}µg
+    </Text>
+    <Text style={styles.p}>
+      Iron {round1(result.micros.iron_mg)}mg • Magnesium {round1(result.micros.magnesium_mg)}mg
+    </Text>
+  </View>
+) : null}
+
+{/* Remaining today */}
+{dailySummary?.remaining ? (
+  <View style={{ marginTop: 12 }}>
+    <Text style={styles.cardTitle}>Remaining today</Text>
+    <Text style={styles.p}>
+      {round1(dailySummary.remaining.kcal)} kcal • Protein {round1(dailySummary.remaining.protein_g)}g • Carbs{" "}
+      {round1(dailySummary.remaining.carbs_g)}g • Fat {round1(dailySummary.remaining.fat_g)}g
+    </Text>
+    {dailySummary?.remaining?.fiber_g != null ? (
+      <Text style={styles.tiny}>Fiber left: {round1(dailySummary.remaining.fiber_g)}g</Text>
+    ) : null}
+  </View>
+) : null}
 
               <Text style={[styles.cardTitle, { marginTop: 12 }]}>Items</Text>
               {(result.items || []).map((it, idx) => (
@@ -1287,4 +1234,3 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
 });
-
