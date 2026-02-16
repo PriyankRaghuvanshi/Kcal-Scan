@@ -97,6 +97,21 @@ function round1(x) {
   return Number.isFinite(n) ? Math.round(n * 10) / 10 : 0;
 }
 
+function getRemaining(dailySummary, goals) {
+  const totals = dailySummary?.totals || {};
+  const g = goals || {};
+  const rem = dailySummary?.remaining || {};
+  // If backend already computed remaining and it's non-null, use it.
+  const hasBackend = rem && (rem.kcal != null || rem.protein_g != null || rem.carbs_g != null || rem.fat_g != null);
+  if (hasBackend) return rem;
+  // Client-side fallback: goals - totals (never below 0)
+  const kcal = Math.max(0, (g.kcal || 0) - (totals.kcal || 0));
+  const protein_g = Math.max(0, (g.protein_g || 0) - (totals.protein_g || 0));
+  const carbs_g = Math.max(0, (g.carbs_g || 0) - (totals.carbs_g || 0));
+  const fat_g = Math.max(0, (g.fat_g || 0) - (totals.fat_g || 0));
+  return { kcal, protein_g, carbs_g, fat_g };
+}
+
 function extractQueryParam(url, key) {
   try {
     const qIndex = url.indexOf("?");
@@ -450,44 +465,109 @@ export default function App() {
 
   // ===== NEW: Google OAuth =====
   
+function getUrlParam(url, key) {
+  try {
+    const u = new URL(url);
+    return u.searchParams.get(key);
+  } catch {
+    return null;
+  }
+}
+
+function parseTokensFromUrl(url) {
+  try {
+    // tokens can be in query (?access_token=) or hash (#access_token=)
+    const parts = url.split("#");
+    const hash = parts[1] || "";
+    const query = url.split("?")[1] || "";
+    const all = [query, hash].filter(Boolean).join("&");
+    const params = new URLSearchParams(all);
+    const access_token = params.get("access_token");
+    const refresh_token = params.get("refresh_token");
+    return { access_token, refresh_token };
+  } catch {
+    return null;
+  }
+}
+
 async function signInWithGoogle() {
   try {
-    // NOTE: Supabase mobile OAuth requires supabase-js v2 (exchangeCodeForSession).
-    if (typeof supabase?.auth?.exchangeCodeForSession !== "function") {
-      throw new Error(        "Google OAuth needs @supabase/supabase-js v2. Run: npm i @supabase/supabase-js@^2 and rebuild."
-      );
-    }
-
-    const { data, error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: { redirectTo: redirectUri, skipBrowserRedirect: true },
-    });
-    if (error) throw error;
-    if (!data?.url) throw new Error("No OAuth URL returned");
-
-    const res = await AuthSession.startAsync({
-      authUrl: data.url,
-      returnUrl: redirectUri,
-    });
-
-    if (res.type !== "success" || !res.url) {
-      // dismissed / cancelled / error
-      if (res.type === "error" && res.params?.error_description) {
-        throw new Error(res.params.error_description);
-      }
+    if (!HAS_SUPABASE || !supabase?.auth) {
+      Alert.alert("Google login failed", "Supabase is not configured. Add EXPO_PUBLIC_SUPABASE_URL + EXPO_PUBLIC_SUPABASE_ANON in EAS secrets.");
       return;
     }
 
-    // Extract `code` without relying on URL() (more compatible on iOS/JS engines)
-    const match = String(res.url).match(/[?&]code=([^&]+)/);
-    const codeParam = match ? decodeURIComponent(match[1]) : null;
-    if (!codeParam) throw new Error("OAuth callback missing code");
+    // Ask Supabase for the provider URL (support both supabase-js v2 and v1)
+    let authUrl = null;
 
-    const { error: exErr } = await supabase.auth.exchangeCodeForSession(codeParam);
-    if (exErr) throw exErr;
+    if (typeof supabase.auth.signInWithOAuth === "function") {
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: redirectUri,
+          skipBrowserRedirect: true,
+        },
+      });
+      if (error) throw error;
+      authUrl = data?.url || null;
+    } else if (typeof supabase.auth.signIn === "function") {
+      const { url, error } = await supabase.auth.signIn(
+        { provider: "google" },
+        { redirectTo: redirectUri }
+      );
+      if (error) throw error;
+      authUrl = url || null;
+    } else {
+      Alert.alert(
+        "Google login failed",
+        "Your @supabase/supabase-js version is too old. Please upgrade to v2: npm i @supabase/supabase-js@^2"
+      );
+      return;
+    }
+
+    if (!authUrl) {
+      throw new Error("No auth URL returned from Supabase.");
+    }
+
+    // Open the consent screen in-app and wait for redirect back
+    const res = await AuthSession.startAsync({ authUrl, returnUrl: redirectUri });
+    if (res.type !== "success" || !res.url) return;
+
+    const redirectedUrl = res.url;
+
+    // Prefer code exchange (PKCE) when available (supabase-js v2)
+    const code = getUrlParam(redirectedUrl, "code");
+    if (code && typeof supabase.auth.exchangeCodeForSession === "function") {
+      const { error } = await supabase.auth.exchangeCodeForSession(code);
+      if (error) throw error;
+      return;
+    }
+
+    // Fallback for implicit flow or older clients: parse tokens from URL
+    const tokens = parseTokensFromUrl(redirectedUrl);
+
+    if (tokens?.access_token) {
+      if (typeof supabase.auth.setSession === "function") {
+        const { error } = await supabase.auth.setSession({
+          access_token: tokens.access_token,
+          refresh_token: tokens.refresh_token || "",
+        });
+        if (error) throw error;
+        return;
+      }
+      if (typeof supabase.auth.setAuth === "function") {
+        supabase.auth.setAuth(tokens.access_token);
+        // best-effort: fetch session/user
+        return;
+      }
+    }
+
+    Alert.alert(
+      "Google login failed",
+      "No code or token returned. Double-check Supabase Redirect URLs include: calorieclickai://auth-callback"
+    );
   } catch (e) {
-    console.log("Google login failed", e);
-    Alert.alert("Google login failed", e?.message || String(e));
+    Alert.alert("Google login failed", String(e?.message || e));
   }
 }
 
@@ -519,7 +599,7 @@ async function openCamera() {
   // ===================== ANALYZE =====================
   async function fetchDailySummary(forceUserId) {
   try {
-      const uid = forceUserId || session?.user?.id || userId;
+    const uid = forceUserId || session?.user?.id;
     if (!uid) return;
     const url = `${API_BASE}/daily/summary?user_id=${encodeURIComponent(uid)}`;
     const res = await fetch(url, { method: "GET", headers: { accept: "application/json" } });
@@ -878,15 +958,6 @@ async function analyzePhoto() {
     {dailySummary?.remaining?.fiber_g != null ? (
       <Text style={styles.tiny}>Fiber left: {round1(dailySummary.remaining.fiber_g)}g</Text>
     ) : null}
-    {dailySummary?.remaining ? (() => {
-      const r = dailySummary.remaining;
-      const parts = [];
-      if (r.vitamin_d_ug != null) parts.push(`Vit D left: ${round1(r.vitamin_d_ug)}µg`);
-      if (r.vitamin_b12_ug != null) parts.push(`B12 left: ${round1(r.vitamin_b12_ug)}µg`);
-      if (r.iron_mg != null) parts.push(`Iron left: ${round1(r.iron_mg)}mg`);
-      if (r.magnesium_mg != null) parts.push(`Mg left: ${round1(r.magnesium_mg)}mg`);
-      return parts.length ? <Text style={styles.tiny}>{parts.join(" • ")}</Text> : null;
-    })() : null}
   </View>
 ) : null}
 
