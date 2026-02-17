@@ -195,9 +195,18 @@ def _http_exc_raw(e: Exception) -> str:
 
 
 def _extract_unknown_column(raw: str) -> Optional[str]:
-    m = re.search(r'column "([^"]+)"', raw or "")
-    if m:
-        return m.group(1)
+    text = raw or ""
+    patterns = [
+        r'column "([^"]+)"',
+        r"column '([^']+)'",
+        r"Could not find the '([^']+)' column",
+        r"record .* has no field \"([^\"]+)\"",
+        r"record .* has no field '([^']+)'",
+    ]
+    for pat in patterns:
+        m = re.search(pat, text, flags=re.IGNORECASE)
+        if m:
+            return m.group(1)
     return None
 
 
@@ -395,7 +404,6 @@ def upsert_user_goals(user_id: str, goals: Dict[str, Any]) -> Dict[str, Any]:
                     TBL_USER_GOALS,
                     {"user_id": f"eq.{user_id}"},
                     patch_payload,
-                    locked_cols={"updated_at"},
                 )
                 refreshed = get_user_goals_raw(user_id)
                 stored = refreshed if refreshed else clean
@@ -403,7 +411,7 @@ def upsert_user_goals(user_id: str, goals: Dict[str, Any]) -> Dict[str, Any]:
                 stored = _sb_insert_with_column_fallback(
                     TBL_USER_GOALS,
                     clean,
-                    locked_cols={"user_id", "updated_at"},
+                    locked_cols={"user_id"},
                 )
             return _normalize_goals_record(user_id, stored)
         except Exception as e:
@@ -540,7 +548,6 @@ def add_to_daily_totals(user_id: str, increments: Dict[str, Any], day: Optional[
                     TBL_DAILY_TOTALS,
                     {"user_id": f"eq.{user_id}", "day": f"eq.{day_iso}"},
                     patch_payload,
-                    locked_cols={"updated_at"},
                 )
                 refreshed = sb_get_one(
                     TBL_DAILY_TOTALS,
@@ -556,7 +563,7 @@ def add_to_daily_totals(user_id: str, increments: Dict[str, Any], day: Optional[
                 stored = _sb_insert_with_column_fallback(
                     TBL_DAILY_TOTALS,
                     payload,
-                    locked_cols={"user_id", "day", "updated_at"},
+                    locked_cols={"user_id", "day"},
                 )
             return _normalize_daily_totals_record(user_id, day_iso, stored)
         except Exception as e:
@@ -1080,7 +1087,8 @@ def extract_micros_per_100g(food_details: dict) -> Dict[str, Any]:
     Extract key micronutrients per 100g from USDA food details.
 
     Nutrient numbers used by USDA:
-      - Vitamin D (D2 + D3): 324
+      - Vitamin D total: 324 (µg) or 328 (IU)
+      - Vitamin D2 / D3 (fallback parts): 325 / 326
       - Vitamin B12: 418
       - Iron: 303
       - Magnesium: 304
@@ -1095,7 +1103,6 @@ def extract_micros_per_100g(food_details: dict) -> Dict[str, Any]:
     Missing nutrients are returned as 0.0 (not all foods report all micros).
     """
     wanted = {
-        "324": ("vitamin_d_ug", "ug"),
         "418": ("vitamin_b12_ug", "ug"),
         "303": ("iron_mg", "mg"),
         "304": ("magnesium_mg", "mg"),
@@ -1107,22 +1114,44 @@ def extract_micros_per_100g(food_details: dict) -> Dict[str, Any]:
 
     out = {k: 0.0 for _, (k, _) in wanted.items()}
 
+    vd_total_candidates: List[float] = []
+    vd_parts_sum = 0.0
+    vd_parts_found = False
+
     for n in food_details.get("foodNutrients", []) or []:
         nutrient = n.get("nutrient") or {}
         number = str(nutrient.get("number") or "").strip()
-        if number not in wanted:
-            continue
 
         amount = n.get("amount")
         if amount is None:
             continue
 
         unit = (nutrient.get("unitName") or "").strip()
+        # Vitamin D can appear as total (324/328) or split parts (325 + 326)
+        if number in {"324", "328"}:
+            conv = _convert_unit(float(amount), unit, "ug")
+            if conv is not None:
+                vd_total_candidates.append(float(conv))
+            continue
+        if number in {"325", "326"}:
+            conv = _convert_unit(float(amount), unit, "ug")
+            if conv is not None:
+                vd_parts_sum += float(conv)
+                vd_parts_found = True
+            continue
+
+        if number not in wanted:
+            continue
+
         key, target_unit = wanted[number]
         conv = _convert_unit(float(amount), unit, target_unit)
-        if conv is None:
-            continue
-        out[key] = float(conv)
+        if conv is not None:
+            out[key] = float(conv)
+
+    if vd_total_candidates:
+        out["vitamin_d_ug"] = max(vd_total_candidates)
+    elif vd_parts_found:
+        out["vitamin_d_ug"] = vd_parts_sum
 
     # Helpful metadata for UI
     out["_units"] = {
