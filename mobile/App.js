@@ -159,6 +159,27 @@ function normalizeMicros(raw) {
     magnesium_mg: num(raw.magnesium_mg),
   };
 }
+function errorToMessage(detail, fallbackStatus) {
+  if (detail == null) return `HTTP ${fallbackStatus}`;
+  if (typeof detail === "string") return detail;
+  if (typeof detail === "number" || typeof detail === "boolean") return String(detail);
+  if (typeof detail === "object") {
+    const nested =
+      detail?.message ||
+      detail?.error ||
+      detail?.detail ||
+      detail?.msg ||
+      detail?.reason ||
+      null;
+    if (nested && nested !== detail) return errorToMessage(nested, fallbackStatus);
+    try {
+      return JSON.stringify(detail).slice(0, 280);
+    } catch {
+      return `HTTP ${fallbackStatus}`;
+    }
+  }
+  return `HTTP ${fallbackStatus}`;
+}
 
 function planAtLeast(current, required) {
   const c = (current || "free").toLowerCase();
@@ -189,13 +210,11 @@ async function safeJson(res) {
   }
 
   if (!res.ok) {
-    const msg =
-      parsed?.error ||
-      parsed?.message ||
-      parsed?.detail ||
-      parsed?.msg ||
-      `HTTP ${res.status}`;
-    throw new Error(String(msg));
+    const msg = errorToMessage(
+      parsed?.error || parsed?.message || parsed?.detail || parsed?.msg || parsed,
+      res.status
+    );
+    throw new Error(msg);
   }
   return parsed;
 }
@@ -716,7 +735,7 @@ async function openCamera() {
       setGoalsModal(false);
       await fetchDailySummary(uid);
     } catch (e) {
-      Alert.alert("Goals update failed", e?.message || String(e));
+      Alert.alert("Goals update failed", errorToMessage(e?.message || e, 0));
     }
   }
 
@@ -800,7 +819,10 @@ async function analyzePhoto() {
         micros: normalizeMicros(data?.micros || data?.totals?.micros),
       };
       setResult(normalized);
-      fetchDailySummary();
+      if (data?.daily && typeof data.daily === "object") {
+        setDailySummary(data.daily);
+      }
+      await fetchDailySummary(userId);
       await refreshUsage();
 
       await pushHistory({
@@ -1371,7 +1393,7 @@ async function analyzePhoto() {
 
           <View style={styles.modalBottom}>
             <TouchableOpacity style={[styles.primaryBtn, styles.captureBtn]} onPress={takePhoto}>
-              <Text style={styles.btnText}>Capture</Text>
+              <Text style={styles.btnText}>Snap</Text>
             </TouchableOpacity>
           </View>
         </SafeAreaView>
