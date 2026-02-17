@@ -164,6 +164,16 @@ def sb_upsert(table: str, row: Dict[str, Any], on_conflict: str) -> Dict[str, An
     rows = r.json() or []
     return rows[0] if rows else row
 
+def sb_insert(table: str, row: Dict[str, Any]) -> Dict[str, Any]:
+    url = f"{SUPABASE_URL}/rest/v1/{table}"
+    headers = supabase_headers()
+    headers["Prefer"] = "return=representation"
+    r = requests.post(url, headers=headers, data=json.dumps(row), timeout=20)
+    if r.status_code not in (200, 201):
+        raise HTTPException(status_code=502, detail={"error": "Supabase insert failed", "raw": r.text})
+    rows = r.json() or []
+    return rows[0] if rows else row
+
 def sb_patch(table: str, match: Dict[str, str], patch: Dict[str, Any]) -> None:
     url = f"{SUPABASE_URL}/rest/v1/{table}"
     params = {"select": "user_id"}
@@ -175,6 +185,57 @@ def sb_patch(table: str, match: Dict[str, str], patch: Dict[str, Any]) -> None:
     r = requests.patch(url, headers=headers, params=params, data=json.dumps(patch), timeout=20)
     if r.status_code not in (200, 204):
         raise HTTPException(status_code=502, detail={"error": "Supabase update failed", "raw": r.text})
+
+
+def _http_exc_raw(e: Exception) -> str:
+    if isinstance(e, HTTPException):
+        detail = e.detail if isinstance(e.detail, dict) else {"raw": str(e.detail)}
+        return str(detail.get("raw") or detail.get("error") or detail)
+    return str(e)
+
+
+def _extract_unknown_column(raw: str) -> Optional[str]:
+    m = re.search(r'column "([^"]+)"', raw or "")
+    if m:
+        return m.group(1)
+    return None
+
+
+def _sb_insert_with_column_fallback(table: str, row: Dict[str, Any], locked_cols: Optional[set] = None) -> Dict[str, Any]:
+    payload = dict(row or {})
+    locked = locked_cols or set()
+    max_attempts = max(1, len(payload))
+    for _ in range(max_attempts):
+        try:
+            return sb_insert(table, payload)
+        except Exception as e:
+            raw = _http_exc_raw(e)
+            bad_col = _extract_unknown_column(raw)
+            if bad_col and bad_col in payload and bad_col not in locked:
+                logger.warning(f"Dropping unknown column during insert: {bad_col}")
+                payload.pop(bad_col, None)
+                continue
+            raise
+    return payload
+
+
+def _sb_patch_with_column_fallback(table: str, match: Dict[str, str], patch: Dict[str, Any], locked_cols: Optional[set] = None) -> Dict[str, Any]:
+    payload = dict(patch or {})
+    locked = locked_cols or set()
+    max_attempts = max(1, len(payload))
+    for _ in range(max_attempts):
+        try:
+            sb_patch(table, match, payload)
+            return payload
+        except Exception as e:
+            raw = _http_exc_raw(e)
+            bad_col = _extract_unknown_column(raw)
+            if bad_col and bad_col in payload and bad_col not in locked:
+                logger.warning(f"Dropping unknown column during patch: {bad_col}")
+                payload.pop(bad_col, None)
+                continue
+            raise
+    return payload
 
 
 
@@ -328,7 +389,22 @@ def upsert_user_goals(user_id: str, goals: Dict[str, Any]) -> Dict[str, Any]:
         if len(clean.keys()) <= 2:
             continue
         try:
-            stored = _sb_upsert_with_column_fallback(TBL_USER_GOALS, clean, on_conflict="user_id")
+            if existing:
+                patch_payload = {k: v for k, v in clean.items() if k != "user_id"}
+                _sb_patch_with_column_fallback(
+                    TBL_USER_GOALS,
+                    {"user_id": f"eq.{user_id}"},
+                    patch_payload,
+                    locked_cols={"updated_at"},
+                )
+                refreshed = get_user_goals_raw(user_id)
+                stored = refreshed if refreshed else clean
+            else:
+                stored = _sb_insert_with_column_fallback(
+                    TBL_USER_GOALS,
+                    clean,
+                    locked_cols={"user_id", "updated_at"},
+                )
             return _normalize_goals_record(user_id, stored)
         except Exception as e:
             last_err = e
@@ -458,7 +534,30 @@ def add_to_daily_totals(user_id: str, increments: Dict[str, Any], day: Optional[
     for mapping in mapping_order:
         payload = _daily_payload_for_storage(user_id, day_iso, next_vals, mapping)
         try:
-            stored = _sb_upsert_with_column_fallback(TBL_DAILY_TOTALS, payload, on_conflict="user_id,day")
+            if raw_current:
+                patch_payload = {k: v for k, v in payload.items() if k not in ("user_id", "day")}
+                _sb_patch_with_column_fallback(
+                    TBL_DAILY_TOTALS,
+                    {"user_id": f"eq.{user_id}", "day": f"eq.{day_iso}"},
+                    patch_payload,
+                    locked_cols={"updated_at"},
+                )
+                refreshed = sb_get_one(
+                    TBL_DAILY_TOTALS,
+                    params={
+                        "select": "*",
+                        "user_id": f"eq.{user_id}",
+                        "day": f"eq.{day_iso}",
+                        "limit": "1",
+                    },
+                )
+                stored = refreshed if refreshed else payload
+            else:
+                stored = _sb_insert_with_column_fallback(
+                    TBL_DAILY_TOTALS,
+                    payload,
+                    locked_cols={"user_id", "day", "updated_at"},
+                )
             return _normalize_daily_totals_record(user_id, day_iso, stored)
         except Exception as e:
             last_err = e
