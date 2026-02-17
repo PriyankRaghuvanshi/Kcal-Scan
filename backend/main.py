@@ -346,6 +346,52 @@ def _day_iso(d: Optional[str]) -> str:
             pass
     return _today_date().isoformat()
 
+DAILY_VALUE_ALIASES = {
+    "total_kcal": ("total_kcal", "kcal", "calories"),
+    "protein_g": ("protein_g", "protein"),
+    "carbs_g": ("carbs_g", "carbs", "carbohydrates_g"),
+    "fat_g": ("fat_g", "fat"),
+    "fiber_g": ("fiber_g",),
+    "sugar_g": ("sugar_g",),
+    "sodium_mg": ("sodium_mg",),
+    "vitamin_d_ug": ("vitamin_d_ug",),
+    "vitamin_b12_ug": ("vitamin_b12_ug",),
+    "iron_mg": ("iron_mg",),
+    "magnesium_mg": ("magnesium_mg",),
+}
+DAILY_STORAGE_MODERN = {k: k for k in DAILY_VALUE_ALIASES.keys()}
+DAILY_STORAGE_LEGACY = {**DAILY_STORAGE_MODERN, "total_kcal": "kcal"}
+
+
+def _normalize_daily_values(src: Optional[Dict[str, Any]]) -> Dict[str, float]:
+    row = src or {}
+    out: Dict[str, float] = {}
+    for canonical, aliases in DAILY_VALUE_ALIASES.items():
+        out[canonical] = _first_present_float(row, aliases) or 0.0
+    return out
+
+
+def _normalize_daily_totals_record(user_id: str, day_iso: str, row: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    src = row or {}
+    vals = _normalize_daily_values(src)
+    out: Dict[str, Any] = {
+        "user_id": src.get("user_id") or user_id,
+        "day": src.get("day") or day_iso,
+        "updated_at": src.get("updated_at"),
+    }
+    out.update(vals)
+    # App compatibility alias
+    out["kcal"] = out.get("total_kcal", 0.0)
+    return out
+
+
+def _daily_payload_for_storage(user_id: str, day_iso: str, values: Dict[str, float], mapping: Dict[str, str]) -> Dict[str, Any]:
+    payload: Dict[str, Any] = {"user_id": user_id, "day": day_iso, "updated_at": dt.datetime.utcnow().isoformat()}
+    for canonical, target_col in mapping.items():
+        payload[target_col] = float(values.get(canonical) or 0.0)
+    return payload
+
+
 def get_daily_totals(user_id: str, day: Optional[str] = None) -> Dict[str, Any]:
     """
     Reads from daily_totals (recommended schema):
@@ -367,7 +413,7 @@ def get_daily_totals(user_id: str, day: Optional[str] = None) -> Dict[str, Any]:
     """
     _require_supabase()
     day_iso = _day_iso(day)
-    row = sb_get_one(
+    raw = sb_get_one(
         TBL_DAILY_TOTALS,
         params={
             "select": "*",
@@ -376,24 +422,7 @@ def get_daily_totals(user_id: str, day: Optional[str] = None) -> Dict[str, Any]:
             "limit": "1",
         },
     )
-    if row:
-        return row
-    # if missing, return zeros (don't write yet)
-    return {
-        "user_id": user_id,
-        "day": day_iso,
-        "total_kcal": 0,
-        "protein_g": 0,
-        "carbs_g": 0,
-        "fat_g": 0,
-        "fiber_g": 0,
-        "sugar_g": 0,
-        "sodium_mg": 0,
-        "vitamin_d_ug": 0,
-        "vitamin_b12_ug": 0,
-        "iron_mg": 0,
-        "magnesium_mg": 0,
-    }
+    return _normalize_daily_totals_record(user_id, day_iso, raw)
 
 def add_to_daily_totals(user_id: str, increments: Dict[str, Any], day: Optional[str] = None) -> Dict[str, Any]:
     """
@@ -402,7 +431,7 @@ def add_to_daily_totals(user_id: str, increments: Dict[str, Any], day: Optional[
     """
     _require_supabase()
     day_iso = _day_iso(day)
-    current = sb_get_one(
+    raw_current = sb_get_one(
         TBL_DAILY_TOTALS,
         params={
             "select": "*",
@@ -410,32 +439,34 @@ def add_to_daily_totals(user_id: str, increments: Dict[str, Any], day: Optional[
             "day": f"eq.{day_iso}",
             "limit": "1",
         },
-    ) or {"user_id": user_id, "day": day_iso}
+    )
+    current_vals = _normalize_daily_values(raw_current)
+    increment_vals = _normalize_daily_values(increments)
 
-    # numeric fields we accumulate
-    fields = [
-        "total_kcal",
-        "protein_g",
-        "carbs_g",
-        "fat_g",
-        "fiber_g",
-        "sugar_g",
-        "sodium_mg",
-        "vitamin_d_ug",
-        "vitamin_b12_ug",
-        "iron_mg",
-        "magnesium_mg",
-    ]
+    next_vals: Dict[str, float] = {}
+    for k in DAILY_VALUE_ALIASES.keys():
+        next_vals[k] = float(current_vals.get(k, 0.0)) + float(increment_vals.get(k, 0.0))
 
-    new_row = {"user_id": user_id, "day": day_iso, "updated_at": dt.datetime.utcnow().isoformat()}
-    for f in fields:
-        cur = float(current.get(f) or 0.0)
-        inc = float(increments.get(f) or 0.0)
-        new_row[f] = cur + inc
+    has_legacy_kcal = bool(raw_current and "kcal" in raw_current and "total_kcal" not in raw_current)
+    mapping_order = (
+        (DAILY_STORAGE_LEGACY, DAILY_STORAGE_MODERN)
+        if has_legacy_kcal
+        else (DAILY_STORAGE_MODERN, DAILY_STORAGE_LEGACY)
+    )
 
-    # composite key upsert
-    stored = sb_upsert(TBL_DAILY_TOTALS, new_row, on_conflict="user_id,day")
-    return stored
+    last_err: Optional[Exception] = None
+    for mapping in mapping_order:
+        payload = _daily_payload_for_storage(user_id, day_iso, next_vals, mapping)
+        try:
+            stored = _sb_upsert_with_column_fallback(TBL_DAILY_TOTALS, payload, on_conflict="user_id,day")
+            return _normalize_daily_totals_record(user_id, day_iso, stored)
+        except Exception as e:
+            last_err = e
+            continue
+
+    if last_err:
+        raise last_err
+    return _normalize_daily_totals_record(user_id, day_iso, {"user_id": user_id, "day": day_iso, **next_vals})
 
 def build_daily_summary(user_id: str, day: Optional[str] = None) -> Dict[str, Any]:
     totals = dict(get_daily_totals(user_id, day) or {})
