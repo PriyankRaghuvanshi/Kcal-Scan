@@ -164,6 +164,10 @@ function errorToMessage(detail, fallbackStatus) {
   if (typeof detail === "string") return detail;
   if (typeof detail === "number" || typeof detail === "boolean") return String(detail);
   if (typeof detail === "object") {
+    if (detail?.error && detail?.raw) {
+      const raw = String(detail.raw || "").slice(0, 220);
+      return `${detail.error}: ${raw}`;
+    }
     const nested =
       detail?.message ||
       detail?.error ||
@@ -821,6 +825,40 @@ async function analyzePhoto() {
       setResult(normalized);
       if (data?.daily && typeof data.daily === "object") {
         setDailySummary(data.daily);
+      } else {
+        const analyzedMicros = normalizeMicros(data?.micros || data?.totals?.micros || data?.micronutrients);
+        setDailySummary((prev) => {
+          const prevTotals = prev?.totals || {};
+          const prevTotalKcal = num(prevTotals.total_kcal ?? prevTotals.kcal);
+          const analyzedKcal = num(data?.total_kcal ?? data?.totals?.kcal ?? data?.totals?.total_kcal);
+
+          const nextTotals = {
+            ...prevTotals,
+            total_kcal: round1(prevTotalKcal + analyzedKcal),
+            kcal: round1(prevTotalKcal + analyzedKcal),
+            protein_g: round1(num(prevTotals.protein_g) + num(data?.totals?.protein_g)),
+            carbs_g: round1(num(prevTotals.carbs_g) + num(data?.totals?.carbs_g)),
+            fat_g: round1(num(prevTotals.fat_g) + num(data?.totals?.fat_g)),
+            fiber_g: round1(num(prevTotals.fiber_g) + num(analyzedMicros?.fiber_g)),
+          };
+
+          const g = prev?.goals || goals || DEFAULT_GOALS;
+          const remaining = {
+            kcal: round1(Math.max(0, num(g.kcal) - num(nextTotals.total_kcal))),
+            protein_g: round1(Math.max(0, num(g.protein_g) - num(nextTotals.protein_g))),
+            carbs_g: round1(Math.max(0, num(g.carbs_g) - num(nextTotals.carbs_g))),
+            fat_g: round1(Math.max(0, num(g.fat_g) - num(nextTotals.fat_g))),
+            fiber_g: round1(Math.max(0, num(g.fiber_g) - num(nextTotals.fiber_g))),
+          };
+
+          return {
+            ...(prev || {}),
+            day: prev?.day || nowISO().slice(0, 10),
+            totals: nextTotals,
+            goals: g,
+            remaining,
+          };
+        });
       }
       await fetchDailySummary(userId);
       await refreshUsage();
@@ -1392,8 +1430,8 @@ async function analyzePhoto() {
           <CameraView ref={camRef} style={styles.camera} facing="back" />
 
           <View style={styles.modalBottom}>
-            <TouchableOpacity style={[styles.primaryBtn, styles.captureBtn]} onPress={takePhoto}>
-              <Text style={styles.btnText}>Snap</Text>
+            <TouchableOpacity style={styles.captureBtn} onPress={takePhoto}>
+              <Text style={styles.captureBtnText}>SNAP</Text>
             </TouchableOpacity>
           </View>
         </SafeAreaView>
@@ -1608,7 +1646,24 @@ const styles = StyleSheet.create({
   modalTitle: { color: "#fff", fontWeight: "900", fontSize: 16 },
   camera: { flex: 1 },
   modalBottom: { padding: 12, paddingBottom: 48, backgroundColor: "#000" },
-  captureBtn: { minWidth: 140, alignSelf: "center" },
+  captureBtn: {
+    minWidth: 180,
+    alignSelf: "center",
+    backgroundColor: "#1e6dff",
+    borderWidth: 1,
+    borderColor: "#5ca2ff",
+    borderRadius: 999,
+    paddingHorizontal: 36,
+    paddingVertical: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  captureBtnText: {
+    color: "#ffffff",
+    fontSize: 16,
+    fontWeight: "900",
+    letterSpacing: 0.8,
+  },
 
   link: {
     color: "#4da3ff",
