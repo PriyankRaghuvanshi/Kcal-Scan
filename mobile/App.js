@@ -134,6 +134,19 @@ function localDayISO() {
   const day = String(d.getDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
 }
+function localDayFromISO(ts) {
+  try {
+    if (!ts) return "";
+    const d = new Date(ts);
+    if (!Number.isFinite(d.getTime())) return "";
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  } catch {
+    return "";
+  }
+}
 function normalizeGoals(raw, fallback = DEFAULT_GOALS) {
   const src = raw || {};
   const fb = fallback || DEFAULT_GOALS;
@@ -365,13 +378,22 @@ export default function App() {
   const canCoaching = planAtLeast(plan, "pro");
   const remainingToday = useMemo(() => {
     const g = goals || DEFAULT_GOALS;
+    const todayKey = localDayISO();
+    const historyFiberToday = (history || []).reduce((acc, h) => {
+      if ((h?.kind || "") !== "photo") return acc;
+      if (localDayFromISO(h?.ts) !== todayKey) return acc;
+      const hm = normalizeMicros(h?.micros || h?.totals?.micros);
+      return acc + num(hm?.fiber_g);
+    }, 0);
+
     const totals = dailySummary?.totals || {};
+    const backendFiber = num(totals?.fiber_g ?? totals?.micros?.fiber_g ?? totals?.micros?.fiber);
     const consumed = {
       kcal: num(dailySummary?.total_kcal ?? totals?.kcal ?? totals?.total_kcal),
       protein_g: num(totals?.protein_g),
       carbs_g: num(totals?.carbs_g),
       fat_g: num(totals?.fat_g),
-      fiber_g: num(totals?.fiber_g ?? totals?.micros?.fiber_g ?? totals?.micros?.fiber),
+      fiber_g: Math.max(backendFiber, historyFiberToday),
     };
     const fallbackRemaining = {
       kcal: round1(Math.max(0, num(g.kcal) - consumed.kcal)),
@@ -406,7 +428,7 @@ export default function App() {
     }
 
     return fallbackRemaining;
-  }, [dailySummary, goals]);
+  }, [dailySummary, goals, history]);
 
   // ===================== INIT =====================
   useEffect(() => {
@@ -489,6 +511,19 @@ export default function App() {
       const raw = await AsyncStorage.getItem(key);
       const existing = raw ? JSON.parse(raw) : [];
       const arr = Array.isArray(existing) ? existing : [];
+      const isDupPhoto =
+        (entry?.kind || "") === "photo" &&
+        Boolean(entry?.photo_uri) &&
+        arr.some(
+          (it) =>
+            (it?.kind || "") === "photo" &&
+            String(it?.photo_uri || "") === String(entry.photo_uri) &&
+            localDayFromISO(it?.ts) === localDayFromISO(entry?.ts)
+        );
+      if (isDupPhoto) {
+        setHistory(arr);
+        return;
+      }
       const next = [entry, ...arr].slice(0, MAX_HISTORY);
       setHistory(next);
       await AsyncStorage.setItem(key, JSON.stringify(next));
@@ -870,6 +905,16 @@ async function analyzePhoto() {
       Alert.alert("No photo", "Take a photo first.");
       return;
     }
+    const dupToday = (history || []).some(
+      (it) =>
+        (it?.kind || "") === "photo" &&
+        String(it?.photo_uri || "") === String(photoUri) &&
+        localDayFromISO(it?.ts) === localDayISO()
+    );
+    if (dupToday) {
+      Alert.alert("Already analyzed", "This photo was already analyzed today. Take a new photo or clear current scan.");
+      return;
+    }
     setBusy(true);
     setResult(null);
 
@@ -938,8 +983,10 @@ async function analyzePhoto() {
       await pushHistory({
         ts: nowISO(),
         kind: "photo",
+        photo_uri: photoUri,
         total_kcal: data?.total_kcal,
         totals: data?.totals,
+        micros: data?.micros || data?.totals?.micros,
         items: data?.items,
         coaching: data?.coaching || null,
         locked: data?.locked || null,
