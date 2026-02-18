@@ -74,6 +74,8 @@ const supabase = HAS_SUPABASE ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : 
 const HISTORY_KEY = "kcal_scan_history_v3";
 const historyKey = (uid) => `${HISTORY_KEY}:${uid}`;
 const MAX_HISTORY = 50;
+const GOALS_KEY = "kcal_user_goals_v1";
+const goalsKey = (uid) => `${GOALS_KEY}:${uid}`;
 
 const RC_IOS_KEY = process.env.EXPO_PUBLIC_RC_IOS_KEY || "";
 const RC_ANDROID_KEY = process.env.EXPO_PUBLIC_RC_ANDROID_KEY || "";
@@ -107,6 +109,41 @@ function num(x) {
 function round1(x) {
   const n = Number(x);
   return Number.isFinite(n) ? Math.round(n * 10) / 10 : 0;
+}
+function getDeviceTimeZone() {
+  try {
+    const tz = Intl?.DateTimeFormat?.().resolvedOptions?.().timeZone;
+    return typeof tz === "string" && tz.trim() ? tz.trim() : "";
+  } catch {
+    return "";
+  }
+}
+function withTimezoneQuery(url) {
+  const tz = getDeviceTimeZone();
+  const tzOffsetMin = -new Date().getTimezoneOffset(); // local UTC offset; east is positive
+  const extra = [];
+  if (tz) extra.push(`tz=${encodeURIComponent(tz)}`);
+  if (Number.isFinite(tzOffsetMin)) extra.push(`tz_offset_min=${encodeURIComponent(tzOffsetMin)}`);
+  if (!extra.length) return url;
+  return `${url}${url.includes("?") ? "&" : "?"}${extra.join("&")}`;
+}
+function localDayISO() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+function normalizeGoals(raw, fallback = DEFAULT_GOALS) {
+  const src = raw || {};
+  const fb = fallback || DEFAULT_GOALS;
+  return {
+    kcal: num(src.kcal ?? src.kcal_goal ?? fb.kcal),
+    protein_g: num(src.protein_g ?? src.protein_goal_g ?? fb.protein_g),
+    carbs_g: num(src.carbs_g ?? src.carbs_goal_g ?? fb.carbs_g),
+    fat_g: num(src.fat_g ?? src.fat_goal_g ?? fb.fat_g),
+    fiber_g: num(src.fiber_g ?? src.fiber_goal_g ?? fb.fiber_g),
+  };
 }
 
 function extractQueryParam(url, key) {
@@ -223,13 +260,15 @@ async function safeJson(res) {
   return parsed;
 }
 async function apiGetUsage(userId) {
-  const res = await fetch(`${API_BASE}/usage?user_id=${encodeURIComponent(userId)}`, {
+  const url = withTimezoneQuery(`${API_BASE}/usage?user_id=${encodeURIComponent(userId)}`);
+  const res = await fetch(url, {
     headers: { accept: "application/json" },
   });
   return await safeJson(res);
 }
 async function apiPlanSync(userId, entitlement, mode) {
-  const res = await fetch(`${API_BASE}/plan/sync?user_id=${encodeURIComponent(userId)}`, {
+  const url = withTimezoneQuery(`${API_BASE}/plan/sync?user_id=${encodeURIComponent(userId)}`);
+  const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json", accept: "application/json" },
     body: JSON.stringify({ entitlement, mode }),
@@ -326,17 +365,6 @@ export default function App() {
   const canCoaching = planAtLeast(plan, "pro");
   const remainingToday = useMemo(() => {
     const g = goals || DEFAULT_GOALS;
-    const apiRemaining = dailySummary?.remaining;
-    if (apiRemaining && typeof apiRemaining === "object") {
-      return {
-        kcal: round1(Math.max(0, num(apiRemaining.kcal))),
-        protein_g: round1(Math.max(0, num(apiRemaining.protein_g))),
-        carbs_g: round1(Math.max(0, num(apiRemaining.carbs_g))),
-        fat_g: round1(Math.max(0, num(apiRemaining.fat_g))),
-        fiber_g: round1(Math.max(0, num(apiRemaining.fiber_g))),
-      };
-    }
-
     const totals = dailySummary?.totals || {};
     const consumed = {
       kcal: num(dailySummary?.total_kcal ?? totals?.kcal ?? totals?.total_kcal),
@@ -345,14 +373,39 @@ export default function App() {
       fat_g: num(totals?.fat_g),
       fiber_g: num(totals?.fiber_g ?? totals?.micros?.fiber_g ?? totals?.micros?.fiber),
     };
-
-    return {
+    const fallbackRemaining = {
       kcal: round1(Math.max(0, num(g.kcal) - consumed.kcal)),
       protein_g: round1(Math.max(0, num(g.protein_g) - consumed.protein_g)),
       carbs_g: round1(Math.max(0, num(g.carbs_g) - consumed.carbs_g)),
       fat_g: round1(Math.max(0, num(g.fat_g) - consumed.fat_g)),
       fiber_g: round1(Math.max(0, num(g.fiber_g) - consumed.fiber_g)),
     };
+
+    const apiRemaining = dailySummary?.remaining;
+    if (apiRemaining && typeof apiRemaining === "object") {
+      return {
+        kcal:
+          apiRemaining.kcal != null || apiRemaining.kcal_left != null
+            ? round1(Math.max(0, num(apiRemaining.kcal ?? apiRemaining.kcal_left)))
+            : fallbackRemaining.kcal,
+        protein_g:
+          apiRemaining.protein_g != null || apiRemaining.protein_g_left != null
+            ? round1(Math.max(0, num(apiRemaining.protein_g ?? apiRemaining.protein_g_left)))
+            : fallbackRemaining.protein_g,
+        carbs_g:
+          apiRemaining.carbs_g != null || apiRemaining.carbs_g_left != null
+            ? round1(Math.max(0, num(apiRemaining.carbs_g ?? apiRemaining.carbs_g_left)))
+            : fallbackRemaining.carbs_g,
+        fat_g:
+          apiRemaining.fat_g != null || apiRemaining.fat_g_left != null
+            ? round1(Math.max(0, num(apiRemaining.fat_g ?? apiRemaining.fat_g_left)))
+            : fallbackRemaining.fat_g,
+        // Fiber can be missing in older goal schemas; always compute from local goals + consumed totals.
+        fiber_g: fallbackRemaining.fiber_g,
+      };
+    }
+
+    return fallbackRemaining;
   }, [dailySummary, goals]);
 
   // ===================== INIT =====================
@@ -448,6 +501,24 @@ export default function App() {
       await AsyncStorage.removeItem(historyKey(userId));
     } catch {}
     setHistory([]);
+  }
+
+  async function loadLocalGoals(uid) {
+    if (!uid) return null;
+    try {
+      const raw = await AsyncStorage.getItem(goalsKey(uid));
+      if (!raw) return null;
+      return normalizeGoals(JSON.parse(raw), DEFAULT_GOALS);
+    } catch {
+      return null;
+    }
+  }
+
+  async function saveLocalGoals(uid, g) {
+    if (!uid || !g) return;
+    try {
+      await AsyncStorage.setItem(goalsKey(uid), JSON.stringify(normalizeGoals(g, DEFAULT_GOALS)));
+    } catch {}
   }
 
   function clearCurrentScan() {
@@ -710,11 +781,12 @@ async function openCamera() {
     try {
       const uid = forceUserId || session?.user?.id;
       if (!uid) return;
-      const url = `${API_BASE}/daily/summary?user_id=${encodeURIComponent(uid)}`;
+      const url = withTimezoneQuery(`${API_BASE}/daily/summary?user_id=${encodeURIComponent(uid)}`);
       const res = await fetch(url, { method: "GET", headers: { accept: "application/json" } });
       const data = await safeJson(res);
       const micros = normalizeMicros(data?.micros || data?.totals?.micros);
-      setDailySummary({ ...data, micros });
+      const mergedGoals = normalizeGoals(data?.goals, goals || DEFAULT_GOALS);
+      setDailySummary({ ...data, goals: mergedGoals, micros });
     } catch (e) {
       setDailySummary(null);
     }
@@ -723,19 +795,14 @@ async function openCamera() {
   async function upsertGoals(nextGoals) {
     const uid = userId || session?.user?.id;
     if (!uid) return;
-    const source = nextGoals || DEFAULT_GOALS;
+    const source = normalizeGoals(nextGoals || DEFAULT_GOALS, goals || DEFAULT_GOALS);
     try {
-      const payload = {
-        kcal: Number(source.kcal) || 0,
-        protein_g: Number(source.protein_g) || 0,
-        carbs_g: Number(source.carbs_g) || 0,
-        fat_g: Number(source.fat_g) || 0,
-        fiber_g: Number(source.fiber_g) || 0,
-      };
+      const payload = normalizeGoals(source, goals || DEFAULT_GOALS);
       const res = await apiPost(`/goals?user_id=${encodeURIComponent(uid)}`, payload);
-      const g = res?.goals || payload;
+      const g = normalizeGoals(res?.goals || payload, payload);
       setGoals(g);
       setGoalsDraft(g);
+      await saveLocalGoals(uid, g);
       setGoalsModal(false);
       await fetchDailySummary(uid);
     } catch (e) {
@@ -750,7 +817,7 @@ async function openCamera() {
     try {
       const res = await fetch(`${API_BASE}/goals?user_id=${encodeURIComponent(userId)}`);
       const j = await safeJson(res);
-      return j?.goals || null;
+      return normalizeGoals(j?.goals, DEFAULT_GOALS);
     } catch (e) {
       console.log("fetchGoals failed", e);
       return null;
@@ -759,18 +826,18 @@ async function openCamera() {
 
   async function upsertDefaultGoals() {
     if (!userId) return null;
-    const defaults = {
+    const defaults = normalizeGoals({
       user_id: userId,
       ...DEFAULT_GOALS,
-    };
+    }, DEFAULT_GOALS);
     try {
       const res = await fetch(`${API_BASE}/goals`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(defaults),
+        body: JSON.stringify({ user_id: userId, ...defaults }),
       });
       const j = await safeJson(res);
-      return j?.goals || defaults;
+      return normalizeGoals(j?.goals || defaults, defaults);
     } catch (e) {
       console.log("upsertDefaultGoals failed", e);
       return defaults;
@@ -781,13 +848,16 @@ async function openCamera() {
     if (!userId) return;
     setGoalsBusy(true);
     try {
+      const local = await loadLocalGoals(userId);
       let g = await fetchGoals();
       // If no goals exist, set sensible defaults so "Remaining today" works out of the box
       if (!g || !g.kcal || Number(g.kcal) <= 0) {
         g = await upsertDefaultGoals();
       }
-      setGoals(g);
-      setGoalsDraft(g || DEFAULT_GOALS);
+      const merged = normalizeGoals(g, local || DEFAULT_GOALS);
+      setGoals(merged);
+      setGoalsDraft(merged);
+      await saveLocalGoals(userId, merged);
     } finally {
       setGoalsBusy(false);
     }
@@ -811,7 +881,8 @@ async function analyzePhoto() {
         type: "image/jpeg",
       });
 
-      const res = await fetch(`${API_BASE}/analyze?user_id=${encodeURIComponent(userId)}`, {
+      const analyzeUrl = withTimezoneQuery(`${API_BASE}/analyze?user_id=${encodeURIComponent(userId)}`);
+      const res = await fetch(analyzeUrl, {
         method: "POST",
         headers: { accept: "application/json" },
         body: form,
@@ -824,7 +895,8 @@ async function analyzePhoto() {
       };
       setResult(normalized);
       if (data?.daily && typeof data.daily === "object") {
-        setDailySummary(data.daily);
+        const dailyGoals = normalizeGoals(data?.daily?.goals, goals || DEFAULT_GOALS);
+        setDailySummary({ ...data.daily, goals: dailyGoals });
       } else {
         const analyzedMicros = normalizeMicros(data?.micros || data?.totals?.micros || data?.micronutrients);
         setDailySummary((prev) => {
@@ -853,7 +925,7 @@ async function analyzePhoto() {
 
           return {
             ...(prev || {}),
-            day: prev?.day || nowISO().slice(0, 10),
+            day: prev?.day || localDayISO(),
             totals: nextTotals,
             goals: g,
             remaining,
@@ -903,10 +975,10 @@ async function analyzePhoto() {
 
     setBarcodeBusy(true);
     try {
-      const res = await fetch(
-        `${API_BASE}/barcode/${encodeURIComponent(code)}?user_id=${encodeURIComponent(userId)}`,
-        { headers: { accept: "application/json" } }
+      const barcodeUrl = withTimezoneQuery(
+        `${API_BASE}/barcode/${encodeURIComponent(code)}?user_id=${encodeURIComponent(userId)}`
       );
+      const res = await fetch(barcodeUrl, { headers: { accept: "application/json" } });
       const data = await safeJson(res);
 
       Alert.alert("Barcode result", `${data?.name || "Product"}\n${round1(data?.per_100g?.kcal)} kcal / 100g`);
