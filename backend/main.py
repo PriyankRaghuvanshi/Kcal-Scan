@@ -6,6 +6,7 @@ import re
 import logging
 import datetime as dt
 from typing import Any, Dict, Optional, List
+from zoneinfo import ZoneInfo
 
 import requests
 from PIL import Image
@@ -59,6 +60,15 @@ TBL_DAILY_TOTALS = "daily_totals"
 DEFAULT_PLAN = "free"
 PLAN_ORDER = ["free", "elite", "advanced", "pro", "infinite"]
 
+# Goal defaults used when an older schema is missing one or more goal columns.
+DEFAULT_DAILY_GOALS = {
+    "kcal": 2000.0,
+    "protein_g": 150.0,
+    "carbs_g": 200.0,
+    "fat_g": 70.0,
+    "fiber_g": 30.0,
+}
+
 
 # -------------------- MIDDLEWARE --------------------
 @app.middleware("http")
@@ -104,8 +114,35 @@ def _safe_float(x, default=None):
     except Exception:
         return default
 
-def _today_date() -> dt.date:
-    return dt.datetime.utcnow().date()
+def _parse_tz_offset_min(v: Optional[Any]) -> Optional[int]:
+    if v is None:
+        return None
+    try:
+        n = int(float(v))
+    except Exception:
+        return None
+    if n < -840 or n > 840:
+        return None
+    return n
+
+def _today_date(tz: Optional[str] = None, tz_offset_min: Optional[Any] = None) -> dt.date:
+    """
+    Returns "today" in client local time when timezone info is provided.
+    Fallback is UTC date for backward compatibility.
+    """
+    now_utc = dt.datetime.now(dt.timezone.utc)
+    tz_name = (tz or "").strip()
+    if tz_name:
+        try:
+            return now_utc.astimezone(ZoneInfo(tz_name)).date()
+        except Exception:
+            logger.warning(f"Invalid timezone '{tz_name}', falling back to offset/UTC.")
+
+    off = _parse_tz_offset_min(tz_offset_min)
+    if off is not None:
+        return (now_utc + dt.timedelta(minutes=off)).date()
+
+    return now_utc.date()
 
 def _month_start(d: dt.date) -> dt.date:
     return dt.date(d.year, d.month, 1)
@@ -301,6 +338,8 @@ def _normalize_goals_record(user_id: str, row: Optional[Dict[str, Any]]) -> Dict
     }
     for canonical, aliases in GOAL_KEY_ALIASES.items():
         val = _first_present_float(src, aliases)
+        if val is None and canonical in DEFAULT_DAILY_GOALS:
+            val = float(DEFAULT_DAILY_GOALS[canonical])
         out[canonical] = val
 
     # Backward compatibility for older clients expecting *_goal fields.
@@ -324,6 +363,36 @@ def _goal_payload_for_storage(user_id: str, goals: Dict[str, Any], mapping: Dict
         if v is not None:
             clean[target] = v
     return clean
+
+
+def _merge_missing_goal_values_for_response(
+    user_id: str,
+    normalized: Dict[str, Any],
+    persisted_row: Optional[Dict[str, Any]],
+    incoming: Optional[Dict[str, Any]],
+) -> Dict[str, Any]:
+    """
+    If some goal columns are absent in DB schema (for example, fiber_goal_g),
+    preserve the just-sent values in API response so UI remains consistent.
+    """
+    out = dict(normalized or {})
+    src = persisted_row or {}
+    incoming_norm = _normalize_goals_record(user_id, incoming or {})
+    for canonical, aliases in GOAL_KEY_ALIASES.items():
+        persisted_val = _first_present_float(src, aliases)
+        if persisted_val is None and incoming_norm.get(canonical) is not None:
+            out[canonical] = incoming_norm.get(canonical)
+
+    out["kcal_goal"] = out.get("kcal")
+    out["protein_goal_g"] = out.get("protein_g")
+    out["carbs_goal_g"] = out.get("carbs_g")
+    out["fat_goal_g"] = out.get("fat_g")
+    out["fiber_goal_g"] = out.get("fiber_g")
+    out["vitamin_d_goal_ug"] = out.get("vitamin_d_ug")
+    out["vitamin_b12_goal_ug"] = out.get("vitamin_b12_ug")
+    out["iron_goal_mg"] = out.get("iron_mg")
+    out["magnesium_goal_mg"] = out.get("magnesium_mg")
+    return out
 
 
 def _sb_upsert_with_column_fallback(table: str, row: Dict[str, Any], on_conflict: str) -> Dict[str, Any]:
@@ -413,22 +482,42 @@ def upsert_user_goals(user_id: str, goals: Dict[str, Any]) -> Dict[str, Any]:
                     clean,
                     locked_cols={"user_id"},
                 )
-            return _normalize_goals_record(user_id, stored)
+            normalized = _normalize_goals_record(user_id, stored)
+            return _merge_missing_goal_values_for_response(user_id, normalized, stored, incoming)
         except Exception as e:
             last_err = e
             continue
+
+    # Final fallback: patch only columns that actually exist in the current row.
+    # This prevents one missing column (e.g., carbs_g) from blocking all goal updates.
+    if existing:
+        try:
+            patch_payload: Dict[str, Any] = {"updated_at": dt.datetime.utcnow().isoformat()}
+            existing_cols = {k for k in existing.keys() if k not in {"user_id", "updated_at"}}
+            for col in sorted(existing_cols):
+                v = _first_present_float(incoming, (col,))
+                if v is not None:
+                    patch_payload[col] = v
+            if len(patch_payload.keys()) > 1:
+                _sb_patch_with_column_fallback(TBL_USER_GOALS, {"user_id": f"eq.{user_id}"}, patch_payload)
+                refreshed = get_user_goals_raw(user_id)
+                base_row = refreshed if refreshed else existing
+                normalized = _normalize_goals_record(user_id, base_row)
+                return _merge_missing_goal_values_for_response(user_id, normalized, base_row, incoming)
+        except Exception as e:
+            last_err = e
 
     if last_err:
         raise last_err
     return get_user_goals(user_id)
 
-def _day_iso(d: Optional[str]) -> str:
+def _day_iso(d: Optional[str], tz: Optional[str] = None, tz_offset_min: Optional[Any] = None) -> str:
     if d:
         try:
             return dt.date.fromisoformat(str(d)[:10]).isoformat()
         except Exception:
             pass
-    return _today_date().isoformat()
+    return _today_date(tz=tz, tz_offset_min=tz_offset_min).isoformat()
 
 DAILY_VALUE_ALIASES = {
     "total_kcal": ("total_kcal", "kcal", "calories"),
@@ -476,7 +565,12 @@ def _daily_payload_for_storage(user_id: str, day_iso: str, values: Dict[str, flo
     return payload
 
 
-def get_daily_totals(user_id: str, day: Optional[str] = None) -> Dict[str, Any]:
+def get_daily_totals(
+    user_id: str,
+    day: Optional[str] = None,
+    tz: Optional[str] = None,
+    tz_offset_min: Optional[Any] = None,
+) -> Dict[str, Any]:
     """
     Reads from daily_totals (recommended schema):
       user_id uuid,
@@ -496,7 +590,7 @@ def get_daily_totals(user_id: str, day: Optional[str] = None) -> Dict[str, Any]:
       primary key (user_id, day)
     """
     _require_supabase()
-    day_iso = _day_iso(day)
+    day_iso = _day_iso(day, tz=tz, tz_offset_min=tz_offset_min)
     raw = sb_get_one(
         TBL_DAILY_TOTALS,
         params={
@@ -508,13 +602,19 @@ def get_daily_totals(user_id: str, day: Optional[str] = None) -> Dict[str, Any]:
     )
     return _normalize_daily_totals_record(user_id, day_iso, raw)
 
-def add_to_daily_totals(user_id: str, increments: Dict[str, Any], day: Optional[str] = None) -> Dict[str, Any]:
+def add_to_daily_totals(
+    user_id: str,
+    increments: Dict[str, Any],
+    day: Optional[str] = None,
+    tz: Optional[str] = None,
+    tz_offset_min: Optional[Any] = None,
+) -> Dict[str, Any]:
     """
     Adds the meal totals to daily_totals row for (user_id, day).
     Non-atomic read+write is OK for MVP.
     """
     _require_supabase()
-    day_iso = _day_iso(day)
+    day_iso = _day_iso(day, tz=tz, tz_offset_min=tz_offset_min)
     raw_current = sb_get_one(
         TBL_DAILY_TOTALS,
         params={
@@ -574,8 +674,13 @@ def add_to_daily_totals(user_id: str, increments: Dict[str, Any], day: Optional[
         raise last_err
     return _normalize_daily_totals_record(user_id, day_iso, {"user_id": user_id, "day": day_iso, **next_vals})
 
-def build_daily_summary(user_id: str, day: Optional[str] = None) -> Dict[str, Any]:
-    totals = dict(get_daily_totals(user_id, day) or {})
+def build_daily_summary(
+    user_id: str,
+    day: Optional[str] = None,
+    tz: Optional[str] = None,
+    tz_offset_min: Optional[Any] = None,
+) -> Dict[str, Any]:
+    totals = dict(get_daily_totals(user_id, day, tz=tz, tz_offset_min=tz_offset_min) or {})
     totals["kcal"] = _safe_float(totals.get("total_kcal"), 0.0) or 0.0
     totals["micros"] = {
         "fiber_g": _safe_float(totals.get("fiber_g"), 0.0) or 0.0,
@@ -653,7 +758,7 @@ def get_plan_limits(plan: str) -> Dict[str, int]:
         "monthly_limit": int(row.get("monthly_limit") or 0),
     }
 
-def get_or_init_usage(user_id: str) -> Dict[str, Any]:
+def get_or_init_usage(user_id: str, today: Optional[dt.date] = None) -> Dict[str, Any]:
     """
     user_usage schema expected:
       user_id uuid primary key references auth.users(id),
@@ -675,7 +780,7 @@ def get_or_init_usage(user_id: str) -> Dict[str, Any]:
         },
     )
 
-    today = _today_date()
+    today = today or _today_date()
     mstart = _month_start(today)
 
     if not row:
@@ -695,7 +800,7 @@ def get_or_init_usage(user_id: str) -> Dict[str, Any]:
 
     return row
 
-def normalize_resets(row: Dict[str, Any]) -> Dict[str, Any]:
+def normalize_resets(row: Dict[str, Any], today: Optional[dt.date] = None) -> Dict[str, Any]:
     """
     If day/month changed, reset counters to plan limits.
     BUT: If plan is 'free', do not reset (total lifetime limit).
@@ -707,7 +812,7 @@ def normalize_resets(row: Dict[str, Any]) -> Dict[str, Any]:
     if plan == "free":
         return row
 
-    today = _today_date()
+    today = today or _today_date()
     mstart = _month_start(today)
 
     # Parse stored dates
@@ -742,13 +847,13 @@ def normalize_resets(row: Dict[str, Any]) -> Dict[str, Any]:
 
     return row
 
-def consume_one_scan(user_id: str) -> Dict[str, Any]:
+def consume_one_scan(user_id: str, today: Optional[dt.date] = None) -> Dict[str, Any]:
     """
     Enforces usage + decrements by 1.
     Raises HTTP 402 if out of scans.
     """
-    row = get_or_init_usage(user_id)
-    row = normalize_resets(row)
+    row = get_or_init_usage(user_id, today=today)
+    row = normalize_resets(row, today=today)
 
     rem_day = int(row.get("remaining_day") or 0)
     rem_month = int(row.get("remaining_month") or 0)
@@ -776,7 +881,7 @@ def consume_one_scan(user_id: str) -> Dict[str, Any]:
     row.update(patch)
     return row
 
-def set_user_plan(user_id: str, plan: str) -> Dict[str, Any]:
+def set_user_plan(user_id: str, plan: str, today: Optional[dt.date] = None) -> Dict[str, Any]:
     """
     When user purchases a plan, set plan and reset counters immediately.
     """
@@ -785,7 +890,7 @@ def set_user_plan(user_id: str, plan: str) -> Dict[str, Any]:
         plan = DEFAULT_PLAN
 
     lim = get_plan_limits(plan)
-    today = _today_date()
+    today = today or _today_date()
     mstart = _month_start(today)
 
     row = {
@@ -801,7 +906,7 @@ def set_user_plan(user_id: str, plan: str) -> Dict[str, Any]:
     return stored
 
 
-def set_user_plan_no_reset(user_id: str, plan: str) -> Dict[str, Any]:
+def set_user_plan_no_reset(user_id: str, plan: str, today: Optional[dt.date] = None) -> Dict[str, Any]:
     """\
     Used for *restore* flows.
 
@@ -817,8 +922,8 @@ def set_user_plan_no_reset(user_id: str, plan: str) -> Dict[str, Any]:
         plan = DEFAULT_PLAN
 
     # Ensure row exists and any date-based resets are applied first.
-    row = get_or_init_usage(user_id)
-    row = normalize_resets(row)
+    row = get_or_init_usage(user_id, today=today)
+    row = normalize_resets(row, today=today)
 
     lim = get_plan_limits(plan)
     rem_day = int(row.get("remaining_day") or 0)
@@ -856,11 +961,14 @@ def require_user_id(x_user_id: Optional[str], user_id: Optional[str]) -> str:
 @app.get("/usage")
 def usage(
     user_id: Optional[str] = None,
+    tz: Optional[str] = None,
+    tz_offset_min: Optional[int] = None,
     x_user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
 ):
     uid = require_user_id(x_user_id, user_id)
-    row = get_or_init_usage(uid)
-    row = normalize_resets(row)
+    today_local = _today_date(tz=tz, tz_offset_min=tz_offset_min)
+    row = get_or_init_usage(uid, today=today_local)
+    row = normalize_resets(row, today=today_local)
     return {
         "user_id": uid,
         "plan": row.get("plan"),
@@ -875,6 +983,8 @@ def usage(
 def plan_sync(
     payload: Dict[str, Any] = Body(...),
     user_id: Optional[str] = None,
+    tz: Optional[str] = None,
+    tz_offset_min: Optional[int] = None,
     x_user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
 ):
     """\
@@ -891,11 +1001,12 @@ def plan_sync(
     uid = require_user_id(x_user_id, user_id)
     entitlement = (payload.get("entitlement") or DEFAULT_PLAN).lower()
     mode = (payload.get("mode") or "restore").lower()  # default safe: no counter reset
+    today_local = _today_date(tz=tz, tz_offset_min=tz_offset_min)
 
     if mode == "restore":
-        stored = set_user_plan_no_reset(uid, entitlement)
+        stored = set_user_plan_no_reset(uid, entitlement, today=today_local)
     else:
-        stored = set_user_plan(uid, entitlement)
+        stored = set_user_plan(uid, entitlement, today=today_local)
 
     return {"ok": True, "plan": stored.get("plan"), "mode": mode}
 
@@ -924,10 +1035,12 @@ def set_goals(
 def daily_summary(
     day: Optional[str] = None,
     user_id: Optional[str] = None,
+    tz: Optional[str] = None,
+    tz_offset_min: Optional[int] = None,
     x_user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
 ):
     uid = require_user_id(x_user_id, user_id)
-    return build_daily_summary(uid, day)
+    return build_daily_summary(uid, day, tz=tz, tz_offset_min=tz_offset_min)
 
 
 # -------------------- HTTP RETRY HELPERS --------------------
@@ -1121,6 +1234,7 @@ def extract_micros_per_100g(food_details: dict) -> Dict[str, Any]:
     for n in food_details.get("foodNutrients", []) or []:
         nutrient = n.get("nutrient") or {}
         number = str(nutrient.get("number") or "").strip()
+        nut_name = (nutrient.get("name") or "").strip().lower()
 
         amount = n.get("amount")
         if amount is None:
@@ -1138,6 +1252,11 @@ def extract_micros_per_100g(food_details: dict) -> Dict[str, Any]:
             if conv is not None:
                 vd_parts_sum += float(conv)
                 vd_parts_found = True
+            continue
+        if "vitamin d" in nut_name:
+            conv = _convert_unit(float(amount), unit, "ug")
+            if conv is not None:
+                vd_total_candidates.append(float(conv))
             continue
 
         if number not in wanted:
@@ -1294,6 +1413,8 @@ def supabase_upsert_barcode(row: Dict[str, Any]) -> Dict[str, Any]:
 def barcode_lookup(
     code: str,
     user_id: Optional[str] = None,
+    tz: Optional[str] = None,
+    tz_offset_min: Optional[int] = None,
     x_user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
 ):
     uid = require_user_id(x_user_id, user_id)
@@ -1303,7 +1424,8 @@ def barcode_lookup(
     require_plan(plan, "elite", feature="barcode")
 
     # consume scan first (so even cache hits count)
-    usage_row = consume_one_scan(uid)
+    today_local = _today_date(tz=tz, tz_offset_min=tz_offset_min)
+    usage_row = consume_one_scan(uid, today=today_local)
 
     barcode = _digits_only(code)
     if not barcode:
@@ -1362,6 +1484,8 @@ def barcode_lookup(
 def barcode_manual(
     payload: Dict[str, Any] = Body(...),
     user_id: Optional[str] = None,
+    tz: Optional[str] = None,
+    tz_offset_min: Optional[int] = None,
     x_user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
 ):
     """
@@ -1383,7 +1507,8 @@ def barcode_manual(
     plan = get_user_plan(uid)
     require_plan(plan, "elite", feature="barcode")
 
-    usage_row = consume_one_scan(uid)
+    today_local = _today_date(tz=tz, tz_offset_min=tz_offset_min)
+    usage_row = consume_one_scan(uid, today=today_local)
 
     barcode = _digits_only(str(payload.get("barcode") or ""))
     if not barcode:
@@ -1576,12 +1701,16 @@ def build_coaching_payload(total_kcal: float, protein_g: float, carbs_g: float, 
 async def analyze(
     file: UploadFile = File(...),
     user_id: Optional[str] = None,
+    tz: Optional[str] = None,
+    tz_offset_min: Optional[int] = None,
     x_user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
 ):
     uid = require_user_id(x_user_id, user_id)
+    today_local = _today_date(tz=tz, tz_offset_min=tz_offset_min)
+    day_local_iso = today_local.isoformat()
 
     # consume scan first (so failures still count? You can change this later.)
-    usage_row = consume_one_scan(uid)
+    usage_row = consume_one_scan(uid, today=today_local)
 
     contents = await file.read()
     if not contents:
@@ -1776,8 +1905,8 @@ async def analyze(
             "iron_mg": float(total_micros.get("iron_mg") or 0.0),
             "magnesium_mg": float(total_micros.get("magnesium_mg") or 0.0),
         }
-        _ = add_to_daily_totals(uid, inc)
-        response["daily"] = build_daily_summary(uid)
+        _ = add_to_daily_totals(uid, inc, day=day_local_iso)
+        response["daily"] = build_daily_summary(uid, day=day_local_iso)
     except Exception as e:
         logger.warning(f"Daily totals update skipped: {e}")
 
