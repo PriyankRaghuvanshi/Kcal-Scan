@@ -17,6 +17,7 @@
     "expo-dev-client": "~6.0.20",
     "expo-file-system": "~19.0.21",
     "expo-image-picker": "~17.0.10",
+    "expo-notifications": "~0.32.16",
     "expo-status-bar": "~3.0.9",
     "expo-web-browser": "~15.0.10",
     "react": "19.1.0",
