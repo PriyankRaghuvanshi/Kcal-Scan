@@ -76,6 +76,10 @@ const historyKey = (uid) => `${HISTORY_KEY}:${uid}`;
 const MAX_HISTORY = 50;
 const GOALS_KEY = "kcal_user_goals_v1";
 const goalsKey = (uid) => `${GOALS_KEY}:${uid}`;
+const DAILY_COACH_KEY = "kcal_daily_coach_v1";
+const dailyCoachKey = (uid, day) => `${DAILY_COACH_KEY}:${uid}:${day}`;
+const COACH_PROFILE_KEY = "kcal_coach_profile_v1";
+const coachProfileKey = (uid) => `${COACH_PROFILE_KEY}:${uid}`;
 
 const RC_IOS_KEY = process.env.EXPO_PUBLIC_RC_IOS_KEY || "";
 const RC_ANDROID_KEY = process.env.EXPO_PUBLIC_RC_ANDROID_KEY || "";
@@ -99,6 +103,12 @@ const DEFAULT_GOALS = {
   carbs_g: 200,
   fat_g: 70,
   fiber_g: 30,
+};
+const DEFAULT_COACH_PROFILE = {
+  goal_type: "fat_loss",
+  diet_style: "non-veg",
+  training_days_per_week: 3,
+  training_time: "evening",
 };
 
 // ===================== HELPERS =====================
@@ -157,6 +167,71 @@ function normalizeGoals(raw, fallback = DEFAULT_GOALS) {
     fat_g: num(src.fat_g ?? src.fat_goal_g ?? fb.fat_g),
     fiber_g: num(src.fiber_g ?? src.fiber_goal_g ?? fb.fiber_g),
   };
+}
+function normalizeCoachProfile(raw) {
+  const src = raw || {};
+  const goalType = String(src.goal_type || DEFAULT_COACH_PROFILE.goal_type).toLowerCase();
+  const dietStyle = String(src.diet_style || DEFAULT_COACH_PROFILE.diet_style).toLowerCase();
+  const trainingTime = String(src.training_time || DEFAULT_COACH_PROFILE.training_time).toLowerCase();
+  const out = {
+    goal_type: ["fat_loss", "recomposition", "lean_gain"].includes(goalType) ? goalType : DEFAULT_COACH_PROFILE.goal_type,
+    diet_style: ["veg", "non-veg", "vegan"].includes(dietStyle) ? dietStyle : DEFAULT_COACH_PROFILE.diet_style,
+    training_days_per_week: Math.max(0, Math.min(7, Math.round(num(src.training_days_per_week ?? DEFAULT_COACH_PROFILE.training_days_per_week)))),
+    training_time: ["morning", "afternoon", "evening", "night", "variable"].includes(trainingTime)
+      ? trainingTime
+      : DEFAULT_COACH_PROFILE.training_time,
+  };
+  return out;
+}
+function regionFromLocale() {
+  try {
+    const locale =
+      Intl?.DateTimeFormat?.().resolvedOptions?.().locale ||
+      Intl?.NumberFormat?.().resolvedOptions?.().locale ||
+      "";
+    const m = String(locale).match(/-([A-Za-z]{2})$/);
+    return m ? m[1].toUpperCase() : "US";
+  } catch {
+    return "US";
+  }
+}
+function hashString(text) {
+  const s = String(text || "");
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i += 1) {
+    h ^= s.charCodeAt(i);
+    h += (h << 1) + (h << 4) + (h << 7) + (h << 8) + (h << 24);
+  }
+  return `h${(h >>> 0).toString(16)}`;
+}
+function avg(arr) {
+  const list = Array.isArray(arr) ? arr.map((x) => num(x)).filter((x) => Number.isFinite(x)) : [];
+  if (!list.length) return 0;
+  return list.reduce((a, b) => a + b, 0) / list.length;
+}
+function estimateLocalSatiety(kcal, protein_g, fat_g) {
+  const total = Math.max(1, num(kcal));
+  const p = Math.max(0, num(protein_g));
+  const f = Math.max(0, num(fat_g));
+  const pDensity = (p / total) * 1000;
+  const fDensity = (f / total) * 1000;
+  return round1(Math.max(0, Math.min(100, 50 + (pDensity * 0.55) - (fDensity * 0.25) - (total / 60))));
+}
+function estimateLocalGL(carbs_g) {
+  return round1(Math.max(0, num(carbs_g)) * 0.72);
+}
+function estimateLocalUPF(kcal, carbs_g, fat_g) {
+  const total = Math.max(1, num(kcal));
+  const cFrac = (Math.max(0, num(carbs_g)) * 4) / total;
+  const fFrac = (Math.max(0, num(fat_g)) * 9) / total;
+  return round1(Math.max(0, Math.min(10, (cFrac * 6) + (fFrac * 6) + (total / 800) * 4)));
+}
+function bucketFromHour(hour) {
+  const h = num(hour);
+  if (h >= 5 && h < 11) return "breakfast";
+  if (h >= 11 && h < 16) return "lunch";
+  if (h >= 16 && h < 22) return "dinner";
+  return "snack";
 }
 
 function extractQueryParam(url, key) {
@@ -355,6 +430,14 @@ export default function App() {
 
   // ===== History (isolated by user id) =====
   const [history, setHistory] = useState([]);
+  const [coachDaily, setCoachDaily] = useState(null);
+  const [coachBusy, setCoachBusy] = useState(false);
+  const [coachErr, setCoachErr] = useState("");
+  const [coachProfile, setCoachProfile] = useState(DEFAULT_COACH_PROFILE);
+  const [coachProfileDraft, setCoachProfileDraft] = useState(DEFAULT_COACH_PROFILE);
+  const [coachProfileReady, setCoachProfileReady] = useState(false);
+  const [coachProfileModal, setCoachProfileModal] = useState(false);
+  const coachReqRef = useRef(false);
 
   // ===== Camera Modal =====
   const [camOpen, setCamOpen] = useState(false);
@@ -467,6 +550,12 @@ export default function App() {
     setResult(null);
     setDailySummary(null);
     setHistory([]);
+    setCoachDaily(null);
+    setCoachErr("");
+    setCoachProfile(DEFAULT_COACH_PROFILE);
+    setCoachProfileDraft(DEFAULT_COACH_PROFILE);
+    setCoachProfileReady(false);
+    setCoachProfileModal(false);
     setBarcodeManual("");
     setBarcodeOpen(false);
     setCamOpen(false);
@@ -554,6 +643,250 @@ export default function App() {
     try {
       await AsyncStorage.setItem(goalsKey(uid), JSON.stringify(normalizeGoals(g, DEFAULT_GOALS)));
     } catch {}
+  }
+
+  async function loadCoachProfile(uid) {
+    if (!uid) return DEFAULT_COACH_PROFILE;
+    try {
+      const raw = await AsyncStorage.getItem(coachProfileKey(uid));
+      if (!raw) return DEFAULT_COACH_PROFILE;
+      return normalizeCoachProfile(JSON.parse(raw));
+    } catch {
+      return DEFAULT_COACH_PROFILE;
+    }
+  }
+
+  async function saveCoachProfile(uid, profile) {
+    const normalized = normalizeCoachProfile(profile);
+    if (!uid) {
+      setCoachProfile(normalized);
+      setCoachProfileDraft(normalized);
+      return;
+    }
+    try {
+      await AsyncStorage.setItem(coachProfileKey(uid), JSON.stringify(normalized));
+    } catch {}
+    setCoachProfile(normalized);
+    setCoachProfileDraft(normalized);
+  }
+
+  function getTodayPhotoMeals() {
+    const today = localDayISO();
+    return (history || [])
+      .filter((h) => (h?.kind || "") === "photo" && localDayFromISO(h?.ts) === today)
+      .map((h) => {
+        const kcal = num(h?.total_kcal ?? h?.totals?.kcal ?? h?.totals?.total_kcal);
+        const protein_g = num(h?.totals?.protein_g);
+        const carbs_g = num(h?.totals?.carbs_g);
+        const fat_g = num(h?.totals?.fat_g);
+        const at = new Date(h?.ts || "");
+        const hour = Number.isFinite(at.getTime()) ? at.getHours() : 12;
+        const coachingObj = h?.coaching || null;
+        const satiety = coachingObj?.satiety_score != null
+          ? num(coachingObj.satiety_score)
+          : estimateLocalSatiety(kcal, protein_g, fat_g);
+        const gl = coachingObj?.glycemic_load?.gl != null
+          ? num(coachingObj.glycemic_load.gl)
+          : estimateLocalGL(carbs_g);
+        const upf = coachingObj?.ultra_processed_score != null
+          ? num(coachingObj.ultra_processed_score)
+          : estimateLocalUPF(kcal, carbs_g, fat_g);
+        return { kcal, protein_g, carbs_g, fat_g, hour, satiety, gl, upf };
+      });
+  }
+
+  function buildDailyCoachPayload() {
+    const g = normalizeGoals(goals || dailySummary?.goals || DEFAULT_GOALS, DEFAULT_GOALS);
+    const totals = dailySummary?.totals || {};
+    const meals = getTodayPhotoMeals();
+
+    const mealSums = meals.reduce(
+      (acc, m) => ({
+        kcal: acc.kcal + num(m.kcal),
+        protein_g: acc.protein_g + num(m.protein_g),
+        carbs_g: acc.carbs_g + num(m.carbs_g),
+        fat_g: acc.fat_g + num(m.fat_g),
+      }),
+      { kcal: 0, protein_g: 0, carbs_g: 0, fat_g: 0 }
+    );
+
+    const consumedKcal = num(totals?.total_kcal ?? totals?.kcal) || mealSums.kcal;
+    const consumedProtein = num(totals?.protein_g) || mealSums.protein_g;
+    const consumedCarbs = num(totals?.carbs_g) || mealSums.carbs_g;
+    const consumedFat = num(totals?.fat_g) || mealSums.fat_g;
+    const backendFiber = num(totals?.fiber_g ?? totals?.micros?.fiber_g ?? totals?.micros?.fiber);
+    const fiberFromRemaining = Math.max(0, num(g?.fiber_g) - num(remainingToday?.fiber_g));
+    const consumedFiber = Math.max(backendFiber, fiberFromRemaining);
+
+    const leucineTarget = coachProfile?.goal_type === "lean_gain" ? 4 : 3;
+    const leucineHit = meals.filter((m) => num(m.protein_g) * 0.08 >= 2.5).length;
+
+    const avgSatiety = meals.length
+      ? avg(meals.map((m) => m.satiety))
+      : estimateLocalSatiety(consumedKcal, consumedProtein, consumedFat);
+    const avgGL = meals.length ? avg(meals.map((m) => m.gl)) : estimateLocalGL(consumedCarbs);
+    const avgUPF = meals.length ? avg(meals.map((m) => m.upf)) : estimateLocalUPF(consumedKcal, consumedCarbs, consumedFat);
+
+    const bucketTotals = { breakfast: 0, lunch: 0, dinner: 0, snack: 0 };
+    let lateKcal = 0;
+    meals.forEach((m) => {
+      const b = bucketFromHour(m.hour);
+      bucketTotals[b] += num(m.kcal);
+      if (m.hour >= 19 || m.hour <= 1) lateKcal += num(m.kcal);
+    });
+    const biggestMeal = Object.entries(bucketTotals).sort((a, b) => num(b[1]) - num(a[1]))[0]?.[0] || "dinner";
+    const lateCaloriesPct = consumedKcal > 0 ? round1((lateKcal / consumedKcal) * 100) : 0;
+
+    return {
+      date: localDayISO(),
+      goals: {
+        kcal: round1(g.kcal),
+        protein_g: round1(g.protein_g),
+        carbs_g: round1(g.carbs_g),
+        fat_g: round1(g.fat_g),
+        fiber_g: round1(g.fiber_g),
+      },
+      consumed: {
+        kcal: round1(consumedKcal),
+        protein_g: round1(consumedProtein),
+        carbs_g: round1(consumedCarbs),
+        fat_g: round1(consumedFat),
+        fiber_g: round1(consumedFiber),
+      },
+      signals: {
+        leucine_triggers: { target: leucineTarget, hit: Math.min(leucineTarget, leucineHit) },
+        avg_satiety: round1(avgSatiety),
+        avg_glycemic_load: round1(avgGL),
+        ultra_processed_avg: round1(avgUPF),
+      },
+      meal_timing: {
+        late_calories_pct: round1(lateCaloriesPct),
+        biggest_meal: biggestMeal,
+      },
+      constraints: {
+        diet: coachProfile?.diet_style || "non-veg",
+        allergies: [],
+        region: regionFromLocale(),
+      },
+      profile: {
+        goal_type: coachProfile?.goal_type || "fat_loss",
+        diet_style: coachProfile?.diet_style || "non-veg",
+        training_days_per_week: num(coachProfile?.training_days_per_week),
+        training_time: coachProfile?.training_time || "evening",
+      },
+    };
+  }
+
+  async function ensureDailyCoach(force = false) {
+    const uid = userId || session?.user?.id;
+    if (!uid || !coachProfileReady) return;
+
+    const payload = buildDailyCoachPayload();
+    if (!payload || num(payload?.consumed?.kcal) <= 0) {
+      const dayKey = localDayISO();
+      try {
+        const raw = await AsyncStorage.getItem(dailyCoachKey(uid, dayKey));
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          const cachedResp = parsed?.response || parsed;
+          if (cachedResp && typeof cachedResp === "object") {
+            setCoachDaily(cachedResp);
+            setCoachErr("");
+            return;
+          }
+        }
+      } catch {}
+      setCoachDaily(null);
+      setCoachErr("");
+      return;
+    }
+    const day = payload.date || localDayISO();
+    const cacheKey = dailyCoachKey(uid, day);
+    const payloadHash = hashString(JSON.stringify(payload));
+
+    if (!force) {
+      try {
+        const raw = await AsyncStorage.getItem(cacheKey);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          const cachedResp = parsed?.response || parsed;
+          if (cachedResp && typeof cachedResp === "object") {
+            setCoachDaily(cachedResp);
+            setCoachErr("");
+            return;
+          }
+        }
+      } catch {}
+    }
+
+    if (coachReqRef.current) return;
+    coachReqRef.current = true;
+    setCoachBusy(true);
+    if (force) setCoachErr("");
+    try {
+      const url = withTimezoneQuery(`${API_BASE}/coach/daily?user_id=${encodeURIComponent(uid)}`);
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", accept: "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await safeJson(res);
+      const cleaned = {
+        date: String(data?.date || day),
+        fat_loss_score: Math.round(num(data?.fat_loss_score)),
+        diagnosis: Array.isArray(data?.diagnosis) ? data.diagnosis : [],
+        tomorrow_focus: Array.isArray(data?.tomorrow_focus) ? data.tomorrow_focus : [],
+        actions: Array.isArray(data?.actions) ? data.actions.slice(0, 3) : [],
+        risk_alerts: Array.isArray(data?.risk_alerts) ? data.risk_alerts : [],
+        disclaimer: String(data?.disclaimer || "Informational only."),
+      };
+      setCoachDaily(cleaned);
+      setCoachErr("");
+      await AsyncStorage.setItem(cacheKey, JSON.stringify({ payloadHash, ts: nowISO(), response: cleaned }));
+    } catch (e) {
+      setCoachErr(String(e).slice(0, 200));
+      try {
+        const raw = await AsyncStorage.getItem(cacheKey);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          const cachedResp = parsed?.response || parsed;
+          if (cachedResp && typeof cachedResp === "object") {
+            setCoachDaily(cachedResp);
+          }
+        }
+      } catch {}
+    } finally {
+      coachReqRef.current = false;
+      setCoachBusy(false);
+    }
+  }
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!userId) return;
+      const loaded = await loadCoachProfile(userId);
+      if (cancelled) return;
+      setCoachProfile(loaded);
+      setCoachProfileDraft(loaded);
+      setCoachProfileReady(true);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [userId]);
+
+  useEffect(() => {
+    if (!userId || !coachProfileReady) return;
+    ensureDailyCoach(false);
+  }, [userId, coachProfileReady, goals, dailySummary, history, coachProfile]);
+
+  async function applyCoachProfile() {
+    const uid = userId || session?.user?.id;
+    const normalized = normalizeCoachProfile(coachProfileDraft);
+    await saveCoachProfile(uid, normalized);
+    setCoachProfileModal(false);
+    await ensureDailyCoach(true);
   }
 
   function clearCurrentScan() {
@@ -716,6 +1049,12 @@ export default function App() {
     setResult(null);
     setDailySummary(null);
     setHistory([]);
+    setCoachDaily(null);
+    setCoachErr("");
+    setCoachProfile(DEFAULT_COACH_PROFILE);
+    setCoachProfileDraft(DEFAULT_COACH_PROFILE);
+    setCoachProfileReady(false);
+    setCoachProfileModal(false);
     setGoals(null);
     setGoalsDraft(DEFAULT_GOALS);
     setGoalsModal(false);
@@ -1167,6 +1506,98 @@ async function analyzePhoto() {
         </View>
 
         <View style={styles.card}>
+          <View style={styles.topRow}>
+            <Text style={styles.cardTitle}>Fat Loss Intelligence</Text>
+            <View style={{ flexDirection: "row", gap: 8 }}>
+              <TouchableOpacity
+                style={styles.smallBtn}
+                onPress={() => {
+                  setCoachProfileDraft(coachProfile || DEFAULT_COACH_PROFILE);
+                  setCoachProfileModal(true);
+                }}
+              >
+                <Text style={styles.smallBtnText}>Profile</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.smallBtn} onPress={() => ensureDailyCoach(true)} disabled={coachBusy}>
+                <Text style={styles.smallBtnText}>{coachBusy ? "…" : "Refresh"}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <Text style={styles.tiny}>
+            {coachProfile?.goal_type || "fat_loss"} • {coachProfile?.diet_style || "non-veg"} •{" "}
+            {Math.round(num(coachProfile?.training_days_per_week))} training day(s)/week • {coachProfile?.training_time || "evening"}
+          </Text>
+
+          {coachErr ? <Text style={[styles.tiny, { color: "#ffb4b4", marginTop: 8 }]}>{coachErr}</Text> : null}
+
+          {coachBusy && !coachDaily ? (
+            <View style={{ marginTop: 10 }}>
+              <ActivityIndicator />
+            </View>
+          ) : coachDaily ? (
+            <View style={{ marginTop: 10 }}>
+              <Text style={styles.big}>Score: {Math.round(num(coachDaily?.fat_loss_score))}/100</Text>
+
+              {(coachDaily?.diagnosis || []).length ? (
+                <View style={{ marginTop: 8 }}>
+                  <Text style={styles.cardTitle}>Diagnosis</Text>
+                  {(coachDaily.diagnosis || []).map((line, i) => (
+                    <Text key={`diag-${i}`} style={styles.p}>
+                      • {String(line)}
+                    </Text>
+                  ))}
+                </View>
+              ) : null}
+
+              {(coachDaily?.tomorrow_focus || []).length ? (
+                <View style={{ marginTop: 10 }}>
+                  <Text style={styles.cardTitle}>Tomorrow focus</Text>
+                  {(coachDaily.tomorrow_focus || []).map((line, i) => (
+                    <Text key={`focus-${i}`} style={styles.p}>
+                      • {String(line)}
+                    </Text>
+                  ))}
+                </View>
+              ) : null}
+
+              {(coachDaily?.risk_alerts || []).length ? (
+                <View style={{ marginTop: 10 }}>
+                  <Text style={styles.cardTitle}>Risk alerts</Text>
+                  {(coachDaily.risk_alerts || []).map((ra, i) => (
+                    <View key={`risk-${i}`} style={styles.riskRow}>
+                      <Text style={styles.riskType}>
+                        {String(ra?.type || "risk")} ({String(ra?.level || "medium")})
+                      </Text>
+                      <Text style={styles.tiny}>{String(ra?.reason || "")}</Text>
+                    </View>
+                  ))}
+                </View>
+              ) : null}
+
+              {(coachDaily?.actions || []).length ? (
+                <View style={{ marginTop: 10 }}>
+                  <Text style={styles.cardTitle}>Actions</Text>
+                  {(coachDaily.actions || []).slice(0, 3).map((a, i) => (
+                    <View key={`action-${i}`} style={styles.actionBox}>
+                      <Text style={styles.itemName}>{String(a?.title || "Action")}</Text>
+                      <Text style={styles.tiny}>{String(a?.why || "")}</Text>
+                      <Text style={styles.p}>{String(a?.how || "")}</Text>
+                    </View>
+                  ))}
+                </View>
+              ) : null}
+
+              <Text style={[styles.tiny, { marginTop: 8 }]}>{String(coachDaily?.disclaimer || "Informational only.")}</Text>
+            </View>
+          ) : (
+            <Text style={[styles.tiny, { marginTop: 10 }]}>
+              Analyze at least one meal today to generate daily intelligence.
+            </Text>
+          )}
+        </View>
+
+        <View style={styles.card}>
           <Text style={styles.cardTitle}>Scan a meal</Text>
 
           {photoUri ? (
@@ -1533,6 +1964,83 @@ async function analyzePhoto() {
           </View>
         </Modal>
 
+        <Modal
+          visible={coachProfileModal}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setCoachProfileModal(false)}
+        >
+          <View style={styles.modalBackdrop}>
+            <View style={styles.modalCard}>
+              <Text style={styles.cardTitle}>Coach profile</Text>
+              <Text style={styles.tiny}>Used for daily personalization (stored locally on this device).</Text>
+
+              <View style={{ marginTop: 12 }}>
+                <Text style={styles.label}>Primary goal</Text>
+                <View style={styles.rowWrap}>
+                  {["fat_loss", "recomposition", "lean_gain"].map((gk) => (
+                    <TouchableOpacity
+                      key={gk}
+                      style={[styles.chip, coachProfileDraft?.goal_type === gk && styles.chipActive]}
+                      onPress={() => setCoachProfileDraft((p) => ({ ...p, goal_type: gk }))}
+                    >
+                      <Text style={styles.chipText}>{gk}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                <Text style={styles.label}>Diet style</Text>
+                <View style={styles.rowWrap}>
+                  {["veg", "non-veg", "vegan"].map((d) => (
+                    <TouchableOpacity
+                      key={d}
+                      style={[styles.chip, coachProfileDraft?.diet_style === d && styles.chipActive]}
+                      onPress={() => setCoachProfileDraft((p) => ({ ...p, diet_style: d }))}
+                    >
+                      <Text style={styles.chipText}>{d}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                <Text style={styles.label}>Training days/week</Text>
+                <TextInput
+                  style={styles.input}
+                  keyboardType="numeric"
+                  value={String(coachProfileDraft?.training_days_per_week ?? "")}
+                  onChangeText={(v) => setCoachProfileDraft((p) => ({ ...p, training_days_per_week: v }))}
+                  placeholder="e.g., 3"
+                  placeholderTextColor="#666"
+                />
+
+                <Text style={styles.label}>Typical training time</Text>
+                <View style={styles.rowWrap}>
+                  {["morning", "afternoon", "evening", "night", "variable"].map((t) => (
+                    <TouchableOpacity
+                      key={t}
+                      style={[styles.chip, coachProfileDraft?.training_time === t && styles.chipActive]}
+                      onPress={() => setCoachProfileDraft((p) => ({ ...p, training_time: t }))}
+                    >
+                      <Text style={styles.chipText}>{t}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+
+              <View style={{ flexDirection: "row", gap: 10, marginTop: 14 }}>
+                <TouchableOpacity
+                  style={[styles.btn, { flex: 1, backgroundColor: "#2c2c2c" }]}
+                  onPress={() => setCoachProfileModal(false)}
+                >
+                  <Text style={styles.btnText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.btn, { flex: 1 }]} onPress={applyCoachProfile}>
+                  <Text style={styles.btnText}>Save</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+
 </ScrollView>
 
       {/* CAMERA MODAL */}
@@ -1743,6 +2251,36 @@ const styles = StyleSheet.create({
 
   histRow: { paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: "#151515" },
   histTitle: { color: "#fff", fontWeight: "800" },
+  riskRow: {
+    marginTop: 8,
+    padding: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#262626",
+    backgroundColor: "#111",
+  },
+  riskType: { color: "#fff", fontWeight: "800", fontSize: 12, marginBottom: 4 },
+  actionBox: {
+    marginTop: 8,
+    padding: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#262626",
+    backgroundColor: "#101010",
+  },
+  chip: {
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "#2a2a2a",
+    backgroundColor: "#121212",
+  },
+  chipActive: {
+    borderColor: "#3b82f6",
+    backgroundColor: "#1b2c4f",
+  },
+  chipText: { color: "#e9e9e9", fontSize: 12, fontWeight: "700" },
 
   modalSafe: { flex: 1, backgroundColor: "#000" },
   modalBackdrop: {

@@ -16,6 +16,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import PlainTextResponse
 
 import google.generativeai as genai
+import coach_daily_logic as coach_logic
 
 # -------------------- LOGGING --------------------
 logging.basicConfig(level=logging.INFO)
@@ -55,10 +56,12 @@ TBL_USER_USAGE = "user_usage"
 TBL_BARCODE = "barcode_products"
 TBL_USER_GOALS = "user_goals"
 TBL_DAILY_TOTALS = "daily_totals"
+TBL_DAILY_SUMMARY = "daily_summary"
 
 # Plans (your requirements)
 DEFAULT_PLAN = "free"
 PLAN_ORDER = ["free", "elite", "advanced", "pro", "infinite"]
+COACH_LLM_MODEL = os.getenv("COACH_LLM_MODEL", "gemini-3-flash-preview").strip() or "gemini-3-flash-preview"
 
 # Goal defaults used when an older schema is missing one or more goal columns.
 DEFAULT_DAILY_GOALS = {
@@ -1041,6 +1044,272 @@ def daily_summary(
 ):
     uid = require_user_id(x_user_id, user_id)
     return build_daily_summary(uid, day, tz=tz, tz_offset_min=tz_offset_min)
+
+
+# -------------------- DAILY COACH (LLM INTERPRETER ONLY) --------------------
+_COACH_MEM_CACHE: Dict[str, Dict[str, Any]] = {}
+
+_COACH_SYSTEM_PROMPT = (
+    "You are a nutrition coaching assistant. "
+    "Provide behavior-focused suggestions only. "
+    "Do not provide medical advice, diagnosis, treatment, drug, or supplement recommendations. "
+    "Use ONLY the provided numbers and context. "
+    "Do not invent metrics. "
+    "Output strict JSON only."
+)
+
+
+def _coach_mem_key(user_id: str, day_iso: str, payload_hash: str) -> str:
+    return f"{user_id}:{day_iso}:{payload_hash}"
+
+
+def _coach_cache_get(user_id: str, day_iso: str, payload_hash: str) -> Optional[Dict[str, Any]]:
+    # 1) Fast in-memory cache
+    mem_key = _coach_mem_key(user_id, day_iso, payload_hash)
+    hit = _COACH_MEM_CACHE.get(mem_key)
+    if isinstance(hit, dict):
+        return hit
+
+    # 2) Optional Supabase cache (if table exists)
+    if not (SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY):
+        return None
+    try:
+        row = sb_get_one(
+            TBL_DAILY_SUMMARY,
+            params={
+                "select": "*",
+                "user_id": f"eq.{user_id}",
+                "day": f"eq.{day_iso}",
+                "limit": "1",
+            },
+        )
+    except Exception as e:
+        logger.info(f"coach cache read skipped: {e}")
+        return None
+
+    if not row:
+        return None
+
+    stored_hash = str(
+        row.get("payload_hash")
+        or row.get("coach_payload_hash")
+        or row.get("input_hash")
+        or ""
+    ).strip()
+    if stored_hash and stored_hash != payload_hash:
+        return None
+
+    for k in ("coach_json", "coach_daily", "coach_response", "response_json", "response"):
+        val = row.get(k)
+        if isinstance(val, dict):
+            _COACH_MEM_CACHE[mem_key] = val
+            return val
+        if isinstance(val, str):
+            try:
+                parsed = json.loads(val)
+                if isinstance(parsed, dict):
+                    _COACH_MEM_CACHE[mem_key] = parsed
+                    return parsed
+            except Exception:
+                continue
+    return None
+
+
+def _coach_cache_set(user_id: str, day_iso: str, payload_hash: str, coach_resp: Dict[str, Any]) -> None:
+    mem_key = _coach_mem_key(user_id, day_iso, payload_hash)
+    _COACH_MEM_CACHE[mem_key] = coach_resp
+
+    if not (SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY):
+        return
+
+    payload = {
+        "user_id": user_id,
+        "day": day_iso,
+        "payload_hash": payload_hash,
+        "coach_json": coach_resp,
+        "updated_at": dt.datetime.utcnow().isoformat(),
+    }
+    try:
+        existing = sb_get_one(
+            TBL_DAILY_SUMMARY,
+            params={
+                "select": "*",
+                "user_id": f"eq.{user_id}",
+                "day": f"eq.{day_iso}",
+                "limit": "1",
+            },
+        )
+        if existing:
+            patch = {k: v for k, v in payload.items() if k not in ("user_id", "day")}
+            _sb_patch_with_column_fallback(
+                TBL_DAILY_SUMMARY,
+                {"user_id": f"eq.{user_id}", "day": f"eq.{day_iso}"},
+                patch,
+            )
+        else:
+            _sb_insert_with_column_fallback(
+                TBL_DAILY_SUMMARY,
+                payload,
+                locked_cols={"user_id", "day"},
+            )
+    except Exception as e:
+        logger.info(f"coach cache write skipped: {e}")
+
+
+def _coach_user_prompt(norm_payload: Dict[str, Any], fat_loss_score: int, rule_alerts: List[Dict[str, str]]) -> str:
+    allowed_palette = coach_logic.allowed_suggestion_palette(norm_payload)
+    compact = {
+        "date": norm_payload.get("date"),
+        "goals": norm_payload.get("goals"),
+        "consumed": norm_payload.get("consumed"),
+        "signals": norm_payload.get("signals"),
+        "meal_timing": norm_payload.get("meal_timing"),
+        "constraints": norm_payload.get("constraints"),
+        "profile": norm_payload.get("profile"),
+        "fat_loss_score": fat_loss_score,
+        "rule_risk_alerts": rule_alerts,
+    }
+    template = {
+        "diagnosis": ["string", "string"],
+        "tomorrow_focus": ["string", "string"],
+        "actions": [{"title": "string", "why": "string", "how": "string"}],
+        "risk_alerts": [{"type": "string", "level": "low|medium|high", "reason": "string"}],
+    }
+    return (
+        "Use this daily nutrition summary and produce coaching text only.\n"
+        "Rules:\n"
+        "- Keep it practical and behavior-focused.\n"
+        "- No medical advice, disease claims, supplements, dosages, or treatment language.\n"
+        "- Every action must clearly reference at least one metric from the payload.\n"
+        "- Max 3 actions.\n"
+        "- Keep language concise.\n\n"
+        f"Allowed suggestion palette:\n{json.dumps(allowed_palette, ensure_ascii=True)}\n\n"
+        f"Input payload:\n{json.dumps(compact, ensure_ascii=True)}\n\n"
+        f"Output JSON shape:\n{json.dumps(template, ensure_ascii=True)}"
+    )
+
+
+def _coerce_coach_response_shape(parsed: Dict[str, Any], rule_alerts: List[Dict[str, str]]) -> Dict[str, Any]:
+    diagnosis = parsed.get("diagnosis") if isinstance(parsed.get("diagnosis"), list) else []
+    tomorrow_focus = parsed.get("tomorrow_focus") if isinstance(parsed.get("tomorrow_focus"), list) else []
+    actions = parsed.get("actions") if isinstance(parsed.get("actions"), list) else []
+    risk_alerts = parsed.get("risk_alerts") if isinstance(parsed.get("risk_alerts"), list) else []
+
+    cleaned = {
+        "diagnosis": [str(x).strip() for x in diagnosis if str(x).strip()][:4],
+        "tomorrow_focus": [str(x).strip() for x in tomorrow_focus if str(x).strip()][:3],
+        "actions": [],
+        "risk_alerts": coach_logic.merge_risk_alerts(rule_alerts, risk_alerts, limit=4),
+        "disclaimer": coach_logic.COACH_DISCLAIMER,
+    }
+
+    for a in actions[:3]:
+        if not isinstance(a, dict):
+            continue
+        item = {
+            "title": str(a.get("title") or "").strip(),
+            "why": str(a.get("why") or "").strip(),
+            "how": str(a.get("how") or "").strip(),
+        }
+        if item["title"] and item["why"] and item["how"]:
+            cleaned["actions"].append(item)
+
+    return cleaned
+
+
+def _generate_daily_coach_llm(
+    norm_payload: Dict[str, Any],
+    fat_loss_score: int,
+    rule_alerts: List[Dict[str, str]],
+) -> Dict[str, Any]:
+    _require_gemini_key()
+    model = genai.GenerativeModel(COACH_LLM_MODEL)
+    user_prompt = _coach_user_prompt(norm_payload, fat_loss_score, rule_alerts)
+    last_err = ""
+    for attempt in range(3):
+        try:
+            resp = model.generate_content([_COACH_SYSTEM_PROMPT, user_prompt])
+            text = (resp.text or "").strip()
+            parsed = coach_logic.extract_json_object(text)
+            if not isinstance(parsed, dict):
+                raise ValueError("LLM did not return valid JSON object.")
+
+            cleaned = _coerce_coach_response_shape(parsed, rule_alerts)
+            ok, reason = coach_logic.validate_llm_response_shape(cleaned)
+            if not ok:
+                raise ValueError(f"LLM JSON failed validation: {reason}")
+            return cleaned
+        except Exception as e:
+            last_err = str(e)
+            time.sleep(0.6 * (attempt + 1))
+    raise HTTPException(status_code=502, detail={"error": "coach_llm_failed", "raw": last_err[:300]})
+
+
+@app.post("/coach/daily")
+def coach_daily(
+    payload: Dict[str, Any] = Body(...),
+    user_id: Optional[str] = None,
+    x_user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
+):
+    """
+    Deterministic score + LLM reasoning layer.
+    Numbers are always computed by Python rules; LLM only interprets.
+    """
+    uid = require_user_id(x_user_id, user_id)
+    norm = coach_logic.normalize_daily_payload(payload or {})
+    if not norm.get("date"):
+        norm["date"] = _today_date().isoformat()
+
+    fat_loss_score = coach_logic.compute_fat_loss_score(norm)
+    rule_alerts = coach_logic.build_rule_risk_alerts(norm)
+    p_hash = coach_logic.payload_hash(norm)
+    day_iso = str(norm.get("date") or _today_date().isoformat())
+
+    cached = _coach_cache_get(uid, day_iso, p_hash)
+    if isinstance(cached, dict):
+        out = dict(cached)
+        out["fat_loss_score"] = int(fat_loss_score)
+        out["disclaimer"] = coach_logic.COACH_DISCLAIMER
+        out["date"] = day_iso
+        return out
+
+    llm_resp: Optional[Dict[str, Any]] = None
+    if GEMINI_API_KEY:
+        try:
+            llm_resp = _generate_daily_coach_llm(norm, fat_loss_score, rule_alerts)
+        except Exception as e:
+            logger.warning(f"Daily coach LLM failed, using fallback: {e}")
+
+    if not llm_resp:
+        llm_resp = coach_logic.build_fallback_coach_response(norm, fat_loss_score, rule_alerts)
+
+    final_resp = {
+        "date": day_iso,
+        "fat_loss_score": int(fat_loss_score),
+        "diagnosis": llm_resp.get("diagnosis", []),
+        "tomorrow_focus": llm_resp.get("tomorrow_focus", []),
+        "actions": llm_resp.get("actions", [])[:3],
+        "risk_alerts": coach_logic.merge_risk_alerts(rule_alerts, llm_resp.get("risk_alerts", []), limit=4),
+        "disclaimer": coach_logic.COACH_DISCLAIMER,
+    }
+
+    # Final safety gate. If anything violates guardrails, return deterministic fallback.
+    ok, reason = coach_logic.validate_llm_response_shape(final_resp)
+    if not ok:
+        logger.warning(f"Daily coach response failed safety gate: {reason}")
+        fb = coach_logic.build_fallback_coach_response(norm, fat_loss_score, rule_alerts)
+        final_resp = {
+            "date": day_iso,
+            "fat_loss_score": int(fat_loss_score),
+            "diagnosis": fb.get("diagnosis", []),
+            "tomorrow_focus": fb.get("tomorrow_focus", []),
+            "actions": fb.get("actions", [])[:3],
+            "risk_alerts": coach_logic.merge_risk_alerts(rule_alerts, fb.get("risk_alerts", []), limit=4),
+            "disclaimer": coach_logic.COACH_DISCLAIMER,
+        }
+
+    _coach_cache_set(uid, day_iso, p_hash, final_resp)
+    return final_resp
 
 
 # -------------------- HTTP RETRY HELPERS --------------------
