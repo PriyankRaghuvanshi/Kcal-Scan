@@ -26,8 +26,6 @@ _FORBIDDEN_MEDICAL = (
     "insulin resistance",
     "metformin",
     "statin",
-    "diagnose",
-    "diagnosis",
     "treat",
     "treatment",
     "prescribe",
@@ -518,5 +516,4 @@ def build_fallback_coach_response(norm_payload: Dict[str, Any], fat_loss_score: 
         "risk_alerts": merge_risk_alerts(rule_alerts, []),
         "disclaimer": COACH_DISCLAIMER,
     }
-
 

@@ -26,6 +26,7 @@ import "react-native-url-polyfill/auto";
 
 // OAuth helpers (Google)
 import * as AuthSession from "expo-auth-session";
+import * as Notifications from "expo-notifications";
 
 
 import * as WebBrowser from "expo-web-browser";
@@ -80,6 +81,8 @@ const DAILY_COACH_KEY = "kcal_daily_coach_v1";
 const dailyCoachKey = (uid, day) => `${DAILY_COACH_KEY}:${uid}:${day}`;
 const COACH_PROFILE_KEY = "kcal_coach_profile_v1";
 const coachProfileKey = (uid) => `${COACH_PROFILE_KEY}:${uid}`;
+const UPGRADE_NUDGE_KEY = "kcal_upgrade_nudge_v1";
+const upgradeNudgeKey = (uid) => `${UPGRADE_NUDGE_KEY}:${uid}`;
 
 const RC_IOS_KEY = process.env.EXPO_PUBLIC_RC_IOS_KEY || "";
 const RC_ANDROID_KEY = process.env.EXPO_PUBLIC_RC_ANDROID_KEY || "";
@@ -208,6 +211,93 @@ function avg(arr) {
   const list = Array.isArray(arr) ? arr.map((x) => num(x)).filter((x) => Number.isFinite(x)) : [];
   if (!list.length) return 0;
   return list.reduce((a, b) => a + b, 0) / list.length;
+}
+function clampPct(v) {
+  return Math.max(0, Math.min(100, num(v)));
+}
+function scoreTone(score) {
+  const s = Math.round(num(score));
+  if (s >= 80) return { label: "Excellent", color: "#22c55e", bg: "#0f2617" };
+  if (s >= 65) return { label: "Good", color: "#34d399", bg: "#10281f" };
+  if (s >= 50) return { label: "Improving", color: "#f59e0b", bg: "#2d210b" };
+  if (s >= 35) return { label: "Needs focus", color: "#fb923c", bg: "#2f1a0d" };
+  return { label: "At risk", color: "#ef4444", bg: "#2b1212" };
+}
+function riskLevelTone(level) {
+  const l = String(level || "").toLowerCase();
+  if (l === "high") return { color: "#ef4444", bg: "#2c1111" };
+  if (l === "medium") return { color: "#f59e0b", bg: "#2a210f" };
+  return { color: "#22c55e", bg: "#11271a" };
+}
+function shortDayLabel(dayIso) {
+  try {
+    if (!dayIso) return "";
+    const d = new Date(`${dayIso}T00:00:00`);
+    if (!Number.isFinite(d.getTime())) return String(dayIso).slice(5);
+    return d.toLocaleDateString(undefined, { weekday: "short" });
+  } catch {
+    return String(dayIso || "").slice(5);
+  }
+}
+function buildCoachIndicators(payload) {
+  const p = payload || {};
+  const goals = p.goals || {};
+  const consumed = p.consumed || {};
+  const signals = p.signals || {};
+  const timing = p.meal_timing || {};
+
+  const proteinPct = goals.protein_g > 0 ? clampPct((num(consumed.protein_g) / num(goals.protein_g)) * 100) : 0;
+  const fiberPct = goals.fiber_g > 0 ? clampPct((num(consumed.fiber_g) / num(goals.fiber_g)) * 100) : 0;
+  const glHealth = clampPct(100 - (num(signals.avg_glycemic_load) * 2.2));
+  const upfHealth = clampPct(100 - (num(signals.ultra_processed_avg) * 10));
+  const lateHealth = clampPct(100 - num(timing.late_calories_pct));
+
+  return [
+    { key: "protein", label: "Protein target", value: proteinPct, subtitle: `${round1(consumed.protein_g)}g / ${round1(goals.protein_g)}g` },
+    { key: "fiber", label: "Fiber target", value: fiberPct, subtitle: `${round1(consumed.fiber_g)}g / ${round1(goals.fiber_g)}g` },
+    { key: "gl", label: "Glycemic control", value: glHealth, subtitle: `GL ${round1(signals.avg_glycemic_load)}` },
+    { key: "upf", label: "Whole-food quality", value: upfHealth, subtitle: `UPF ${round1(signals.ultra_processed_avg)}/10` },
+    { key: "late", label: "Timing balance", value: lateHealth, subtitle: `${round1(timing.late_calories_pct)}% late kcal` },
+  ];
+}
+function buildCoachPreviewTiles(plan) {
+  const p = String(plan || "free").toLowerCase();
+  const unlock =
+    p === "advanced"
+      ? "Unlock with Pro (1 step away)"
+      : p === "elite"
+      ? "Unlock with Pro"
+      : "Unlock path: Elite -> Advanced -> Pro";
+  return [
+    {
+      key: "diag",
+      title: "Diagnosis engine",
+      subtitle: "See why fat-loss progress slowed today.",
+      unlock,
+    },
+    {
+      key: "risk",
+      title: "Risk alerts",
+      subtitle: "Early flags for evening hunger and sugar spikes.",
+      unlock,
+    },
+    {
+      key: "actions",
+      title: "Tomorrow actions",
+      subtitle: "Get 1-3 specific food and behavior swaps.",
+      unlock,
+    },
+  ];
+}
+function coachUpgradeBody(plan) {
+  const p = String(plan || "free").toLowerCase();
+  if (p === "advanced") {
+    return "You are one step away. Upgrade to Pro to unlock diagnosis, risk alerts, and action coaching.";
+  }
+  if (p === "elite") {
+    return "Elite unlocked barcode scanning. Upgrade to Pro to unlock deeper daily coaching.";
+  }
+  return "Upgrade to Pro to unlock diagnosis, risk alerts, and personalized action coaching.";
 }
 function estimateLocalSatiety(kcal, protein_g, fat_g) {
   const total = Math.max(1, num(kcal));
@@ -431,6 +521,8 @@ export default function App() {
   // ===== History (isolated by user id) =====
   const [history, setHistory] = useState([]);
   const [coachDaily, setCoachDaily] = useState(null);
+  const [coachTrend, setCoachTrend] = useState([]);
+  const [coachLastPayload, setCoachLastPayload] = useState(null);
   const [coachBusy, setCoachBusy] = useState(false);
   const [coachErr, setCoachErr] = useState("");
   const [coachProfile, setCoachProfile] = useState(DEFAULT_COACH_PROFILE);
@@ -459,6 +551,12 @@ export default function App() {
   // ===== Derived gating =====
   const canBarcode = planAtLeast(plan, "elite");
   const canCoaching = planAtLeast(plan, "pro");
+  const coachPreviewTiles = useMemo(() => (canCoaching ? [] : buildCoachPreviewTiles(plan)), [canCoaching, plan]);
+  const previewPhotoUri = useMemo(() => {
+    if (photoUri) return photoUri;
+    const latestPhoto = (history || []).find((h) => (h?.kind || "") === "photo" && h?.photo_uri);
+    return latestPhoto?.photo_uri || null;
+  }, [photoUri, history]);
   const remainingToday = useMemo(() => {
     const g = goals || DEFAULT_GOALS;
     const todayKey = localDayISO();
@@ -515,6 +613,18 @@ export default function App() {
 
   // ===================== INIT =====================
   useEffect(() => {
+    try {
+      Notifications.setNotificationHandler({
+        handleNotification: async () => ({
+          shouldShowAlert: true,
+          shouldPlaySound: true,
+          shouldSetBadge: false,
+        }),
+      });
+    } catch {}
+  }, []);
+
+  useEffect(() => {
     let cancelled = false;
     let unsub = null;
 
@@ -551,6 +661,8 @@ export default function App() {
     setDailySummary(null);
     setHistory([]);
     setCoachDaily(null);
+    setCoachTrend([]);
+    setCoachLastPayload(null);
     setCoachErr("");
     setCoachProfile(DEFAULT_COACH_PROFILE);
     setCoachProfileDraft(DEFAULT_COACH_PROFILE);
@@ -670,6 +782,45 @@ export default function App() {
     setCoachProfileDraft(normalized);
   }
 
+  async function loadCoachTrend(uid) {
+    if (!uid) {
+      setCoachTrend([]);
+      return;
+    }
+    try {
+      const prefix = `${DAILY_COACH_KEY}:${uid}:`;
+      const keys = (await AsyncStorage.getAllKeys()) || [];
+      const trendKeys = keys.filter((k) => String(k).startsWith(prefix));
+      if (!trendKeys.length) {
+        setCoachTrend([]);
+        return;
+      }
+      const rows = await AsyncStorage.multiGet(trendKeys);
+      const parsed = (rows || [])
+        .map((row) => {
+          const k = row?.[0];
+          const v = row?.[1];
+          if (!k || !v) return null;
+          try {
+            const obj = JSON.parse(v);
+            const resp = obj?.response || obj;
+            const score = Math.round(num(resp?.fat_loss_score));
+            if (!Number.isFinite(score)) return null;
+            const day = String(resp?.date || k.slice(prefix.length) || "");
+            return { day: day.slice(0, 10), score: clampPct(score) };
+          } catch {
+            return null;
+          }
+        })
+        .filter(Boolean)
+        .sort((a, b) => String(a.day).localeCompare(String(b.day)))
+        .slice(-7);
+      setCoachTrend(parsed);
+    } catch {
+      setCoachTrend([]);
+    }
+  }
+
   function getTodayPhotoMeals() {
     const today = localDayISO();
     return (history || [])
@@ -782,6 +933,7 @@ export default function App() {
     if (!uid || !coachProfileReady) return;
 
     const payload = buildDailyCoachPayload();
+    setCoachLastPayload(payload || null);
     if (!payload || num(payload?.consumed?.kcal) <= 0) {
       const dayKey = localDayISO();
       try {
@@ -792,6 +944,7 @@ export default function App() {
           if (cachedResp && typeof cachedResp === "object") {
             setCoachDaily(cachedResp);
             setCoachErr("");
+            await loadCoachTrend(uid);
             return;
           }
         }
@@ -813,6 +966,7 @@ export default function App() {
           if (cachedResp && typeof cachedResp === "object") {
             setCoachDaily(cachedResp);
             setCoachErr("");
+            await loadCoachTrend(uid);
             return;
           }
         }
@@ -824,7 +978,8 @@ export default function App() {
     setCoachBusy(true);
     if (force) setCoachErr("");
     try {
-      const url = withTimezoneQuery(`${API_BASE}/coach/daily?user_id=${encodeURIComponent(uid)}`);
+      const refreshParam = force ? "&refresh=1" : "";
+      const url = withTimezoneQuery(`${API_BASE}/coach/daily?user_id=${encodeURIComponent(uid)}${refreshParam}`);
       const res = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json", accept: "application/json" },
@@ -839,10 +994,12 @@ export default function App() {
         actions: Array.isArray(data?.actions) ? data.actions.slice(0, 3) : [],
         risk_alerts: Array.isArray(data?.risk_alerts) ? data.risk_alerts : [],
         disclaimer: String(data?.disclaimer || "Informational only."),
+        reasoning_source: String(data?.reasoning_source || ""),
       };
       setCoachDaily(cleaned);
       setCoachErr("");
-      await AsyncStorage.setItem(cacheKey, JSON.stringify({ payloadHash, ts: nowISO(), response: cleaned }));
+      await AsyncStorage.setItem(cacheKey, JSON.stringify({ payloadHash, ts: nowISO(), payload, response: cleaned }));
+      await loadCoachTrend(uid);
     } catch (e) {
       setCoachErr(String(e).slice(0, 200));
       try {
@@ -852,6 +1009,7 @@ export default function App() {
           const cachedResp = parsed?.response || parsed;
           if (cachedResp && typeof cachedResp === "object") {
             setCoachDaily(cachedResp);
+            await loadCoachTrend(uid);
           }
         }
       } catch {}
@@ -870,6 +1028,7 @@ export default function App() {
       setCoachProfile(loaded);
       setCoachProfileDraft(loaded);
       setCoachProfileReady(true);
+      await loadCoachTrend(userId);
     })();
     return () => {
       cancelled = true;
@@ -878,8 +1037,13 @@ export default function App() {
 
   useEffect(() => {
     if (!userId || !coachProfileReady) return;
+    if (!canCoaching) {
+      setCoachDaily(null);
+      setCoachErr("");
+      return;
+    }
     ensureDailyCoach(false);
-  }, [userId, coachProfileReady, goals, dailySummary, history, coachProfile]);
+  }, [userId, coachProfileReady, goals, dailySummary, history, coachProfile, canCoaching]);
 
   async function applyCoachProfile() {
     const uid = userId || session?.user?.id;
@@ -1050,6 +1214,8 @@ export default function App() {
     setDailySummary(null);
     setHistory([]);
     setCoachDaily(null);
+    setCoachTrend([]);
+    setCoachLastPayload(null);
     setCoachErr("");
     setCoachProfile(DEFAULT_COACH_PROFILE);
     setCoachProfileDraft(DEFAULT_COACH_PROFILE);
@@ -1237,6 +1403,46 @@ async function openCamera() {
     }
   }
 
+  async function maybeSendScanUpgradeNudge(photoScansAfterThisAnalyze) {
+    const uid = userId || session?.user?.id;
+    if (!uid) return;
+    if (!usage || !["free", "elite", "advanced"].includes(plan)) return;
+    if (num(photoScansAfterThisAnalyze) !== 5) return;
+
+    try {
+      const alreadySent = await AsyncStorage.getItem(upgradeNudgeKey(uid));
+      if (alreadySent === "1") return;
+      await AsyncStorage.setItem(upgradeNudgeKey(uid), "1");
+    } catch {}
+
+    const title = "Ready to unlock deeper coaching?";
+    const body = coachUpgradeBody(plan);
+    let sentAsPush = false;
+
+    try {
+      let status = "undetermined";
+      const p = await Notifications.getPermissionsAsync();
+      status = p?.status || "undetermined";
+      if (status !== "granted") {
+        const asked = await Notifications.requestPermissionsAsync();
+        status = asked?.status || status;
+      }
+      if (status === "granted") {
+        await Notifications.scheduleNotificationAsync({
+          content: { title, body, sound: true },
+          trigger: null,
+        });
+        sentAsPush = true;
+      }
+    } catch (e) {
+      console.log("nudge notification error", String(e));
+    }
+
+    if (!sentAsPush) {
+      Alert.alert(title, body);
+    }
+  }
+
 
 async function analyzePhoto() {
     if (!userId) return;
@@ -1254,6 +1460,8 @@ async function analyzePhoto() {
       Alert.alert("Already analyzed", "This photo was already analyzed today. Take a new photo or clear current scan.");
       return;
     }
+    const photoScansAfterThisAnalyze =
+      (history || []).filter((h) => (h?.kind || "") === "photo").length + 1;
     setBusy(true);
     setResult(null);
 
@@ -1330,6 +1538,7 @@ async function analyzePhoto() {
         coaching: data?.coaching || null,
         locked: data?.locked || null,
       });
+      await maybeSendScanUpgradeNudge(photoScansAfterThisAnalyze);
     } catch (e) {
       Alert.alert("Analyze failed", String(e).slice(0, 220));
     } finally {
@@ -1457,6 +1666,8 @@ async function analyzePhoto() {
   // ===================== RENDER: APP =====================
   const coaching = result?.coaching || null;
   const locked = result?.locked || null;
+  const coachTone = scoreTone(coachDaily?.fat_loss_score);
+  const coachIndicators = useMemo(() => buildCoachIndicators(coachLastPayload || {}), [coachLastPayload]);
 
   const subscriptionPriceText = (key) => priceByEntitlement?.[key] || (rcReady ? "Loading…" : "See App Store");
 
@@ -1506,94 +1717,206 @@ async function analyzePhoto() {
         </View>
 
         <View style={styles.card}>
-          <View style={styles.topRow}>
+          <View style={styles.intelHeader}>
             <Text style={styles.cardTitle}>Fat Loss Intelligence</Text>
-            <View style={{ flexDirection: "row", gap: 8 }}>
-              <TouchableOpacity
-                style={styles.smallBtn}
-                onPress={() => {
-                  setCoachProfileDraft(coachProfile || DEFAULT_COACH_PROFILE);
-                  setCoachProfileModal(true);
-                }}
-              >
-                <Text style={styles.smallBtnText}>Profile</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.smallBtn} onPress={() => ensureDailyCoach(true)} disabled={coachBusy}>
-                <Text style={styles.smallBtnText}>{coachBusy ? "…" : "Refresh"}</Text>
-              </TouchableOpacity>
-            </View>
+            {canCoaching ? (
+              <View style={{ flexDirection: "row", gap: 8 }}>
+                <TouchableOpacity
+                  style={styles.smallBtn}
+                  onPress={() => {
+                    setCoachProfileDraft(coachProfile || DEFAULT_COACH_PROFILE);
+                    setCoachProfileModal(true);
+                  }}
+                >
+                  <Text style={styles.smallBtnText}>Profile</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.smallBtn} onPress={() => ensureDailyCoach(true)} disabled={coachBusy}>
+                  <Text style={styles.smallBtnText}>{coachBusy ? "…" : "Refresh"}</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <Text style={styles.lockedTag}>Pro feature</Text>
+            )}
           </View>
 
-          <Text style={styles.tiny}>
-            {coachProfile?.goal_type || "fat_loss"} • {coachProfile?.diet_style || "non-veg"} •{" "}
-            {Math.round(num(coachProfile?.training_days_per_week))} training day(s)/week • {coachProfile?.training_time || "evening"}
+          <Text style={styles.intelSubline}>
+            {canCoaching
+              ? `${coachProfile?.goal_type || "fat_loss"} • ${coachProfile?.diet_style || "non-veg"} • ${Math.round(
+                  num(coachProfile?.training_days_per_week)
+                )} training day(s)/week • ${coachProfile?.training_time || "evening"}`
+              : `${String(plan || "free").toUpperCase()} plan preview • Pro unlocks diagnosis, risk alerts, and actions`}
           </Text>
 
-          {coachErr ? <Text style={[styles.tiny, { color: "#ffb4b4", marginTop: 8 }]}>{coachErr}</Text> : null}
-
-          {coachBusy && !coachDaily ? (
+          {!canCoaching ? (
             <View style={{ marginTop: 10 }}>
-              <ActivityIndicator />
-            </View>
-          ) : coachDaily ? (
-            <View style={{ marginTop: 10 }}>
-              <Text style={styles.big}>Score: {Math.round(num(coachDaily?.fat_loss_score))}/100</Text>
-
-              {(coachDaily?.diagnosis || []).length ? (
-                <View style={{ marginTop: 8 }}>
-                  <Text style={styles.cardTitle}>Diagnosis</Text>
-                  {(coachDaily.diagnosis || []).map((line, i) => (
-                    <Text key={`diag-${i}`} style={styles.p}>
-                      • {String(line)}
-                    </Text>
-                  ))}
-                </View>
-              ) : null}
-
-              {(coachDaily?.tomorrow_focus || []).length ? (
-                <View style={{ marginTop: 10 }}>
-                  <Text style={styles.cardTitle}>Tomorrow focus</Text>
-                  {(coachDaily.tomorrow_focus || []).map((line, i) => (
-                    <Text key={`focus-${i}`} style={styles.p}>
-                      • {String(line)}
-                    </Text>
-                  ))}
-                </View>
-              ) : null}
-
-              {(coachDaily?.risk_alerts || []).length ? (
-                <View style={{ marginTop: 10 }}>
-                  <Text style={styles.cardTitle}>Risk alerts</Text>
-                  {(coachDaily.risk_alerts || []).map((ra, i) => (
-                    <View key={`risk-${i}`} style={styles.riskRow}>
-                      <Text style={styles.riskType}>
-                        {String(ra?.type || "risk")} ({String(ra?.level || "medium")})
-                      </Text>
-                      <Text style={styles.tiny}>{String(ra?.reason || "")}</Text>
+              <Text style={styles.p}>{coachUpgradeBody(plan)}</Text>
+              <View style={styles.lockedPreviewGrid}>
+                {(coachPreviewTiles || []).map((tile) => (
+                  <View key={tile.key} style={styles.lockedPreviewTile}>
+                    {previewPhotoUri ? (
+                      <Image source={{ uri: previewPhotoUri }} style={styles.lockedPreviewBg} blurRadius={18} />
+                    ) : (
+                      <View style={styles.lockedPreviewGhost}>
+                        <View style={styles.lockedPreviewGhostLine} />
+                        <View style={styles.lockedPreviewGhostLineWide} />
+                        <View style={styles.lockedPreviewGhostLineShort} />
+                      </View>
+                    )}
+                    <View style={styles.lockedPreviewShade} />
+                    <View style={styles.lockedPreviewContent}>
+                      <Text style={styles.lockedPreviewUnlock}>{String(tile.unlock || "")}</Text>
+                      <Text style={styles.lockedPreviewTitle}>{String(tile.title || "")}</Text>
+                      <Text style={styles.lockedPreviewSubtitle}>{String(tile.subtitle || "")}</Text>
                     </View>
-                  ))}
-                </View>
-              ) : null}
-
-              {(coachDaily?.actions || []).length ? (
-                <View style={{ marginTop: 10 }}>
-                  <Text style={styles.cardTitle}>Actions</Text>
-                  {(coachDaily.actions || []).slice(0, 3).map((a, i) => (
-                    <View key={`action-${i}`} style={styles.actionBox}>
-                      <Text style={styles.itemName}>{String(a?.title || "Action")}</Text>
-                      <Text style={styles.tiny}>{String(a?.why || "")}</Text>
-                      <Text style={styles.p}>{String(a?.how || "")}</Text>
-                    </View>
-                  ))}
-                </View>
-              ) : null}
-
-              <Text style={[styles.tiny, { marginTop: 8 }]}>{String(coachDaily?.disclaimer || "Informational only.")}</Text>
+                  </View>
+                ))}
+              </View>
+              <Text style={[styles.tiny, { marginTop: 8 }]}>
+                After your 5th scan, we send: "Ready to unlock deeper coaching?"
+              </Text>
             </View>
           ) : (
-            <Text style={[styles.tiny, { marginTop: 10 }]}>
-              Analyze at least one meal today to generate daily intelligence.
-            </Text>
+            <>
+              {coachErr ? <Text style={[styles.tiny, { color: "#ffb4b4", marginTop: 8 }]}>{coachErr}</Text> : null}
+
+              {coachBusy && !coachDaily ? (
+                <View style={{ marginTop: 10 }}>
+                  <ActivityIndicator />
+                </View>
+              ) : coachDaily ? (
+                <View style={{ marginTop: 10 }}>
+                  <View style={styles.intelScoreRow}>
+                    <View style={[styles.scoreOrb, { borderColor: coachTone.color, shadowColor: coachTone.color }]}>
+                      <Text style={styles.scoreOrbValue}>{Math.round(num(coachDaily?.fat_loss_score))}</Text>
+                      <Text style={styles.scoreOrbUnit}>/100</Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.intelKicker}>Fat-loss readiness</Text>
+                      <View style={[styles.intelBadge, { backgroundColor: coachTone.bg, borderColor: coachTone.color }]}>
+                        <View style={[styles.intelBadgeDot, { backgroundColor: coachTone.color }]} />
+                        <Text style={[styles.intelBadgeText, { color: coachTone.color }]}>{coachTone.label}</Text>
+                      </View>
+                      <View style={styles.intelProgressTrack}>
+                        <View
+                          style={[
+                            styles.intelProgressFill,
+                            { width: `${clampPct(coachDaily?.fat_loss_score)}%`, backgroundColor: coachTone.color },
+                          ]}
+                        />
+                      </View>
+                      <Text style={styles.tiny}>
+                        Updated {String(coachDaily?.date || localDayISO())} • source: {String(coachDaily?.reasoning_source || "unknown")}
+                      </Text>
+                    </View>
+                  </View>
+
+                  {coachTrend?.length ? (
+                    <View style={{ marginTop: 12 }}>
+                      <Text style={styles.cardTitle}>7-day trend</Text>
+                      <View style={styles.intelTrendRow}>
+                        {coachTrend.map((pt, i) => {
+                          const v = clampPct(pt?.score);
+                          const h = 10 + (v * 0.46);
+                          const tone = scoreTone(v);
+                          return (
+                            <View key={`${pt?.day || i}-${i}`} style={styles.intelTrendCol}>
+                              <View style={[styles.intelTrendBar, { height: h, backgroundColor: tone.color }]} />
+                              <Text style={styles.intelTrendValue}>{Math.round(v)}</Text>
+                              <Text style={styles.intelTrendLabel}>{shortDayLabel(pt?.day)}</Text>
+                            </View>
+                          );
+                        })}
+                      </View>
+                    </View>
+                  ) : null}
+
+                  {coachIndicators?.length ? (
+                    <View style={{ marginTop: 12 }}>
+                      <Text style={styles.cardTitle}>Daily signals</Text>
+                      <View style={styles.intelSignalGrid}>
+                        {coachIndicators.slice(0, 5).map((s) => {
+                          const v = clampPct(s?.value);
+                          const c = v >= 75 ? "#22c55e" : v >= 50 ? "#f59e0b" : "#ef4444";
+                          return (
+                            <View key={s.key} style={styles.intelSignalCard}>
+                              <View style={styles.intelSignalTop}>
+                                <Text style={styles.intelSignalLabel}>{s.label}</Text>
+                                <Text style={[styles.intelSignalPercent, { color: c }]}>{Math.round(v)}%</Text>
+                              </View>
+                              <View style={styles.intelSignalTrack}>
+                                <View style={[styles.intelSignalFill, { width: `${v}%`, backgroundColor: c }]} />
+                              </View>
+                              <Text style={styles.tiny}>{String(s.subtitle || "")}</Text>
+                            </View>
+                          );
+                        })}
+                      </View>
+                    </View>
+                  ) : null}
+
+                  {(coachDaily?.diagnosis || []).length ? (
+                    <View style={{ marginTop: 8 }}>
+                      <Text style={styles.cardTitle}>Diagnosis</Text>
+                      {(coachDaily.diagnosis || []).map((line, i) => (
+                        <Text key={`diag-${i}`} style={styles.p}>
+                          • {String(line)}
+                        </Text>
+                      ))}
+                    </View>
+                  ) : null}
+
+                  {(coachDaily?.tomorrow_focus || []).length ? (
+                    <View style={{ marginTop: 10 }}>
+                      <Text style={styles.cardTitle}>Tomorrow focus</Text>
+                      {(coachDaily.tomorrow_focus || []).map((line, i) => (
+                        <Text key={`focus-${i}`} style={styles.p}>
+                          • {String(line)}
+                        </Text>
+                      ))}
+                    </View>
+                  ) : null}
+
+                  {(coachDaily?.risk_alerts || []).length ? (
+                    <View style={{ marginTop: 10 }}>
+                      <Text style={styles.cardTitle}>Risk alerts</Text>
+                      {(coachDaily.risk_alerts || []).map((ra, i) => (
+                        <View
+                          key={`risk-${i}`}
+                          style={[
+                            styles.riskRow,
+                            { backgroundColor: riskLevelTone(ra?.level).bg, borderColor: riskLevelTone(ra?.level).color },
+                          ]}
+                        >
+                          <Text style={[styles.riskType, { color: riskLevelTone(ra?.level).color }]}>
+                            {String(ra?.type || "risk").replace(/_/g, " ")} ({String(ra?.level || "medium")})
+                          </Text>
+                          <Text style={styles.tiny}>{String(ra?.reason || "")}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  ) : null}
+
+                  {(coachDaily?.actions || []).length ? (
+                    <View style={{ marginTop: 10 }}>
+                      <Text style={styles.cardTitle}>Actions</Text>
+                      {(coachDaily.actions || []).slice(0, 3).map((a, i) => (
+                        <View key={`action-${i}`} style={styles.actionBox}>
+                          <Text style={styles.itemName}>{String(a?.title || "Action")}</Text>
+                          <Text style={styles.tiny}>{String(a?.why || "")}</Text>
+                          <Text style={styles.p}>{String(a?.how || "")}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  ) : null}
+
+                  <Text style={[styles.tiny, { marginTop: 8 }]}>{String(coachDaily?.disclaimer || "Informational only.")}</Text>
+                </View>
+              ) : (
+                <Text style={[styles.tiny, { marginTop: 10 }]}>
+                  Analyze at least one meal today to generate daily intelligence.
+                </Text>
+              )}
+            </>
           )}
         </View>
 
@@ -2251,6 +2574,127 @@ const styles = StyleSheet.create({
 
   histRow: { paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: "#151515" },
   histTitle: { color: "#fff", fontWeight: "800" },
+  intelHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  intelSubline: { fontSize: 12, color: "#8ea0bf", marginTop: 4, lineHeight: 17 },
+  intelScoreRow: { marginTop: 10, flexDirection: "row", gap: 12, alignItems: "center" },
+  scoreOrb: {
+    width: 92,
+    height: 92,
+    borderRadius: 999,
+    borderWidth: 3,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#0f1218",
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 3,
+  },
+  scoreOrbValue: { color: "#fff", fontSize: 28, fontWeight: "900", lineHeight: 32 },
+  scoreOrbUnit: { color: "#9fb0cf", fontSize: 11, fontWeight: "800" },
+  intelKicker: { color: "#d7e2ff", fontSize: 13, fontWeight: "800", marginBottom: 6 },
+  intelBadge: {
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  intelBadgeDot: { width: 7, height: 7, borderRadius: 99 },
+  intelBadgeText: { fontSize: 12, fontWeight: "800" },
+  intelProgressTrack: {
+    marginTop: 8,
+    height: 8,
+    borderRadius: 999,
+    backgroundColor: "#151d2b",
+    overflow: "hidden",
+  },
+  intelProgressFill: { height: 8, borderRadius: 999 },
+  intelTrendRow: {
+    marginTop: 8,
+    flexDirection: "row",
+    alignItems: "flex-end",
+    justifyContent: "space-between",
+    gap: 8,
+    paddingHorizontal: 2,
+  },
+  intelTrendCol: { width: 36, alignItems: "center" },
+  intelTrendBar: { width: 14, borderRadius: 999, marginBottom: 4 },
+  intelTrendValue: { color: "#dce6ff", fontSize: 11, fontWeight: "800" },
+  intelTrendLabel: { color: "#7f8aa1", fontSize: 10, marginTop: 2 },
+  intelSignalGrid: { marginTop: 8, gap: 8 },
+  intelSignalCard: {
+    padding: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#263045",
+    backgroundColor: "#0e131d",
+  },
+  intelSignalTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  intelSignalLabel: { color: "#e5edff", fontSize: 12, fontWeight: "800" },
+  intelSignalPercent: { fontSize: 12, fontWeight: "900" },
+  intelSignalTrack: {
+    height: 7,
+    borderRadius: 999,
+    backgroundColor: "#182235",
+    overflow: "hidden",
+    marginTop: 6,
+    marginBottom: 6,
+  },
+  intelSignalFill: { height: 7, borderRadius: 999 },
+  lockedPreviewGrid: { marginTop: 10, gap: 8 },
+  lockedPreviewTile: {
+    height: 114,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#273247",
+    backgroundColor: "#111827",
+    overflow: "hidden",
+  },
+  lockedPreviewBg: {
+    ...StyleSheet.absoluteFillObject,
+    width: "100%",
+    height: "100%",
+    opacity: 0.8,
+  },
+  lockedPreviewGhost: {
+    ...StyleSheet.absoluteFillObject,
+    paddingHorizontal: 12,
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: "#111827",
+  },
+  lockedPreviewGhostLine: { height: 8, width: "38%", borderRadius: 999, backgroundColor: "#273247" },
+  lockedPreviewGhostLineWide: { height: 10, width: "78%", borderRadius: 999, backgroundColor: "#2e3a52" },
+  lockedPreviewGhostLineShort: { height: 8, width: "56%", borderRadius: 999, backgroundColor: "#273247" },
+  lockedPreviewShade: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(5,8,14,0.60)",
+  },
+  lockedPreviewContent: {
+    position: "absolute",
+    left: 10,
+    right: 10,
+    bottom: 10,
+    gap: 4,
+  },
+  lockedPreviewUnlock: {
+    alignSelf: "flex-start",
+    color: "#a5d8ff",
+    fontSize: 10,
+    fontWeight: "900",
+    backgroundColor: "rgba(23,33,54,0.86)",
+    borderColor: "#365081",
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  lockedPreviewTitle: { color: "#f3f7ff", fontSize: 14, fontWeight: "900" },
+  lockedPreviewSubtitle: { color: "#c7d3ea", fontSize: 12, lineHeight: 16 },
   riskRow: {
     marginTop: 8,
     padding: 10,

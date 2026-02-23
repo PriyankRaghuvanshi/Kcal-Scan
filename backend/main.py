@@ -3,6 +3,7 @@ import os
 import json
 import time
 import re
+import hashlib
 import logging
 import datetime as dt
 from typing import Any, Dict, Optional, List
@@ -57,11 +58,15 @@ TBL_BARCODE = "barcode_products"
 TBL_USER_GOALS = "user_goals"
 TBL_DAILY_TOTALS = "daily_totals"
 TBL_DAILY_SUMMARY = "daily_summary"
+TBL_MEAL_EVENTS = "meal_events"
+TBL_DAILY_METRICS = "daily_metrics"
+TBL_WEEKLY_INSIGHTS = "weekly_insights"
 
 # Plans (your requirements)
 DEFAULT_PLAN = "free"
 PLAN_ORDER = ["free", "elite", "advanced", "pro", "infinite"]
-COACH_LLM_MODEL = os.getenv("COACH_LLM_MODEL", "gemini-3-flash-preview").strip() or "gemini-3-flash-preview"
+COACH_LLM_MODEL = os.getenv("COACH_LLM_MODEL", "gemini-1.5-flash").strip() or "gemini-1.5-flash"
+BEHAVIOR_ENGINE_VERSION = "phase_3_1_v1"
 
 # Goal defaults used when an older schema is missing one or more goal columns.
 DEFAULT_DAILY_GOALS = {
@@ -190,6 +195,15 @@ def sb_get_one(table: str, params: Dict[str, str]) -> Optional[Dict[str, Any]]:
         raise HTTPException(status_code=502, detail={"error": "Supabase read failed", "raw": r.text})
     rows = r.json() or []
     return rows[0] if rows else None
+
+
+def sb_get_many(table: str, params: Dict[str, str]) -> List[Dict[str, Any]]:
+    url = f"{SUPABASE_URL}/rest/v1/{table}"
+    r = requests.get(url, headers=supabase_headers(), params=params, timeout=20)
+    if r.status_code != 200:
+        raise HTTPException(status_code=502, detail={"error": "Supabase list read failed", "raw": r.text})
+    rows = r.json() or []
+    return rows if isinstance(rows, list) else []
 
 def sb_upsert(table: str, row: Dict[str, Any], on_conflict: str) -> Dict[str, Any]:
     url = f"{SUPABASE_URL}/rest/v1/{table}"
@@ -522,6 +536,55 @@ def _day_iso(d: Optional[str], tz: Optional[str] = None, tz_offset_min: Optional
             pass
     return _today_date(tz=tz, tz_offset_min=tz_offset_min).isoformat()
 
+
+def _iso_to_date_safe(v: Optional[str], fallback: Optional[dt.date] = None) -> dt.date:
+    if v:
+        try:
+            return dt.date.fromisoformat(str(v)[:10])
+        except Exception:
+            pass
+    return fallback or _today_date()
+
+
+def _week_start_monday(day_iso: Optional[str]) -> str:
+    d = _iso_to_date_safe(day_iso)
+    return (d - dt.timedelta(days=d.weekday())).isoformat()
+
+
+def _week_end_from_start(week_start_iso: str) -> str:
+    ws = _iso_to_date_safe(week_start_iso)
+    return (ws + dt.timedelta(days=6)).isoformat()
+
+
+def _event_local_context(
+    tz: Optional[str] = None,
+    tz_offset_min: Optional[Any] = None,
+) -> Dict[str, Any]:
+    now_utc = dt.datetime.now(dt.timezone.utc)
+    local_dt: dt.datetime
+    tz_name = (tz or "").strip()
+    if tz_name:
+        try:
+            local_dt = now_utc.astimezone(ZoneInfo(tz_name))
+        except Exception:
+            off = _parse_tz_offset_min(tz_offset_min)
+            if off is None:
+                local_dt = now_utc
+            else:
+                local_dt = now_utc + dt.timedelta(minutes=off)
+    else:
+        off = _parse_tz_offset_min(tz_offset_min)
+        local_dt = now_utc if off is None else now_utc + dt.timedelta(minutes=off)
+
+    return {
+        "created_at_utc": now_utc.isoformat(),
+        "event_day_local": local_dt.date().isoformat(),
+        "event_hour_local": int(local_dt.hour),
+        "event_time_local": local_dt.isoformat(),
+        "tz": tz_name or None,
+        "tz_offset_min": _parse_tz_offset_min(tz_offset_min),
+    }
+
 DAILY_VALUE_ALIASES = {
     "total_kcal": ("total_kcal", "kcal", "calories"),
     "protein_g": ("protein_g", "protein"),
@@ -723,6 +786,593 @@ def build_daily_summary(
             remaining[f"{outk}_left"] = left
 
     return {"day": totals.get("day"), "totals": totals, "goals": goals, "remaining": remaining}
+
+
+# -------------------- PHASE 3.1: BEHAVIOR MEMORY --------------------
+def _safe_avg(vals: List[float]) -> float:
+    arr = [float(v) for v in vals if v is not None]
+    if not arr:
+        return 0.0
+    return sum(arr) / max(1, len(arr))
+
+
+def _pct(consumed: float, goal: float) -> float:
+    g = float(goal or 0.0)
+    if g <= 0:
+        return 0.0
+    return max(0.0, min(400.0, (float(consumed or 0.0) / g) * 100.0))
+
+
+def _event_bucket_from_hour(hour: Optional[Any]) -> str:
+    h = int(_safe_float(hour, -1) or -1)
+    if 5 <= h < 11:
+        return "breakfast"
+    if 11 <= h < 16:
+        return "lunch"
+    if 16 <= h < 22:
+        return "dinner"
+    return "snack"
+
+
+def _event_num(row: Dict[str, Any], key: str, *aliases: str) -> float:
+    src = row if isinstance(row, dict) else {}
+    nested = src.get("event_json") if isinstance(src.get("event_json"), dict) else {}
+    for k in (key, *aliases):
+        if k in src and src.get(k) is not None:
+            return float(_safe_float(src.get(k), 0.0) or 0.0)
+        if k in nested and nested.get(k) is not None:
+            return float(_safe_float(nested.get(k), 0.0) or 0.0)
+    return 0.0
+
+
+def _event_text(row: Dict[str, Any], key: str, *aliases: str) -> str:
+    src = row if isinstance(row, dict) else {}
+    nested = src.get("event_json") if isinstance(src.get("event_json"), dict) else {}
+    for k in (key, *aliases):
+        v = src.get(k)
+        if v is not None and str(v).strip():
+            return str(v).strip()
+        v2 = nested.get(k)
+        if v2 is not None and str(v2).strip():
+            return str(v2).strip()
+    return ""
+
+
+def _day_score_from_metric_row(row: Dict[str, Any]) -> float:
+    protein_hit = _event_num(row, "protein_hit_pct")
+    fiber_hit = _event_num(row, "fiber_hit_pct")
+    gl = _event_num(row, "avg_glycemic_load")
+    upf = _event_num(row, "ultra_processed_avg")
+    late_pct = _event_num(row, "late_calories_pct")
+    kcal_delta_pct = abs(_event_num(row, "kcal_delta_pct"))
+    score = (
+        100.0
+        - max(0.0, 100.0 - protein_hit) * 0.24
+        - max(0.0, 100.0 - fiber_hit) * 0.16
+        - max(0.0, gl - 12.0) * 1.6
+        - max(0.0, upf - 2.5) * 6.0
+        - max(0.0, late_pct - 35.0) * 0.8
+        - max(0.0, kcal_delta_pct - 10.0) * 0.45
+    )
+    return max(0.0, min(100.0, score))
+
+
+def _extract_metric_val(row: Dict[str, Any], key: str, default: float = 0.0) -> float:
+    if not isinstance(row, dict):
+        return float(default)
+    nested = row.get("metrics_json")
+    if isinstance(nested, dict) and nested.get(key) is not None:
+        return float(_safe_float(nested.get(key), default) or default)
+    return float(_safe_float(row.get(key), default) or default)
+
+
+def _extract_metric_text(row: Dict[str, Any], key: str, default: str = "") -> str:
+    if not isinstance(row, dict):
+        return default
+    nested = row.get("metrics_json")
+    if isinstance(nested, dict) and nested.get(key) is not None and str(nested.get(key)).strip():
+        return str(nested.get(key)).strip()
+    raw = row.get(key)
+    if raw is not None and str(raw).strip():
+        return str(raw).strip()
+    return default
+
+
+def _longest_streak(rows: List[Dict[str, Any]], pred) -> int:
+    best = 0
+    cur = 0
+    for r in rows:
+        if pred(r):
+            cur += 1
+            if cur > best:
+                best = cur
+        else:
+            cur = 0
+    return best
+
+
+def upsert_meal_event(
+    user_id: str,
+    day_iso: str,
+    *,
+    source: str,
+    event_type: str,
+    totals: Optional[Dict[str, Any]] = None,
+    micros: Optional[Dict[str, Any]] = None,
+    coaching: Optional[Dict[str, Any]] = None,
+    items: Optional[List[Dict[str, Any]]] = None,
+    tz: Optional[str] = None,
+    tz_offset_min: Optional[Any] = None,
+    extra: Optional[Dict[str, Any]] = None,
+) -> None:
+    _require_supabase()
+    local_ctx = _event_local_context(tz=tz, tz_offset_min=tz_offset_min)
+    totals = totals or {}
+    coaching = coaching or {}
+    hour_local = int(_safe_float(local_ctx.get("event_hour_local"), 0) or 0)
+    meal_bucket = _event_bucket_from_hour(hour_local)
+
+    row = {
+        "user_id": user_id,
+        "day": day_iso,
+        "source": str(source or "").strip() or "photo",
+        "event_type": str(event_type or "").strip() or "scan",
+        "total_kcal": float(_safe_float(totals.get("total_kcal", totals.get("kcal")), 0.0) or 0.0),
+        "protein_g": float(_safe_float(totals.get("protein_g"), 0.0) or 0.0),
+        "carbs_g": float(_safe_float(totals.get("carbs_g"), 0.0) or 0.0),
+        "fat_g": float(_safe_float(totals.get("fat_g"), 0.0) or 0.0),
+        "fiber_g": float(_safe_float((micros or {}).get("fiber_g"), 0.0) or 0.0),
+        "satiety_score": float(_safe_float(coaching.get("satiety_score"), 0.0) or 0.0),
+        "glycemic_load": float(_safe_float((coaching.get("glycemic_load") or {}).get("gl"), 0.0) or 0.0),
+        "ultra_processed_score": float(_safe_float(coaching.get("ultra_processed_score"), 0.0) or 0.0),
+        "leucine_estimate_g": float(_safe_float(coaching.get("leucine_estimate_g"), 0.0) or 0.0),
+        "mps_triggered": bool(coaching.get("mps_triggered")),
+        "event_hour_local": hour_local,
+        "meal_bucket": meal_bucket,
+        "tz": local_ctx.get("tz"),
+        "tz_offset_min": local_ctx.get("tz_offset_min"),
+        "items_json": items if isinstance(items, list) else [],
+        "micros_json": micros if isinstance(micros, dict) else {},
+        "event_json": {
+            "totals": totals,
+            "coaching": coaching,
+            "items": items if isinstance(items, list) else [],
+            "extra": extra if isinstance(extra, dict) else {},
+            "event_time_local": local_ctx.get("event_time_local"),
+            "engine_version": BEHAVIOR_ENGINE_VERSION,
+        },
+        "created_at": local_ctx.get("created_at_utc"),
+        "updated_at": dt.datetime.utcnow().isoformat(),
+    }
+    _sb_insert_with_column_fallback(TBL_MEAL_EVENTS, row, locked_cols={"user_id", "day"})
+
+
+def get_meal_events_for_day(user_id: str, day_iso: str) -> List[Dict[str, Any]]:
+    _require_supabase()
+    rows = sb_get_many(
+        TBL_MEAL_EVENTS,
+        params={
+            "select": "*",
+            "user_id": f"eq.{user_id}",
+            "day": f"eq.{day_iso}",
+            "order": "created_at.asc",
+            "limit": "300",
+        },
+    )
+    return rows if isinstance(rows, list) else []
+
+
+def compute_daily_metrics_payload(
+    user_id: str,
+    day_iso: str,
+    summary: Dict[str, Any],
+    meal_events: List[Dict[str, Any]],
+) -> Dict[str, Any]:
+    totals = (summary or {}).get("totals") or {}
+    goals = (summary or {}).get("goals") or {}
+    consumed_kcal = float(_safe_float(totals.get("total_kcal", totals.get("kcal")), 0.0) or 0.0)
+    consumed_protein = float(_safe_float(totals.get("protein_g"), 0.0) or 0.0)
+    consumed_carbs = float(_safe_float(totals.get("carbs_g"), 0.0) or 0.0)
+    consumed_fat = float(_safe_float(totals.get("fat_g"), 0.0) or 0.0)
+    consumed_fiber = float(_safe_float(totals.get("fiber_g"), 0.0) or 0.0)
+
+    goal_kcal = float(_safe_float(goals.get("kcal"), DEFAULT_DAILY_GOALS["kcal"]) or DEFAULT_DAILY_GOALS["kcal"])
+    goal_protein = float(_safe_float(goals.get("protein_g"), DEFAULT_DAILY_GOALS["protein_g"]) or DEFAULT_DAILY_GOALS["protein_g"])
+    goal_carbs = float(_safe_float(goals.get("carbs_g"), DEFAULT_DAILY_GOALS["carbs_g"]) or DEFAULT_DAILY_GOALS["carbs_g"])
+    goal_fat = float(_safe_float(goals.get("fat_g"), DEFAULT_DAILY_GOALS["fat_g"]) or DEFAULT_DAILY_GOALS["fat_g"])
+    goal_fiber = float(_safe_float(goals.get("fiber_g"), DEFAULT_DAILY_GOALS["fiber_g"]) or DEFAULT_DAILY_GOALS["fiber_g"])
+
+    photo_events = [
+        e for e in (meal_events or [])
+        if _event_text(e, "source", "event_source").lower() in {"photo", "scan", "meal", ""}
+        or _event_text(e, "event_type").lower() in {"photo_analyze", "analyze", "scan"}
+    ]
+    meals_count = len(photo_events)
+
+    bucket_totals = {"breakfast": 0.0, "lunch": 0.0, "dinner": 0.0, "snack": 0.0}
+    late_kcal = 0.0
+    satiety_vals: List[float] = []
+    gl_vals: List[float] = []
+    upf_vals: List[float] = []
+    leucine_hits = 0
+    for e in photo_events:
+        kcal = _event_num(e, "total_kcal", "kcal")
+        hour_local = int(_event_num(e, "event_hour_local"))
+        b = _event_text(e, "meal_bucket")
+        bucket = b if b in bucket_totals else _event_bucket_from_hour(hour_local)
+        bucket_totals[bucket] += kcal
+        if hour_local >= 19 or hour_local <= 1:
+            late_kcal += kcal
+
+        sat = _event_num(e, "satiety_score")
+        gl = _event_num(e, "glycemic_load")
+        upf = _event_num(e, "ultra_processed_score")
+        leu = _event_num(e, "leucine_estimate_g")
+        if sat > 0:
+            satiety_vals.append(sat)
+        if gl > 0:
+            gl_vals.append(gl)
+        if upf > 0:
+            upf_vals.append(upf)
+        if leu >= 2.5:
+            leucine_hits += 1
+
+    fallback_coaching = build_coaching_payload(
+        total_kcal=consumed_kcal,
+        protein_g=consumed_protein,
+        carbs_g=consumed_carbs,
+        fat_g=consumed_fat,
+        mps_threshold_g=2.5,
+    )
+    avg_satiety = round(float(_safe_avg(satiety_vals) or _safe_float(fallback_coaching.get("satiety_score"), 0.0)), 1)
+    avg_gl = round(float(_safe_avg(gl_vals) or _safe_float((fallback_coaching.get("glycemic_load") or {}).get("gl"), 0.0)), 1)
+    avg_upf = round(float(_safe_avg(upf_vals) or _safe_float(fallback_coaching.get("ultra_processed_score"), 0.0)), 1)
+
+    late_calories_pct = round(((late_kcal / consumed_kcal) * 100.0), 1) if consumed_kcal > 0 else 0.0
+    biggest_meal = max(bucket_totals.items(), key=lambda x: float(x[1]))[0] if any(bucket_totals.values()) else "dinner"
+    leucine_target = 3
+
+    protein_hit_pct = round(_pct(consumed_protein, goal_protein), 1)
+    carbs_hit_pct = round(_pct(consumed_carbs, goal_carbs), 1)
+    fat_hit_pct = round(_pct(consumed_fat, goal_fat), 1)
+    fiber_hit_pct = round(_pct(consumed_fiber, goal_fiber), 1)
+    kcal_hit_pct = round(_pct(consumed_kcal, goal_kcal), 1)
+    kcal_delta_pct = round((((consumed_kcal - goal_kcal) / goal_kcal) * 100.0), 1) if goal_kcal > 0 else 0.0
+
+    metrics_json = {
+        "day": day_iso,
+        "consumed": {
+            "kcal": round(consumed_kcal, 1),
+            "protein_g": round(consumed_protein, 1),
+            "carbs_g": round(consumed_carbs, 1),
+            "fat_g": round(consumed_fat, 1),
+            "fiber_g": round(consumed_fiber, 1),
+        },
+        "goals": {
+            "kcal": round(goal_kcal, 1),
+            "protein_g": round(goal_protein, 1),
+            "carbs_g": round(goal_carbs, 1),
+            "fat_g": round(goal_fat, 1),
+            "fiber_g": round(goal_fiber, 1),
+        },
+        "hit_pct": {
+            "kcal": kcal_hit_pct,
+            "protein": protein_hit_pct,
+            "carbs": carbs_hit_pct,
+            "fat": fat_hit_pct,
+            "fiber": fiber_hit_pct,
+        },
+        "kcal_delta_pct": kcal_delta_pct,
+        "signals": {
+            "late_calories_pct": late_calories_pct,
+            "biggest_meal": biggest_meal,
+            "avg_satiety": avg_satiety,
+            "avg_glycemic_load": avg_gl,
+            "ultra_processed_avg": avg_upf,
+            "leucine_triggers_target": leucine_target,
+            "leucine_triggers_hit": int(leucine_hits),
+            "meals_count": int(meals_count),
+        },
+        "derived_day_score": round(_day_score_from_metric_row({
+            "protein_hit_pct": protein_hit_pct,
+            "fiber_hit_pct": fiber_hit_pct,
+            "avg_glycemic_load": avg_gl,
+            "ultra_processed_avg": avg_upf,
+            "late_calories_pct": late_calories_pct,
+            "kcal_delta_pct": kcal_delta_pct,
+        }), 1),
+    }
+
+    return {
+        "user_id": user_id,
+        "day": day_iso,
+        "kcal_goal": round(goal_kcal, 1),
+        "protein_goal_g": round(goal_protein, 1),
+        "carbs_goal_g": round(goal_carbs, 1),
+        "fat_goal_g": round(goal_fat, 1),
+        "fiber_goal_g": round(goal_fiber, 1),
+        "kcal_consumed": round(consumed_kcal, 1),
+        "protein_consumed_g": round(consumed_protein, 1),
+        "carbs_consumed_g": round(consumed_carbs, 1),
+        "fat_consumed_g": round(consumed_fat, 1),
+        "fiber_consumed_g": round(consumed_fiber, 1),
+        "kcal_hit_pct": kcal_hit_pct,
+        "protein_hit_pct": protein_hit_pct,
+        "carbs_hit_pct": carbs_hit_pct,
+        "fat_hit_pct": fat_hit_pct,
+        "fiber_hit_pct": fiber_hit_pct,
+        "kcal_delta_pct": kcal_delta_pct,
+        "late_calories_pct": late_calories_pct,
+        "biggest_meal": biggest_meal,
+        "meals_count": int(meals_count),
+        "leucine_triggers_target": int(leucine_target),
+        "leucine_triggers_hit": int(leucine_hits),
+        "avg_satiety": avg_satiety,
+        "avg_glycemic_load": avg_gl,
+        "ultra_processed_avg": avg_upf,
+        "metrics_json": metrics_json,
+        "engine_version": BEHAVIOR_ENGINE_VERSION,
+        "updated_at": dt.datetime.utcnow().isoformat(),
+    }
+
+
+def upsert_daily_metrics(user_id: str, day_iso: str, payload: Dict[str, Any]) -> Dict[str, Any]:
+    _require_supabase()
+    row = dict(payload or {})
+    row["user_id"] = user_id
+    row["day"] = day_iso
+    existing = sb_get_one(
+        TBL_DAILY_METRICS,
+        params={
+            "select": "*",
+            "user_id": f"eq.{user_id}",
+            "day": f"eq.{day_iso}",
+            "limit": "1",
+        },
+    )
+    if existing:
+        patch = {k: v for k, v in row.items() if k not in ("user_id", "day")}
+        _sb_patch_with_column_fallback(
+            TBL_DAILY_METRICS,
+            {"user_id": f"eq.{user_id}", "day": f"eq.{day_iso}"},
+            patch,
+        )
+        refreshed = sb_get_one(
+            TBL_DAILY_METRICS,
+            params={
+                "select": "*",
+                "user_id": f"eq.{user_id}",
+                "day": f"eq.{day_iso}",
+                "limit": "1",
+            },
+        )
+        return refreshed or row
+    return _sb_insert_with_column_fallback(TBL_DAILY_METRICS, row, locked_cols={"user_id", "day"})
+
+
+def get_daily_metrics_window(user_id: str, week_start_iso: str) -> List[Dict[str, Any]]:
+    _require_supabase()
+    week_end_iso = _week_end_from_start(week_start_iso)
+    rows = sb_get_many(
+        TBL_DAILY_METRICS,
+        params={
+            "select": "*",
+            "user_id": f"eq.{user_id}",
+            "day": f"gte.{week_start_iso}",
+            "order": "day.asc",
+            "limit": "20",
+        },
+    )
+    filtered = []
+    for r in rows or []:
+        day = str((r or {}).get("day") or "")[:10]
+        if week_start_iso <= day <= week_end_iso:
+            filtered.append(r)
+    return filtered
+
+
+def build_weekly_insight_payload(user_id: str, week_start_iso: str, metric_rows: List[Dict[str, Any]]) -> Dict[str, Any]:
+    week_end_iso = _week_end_from_start(week_start_iso)
+    rows = sorted(metric_rows or [], key=lambda r: str((r or {}).get("day") or ""))
+    days = len(rows)
+
+    protein_under_days = sum(1 for r in rows if _extract_metric_val(r, "protein_hit_pct") < 100.0)
+    fiber_under_days = sum(1 for r in rows if _extract_metric_val(r, "fiber_hit_pct") < 100.0)
+    high_gl_days = sum(1 for r in rows if _extract_metric_val(r, "avg_glycemic_load") >= 25.0)
+    high_upf_days = sum(1 for r in rows if _extract_metric_val(r, "ultra_processed_avg") >= 6.5)
+    late_days = sum(1 for r in rows if _extract_metric_val(r, "late_calories_pct") >= 45.0)
+    protein_under_streak = _longest_streak(rows, lambda r: _extract_metric_val(r, "protein_hit_pct") < 100.0)
+
+    weekend_problem_days = 0
+    for r in rows:
+        day_iso = str((r or {}).get("day") or "")[:10]
+        try:
+            d = dt.date.fromisoformat(day_iso)
+            is_weekend = d.weekday() >= 5
+        except Exception:
+            is_weekend = False
+        if is_weekend and _extract_metric_val(r, "kcal_delta_pct") > 5.0:
+            weekend_problem_days += 1
+
+    satiety_vals = [_extract_metric_val(r, "avg_satiety") for r in rows if _extract_metric_val(r, "avg_satiety") > 0]
+    satiety_delta = 0.0
+    if satiety_vals:
+        half = max(1, len(satiety_vals) // 2)
+        satiety_delta = round(_safe_avg(satiety_vals[-half:]) - _safe_avg(satiety_vals[:half]), 1)
+
+    late_vals = [_extract_metric_val(r, "late_calories_pct") for r in rows]
+    gl_vals = [_extract_metric_val(r, "avg_glycemic_load") for r in rows]
+    upf_vals = [_extract_metric_val(r, "ultra_processed_avg") for r in rows]
+    protein_hit_vals = [_extract_metric_val(r, "protein_hit_pct") for r in rows]
+    fiber_hit_vals = [_extract_metric_val(r, "fiber_hit_pct") for r in rows]
+    day_scores = [_day_score_from_metric_row(r) for r in rows]
+
+    insights: List[str] = []
+    if protein_under_streak >= 3:
+        insights.append(f"You under-hit protein {protein_under_streak} days in a row.")
+    elif protein_under_days >= 4:
+        insights.append(f"Protein target was missed on {protein_under_days}/{days} tracked days.")
+    if late_days >= 4 and high_gl_days >= 2:
+        insights.append(f"Carbs are spiking mostly at night on {late_days}/{days} days.")
+    elif late_days >= 4:
+        insights.append(f"Calories are clustering late in the day on {late_days}/{days} days.")
+    if weekend_problem_days >= 2:
+        insights.append("Weekends are driving most calorie overages.")
+    if high_gl_days >= 3:
+        insights.append(f"Glycemic load ran high on {high_gl_days}/{days} days.")
+    if high_upf_days >= 3:
+        insights.append(f"Ultra-processed intake stayed elevated on {high_upf_days}/{days} days.")
+    if satiety_delta >= 4:
+        insights.append(f"Satiety is improving week-over-week (+{satiety_delta}).")
+    elif satiety_delta <= -4:
+        insights.append(f"Satiety dropped week-over-week ({satiety_delta}).")
+    if not insights:
+        insights.append("Consistency improved this week; keep protein and fiber anchors stable daily.")
+
+    tomorrow_focus: List[str] = []
+    if protein_under_days > 0:
+        tomorrow_focus.append("Hit at least 30-40% of your protein goal by lunch.")
+    if fiber_under_days > 0:
+        tomorrow_focus.append("Add one fiber anchor at lunch and dinner.")
+    if late_days > 0:
+        tomorrow_focus.append("Shift part of dinner calories earlier in the day.")
+    if high_gl_days > 0:
+        tomorrow_focus.append("Pair major carb servings with protein and vegetables.")
+    if not tomorrow_focus:
+        tomorrow_focus.append("Repeat the same meal timing and food quality pattern tomorrow.")
+
+    payload = {
+        "week_start": week_start_iso,
+        "week_end": week_end_iso,
+        "days_tracked": days,
+        "insights": insights[:8],
+        "tomorrow_focus": tomorrow_focus[:3],
+        "patterns": {
+            "protein_under_hit_days": int(protein_under_days),
+            "protein_under_hit_streak": int(protein_under_streak),
+            "fiber_under_hit_days": int(fiber_under_days),
+            "high_gl_days": int(high_gl_days),
+            "high_upf_days": int(high_upf_days),
+            "late_calorie_days": int(late_days),
+            "weekend_overage_days": int(weekend_problem_days),
+            "satiety_delta": satiety_delta,
+        },
+        "week_metrics": {
+            "avg_day_score": round(_safe_avg(day_scores), 1),
+            "avg_protein_hit_pct": round(_safe_avg(protein_hit_vals), 1),
+            "avg_fiber_hit_pct": round(_safe_avg(fiber_hit_vals), 1),
+            "avg_late_calories_pct": round(_safe_avg(late_vals), 1),
+            "avg_glycemic_load": round(_safe_avg(gl_vals), 1),
+            "avg_ultra_processed": round(_safe_avg(upf_vals), 1),
+            "avg_satiety": round(_safe_avg(satiety_vals), 1) if satiety_vals else 0.0,
+        },
+        "source_days": [str((r or {}).get("day") or "")[:10] for r in rows],
+        "engine_version": BEHAVIOR_ENGINE_VERSION,
+        "generated_at": dt.datetime.utcnow().isoformat(),
+    }
+    canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+    payload["payload_hash"] = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+    return payload
+
+
+def upsert_weekly_insight(user_id: str, week_start_iso: str, payload: Dict[str, Any]) -> Dict[str, Any]:
+    _require_supabase()
+    row = {
+        "user_id": user_id,
+        "week_start": week_start_iso,
+        "week_end": str(payload.get("week_end") or _week_end_from_start(week_start_iso)),
+        "days_tracked": int(_safe_float(payload.get("days_tracked"), 0) or 0),
+        "payload_hash": str(payload.get("payload_hash") or ""),
+        "insights_json": payload,
+        "engine_version": str(payload.get("engine_version") or BEHAVIOR_ENGINE_VERSION),
+        "updated_at": dt.datetime.utcnow().isoformat(),
+    }
+
+    existing = sb_get_one(
+        TBL_WEEKLY_INSIGHTS,
+        params={
+            "select": "*",
+            "user_id": f"eq.{user_id}",
+            "week_start": f"eq.{week_start_iso}",
+            "limit": "1",
+        },
+    )
+    if existing:
+        patch = {k: v for k, v in row.items() if k not in ("user_id", "week_start")}
+        _sb_patch_with_column_fallback(
+            TBL_WEEKLY_INSIGHTS,
+            {"user_id": f"eq.{user_id}", "week_start": f"eq.{week_start_iso}"},
+            patch,
+        )
+        refreshed = sb_get_one(
+            TBL_WEEKLY_INSIGHTS,
+            params={
+                "select": "*",
+                "user_id": f"eq.{user_id}",
+                "week_start": f"eq.{week_start_iso}",
+                "limit": "1",
+            },
+        )
+        return refreshed or row
+
+    return _sb_insert_with_column_fallback(TBL_WEEKLY_INSIGHTS, row, locked_cols={"user_id", "week_start"})
+
+
+def get_weekly_insight_payload(user_id: str, week_start_iso: str) -> Optional[Dict[str, Any]]:
+    _require_supabase()
+    row = sb_get_one(
+        TBL_WEEKLY_INSIGHTS,
+        params={
+            "select": "*",
+            "user_id": f"eq.{user_id}",
+            "week_start": f"eq.{week_start_iso}",
+            "limit": "1",
+        },
+    )
+    if not row:
+        return None
+    for k in ("insights_json", "weekly_json", "payload_json", "insights", "payload"):
+        val = row.get(k)
+        if isinstance(val, dict):
+            return val
+        if isinstance(val, str):
+            try:
+                parsed = json.loads(val)
+                if isinstance(parsed, dict):
+                    return parsed
+            except Exception:
+                continue
+    return None
+
+
+def recompute_behavior_memory(
+    user_id: str,
+    day_iso: Optional[str] = None,
+    tz: Optional[str] = None,
+    tz_offset_min: Optional[Any] = None,
+) -> Dict[str, Any]:
+    _require_supabase()
+    target_day = _day_iso(day_iso, tz=tz, tz_offset_min=tz_offset_min)
+    summary = build_daily_summary(user_id, target_day, tz=tz, tz_offset_min=tz_offset_min)
+    try:
+        events = get_meal_events_for_day(user_id, target_day)
+    except Exception:
+        events = []
+
+    daily_payload = compute_daily_metrics_payload(user_id, target_day, summary, events)
+    upsert_daily_metrics(user_id, target_day, daily_payload)
+
+    week_start_iso = _week_start_monday(target_day)
+    week_rows = get_daily_metrics_window(user_id, week_start_iso)
+    weekly_payload = build_weekly_insight_payload(user_id, week_start_iso, week_rows)
+    upsert_weekly_insight(user_id, week_start_iso, weekly_payload)
+
+    return {
+        "day": target_day,
+        "week_start": week_start_iso,
+        "daily_metrics": daily_payload,
+        "weekly_insights": weekly_payload,
+    }
 
 
 # -------------------- PLAN / USAGE --------------------
@@ -1046,6 +1696,52 @@ def daily_summary(
     return build_daily_summary(uid, day, tz=tz, tz_offset_min=tz_offset_min)
 
 
+@app.post("/weekly/recompute")
+def weekly_recompute(
+    day: Optional[str] = None,
+    user_id: Optional[str] = None,
+    tz: Optional[str] = None,
+    tz_offset_min: Optional[int] = None,
+    x_user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
+):
+    """
+    Recomputes behavior memory for a given day:
+      - updates daily_metrics for that day
+      - rebuilds weekly_insights cache for that week
+    """
+    uid = require_user_id(x_user_id, user_id)
+    out = recompute_behavior_memory(uid, day_iso=day, tz=tz, tz_offset_min=tz_offset_min)
+    return {"ok": True, **out}
+
+
+@app.get("/weekly/insights")
+def weekly_insights(
+    week_start: Optional[str] = None,
+    day: Optional[str] = None,
+    refresh: Optional[bool] = False,
+    user_id: Optional[str] = None,
+    tz: Optional[str] = None,
+    tz_offset_min: Optional[int] = None,
+    x_user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
+):
+    uid = require_user_id(x_user_id, user_id)
+    anchor_day = _day_iso(day, tz=tz, tz_offset_min=tz_offset_min)
+    week_start_iso = _week_start_monday(week_start or anchor_day)
+
+    payload = None if refresh else get_weekly_insight_payload(uid, week_start_iso)
+    if not payload:
+        rows = get_daily_metrics_window(uid, week_start_iso)
+        payload = build_weekly_insight_payload(uid, week_start_iso, rows)
+        upsert_weekly_insight(uid, week_start_iso, payload)
+
+    return {
+        "ok": True,
+        "week_start": week_start_iso,
+        "week_end": _week_end_from_start(week_start_iso),
+        "insights": payload,
+    }
+
+
 # -------------------- DAILY COACH (LLM INTERPRETER ONLY) --------------------
 _COACH_MEM_CACHE: Dict[str, Dict[str, Any]] = {}
 
@@ -1156,7 +1852,12 @@ def _coach_cache_set(user_id: str, day_iso: str, payload_hash: str, coach_resp: 
         logger.info(f"coach cache write skipped: {e}")
 
 
-def _coach_user_prompt(norm_payload: Dict[str, Any], fat_loss_score: int, rule_alerts: List[Dict[str, str]]) -> str:
+def _coach_user_prompt(
+    norm_payload: Dict[str, Any],
+    fat_loss_score: int,
+    rule_alerts: List[Dict[str, str]],
+    weekly_behavior: Optional[Dict[str, Any]] = None,
+) -> str:
     allowed_palette = coach_logic.allowed_suggestion_palette(norm_payload)
     compact = {
         "date": norm_payload.get("date"),
@@ -1168,6 +1869,7 @@ def _coach_user_prompt(norm_payload: Dict[str, Any], fat_loss_score: int, rule_a
         "profile": norm_payload.get("profile"),
         "fat_loss_score": fat_loss_score,
         "rule_risk_alerts": rule_alerts,
+        "behavior_memory_weekly": weekly_behavior or {},
     }
     template = {
         "diagnosis": ["string", "string"],
@@ -1180,7 +1882,8 @@ def _coach_user_prompt(norm_payload: Dict[str, Any], fat_loss_score: int, rule_a
         "Rules:\n"
         "- Keep it practical and behavior-focused.\n"
         "- No medical advice, disease claims, supplements, dosages, or treatment language.\n"
-        "- Every action must clearly reference at least one metric from the payload.\n"
+        "- Every action must clearly reference at least one metric keyword from this set: "
+        "protein, fiber, glycemic load, ultra-processed, leucine, late calories, kcal, carbs, fat.\n"
         "- Max 3 actions.\n"
         "- Keep language concise.\n\n"
         f"Allowed suggestion palette:\n{json.dumps(allowed_palette, ensure_ascii=True)}\n\n"
@@ -1211,6 +1914,8 @@ def _coerce_coach_response_shape(parsed: Dict[str, Any], rule_alerts: List[Dict[
             "why": str(a.get("why") or "").strip(),
             "how": str(a.get("how") or "").strip(),
         }
+        if item["why"] and not coach_logic.action_references_metrics(item):
+            item["why"] = f"{item['why']} Targets protein/fiber/glycemic load trends."
         if item["title"] and item["why"] and item["how"]:
             cleaned["actions"].append(item)
 
@@ -1221,10 +1926,11 @@ def _generate_daily_coach_llm(
     norm_payload: Dict[str, Any],
     fat_loss_score: int,
     rule_alerts: List[Dict[str, str]],
+    weekly_behavior: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     _require_gemini_key()
     model = genai.GenerativeModel(COACH_LLM_MODEL)
-    user_prompt = _coach_user_prompt(norm_payload, fat_loss_score, rule_alerts)
+    user_prompt = _coach_user_prompt(norm_payload, fat_loss_score, rule_alerts, weekly_behavior=weekly_behavior)
     last_err = ""
     for attempt in range(3):
         try:
@@ -1249,6 +1955,7 @@ def _generate_daily_coach_llm(
 def coach_daily(
     payload: Dict[str, Any] = Body(...),
     user_id: Optional[str] = None,
+    refresh: Optional[bool] = False,
     x_user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
 ):
     """
@@ -1264,19 +1971,48 @@ def coach_daily(
     rule_alerts = coach_logic.build_rule_risk_alerts(norm)
     p_hash = coach_logic.payload_hash(norm)
     day_iso = str(norm.get("date") or _today_date().isoformat())
+    week_start_iso = _week_start_monday(day_iso)
 
-    cached = _coach_cache_get(uid, day_iso, p_hash)
+    weekly_behavior: Optional[Dict[str, Any]] = None
+    try:
+        weekly_behavior = get_weekly_insight_payload(uid, week_start_iso)
+    except Exception as e:
+        logger.info(f"weekly insight read skipped in /coach/daily: {e}")
+    if not weekly_behavior:
+        try:
+            week_rows = get_daily_metrics_window(uid, week_start_iso)
+            if week_rows:
+                weekly_behavior = build_weekly_insight_payload(uid, week_start_iso, week_rows)
+                upsert_weekly_insight(uid, week_start_iso, weekly_behavior)
+        except Exception as e:
+            logger.info(f"weekly insight recompute skipped in /coach/daily: {e}")
+
+    weekly_hash = str((weekly_behavior or {}).get("payload_hash") or "").strip()
+    if weekly_hash:
+        p_hash = hashlib.sha256(f"{p_hash}:{weekly_hash}".encode("utf-8")).hexdigest()
+
+    cached = _coach_cache_get(uid, day_iso, p_hash) if not refresh else None
     if isinstance(cached, dict):
         out = dict(cached)
         out["fat_loss_score"] = int(fat_loss_score)
         out["disclaimer"] = coach_logic.COACH_DISCLAIMER
         out["date"] = day_iso
+        out["reasoning_source"] = str(out.get("reasoning_source") or "cache")
+        if isinstance(weekly_behavior, dict):
+            out["behavior_memory"] = {
+                "week_start": str(weekly_behavior.get("week_start") or week_start_iso),
+                "days_tracked": int(_safe_float(weekly_behavior.get("days_tracked"), 0) or 0),
+                "patterns": weekly_behavior.get("patterns") or {},
+                "insights": (weekly_behavior.get("insights") or [])[:4],
+            }
         return out
 
     llm_resp: Optional[Dict[str, Any]] = None
+    reasoning_source = "fallback"
     if GEMINI_API_KEY:
         try:
-            llm_resp = _generate_daily_coach_llm(norm, fat_loss_score, rule_alerts)
+            llm_resp = _generate_daily_coach_llm(norm, fat_loss_score, rule_alerts, weekly_behavior=weekly_behavior)
+            reasoning_source = "llm"
         except Exception as e:
             logger.warning(f"Daily coach LLM failed, using fallback: {e}")
 
@@ -1291,7 +2027,16 @@ def coach_daily(
         "actions": llm_resp.get("actions", [])[:3],
         "risk_alerts": coach_logic.merge_risk_alerts(rule_alerts, llm_resp.get("risk_alerts", []), limit=4),
         "disclaimer": coach_logic.COACH_DISCLAIMER,
+        "reasoning_source": reasoning_source,
+        "week_start": week_start_iso,
     }
+    if isinstance(weekly_behavior, dict):
+        final_resp["behavior_memory"] = {
+            "week_start": str(weekly_behavior.get("week_start") or week_start_iso),
+            "days_tracked": int(_safe_float(weekly_behavior.get("days_tracked"), 0) or 0),
+            "patterns": weekly_behavior.get("patterns") or {},
+            "insights": (weekly_behavior.get("insights") or [])[:4],
+        }
 
     # Final safety gate. If anything violates guardrails, return deterministic fallback.
     ok, reason = coach_logic.validate_llm_response_shape(final_resp)
@@ -1306,7 +2051,16 @@ def coach_daily(
             "actions": fb.get("actions", [])[:3],
             "risk_alerts": coach_logic.merge_risk_alerts(rule_alerts, fb.get("risk_alerts", []), limit=4),
             "disclaimer": coach_logic.COACH_DISCLAIMER,
+            "reasoning_source": "fallback",
+            "week_start": week_start_iso,
         }
+        if isinstance(weekly_behavior, dict):
+            final_resp["behavior_memory"] = {
+                "week_start": str(weekly_behavior.get("week_start") or week_start_iso),
+                "days_tracked": int(_safe_float(weekly_behavior.get("days_tracked"), 0) or 0),
+                "patterns": weekly_behavior.get("patterns") or {},
+                "insights": (weekly_behavior.get("insights") or [])[:4],
+            }
 
     _coach_cache_set(uid, day_iso, p_hash, final_resp)
     return final_resp
@@ -1703,6 +2457,33 @@ def barcode_lookup(
     # 1) cache
     cached = supabase_get_barcode(barcode)
     if cached:
+        try:
+            upsert_meal_event(
+                uid,
+                day_iso=today_local.isoformat(),
+                source="barcode",
+                event_type="barcode_lookup",
+                totals={"kcal": 0.0, "protein_g": 0.0, "carbs_g": 0.0, "fat_g": 0.0},
+                micros={},
+                coaching={},
+                items=[],
+                tz=tz,
+                tz_offset_min=tz_offset_min,
+                extra={
+                    "barcode": barcode,
+                    "cached": True,
+                    "name": cached.get("name"),
+                    "brand": cached.get("brand"),
+                    "per_100g": {
+                        "kcal": float(cached.get("kcal_per_100g") or 0),
+                        "protein_g": float(cached.get("protein_g_per_100g") or 0),
+                        "carbs_g": float(cached.get("carbs_g_per_100g") or 0),
+                        "fat_g": float(cached.get("fat_g_per_100g") or 0),
+                    },
+                },
+            )
+        except Exception as e:
+            logger.warning(f"Barcode meal event write skipped: {e}")
         return {
             "source": "barcode",
             "barcode": cached.get("barcode"),
@@ -1728,6 +2509,33 @@ def barcode_lookup(
 
     # 3) store
     stored = supabase_upsert_barcode(off)
+    try:
+        upsert_meal_event(
+            uid,
+            day_iso=today_local.isoformat(),
+            source="barcode",
+            event_type="barcode_lookup",
+            totals={"kcal": 0.0, "protein_g": 0.0, "carbs_g": 0.0, "fat_g": 0.0},
+            micros={},
+            coaching={},
+            items=[],
+            tz=tz,
+            tz_offset_min=tz_offset_min,
+            extra={
+                "barcode": barcode,
+                "cached": False,
+                "name": stored.get("name"),
+                "brand": stored.get("brand"),
+                "per_100g": {
+                    "kcal": float(stored.get("kcal_per_100g") or 0),
+                    "protein_g": float(stored.get("protein_g_per_100g") or 0),
+                    "carbs_g": float(stored.get("carbs_g_per_100g") or 0),
+                    "fat_g": float(stored.get("fat_g_per_100g") or 0),
+                },
+            },
+        )
+    except Exception as e:
+        logger.warning(f"Barcode meal event write skipped: {e}")
 
     return {
         "source": "barcode",
@@ -1801,6 +2609,32 @@ def barcode_manual(
         raise HTTPException(status_code=400, detail={"error": "kcal_per_100g must be > 0"})
 
     stored = supabase_upsert_barcode(row)
+    try:
+        upsert_meal_event(
+            uid,
+            day_iso=today_local.isoformat(),
+            source="barcode",
+            event_type="barcode_manual",
+            totals={"kcal": 0.0, "protein_g": 0.0, "carbs_g": 0.0, "fat_g": 0.0},
+            micros={},
+            coaching={},
+            items=[],
+            tz=tz,
+            tz_offset_min=tz_offset_min,
+            extra={
+                "barcode": barcode,
+                "name": stored.get("name"),
+                "brand": stored.get("brand"),
+                "per_100g": {
+                    "kcal": float(stored.get("kcal_per_100g") or 0),
+                    "protein_g": float(stored.get("protein_g_per_100g") or 0),
+                    "carbs_g": float(stored.get("carbs_g_per_100g") or 0),
+                    "fat_g": float(stored.get("fat_g_per_100g") or 0),
+                },
+            },
+        )
+    except Exception as e:
+        logger.warning(f"Barcode manual meal event write skipped: {e}")
     return {
         "ok": True,
         "stored": True,
@@ -2147,18 +2981,38 @@ async def analyze(
     if item_warnings:
         response["warnings"] = item_warnings[:8]
 
+    scan_coaching = build_coaching_payload(
+        total_kcal=total_kcal,
+        protein_g=total_p,
+        carbs_g=total_c,
+        fat_g=total_f,
+        mps_threshold_g=2.5,
+    )
+
     if coaching_enabled:
         # Pro/Infinite get full coaching insights
-        response["coaching"] = build_coaching_payload(
-            total_kcal=total_kcal,
-            protein_g=total_p,
-            carbs_g=total_c,
-            fat_g=total_f,
-            mps_threshold_g=2.5,
-        )
+        response["coaching"] = scan_coaching
     else:
         # Free/Elite/Advanced see a lock hint
         response["locked"] = {"feature": "coaching", "required_plan": "pro"}
+
+    # ---- PHASE 3.1: meal_events (non-blocking) ----
+    try:
+        upsert_meal_event(
+            uid,
+            day_iso=day_local_iso,
+            source="photo",
+            event_type="photo_analyze",
+            totals=response.get("totals"),
+            micros=micros_payload,
+            coaching=scan_coaching,
+            items=results,
+            tz=tz,
+            tz_offset_min=tz_offset_min,
+            extra={"plan": plan, "warnings": item_warnings[:8]},
+        )
+    except Exception as e:
+        logger.warning(f"Meal events write skipped: {e}")
 
     # ---- DAILY TOTALS (non-blocking) ----
     try:
@@ -2178,6 +3032,14 @@ async def analyze(
         response["daily"] = build_daily_summary(uid, day=day_local_iso)
     except Exception as e:
         logger.warning(f"Daily totals update skipped: {e}")
+
+    # ---- PHASE 3.1: daily_metrics + weekly_insights cache (non-blocking) ----
+    try:
+        memory = recompute_behavior_memory(uid, day_iso=day_local_iso, tz=tz, tz_offset_min=tz_offset_min)
+        if isinstance(memory, dict):
+            response["weekly_insights"] = memory.get("weekly_insights")
+    except Exception as e:
+        logger.warning(f"Behavior memory recompute skipped: {e}")
 
     return response
 
