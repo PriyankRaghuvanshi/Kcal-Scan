@@ -1752,6 +1752,7 @@ def weekly_insights(
 
 # -------------------- DAILY COACH (LLM INTERPRETER ONLY) --------------------
 _COACH_MEM_CACHE: Dict[str, Dict[str, Any]] = {}
+_GEMINI_MODELS_CACHE: Dict[str, Any] = {"ts": 0.0, "models": []}
 
 _COACH_SYSTEM_PROMPT = (
     "You are a nutrition coaching assistant. "
@@ -1930,16 +1931,76 @@ def _coerce_coach_response_shape(parsed: Dict[str, Any], rule_alerts: List[Dict[
     return cleaned
 
 
+def _list_available_gemini_models(ttl_sec: int = 600) -> List[str]:
+    """
+    Returns model names (without `models/` prefix) that support generateContent.
+    Cached to avoid listing on every request.
+    """
+    now = time.time()
+    cached_ts = float(_GEMINI_MODELS_CACHE.get("ts") or 0.0)
+    cached_models = _GEMINI_MODELS_CACHE.get("models") or []
+    if cached_models and (now - cached_ts) < ttl_sec:
+        return [str(m) for m in cached_models if str(m).strip()]
+
+    out: List[str] = []
+    try:
+        for m in genai.list_models():
+            methods = [str(x or "").strip().lower() for x in (getattr(m, "supported_generation_methods", None) or [])]
+            if "generatecontent" not in methods:
+                continue
+            name = str(getattr(m, "name", "") or "").strip()
+            if not name:
+                continue
+            if name.startswith("models/"):
+                name = name.split("models/", 1)[1].strip()
+            if name:
+                out.append(name)
+    except Exception as e:
+        logger.warning(f"Gemini list_models failed: {e}")
+        out = []
+
+    # stable unique
+    uniq: List[str] = []
+    seen = set()
+    for n in out:
+        k = n.strip()
+        if not k or k in seen:
+            continue
+        seen.add(k)
+        uniq.append(k)
+
+    _GEMINI_MODELS_CACHE["ts"] = now
+    _GEMINI_MODELS_CACHE["models"] = uniq
+    return uniq
+
+
+def _rank_gemini_models(models: List[str]) -> List[str]:
+    def score(name: str) -> tuple:
+        n = name.lower()
+        # Prefer stable flash models, then pro, then previews/exp.
+        return (
+            0 if "flash" in n else 1,
+            0 if ("2.5" in n or "2-" in n) else 1,
+            1 if ("exp" in n or "preview" in n) else 0,
+            len(n),
+            n,
+        )
+
+    return sorted(models, key=score)
+
+
 def _coach_model_candidates() -> List[str]:
     env_models = [m.strip() for m in str(COACH_LLM_FALLBACK_MODELS or "").split(",") if m.strip()]
     defaults = [
+        "gemini-2.5-flash",
         "gemini-2.0-flash",
         "gemini-2.0-flash-lite",
         "gemini-1.5-flash-latest",
         "gemini-1.5-flash-002",
         "gemini-1.5-pro-latest",
     ]
-    ordered = [COACH_LLM_MODEL] + env_models + defaults
+    listed = _rank_gemini_models(_list_available_gemini_models())
+    ordered = [COACH_LLM_MODEL] + env_models + listed + defaults
     out: List[str] = []
     seen = set()
     for raw in ordered:
