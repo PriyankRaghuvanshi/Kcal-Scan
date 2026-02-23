@@ -557,6 +557,7 @@ export default function App() {
     const latestPhoto = (history || []).find((h) => (h?.kind || "") === "photo" && h?.photo_uri);
     return latestPhoto?.photo_uri || null;
   }, [photoUri, history]);
+  const coachIndicators = useMemo(() => buildCoachIndicators(coachLastPayload || {}), [coachLastPayload]);
   const remainingToday = useMemo(() => {
     const g = goals || DEFAULT_GOALS;
     const todayKey = localDayISO();
@@ -1667,7 +1668,6 @@ async function analyzePhoto() {
   const coaching = result?.coaching || null;
   const locked = result?.locked || null;
   const coachTone = scoreTone(coachDaily?.fat_loss_score);
-  const coachIndicators = useMemo(() => buildCoachIndicators(coachLastPayload || {}), [coachLastPayload]);
 
   const subscriptionPriceText = (key) => priceByEntitlement?.[key] || (rcReady ? "Loading…" : "See App Store");
 
