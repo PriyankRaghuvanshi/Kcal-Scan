@@ -65,7 +65,15 @@ TBL_WEEKLY_INSIGHTS = "weekly_insights"
 # Plans (your requirements)
 DEFAULT_PLAN = "free"
 PLAN_ORDER = ["free", "elite", "advanced", "pro", "infinite"]
-COACH_LLM_MODEL = os.getenv("COACH_LLM_MODEL", "gemini-1.5-flash").strip() or "gemini-1.5-flash"
+COACH_LLM_MODEL = (
+    os.getenv("COACH_LLM_MODEL", "").strip()
+    or os.getenv("GEMINI_MODEL", "").strip()
+    or "gemini-1.5-flash"
+)
+COACH_LLM_FALLBACK_MODELS = (
+    os.getenv("COACH_LLM_FALLBACK_MODELS", "").strip()
+    or os.getenv("GEMINI_FALLBACK_MODELS", "").strip()
+)
 BEHAVIOR_ENGINE_VERSION = "phase_3_1_v1"
 
 # Goal defaults used when an older schema is missing one or more goal columns.
@@ -1922,6 +1930,31 @@ def _coerce_coach_response_shape(parsed: Dict[str, Any], rule_alerts: List[Dict[
     return cleaned
 
 
+def _coach_model_candidates() -> List[str]:
+    env_models = [m.strip() for m in str(COACH_LLM_FALLBACK_MODELS or "").split(",") if m.strip()]
+    defaults = [
+        "gemini-2.0-flash",
+        "gemini-2.0-flash-lite",
+        "gemini-1.5-flash-latest",
+        "gemini-1.5-flash-002",
+        "gemini-1.5-pro-latest",
+    ]
+    ordered = [COACH_LLM_MODEL] + env_models + defaults
+    out: List[str] = []
+    seen = set()
+    for raw in ordered:
+        name = str(raw or "").strip()
+        if not name:
+            continue
+        if name.startswith("models/"):
+            name = name.split("models/", 1)[1].strip()
+        if not name or name in seen:
+            continue
+        seen.add(name)
+        out.append(name)
+    return out
+
+
 def _generate_daily_coach_llm(
     norm_payload: Dict[str, Any],
     fat_loss_score: int,
@@ -1929,26 +1962,46 @@ def _generate_daily_coach_llm(
     weekly_behavior: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     _require_gemini_key()
-    model = genai.GenerativeModel(COACH_LLM_MODEL)
     user_prompt = _coach_user_prompt(norm_payload, fat_loss_score, rule_alerts, weekly_behavior=weekly_behavior)
     last_err = ""
-    for attempt in range(3):
-        try:
-            resp = model.generate_content([_COACH_SYSTEM_PROMPT, user_prompt])
-            text = (resp.text or "").strip()
-            parsed = coach_logic.extract_json_object(text)
-            if not isinstance(parsed, dict):
-                raise ValueError("LLM did not return valid JSON object.")
+    tried_models: List[str] = []
+    for model_name in _coach_model_candidates():
+        tried_models.append(model_name)
+        model = genai.GenerativeModel(model_name)
+        for attempt in range(2):
+            try:
+                resp = model.generate_content([_COACH_SYSTEM_PROMPT, user_prompt])
+                text = (resp.text or "").strip()
+                parsed = coach_logic.extract_json_object(text)
+                if not isinstance(parsed, dict):
+                    raise ValueError("LLM did not return valid JSON object.")
 
-            cleaned = _coerce_coach_response_shape(parsed, rule_alerts)
-            ok, reason = coach_logic.validate_llm_response_shape(cleaned)
-            if not ok:
-                raise ValueError(f"LLM JSON failed validation: {reason}")
-            return cleaned
-        except Exception as e:
-            last_err = str(e)
-            time.sleep(0.6 * (attempt + 1))
-    raise HTTPException(status_code=502, detail={"error": "coach_llm_failed", "raw": last_err[:300]})
+                cleaned = _coerce_coach_response_shape(parsed, rule_alerts)
+                ok, reason = coach_logic.validate_llm_response_shape(cleaned)
+                if not ok:
+                    raise ValueError(f"LLM JSON failed validation: {reason}")
+                cleaned["_llm_model"] = model_name
+                return cleaned
+            except Exception as e:
+                msg = str(e)
+                last_err = f"{model_name}: {msg}"
+                low = msg.lower()
+                # Fast-skip model IDs that are unavailable for this API version.
+                if (
+                    "not found for api version" in low
+                    or "not supported for generatecontent" in low
+                    or "404 models/" in low
+                ):
+                    break
+                time.sleep(0.6 * (attempt + 1))
+    raise HTTPException(
+        status_code=502,
+        detail={
+            "error": "coach_llm_failed",
+            "raw": last_err[:300],
+            "tried_models": tried_models[:8],
+        },
+    )
 
 
 @app.post("/coach/daily")
@@ -2009,9 +2062,13 @@ def coach_daily(
 
     llm_resp: Optional[Dict[str, Any]] = None
     reasoning_source = "fallback"
+    llm_model_used = ""
     if GEMINI_API_KEY:
         try:
             llm_resp = _generate_daily_coach_llm(norm, fat_loss_score, rule_alerts, weekly_behavior=weekly_behavior)
+            llm_model_used = str((llm_resp or {}).get("_llm_model") or "")
+            if isinstance(llm_resp, dict) and "_llm_model" in llm_resp:
+                llm_resp = {k: v for k, v in llm_resp.items() if k != "_llm_model"}
             reasoning_source = "llm"
         except Exception as e:
             logger.warning(f"Daily coach LLM failed, using fallback: {e}")
@@ -2028,6 +2085,7 @@ def coach_daily(
         "risk_alerts": coach_logic.merge_risk_alerts(rule_alerts, llm_resp.get("risk_alerts", []), limit=4),
         "disclaimer": coach_logic.COACH_DISCLAIMER,
         "reasoning_source": reasoning_source,
+        "llm_model": llm_model_used if reasoning_source == "llm" else "",
         "week_start": week_start_iso,
     }
     if isinstance(weekly_behavior, dict):
@@ -2052,6 +2110,7 @@ def coach_daily(
             "risk_alerts": coach_logic.merge_risk_alerts(rule_alerts, fb.get("risk_alerts", []), limit=4),
             "disclaimer": coach_logic.COACH_DISCLAIMER,
             "reasoning_source": "fallback",
+            "llm_model": "",
             "week_start": week_start_iso,
         }
         if isinstance(weekly_behavior, dict):
