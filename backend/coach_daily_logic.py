@@ -60,6 +60,11 @@ _METRIC_HINT_WORDS = (
     "fat",
 )
 
+_FORBIDDEN_WEIGHT_PROMISE_RE = re.compile(
+    r"\b(?:you(?:'ll| will)?|will)\s+(?:lose|gain)\s+\d+(?:\.\d+)?\s*(?:kg|kgs|kilogram|kilograms|lb|lbs|pound|pounds)\b",
+    re.IGNORECASE,
+)
+
 
 def _safe_float(x: Any, default: float = 0.0) -> float:
     try:
@@ -333,6 +338,8 @@ def contains_forbidden_claims(text: str) -> bool:
     for k in _FORBIDDEN_SUPPLEMENT:
         if k in t:
             return True
+    if _FORBIDDEN_WEIGHT_PROMISE_RE.search(str(text or "")):
+        return True
     return False
 
 
@@ -340,6 +347,27 @@ def response_text_blob(resp: Dict[str, Any]) -> str:
     if not isinstance(resp, dict):
         return ""
     parts: List[str] = []
+    summary = resp.get("one_sentence_summary")
+    if isinstance(summary, str):
+        parts.append(summary)
+    pattern = resp.get("pattern_detected")
+    if isinstance(pattern, str):
+        parts.append(pattern)
+    projection_explained = resp.get("projection_explained")
+    if isinstance(projection_explained, str):
+        parts.append(projection_explained)
+    biggest = resp.get("biggest_risk_lever")
+    if isinstance(biggest, dict):
+        parts.extend([str(biggest.get("title") or ""), str(biggest.get("reason") or "")])
+    roi = resp.get("highest_roi_change")
+    if isinstance(roi, dict):
+        parts.extend([str(roi.get("title") or ""), str(roi.get("why") or ""), str(roi.get("how") or "")])
+    one_thing = resp.get("if_you_do_one_thing")
+    if isinstance(one_thing, str):
+        parts.append(one_thing)
+    proj = resp.get("projection_7d")
+    if isinstance(proj, dict):
+        parts.extend([str(proj.get("if_unchanged") or ""), str(proj.get("if_improved") or "")])
     for k in ("diagnosis", "tomorrow_focus"):
         v = resp.get(k)
         if isinstance(v, list):
@@ -366,6 +394,13 @@ def validate_llm_response_shape(obj: Dict[str, Any]) -> Tuple[bool, str]:
     if not isinstance(obj, dict):
         return False, "response is not an object"
 
+    summary = obj.get("one_sentence_summary")
+    pattern = obj.get("pattern_detected")
+    projection_explained = obj.get("projection_explained")
+    risk_lever = obj.get("biggest_risk_lever")
+    roi = obj.get("highest_roi_change")
+    one_thing = obj.get("if_you_do_one_thing")
+    projection = obj.get("projection_7d")
     diagnosis = obj.get("diagnosis")
     focus = obj.get("tomorrow_focus")
     actions = obj.get("actions")
@@ -380,12 +415,51 @@ def validate_llm_response_shape(obj: Dict[str, Any]) -> Tuple[bool, str]:
     if len(actions) > 3:
         return False, "actions must be <= 3"
 
+    if not isinstance(summary, str) or not summary.strip():
+        return False, "one_sentence_summary is required"
+    if len([w for w in summary.strip().split() if w]) > 18:
+        return False, "one_sentence_summary must be <= 18 words"
+    if not isinstance(projection_explained, str) or not projection_explained.strip():
+        return False, "projection_explained is required"
+    if not any(k in projection_explained.lower() for k in ("low", "medium", "high")):
+        return False, "projection_explained must mention confidence band"
+    if not isinstance(one_thing, str) or not one_thing.strip():
+        return False, "if_you_do_one_thing is required"
+
     for line in diagnosis[:4]:
         if not isinstance(line, str) or not line.strip():
             return False, "diagnosis lines must be non-empty strings"
     for line in focus[:4]:
         if not isinstance(line, str) or not line.strip():
             return False, "focus lines must be non-empty strings"
+
+    if pattern is not None and (not isinstance(pattern, str) or not pattern.strip()):
+        return False, "pattern_detected must be a non-empty string when provided"
+    if risk_lever is not None:
+        if not isinstance(risk_lever, dict):
+            return False, "biggest_risk_lever must be an object"
+        if not str(risk_lever.get("title") or "").strip():
+            return False, "biggest_risk_lever.title required"
+        if not str(risk_lever.get("reason") or "").strip():
+            return False, "biggest_risk_lever.reason required"
+    if roi is not None:
+        if not isinstance(roi, dict):
+            return False, "highest_roi_change must be an object"
+        if not str(roi.get("title") or "").strip():
+            return False, "highest_roi_change.title required"
+        if not str(roi.get("why") or "").strip():
+            return False, "highest_roi_change.why required"
+        if not str(roi.get("how") or "").strip():
+            return False, "highest_roi_change.how required"
+        if not action_references_metrics(roi):
+            return False, "highest_roi_change must reference at least one metric"
+    if projection is not None:
+        if not isinstance(projection, dict):
+            return False, "projection_7d must be an object"
+        if not str(projection.get("if_unchanged") or "").strip():
+            return False, "projection_7d.if_unchanged required"
+        if not str(projection.get("if_improved") or "").strip():
+            return False, "projection_7d.if_improved required"
 
     for a in actions:
         if not isinstance(a, dict):
@@ -462,6 +536,8 @@ def build_fallback_coach_response(norm_payload: Dict[str, Any], fat_loss_score: 
     leucine_obj = _obj(signals.get("leucine_triggers"))
     l_target = int(round(_safe_float(leucine_obj.get("target"), 0.0)))
     l_hit = int(round(_safe_float(leucine_obj.get("hit"), 0.0)))
+    p_ratio = _ratio(p_used, p_goal)
+    f_ratio = _ratio(f_used, f_goal)
 
     diagnosis = [
         f"Fat-loss score is {int(fat_loss_score)}/100 based on calories, protein, fiber, glycemic load, UPF, and meal timing.",
@@ -509,7 +585,55 @@ def build_fallback_coach_response(norm_payload: Dict[str, Any], fat_loss_score: 
     ]
     actions = actions[:3]
 
+    largest_gap = "protein"
+    largest_gap_ratio = p_ratio
+    if f_ratio < largest_gap_ratio:
+        largest_gap = "fiber"
+        largest_gap_ratio = f_ratio
+
+    if largest_gap == "protein":
+        risk_lever = {
+            "title": "Protein distribution is the top bottleneck",
+            "reason": f"Only {int(round(p_ratio * 100))}% of protein target is hit, which can raise evening hunger and reduce recovery quality.",
+        }
+    else:
+        risk_lever = {
+            "title": "Fiber gap is driving appetite instability",
+            "reason": f"Only {int(round(f_ratio * 100))}% of fiber target is hit, making satiety and calorie control harder.",
+        }
+
+    if late_pct >= 55:
+        pattern_detected = (
+            f"Calories are heavily back-loaded ({int(round(late_pct))}% late), with protein/fiber gaps earlier in the day."
+        )
+    elif gl >= 25 and upf >= 6.5:
+        pattern_detected = (
+            f"Food quality pattern is mixed: glycemic load is {round1(gl)} and ultra-processed score is {round1(upf)}/10."
+        )
+    else:
+        pattern_detected = "Intake is progressing, but closing protein and fiber gaps earlier would improve consistency."
+
+    highest_roi_change = {
+        "title": "Front-load protein and fiber before dinner",
+        "why": f"Protein gap is {round1(p_left)}g and fiber gap is {round1(f_left)}g, which lowers satiety control later.",
+        "how": "Add one protein anchor plus one fiber booster at breakfast and lunch before evening meals.",
+    }
+    projection = {
+        "if_unchanged": "If this pattern repeats for 7 days, evening hunger and adherence risk will likely stay high.",
+        "if_improved": "If protein/fiber are front-loaded for 7 days, satiety and score stability should improve noticeably.",
+    }
+    one_sentence_summary = "Protein and fiber consistency are the key levers for your 7-day direction."
+    projection_explained = "Current 7-day direction has medium confidence based on available weekly data."
+    if_you_do_one_thing = highest_roi_change["how"]
+
     return {
+        "one_sentence_summary": one_sentence_summary,
+        "pattern_detected": pattern_detected,
+        "projection_explained": projection_explained,
+        "biggest_risk_lever": risk_lever,
+        "highest_roi_change": highest_roi_change,
+        "if_you_do_one_thing": if_you_do_one_thing,
+        "projection_7d": projection,
         "diagnosis": diagnosis[:4],
         "tomorrow_focus": tomorrow_focus[:3],
         "actions": actions,

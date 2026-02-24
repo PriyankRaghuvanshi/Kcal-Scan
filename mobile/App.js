@@ -525,6 +525,7 @@ export default function App() {
   const [coachLastPayload, setCoachLastPayload] = useState(null);
   const [coachBusy, setCoachBusy] = useState(false);
   const [coachErr, setCoachErr] = useState("");
+  const [showCoachDetails, setShowCoachDetails] = useState(false);
   const [coachProfile, setCoachProfile] = useState(DEFAULT_COACH_PROFILE);
   const [coachProfileDraft, setCoachProfileDraft] = useState(DEFAULT_COACH_PROFILE);
   const [coachProfileReady, setCoachProfileReady] = useState(false);
@@ -557,7 +558,6 @@ export default function App() {
     const latestPhoto = (history || []).find((h) => (h?.kind || "") === "photo" && h?.photo_uri);
     return latestPhoto?.photo_uri || null;
   }, [photoUri, history]);
-  const coachIndicators = useMemo(() => buildCoachIndicators(coachLastPayload || {}), [coachLastPayload]);
   const remainingToday = useMemo(() => {
     const g = goals || DEFAULT_GOALS;
     const todayKey = localDayISO();
@@ -990,6 +990,43 @@ export default function App() {
       const cleaned = {
         date: String(data?.date || day),
         fat_loss_score: Math.round(num(data?.fat_loss_score)),
+        one_sentence_summary: String(data?.one_sentence_summary || ""),
+        pattern_detected: String(data?.pattern_detected || ""),
+        projection_explained: String(data?.projection_explained || ""),
+        biggest_risk_lever:
+          data?.biggest_risk_lever && typeof data.biggest_risk_lever === "object"
+            ? {
+                title: String(data.biggest_risk_lever?.title || ""),
+                reason: String(data.biggest_risk_lever?.reason || ""),
+              }
+            : null,
+        highest_roi_change:
+          data?.highest_roi_change && typeof data.highest_roi_change === "object"
+            ? {
+                title: String(data.highest_roi_change?.title || ""),
+                why: String(data.highest_roi_change?.why || ""),
+                how: String(data.highest_roi_change?.how || ""),
+              }
+            : null,
+        projection_7d:
+          data?.projection_7d && typeof data.projection_7d === "object"
+            ? {
+                if_unchanged: String(data.projection_7d?.if_unchanged || ""),
+                if_improved: String(data.projection_7d?.if_improved || ""),
+              }
+            : null,
+        if_you_do_one_thing: String(data?.if_you_do_one_thing || ""),
+        predictive_signals:
+          data?.predictive_signals && typeof data.predictive_signals === "object"
+            ? {
+                days_with_data_7d: Math.max(0, Math.round(num(data.predictive_signals?.days_with_data_7d))),
+                scans_7d: Math.max(0, Math.round(num(data.predictive_signals?.scans_7d))),
+                projection_confidence_band: String(data.predictive_signals?.projection_confidence_band || ""),
+                missing_data_reason: String(data.predictive_signals?.missing_data_reason || ""),
+                fat_loss_probability_7d: Math.max(0, Math.min(1, num(data.predictive_signals?.fat_loss_probability_7d))),
+                projection_7d_score: clampPct(num(data.predictive_signals?.projection_7d_score)),
+              }
+            : null,
         diagnosis: Array.isArray(data?.diagnosis) ? data.diagnosis : [],
         tomorrow_focus: Array.isArray(data?.tomorrow_focus) ? data.tomorrow_focus : [],
         actions: Array.isArray(data?.actions) ? data.actions.slice(0, 3) : [],
@@ -1668,6 +1705,7 @@ async function analyzePhoto() {
   const coaching = result?.coaching || null;
   const locked = result?.locked || null;
   const coachTone = scoreTone(coachDaily?.fat_loss_score);
+  const coachIndicators = useMemo(() => buildCoachIndicators(coachLastPayload || {}), [coachLastPayload]);
 
   const subscriptionPriceText = (key) => priceByEntitlement?.[key] || (rcReady ? "Loading…" : "See App Store");
 
@@ -1810,6 +1848,42 @@ async function analyzePhoto() {
                     </View>
                   </View>
 
+                  {String(coachDaily?.one_sentence_summary || "").trim() ? (
+                    <View style={{ marginTop: 10 }}>
+                      <Text style={styles.cardTitle}>Coach summary</Text>
+                      <Text style={styles.p}>{String(coachDaily?.one_sentence_summary || "")}</Text>
+                    </View>
+                  ) : null}
+
+                  {coachDaily?.predictive_signals ? (
+                    <View style={{ marginTop: 10 }}>
+                      <Text style={styles.cardTitle}>7-day outlook</Text>
+                      <Text style={styles.p}>
+                        Projection score {Math.round(num(coachDaily?.predictive_signals?.projection_7d_score))}/100 • probability{" "}
+                        {Math.round(num(coachDaily?.predictive_signals?.fat_loss_probability_7d) * 100)}% • confidence{" "}
+                        {String(coachDaily?.predictive_signals?.projection_confidence_band || "medium")}
+                      </Text>
+                      {String(coachDaily?.projection_explained || "").trim() ? (
+                        <Text style={styles.tiny}>{String(coachDaily?.projection_explained || "")}</Text>
+                      ) : null}
+                      {String(coachDaily?.predictive_signals?.projection_confidence_band || "").toLowerCase() === "low" ? (
+                        <Text style={[styles.tiny, { color: "#ffb4b4" }]}>
+                          Low confidence - scan 2 more days to improve accuracy.
+                        </Text>
+                      ) : null}
+                      {String(coachDaily?.predictive_signals?.missing_data_reason || "").trim() ? (
+                        <Text style={styles.tiny}>{String(coachDaily?.predictive_signals?.missing_data_reason || "")}</Text>
+                      ) : null}
+                    </View>
+                  ) : null}
+
+                  {String(coachDaily?.if_you_do_one_thing || "").trim() ? (
+                    <View style={{ marginTop: 10 }}>
+                      <Text style={styles.cardTitle}>If you do one thing</Text>
+                      <Text style={styles.p}>{String(coachDaily?.if_you_do_one_thing || "")}</Text>
+                    </View>
+                  ) : null}
+
                   {coachTrend?.length ? (
                     <View style={{ marginTop: 12 }}>
                       <Text style={styles.cardTitle}>7-day trend</Text>
@@ -1854,59 +1928,107 @@ async function analyzePhoto() {
                     </View>
                   ) : null}
 
-                  {(coachDaily?.diagnosis || []).length ? (
+                  {String(coachDaily?.pattern_detected || "").trim() ? (
                     <View style={{ marginTop: 8 }}>
-                      <Text style={styles.cardTitle}>Diagnosis</Text>
-                      {(coachDaily.diagnosis || []).map((line, i) => (
-                        <Text key={`diag-${i}`} style={styles.p}>
-                          • {String(line)}
-                        </Text>
-                      ))}
+                      <Text style={styles.cardTitle}>Pattern detected</Text>
+                      <Text style={styles.p}>{String(coachDaily?.pattern_detected || "")}</Text>
                     </View>
                   ) : null}
 
-                  {(coachDaily?.tomorrow_focus || []).length ? (
+                  {coachDaily?.biggest_risk_lever?.title ? (
                     <View style={{ marginTop: 10 }}>
-                      <Text style={styles.cardTitle}>Tomorrow focus</Text>
-                      {(coachDaily.tomorrow_focus || []).map((line, i) => (
-                        <Text key={`focus-${i}`} style={styles.p}>
-                          • {String(line)}
-                        </Text>
-                      ))}
+                      <Text style={styles.cardTitle}>Biggest risk lever</Text>
+                      <View style={styles.actionBox}>
+                        <Text style={styles.itemName}>{String(coachDaily?.biggest_risk_lever?.title || "")}</Text>
+                        <Text style={styles.p}>{String(coachDaily?.biggest_risk_lever?.reason || "")}</Text>
+                      </View>
                     </View>
                   ) : null}
 
-                  {(coachDaily?.risk_alerts || []).length ? (
+                  {coachDaily?.highest_roi_change?.title ? (
                     <View style={{ marginTop: 10 }}>
-                      <Text style={styles.cardTitle}>Risk alerts</Text>
-                      {(coachDaily.risk_alerts || []).map((ra, i) => (
-                        <View
-                          key={`risk-${i}`}
-                          style={[
-                            styles.riskRow,
-                            { backgroundColor: riskLevelTone(ra?.level).bg, borderColor: riskLevelTone(ra?.level).color },
-                          ]}
-                        >
-                          <Text style={[styles.riskType, { color: riskLevelTone(ra?.level).color }]}>
-                            {String(ra?.type || "risk").replace(/_/g, " ")} ({String(ra?.level || "medium")})
-                          </Text>
-                          <Text style={styles.tiny}>{String(ra?.reason || "")}</Text>
+                      <Text style={styles.cardTitle}>Highest ROI change</Text>
+                      <View style={styles.actionBox}>
+                        <Text style={styles.itemName}>{String(coachDaily?.highest_roi_change?.title || "")}</Text>
+                        <Text style={styles.tiny}>{String(coachDaily?.highest_roi_change?.why || "")}</Text>
+                        <Text style={styles.p}>{String(coachDaily?.highest_roi_change?.how || "")}</Text>
+                      </View>
+                    </View>
+                  ) : null}
+
+                  {(coachDaily?.projection_7d?.if_unchanged || coachDaily?.projection_7d?.if_improved) ? (
+                    <View style={{ marginTop: 10 }}>
+                      <Text style={styles.cardTitle}>7-day projection</Text>
+                      {coachDaily?.projection_7d?.if_unchanged ? (
+                        <Text style={styles.p}>• If unchanged: {String(coachDaily?.projection_7d?.if_unchanged || "")}</Text>
+                      ) : null}
+                      {coachDaily?.projection_7d?.if_improved ? (
+                        <Text style={styles.p}>• If improved: {String(coachDaily?.projection_7d?.if_improved || "")}</Text>
+                      ) : null}
+                    </View>
+                  ) : null}
+
+                  <TouchableOpacity style={styles.intelToggleBtn} onPress={() => setShowCoachDetails((v) => !v)}>
+                    <Text style={styles.btnText}>{showCoachDetails ? "Hide details" : "Show details"}</Text>
+                  </TouchableOpacity>
+
+                  {showCoachDetails ? (
+                    <>
+                      {(coachDaily?.diagnosis || []).length ? (
+                        <View style={{ marginTop: 8 }}>
+                          <Text style={styles.cardTitle}>Diagnosis</Text>
+                          {(coachDaily.diagnosis || []).map((line, i) => (
+                            <Text key={`diag-${i}`} style={styles.p}>
+                              • {String(line)}
+                            </Text>
+                          ))}
                         </View>
-                      ))}
-                    </View>
-                  ) : null}
+                      ) : null}
 
-                  {(coachDaily?.actions || []).length ? (
-                    <View style={{ marginTop: 10 }}>
-                      <Text style={styles.cardTitle}>Actions</Text>
-                      {(coachDaily.actions || []).slice(0, 3).map((a, i) => (
-                        <View key={`action-${i}`} style={styles.actionBox}>
-                          <Text style={styles.itemName}>{String(a?.title || "Action")}</Text>
-                          <Text style={styles.tiny}>{String(a?.why || "")}</Text>
-                          <Text style={styles.p}>{String(a?.how || "")}</Text>
+                      {(coachDaily?.tomorrow_focus || []).length ? (
+                        <View style={{ marginTop: 10 }}>
+                          <Text style={styles.cardTitle}>Tomorrow focus</Text>
+                          {(coachDaily.tomorrow_focus || []).map((line, i) => (
+                            <Text key={`focus-${i}`} style={styles.p}>
+                              • {String(line)}
+                            </Text>
+                          ))}
                         </View>
-                      ))}
-                    </View>
+                      ) : null}
+
+                      {(coachDaily?.risk_alerts || []).length ? (
+                        <View style={{ marginTop: 10 }}>
+                          <Text style={styles.cardTitle}>Risk alerts</Text>
+                          {(coachDaily.risk_alerts || []).map((ra, i) => (
+                            <View
+                              key={`risk-${i}`}
+                              style={[
+                                styles.riskRow,
+                                { backgroundColor: riskLevelTone(ra?.level).bg, borderColor: riskLevelTone(ra?.level).color },
+                              ]}
+                            >
+                              <Text style={[styles.riskType, { color: riskLevelTone(ra?.level).color }]}>
+                                {String(ra?.type || "risk").replace(/_/g, " ")} ({String(ra?.level || "medium")})
+                              </Text>
+                              <Text style={styles.tiny}>{String(ra?.reason || "")}</Text>
+                            </View>
+                          ))}
+                        </View>
+                      ) : null}
+
+                      {(coachDaily?.actions || []).length ? (
+                        <View style={{ marginTop: 10 }}>
+                          <Text style={styles.cardTitle}>Actions</Text>
+                          {(coachDaily.actions || []).slice(0, 3).map((a, i) => (
+                            <View key={`action-${i}`} style={styles.actionBox}>
+                              <Text style={styles.itemName}>{String(a?.title || "Action")}</Text>
+                              <Text style={styles.tiny}>{String(a?.why || "")}</Text>
+                              <Text style={styles.p}>{String(a?.how || "")}</Text>
+                            </View>
+                          ))}
+                        </View>
+                      ) : null}
+                    </>
                   ) : null}
 
                   <Text style={[styles.tiny, { marginTop: 8 }]}>{String(coachDaily?.disclaimer || "Informational only.")}</Text>
@@ -2645,6 +2767,16 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   intelSignalFill: { height: 7, borderRadius: 999 },
+  intelToggleBtn: {
+    marginTop: 10,
+    alignSelf: "flex-start",
+    backgroundColor: "#151515",
+    borderWidth: 1,
+    borderColor: "#2d3b57",
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
   lockedPreviewGrid: { marginTop: 10, gap: 8 },
   lockedPreviewTile: {
     height: 114,

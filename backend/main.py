@@ -3,6 +3,7 @@ import os
 import json
 import time
 import re
+import math
 import hashlib
 import logging
 import datetime as dt
@@ -61,20 +62,13 @@ TBL_DAILY_SUMMARY = "daily_summary"
 TBL_MEAL_EVENTS = "meal_events"
 TBL_DAILY_METRICS = "daily_metrics"
 TBL_WEEKLY_INSIGHTS = "weekly_insights"
+TBL_USER_WEEKLY_METRICS = "user_weekly_metrics"
 
 # Plans (your requirements)
 DEFAULT_PLAN = "free"
 PLAN_ORDER = ["free", "elite", "advanced", "pro", "infinite"]
-COACH_LLM_MODEL = (
-    os.getenv("COACH_LLM_MODEL", "").strip()
-    or os.getenv("GEMINI_MODEL", "").strip()
-    or "gemini-1.5-flash"
-)
-COACH_LLM_FALLBACK_MODELS = (
-    os.getenv("COACH_LLM_FALLBACK_MODELS", "").strip()
-    or os.getenv("GEMINI_FALLBACK_MODELS", "").strip()
-)
-BEHAVIOR_ENGINE_VERSION = "phase_3_1_v1"
+COACH_LLM_MODEL = os.getenv("COACH_LLM_MODEL", "gemini-1.5-flash").strip() or "gemini-1.5-flash"
+BEHAVIOR_ENGINE_VERSION = "phase_3_2_v1"
 
 # Goal defaults used when an older schema is missing one or more goal columns.
 DEFAULT_DAILY_GOALS = {
@@ -564,6 +558,53 @@ def _week_end_from_start(week_start_iso: str) -> str:
     return (ws + dt.timedelta(days=6)).isoformat()
 
 
+def _timezone_label(tz: Optional[str] = None, tz_offset_min: Optional[Any] = None) -> str:
+    tz_name = str(tz or "").strip()
+    if tz_name:
+        return tz_name
+    off = _parse_tz_offset_min(tz_offset_min)
+    if off is None:
+        return "UTC"
+    sign = "+" if off >= 0 else "-"
+    mins = abs(int(off))
+    hh = mins // 60
+    mm = mins % 60
+    return f"UTC{sign}{hh:02d}:{mm:02d}"
+
+
+def _select_week_timezone(
+    existing_payload: Optional[Dict[str, Any]],
+    tz: Optional[str] = None,
+    tz_offset_min: Optional[Any] = None,
+) -> str:
+    if isinstance(existing_payload, dict):
+        existing_tz = str(existing_payload.get("tz_used") or "").strip()
+        if existing_tz:
+            return existing_tz
+    return _timezone_label(tz=tz, tz_offset_min=tz_offset_min)
+
+
+def _is_payload_stale(payload: Optional[Dict[str, Any]], anchor_day_iso: str, max_age_hours: int = 30) -> bool:
+    if not isinstance(payload, dict):
+        return True
+    source_days = payload.get("source_days")
+    if isinstance(source_days, list):
+        day_set = {str(d)[:10] for d in source_days if str(d).strip()}
+        if anchor_day_iso and anchor_day_iso[:10] not in day_set:
+            return True
+    ts_raw = str(payload.get("generated_at") or payload.get("updated_at") or "").strip()
+    if not ts_raw:
+        return True
+    try:
+        ts = dt.datetime.fromisoformat(ts_raw.replace("Z", "+00:00"))
+        if ts.tzinfo is None:
+            ts = ts.replace(tzinfo=dt.timezone.utc)
+        age_sec = (dt.datetime.now(dt.timezone.utc) - ts.astimezone(dt.timezone.utc)).total_seconds()
+        return age_sec > (max_age_hours * 3600)
+    except Exception:
+        return True
+
+
 def _event_local_context(
     tz: Optional[str] = None,
     tz_offset_min: Optional[Any] = None,
@@ -802,6 +843,58 @@ def _safe_avg(vals: List[float]) -> float:
     if not arr:
         return 0.0
     return sum(arr) / max(1, len(arr))
+
+
+def _safe_std(vals: List[float]) -> float:
+    arr = [float(v) for v in vals if v is not None]
+    n = len(arr)
+    if n <= 1:
+        return 0.0
+    mean = _safe_avg(arr)
+    var = sum((v - mean) ** 2 for v in arr) / float(n)
+    return math.sqrt(max(0.0, var))
+
+
+def _clamp(x: float, lo: float, hi: float) -> float:
+    return max(lo, min(hi, float(x)))
+
+
+def _norm_score_from_range(value: float, lo: float, hi: float) -> float:
+    """Maps value in [lo,hi] to 0..100."""
+    if hi <= lo:
+        return 0.0
+    return _clamp(((float(value) - float(lo)) / (float(hi) - float(lo))) * 100.0, 0.0, 100.0)
+
+
+def _consistency_score_from_hits(hit_vals: List[float]) -> float:
+    """
+    0..100 where higher means "consistently near target across days".
+    Balances closeness-to-target and day-to-day stability.
+    """
+    vals = [max(0.0, float(v)) for v in (hit_vals or [])]
+    if not vals:
+        return 0.0
+    closeness = _safe_avg([max(0.0, 100.0 - abs(v - 100.0)) for v in vals])
+    stability = max(0.0, 100.0 - (_safe_std(vals) * 1.8))
+    return round((closeness * 0.65) + (stability * 0.35), 1)
+
+
+def _volatility_index_from_series(vals: List[float], scale: float) -> float:
+    """0..100 where higher means more unstable."""
+    arr = [float(v) for v in (vals or [])]
+    if not arr:
+        return 0.0
+    vol = _safe_std(arr) * float(scale or 1.0)
+    return round(_clamp(vol, 0.0, 100.0), 1)
+
+
+def _band_from_score(score_0_100: float, low_cut: float = 35.0, high_cut: float = 65.0) -> str:
+    s = float(score_0_100 or 0.0)
+    if s >= high_cut:
+        return "high"
+    if s <= low_cut:
+        return "low"
+    return "medium"
 
 
 def _pct(consumed: float, goal: float) -> float:
@@ -1179,7 +1272,12 @@ def get_daily_metrics_window(user_id: str, week_start_iso: str) -> List[Dict[str
     return filtered
 
 
-def build_weekly_insight_payload(user_id: str, week_start_iso: str, metric_rows: List[Dict[str, Any]]) -> Dict[str, Any]:
+def build_weekly_insight_payload(
+    user_id: str,
+    week_start_iso: str,
+    metric_rows: List[Dict[str, Any]],
+    tz_used: Optional[str] = None,
+) -> Dict[str, Any]:
     week_end_iso = _week_end_from_start(week_start_iso)
     rows = sorted(metric_rows or [], key=lambda r: str((r or {}).get("day") or ""))
     days = len(rows)
@@ -1252,6 +1350,7 @@ def build_weekly_insight_payload(user_id: str, week_start_iso: str, metric_rows:
     payload = {
         "week_start": week_start_iso,
         "week_end": week_end_iso,
+        "tz_used": str(tz_used or "UTC"),
         "days_tracked": days,
         "insights": insights[:8],
         "tomorrow_focus": tomorrow_focus[:3],
@@ -1283,12 +1382,249 @@ def build_weekly_insight_payload(user_id: str, week_start_iso: str, metric_rows:
     return payload
 
 
+def build_weekly_prediction_payload(
+    user_id: str,
+    week_start_iso: str,
+    metric_rows: List[Dict[str, Any]],
+    tz_used: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    Deterministic Phase 3.2 engine.
+    Computes consistency, volatility, and 7-day projection metrics.
+    """
+    week_end_iso = _week_end_from_start(week_start_iso)
+    rows = sorted(metric_rows or [], key=lambda r: str((r or {}).get("day") or ""))
+    days = len(rows)
+
+    protein_hit_vals = [_extract_metric_val(r, "protein_hit_pct") for r in rows]
+    fiber_hit_vals = [_extract_metric_val(r, "fiber_hit_pct") for r in rows]
+    late_vals = [_extract_metric_val(r, "late_calories_pct") for r in rows]
+    gl_vals = [_extract_metric_val(r, "avg_glycemic_load") for r in rows]
+    upf_vals = [_extract_metric_val(r, "ultra_processed_avg") for r in rows]
+    kcal_delta_vals = [_extract_metric_val(r, "kcal_delta_pct") for r in rows]
+    day_scores = [_day_score_from_metric_row(r) for r in rows]
+
+    leucine_hit_rate_vals: List[float] = []
+    biggest_meals: List[str] = []
+    kcal_balances: List[float] = []
+    scans_by_day: List[float] = []
+    for r in rows:
+        tgt = _extract_metric_val(r, "leucine_triggers_target")
+        hit = _extract_metric_val(r, "leucine_triggers_hit")
+        if tgt > 0:
+            leucine_hit_rate_vals.append(_clamp(hit / tgt, 0.0, 1.0))
+        else:
+            leucine_hit_rate_vals.append(1.0)
+        biggest_meals.append(_extract_metric_text(r, "biggest_meal", ""))
+        kcal_goal = _extract_metric_val(r, "kcal_goal")
+        kcal_consumed = _extract_metric_val(r, "kcal_consumed")
+        kcal_balances.append(kcal_consumed - kcal_goal)
+        scans_by_day.append(max(0.0, _extract_metric_val(r, "meals_count")))
+
+    protein_avg = round(_safe_avg(protein_hit_vals), 1)
+    fiber_avg = round(_safe_avg(fiber_hit_vals), 1)
+    glycemic_avg = round(_safe_avg(gl_vals), 1)
+    upf_avg = round(_safe_avg(upf_vals), 1)
+    timing_balance_avg = round(max(0.0, 100.0 - _safe_avg(late_vals)), 1)
+
+    protein_consistency = _consistency_score_from_hits(protein_hit_vals)
+    fiber_consistency = _consistency_score_from_hits(fiber_hit_vals)
+
+    glycemic_volatility = _volatility_index_from_series(gl_vals, scale=3.0)
+    upf_volatility = _volatility_index_from_series(upf_vals, scale=12.0)
+    kcal_delta_volatility = _volatility_index_from_series(kcal_delta_vals, scale=1.6)
+    diet_volatility_index = round(_clamp((glycemic_volatility * 0.45) + (upf_volatility * 0.35) + (kcal_delta_volatility * 0.20), 0.0, 100.0), 1)
+
+    meal_counts: Dict[str, int] = {}
+    for b in biggest_meals:
+        key = (b or "").strip().lower()
+        if not key:
+            continue
+        meal_counts[key] = meal_counts.get(key, 0) + 1
+    dominant_ratio = ((max(meal_counts.values()) / days) * 100.0) if (days > 0 and meal_counts) else 0.0
+    late_stability = max(0.0, 100.0 - (_safe_std(late_vals) * 2.0))
+    timing_stability_index = round(_clamp((late_stability * 0.7) + (dominant_ratio * 0.3), 0.0, 100.0), 1)
+    timing_volatility = round(max(0.0, 100.0 - timing_stability_index), 1)
+
+    readiness_score = round(_safe_avg(day_scores), 1)
+    if days >= 2:
+        split = max(1, days // 2)
+        readiness_trend = round(_safe_avg(day_scores[-split:]) - _safe_avg(day_scores[:split]), 1)
+    else:
+        readiness_trend = 0.0
+
+    fat_loss_velocity_score = round(
+        _clamp(
+            (readiness_score * 0.45)
+            + (protein_consistency * 0.20)
+            + (fiber_consistency * 0.15)
+            + ((100.0 - diet_volatility_index) * 0.12)
+            + ((100.0 - timing_volatility) * 0.08),
+            0.0,
+            100.0,
+        ),
+        1,
+    )
+
+    avg_daily_kcal_balance = _safe_avg(kcal_balances)
+    projected_weight_change_kg_7d = round(_clamp((avg_daily_kcal_balance * 7.0) / 7700.0, -1.2, 1.2), 3)  # internal only
+    deficit_component = _norm_score_from_range(-avg_daily_kcal_balance, 0.0, 500.0)
+    days_confidence_pct = round(_clamp((days / 7.0) * 100.0, 0.0, 100.0), 1)
+    probability_pct = round(
+        _clamp(
+            (fat_loss_velocity_score * 0.55)
+            + (deficit_component * 0.30)
+            + (days_confidence_pct * 0.15)
+            - 8.0,
+            3.0,
+            97.0,
+        ),
+        1,
+    )
+    fat_loss_probability_7d = round(_clamp(probability_pct / 100.0, 0.0, 1.0), 3)
+
+    hunger_volatility_score = round(
+        _clamp(
+            ((100.0 - fiber_consistency) * 0.35)
+            + (_norm_score_from_range(glycemic_avg, 12.0, 38.0) * 0.25)
+            + (_norm_score_from_range(_safe_avg(late_vals), 20.0, 75.0) * 0.25)
+            + (diet_volatility_index * 0.15),
+            0.0,
+            100.0,
+        ),
+        1,
+    )
+    leucine_hit_rate_pct = round(_safe_avg([v * 100.0 for v in leucine_hit_rate_vals]), 1)
+    muscle_retention_risk_score = round(
+        _clamp(
+            ((100.0 - min(100.0, protein_avg)) * 0.55)
+            + ((100.0 - protein_consistency) * 0.25)
+            + ((100.0 - leucine_hit_rate_pct) * 0.20),
+            0.0,
+            100.0,
+        ),
+        1,
+    )
+
+    projection_7d_score = round(
+        _clamp(
+            (probability_pct * 0.50)
+            + ((100.0 - hunger_volatility_score) * 0.20)
+            + ((100.0 - muscle_retention_risk_score) * 0.30),
+            0.0,
+            100.0,
+        ),
+        1,
+    )
+
+    days_with_data_7d = int(days)
+    scans_7d = int(round(sum(scans_by_day)))
+    scan_stability = _safe_std(scans_by_day)
+    if days_with_data_7d < 4:
+        projection_confidence_band = "low"
+        missing_data_reason = "Not enough tracked days this week."
+    elif days_with_data_7d < 6:
+        projection_confidence_band = "medium"
+        missing_data_reason = "Need 1-2 more tracked days for stronger confidence."
+    else:
+        stable_scan_signal = scans_7d >= days_with_data_7d and scan_stability <= 1.5
+        if stable_scan_signal:
+            projection_confidence_band = "high"
+            missing_data_reason = ""
+        else:
+            projection_confidence_band = "medium"
+            missing_data_reason = "Scan frequency is uneven across the week."
+
+    if avg_daily_kcal_balance <= -120:
+        energy_trend = "deficit_trend"
+    elif avg_daily_kcal_balance >= 120:
+        energy_trend = "surplus_trend"
+    else:
+        energy_trend = "near_balance"
+
+    if days == 0:
+        fat_loss_velocity_score = 0.0
+        probability_pct = 0.0
+        fat_loss_probability_7d = 0.0
+        projection_7d_score = 0.0
+        projected_weight_change_kg_7d = 0.0
+        projection_confidence_band = "low"
+        missing_data_reason = "No tracked days in this week."
+        scans_7d = 0
+        days_with_data_7d = 0
+        energy_trend = "unknown"
+
+    if projected_weight_change_kg_7d <= -0.05:
+        weight_direction = "loss"
+    elif projected_weight_change_kg_7d >= 0.05:
+        weight_direction = "gain"
+    else:
+        weight_direction = "maintenance"
+
+    payload = {
+        "week_start": week_start_iso,
+        "week_end": week_end_iso,
+        "tz_used": str(tz_used or "UTC"),
+        "days_tracked": int(days),
+        "days_with_data_7d": int(days_with_data_7d),
+        "scans_7d": int(scans_7d),
+        "projection_confidence_band": projection_confidence_band,
+        "missing_data_reason": str(missing_data_reason or ""),
+        "protein_avg": protein_avg,
+        "protein_consistency": protein_consistency,
+        "fiber_avg": fiber_avg,
+        "fiber_consistency": fiber_consistency,
+        "timing_balance_avg": timing_balance_avg,
+        "timing_stability_index": timing_stability_index,
+        "timing_volatility": timing_volatility,
+        "diet_volatility_index": diet_volatility_index,
+        "upf_avg": upf_avg,
+        "upf_volatility": upf_volatility,
+        "glycemic_avg": glycemic_avg,
+        "glycemic_volatility": glycemic_volatility,
+        "readiness_score": readiness_score,
+        "readiness_trend": readiness_trend,
+        "fat_loss_velocity_score": fat_loss_velocity_score,
+        "fat_loss_probability_7d": fat_loss_probability_7d,
+        "fat_loss_probability_pct": probability_pct,
+        "projection_7d_score": projection_7d_score,
+        "energy_balance_trend_7d": {
+            "trend": energy_trend,
+            "daily_kcal_balance": round(avg_daily_kcal_balance, 1),
+            "score": round(_norm_score_from_range(-avg_daily_kcal_balance, -250.0, 350.0), 1),
+        },
+        "weight_change_projection_7d": {
+            "kg_change": projected_weight_change_kg_7d,
+            "direction": weight_direction,
+            "daily_kcal_balance": round(avg_daily_kcal_balance, 1),
+            "confidence_pct": days_confidence_pct,
+        },
+        "hunger_volatility_projection": {
+            "score": hunger_volatility_score,
+            "level": _band_from_score(hunger_volatility_score),
+            "summary": "Higher score means more unstable appetite/hunger pattern risk over the next 7 days.",
+        },
+        "muscle_retention_risk": {
+            "score": muscle_retention_risk_score,
+            "level": _band_from_score(muscle_retention_risk_score),
+            "summary": "Higher score means higher risk of under-supporting recovery if the weekly pattern repeats.",
+        },
+        "source_days": [str((r or {}).get("day") or "")[:10] for r in rows],
+        "engine_version": BEHAVIOR_ENGINE_VERSION,
+        "generated_at": dt.datetime.utcnow().isoformat(),
+    }
+    canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+    payload["payload_hash"] = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+    return payload
+
+
 def upsert_weekly_insight(user_id: str, week_start_iso: str, payload: Dict[str, Any]) -> Dict[str, Any]:
     _require_supabase()
     row = {
         "user_id": user_id,
         "week_start": week_start_iso,
         "week_end": str(payload.get("week_end") or _week_end_from_start(week_start_iso)),
+        "tz_used": str(payload.get("tz_used") or ""),
         "days_tracked": int(_safe_float(payload.get("days_tracked"), 0) or 0),
         "payload_hash": str(payload.get("payload_hash") or ""),
         "insights_json": payload,
@@ -1353,6 +1689,93 @@ def get_weekly_insight_payload(user_id: str, week_start_iso: str) -> Optional[Di
     return None
 
 
+def upsert_user_weekly_metrics(user_id: str, week_start_iso: str, payload: Dict[str, Any]) -> Dict[str, Any]:
+    _require_supabase()
+    row = {
+        "user_id": user_id,
+        "week_start": week_start_iso,
+        "week_end": str(payload.get("week_end") or _week_end_from_start(week_start_iso)),
+        "tz_used": str(payload.get("tz_used") or ""),
+        "days_tracked": int(_safe_float(payload.get("days_tracked"), 0) or 0),
+        "days_with_data_7d": int(_safe_float(payload.get("days_with_data_7d"), 0) or 0),
+        "scans_7d": int(_safe_float(payload.get("scans_7d"), 0) or 0),
+        "projection_confidence_band": str(payload.get("projection_confidence_band") or ""),
+        "protein_avg": float(_safe_float(payload.get("protein_avg"), 0.0) or 0.0),
+        "protein_consistency": float(_safe_float(payload.get("protein_consistency"), 0.0) or 0.0),
+        "fiber_avg": float(_safe_float(payload.get("fiber_avg"), 0.0) or 0.0),
+        "fiber_consistency": float(_safe_float(payload.get("fiber_consistency"), 0.0) or 0.0),
+        "timing_balance_avg": float(_safe_float(payload.get("timing_balance_avg"), 0.0) or 0.0),
+        "timing_volatility": float(_safe_float(payload.get("timing_volatility"), 0.0) or 0.0),
+        "upf_avg": float(_safe_float(payload.get("upf_avg"), 0.0) or 0.0),
+        "upf_volatility": float(_safe_float(payload.get("upf_volatility"), 0.0) or 0.0),
+        "glycemic_avg": float(_safe_float(payload.get("glycemic_avg"), 0.0) or 0.0),
+        "glycemic_volatility": float(_safe_float(payload.get("glycemic_volatility"), 0.0) or 0.0),
+        "readiness_score": float(_safe_float(payload.get("readiness_score"), 0.0) or 0.0),
+        "readiness_trend": float(_safe_float(payload.get("readiness_trend"), 0.0) or 0.0),
+        "fat_loss_velocity_score": float(_safe_float(payload.get("fat_loss_velocity_score"), 0.0) or 0.0),
+        "fat_loss_probability_7d": float(_safe_float(payload.get("fat_loss_probability_7d"), 0.0) or 0.0),
+        "projection_7d_score": float(_safe_float(payload.get("projection_7d_score"), 0.0) or 0.0),
+        "payload_hash": str(payload.get("payload_hash") or ""),
+        "metrics_json": payload,
+        "engine_version": str(payload.get("engine_version") or BEHAVIOR_ENGINE_VERSION),
+        "updated_at": dt.datetime.utcnow().isoformat(),
+    }
+    existing = sb_get_one(
+        TBL_USER_WEEKLY_METRICS,
+        params={
+            "select": "*",
+            "user_id": f"eq.{user_id}",
+            "week_start": f"eq.{week_start_iso}",
+            "limit": "1",
+        },
+    )
+    if existing:
+        patch = {k: v for k, v in row.items() if k not in ("user_id", "week_start")}
+        _sb_patch_with_column_fallback(
+            TBL_USER_WEEKLY_METRICS,
+            {"user_id": f"eq.{user_id}", "week_start": f"eq.{week_start_iso}"},
+            patch,
+        )
+        refreshed = sb_get_one(
+            TBL_USER_WEEKLY_METRICS,
+            params={
+                "select": "*",
+                "user_id": f"eq.{user_id}",
+                "week_start": f"eq.{week_start_iso}",
+                "limit": "1",
+            },
+        )
+        return refreshed or row
+    return _sb_insert_with_column_fallback(TBL_USER_WEEKLY_METRICS, row, locked_cols={"user_id", "week_start"})
+
+
+def get_user_weekly_metrics_payload(user_id: str, week_start_iso: str) -> Optional[Dict[str, Any]]:
+    _require_supabase()
+    row = sb_get_one(
+        TBL_USER_WEEKLY_METRICS,
+        params={
+            "select": "*",
+            "user_id": f"eq.{user_id}",
+            "week_start": f"eq.{week_start_iso}",
+            "limit": "1",
+        },
+    )
+    if not row:
+        return None
+    for k in ("metrics_json", "weekly_metrics_json", "payload_json", "payload"):
+        val = row.get(k)
+        if isinstance(val, dict):
+            return val
+        if isinstance(val, str):
+            try:
+                parsed = json.loads(val)
+                if isinstance(parsed, dict):
+                    return parsed
+            except Exception:
+                continue
+    return None
+
+
 def recompute_behavior_memory(
     user_id: str,
     day_iso: Optional[str] = None,
@@ -1372,14 +1795,36 @@ def recompute_behavior_memory(
 
     week_start_iso = _week_start_monday(target_day)
     week_rows = get_daily_metrics_window(user_id, week_start_iso)
-    weekly_payload = build_weekly_insight_payload(user_id, week_start_iso, week_rows)
+    existing_weekly = None
+    try:
+        existing_weekly = get_weekly_insight_payload(user_id, week_start_iso)
+    except Exception:
+        existing_weekly = None
+    existing_weekly_metrics = None
+    try:
+        existing_weekly_metrics = get_user_weekly_metrics_payload(user_id, week_start_iso)
+    except Exception:
+        existing_weekly_metrics = None
+    week_tz = _select_week_timezone(
+        existing_weekly if isinstance(existing_weekly, dict) else existing_weekly_metrics,
+        tz=tz,
+        tz_offset_min=tz_offset_min,
+    )
+
+    weekly_payload = build_weekly_insight_payload(user_id, week_start_iso, week_rows, tz_used=week_tz)
     upsert_weekly_insight(user_id, week_start_iso, weekly_payload)
+    weekly_metrics_payload = build_weekly_prediction_payload(user_id, week_start_iso, week_rows, tz_used=week_tz)
+    try:
+        upsert_user_weekly_metrics(user_id, week_start_iso, weekly_metrics_payload)
+    except Exception as e:
+        logger.info(f"user_weekly_metrics upsert skipped: {e}")
 
     return {
         "day": target_day,
         "week_start": week_start_iso,
         "daily_metrics": daily_payload,
         "weekly_insights": weekly_payload,
+        "weekly_metrics": weekly_metrics_payload,
     }
 
 
@@ -1716,9 +2161,15 @@ def weekly_recompute(
     Recomputes behavior memory for a given day:
       - updates daily_metrics for that day
       - rebuilds weekly_insights cache for that week
+      - rebuilds user_weekly_metrics (prediction + consistency engine)
     """
     uid = require_user_id(x_user_id, user_id)
     out = recompute_behavior_memory(uid, day_iso=day, tz=tz, tz_offset_min=tz_offset_min)
+    week_start_iso = str(out.get("week_start") or _week_start_monday(_day_iso(day, tz=tz, tz_offset_min=tz_offset_min)))
+    public_metrics = _public_predictive_signals(out.get("weekly_metrics"), week_start_iso)
+    if isinstance(public_metrics, dict):
+        out = dict(out)
+        out["weekly_metrics"] = public_metrics
     return {"ok": True, **out}
 
 
@@ -1737,22 +2188,42 @@ def weekly_insights(
     week_start_iso = _week_start_monday(week_start or anchor_day)
 
     payload = None if refresh else get_weekly_insight_payload(uid, week_start_iso)
-    if not payload:
-        rows = get_daily_metrics_window(uid, week_start_iso)
-        payload = build_weekly_insight_payload(uid, week_start_iso, rows)
-        upsert_weekly_insight(uid, week_start_iso, payload)
+    weekly_metrics = None
+    try:
+        if not refresh:
+            weekly_metrics = get_user_weekly_metrics_payload(uid, week_start_iso)
+    except Exception as e:
+        logger.info(f"weekly metrics read skipped in /weekly/insights: {e}")
 
+    week_tz = _select_week_timezone(
+        payload if isinstance(payload, dict) else weekly_metrics,
+        tz=tz,
+        tz_offset_min=tz_offset_min,
+    )
+    if _is_payload_stale(payload, anchor_day):
+        rows = get_daily_metrics_window(uid, week_start_iso)
+        payload = build_weekly_insight_payload(uid, week_start_iso, rows, tz_used=week_tz)
+        upsert_weekly_insight(uid, week_start_iso, payload)
+    if _is_payload_stale(weekly_metrics, anchor_day):
+        rows = get_daily_metrics_window(uid, week_start_iso)
+        weekly_metrics = build_weekly_prediction_payload(uid, week_start_iso, rows, tz_used=week_tz)
+        try:
+            upsert_user_weekly_metrics(uid, week_start_iso, weekly_metrics)
+        except Exception as e:
+            logger.info(f"weekly metrics write skipped in /weekly/insights: {e}")
+
+    public_metrics = _public_predictive_signals(weekly_metrics, week_start_iso)
     return {
         "ok": True,
         "week_start": week_start_iso,
         "week_end": _week_end_from_start(week_start_iso),
         "insights": payload,
+        "metrics": public_metrics or {},
     }
 
 
 # -------------------- DAILY COACH (LLM INTERPRETER ONLY) --------------------
 _COACH_MEM_CACHE: Dict[str, Dict[str, Any]] = {}
-_GEMINI_MODELS_CACHE: Dict[str, Any] = {"ts": 0.0, "models": []}
 
 _COACH_SYSTEM_PROMPT = (
     "You are a nutrition coaching assistant. "
@@ -1866,29 +2337,94 @@ def _coach_user_prompt(
     fat_loss_score: int,
     rule_alerts: List[Dict[str, str]],
     weekly_behavior: Optional[Dict[str, Any]] = None,
+    weekly_predictive: Optional[Dict[str, Any]] = None,
 ) -> str:
     allowed_palette = coach_logic.allowed_suggestion_palette(norm_payload)
+    goals = (norm_payload.get("goals") or {}) if isinstance(norm_payload.get("goals"), dict) else {}
+    consumed = (norm_payload.get("consumed") or {}) if isinstance(norm_payload.get("consumed"), dict) else {}
+    deltas = {
+        "kcal_delta": round(_safe_float(consumed.get("kcal"), 0.0) - _safe_float(goals.get("kcal"), 0.0), 1),
+        "protein_gap_g": round(max(0.0, _safe_float(goals.get("protein_g"), 0.0) - _safe_float(consumed.get("protein_g"), 0.0)), 1),
+        "fiber_gap_g": round(max(0.0, _safe_float(goals.get("fiber_g"), 0.0) - _safe_float(consumed.get("fiber_g"), 0.0)), 1),
+        "carbs_delta_g": round(_safe_float(consumed.get("carbs_g"), 0.0) - _safe_float(goals.get("carbs_g"), 0.0), 1),
+        "fat_delta_g": round(_safe_float(consumed.get("fat_g"), 0.0) - _safe_float(goals.get("fat_g"), 0.0), 1),
+    }
+    wb_patterns = (weekly_behavior or {}).get("patterns") if isinstance(weekly_behavior, dict) else {}
+    wb_insights = (weekly_behavior or {}).get("insights") if isinstance(weekly_behavior, dict) else []
+    predictive = weekly_predictive if isinstance(weekly_predictive, dict) else {}
     compact = {
         "date": norm_payload.get("date"),
         "goals": norm_payload.get("goals"),
         "consumed": norm_payload.get("consumed"),
+        "deltas": deltas,
         "signals": norm_payload.get("signals"),
         "meal_timing": norm_payload.get("meal_timing"),
         "constraints": norm_payload.get("constraints"),
         "profile": norm_payload.get("profile"),
         "fat_loss_score": fat_loss_score,
         "rule_risk_alerts": rule_alerts,
-        "behavior_memory_weekly": weekly_behavior or {},
+        "behavior_memory_weekly": {
+            "patterns": wb_patterns or {},
+            "insights": wb_insights[:4] if isinstance(wb_insights, list) else [],
+            "days_tracked": int(_safe_float((weekly_behavior or {}).get("days_tracked"), 0) or 0)
+            if isinstance(weekly_behavior, dict)
+            else 0,
+        },
+        "predictive_engine_weekly": {
+            "days_tracked": int(_safe_float(predictive.get("days_tracked"), 0) or 0),
+            "days_with_data_7d": int(_safe_float(predictive.get("days_with_data_7d"), 0) or 0),
+            "scans_7d": int(_safe_float(predictive.get("scans_7d"), 0) or 0),
+            "projection_confidence_band": str(predictive.get("projection_confidence_band") or ""),
+            "missing_data_reason": str(predictive.get("missing_data_reason") or ""),
+            "protein_consistency": _safe_float(predictive.get("protein_consistency"), 0.0),
+            "fiber_consistency": _safe_float(predictive.get("fiber_consistency"), 0.0),
+            "timing_volatility": _safe_float(predictive.get("timing_volatility"), 0.0),
+            "diet_volatility_index": _safe_float(predictive.get("diet_volatility_index"), 0.0),
+            "fat_loss_velocity_score": _safe_float(predictive.get("fat_loss_velocity_score"), 0.0),
+            "fat_loss_probability_7d": _safe_float(predictive.get("fat_loss_probability_7d"), 0.0),
+            "projection_7d_score": _safe_float(predictive.get("projection_7d_score"), 0.0),
+            "energy_balance_trend_7d": predictive.get("energy_balance_trend_7d")
+            if isinstance(predictive.get("energy_balance_trend_7d"), dict)
+            else {},
+            "hunger_volatility_projection": predictive.get("hunger_volatility_projection")
+            if isinstance(predictive.get("hunger_volatility_projection"), dict)
+            else {},
+            "muscle_retention_risk": predictive.get("muscle_retention_risk")
+            if isinstance(predictive.get("muscle_retention_risk"), dict)
+            else {},
+        },
     }
     template = {
+        "one_sentence_summary": "string",
+        "pattern_detected": "string",
+        "projection_explained": "string",
+        "biggest_risk_lever": {"title": "string", "reason": "string"},
+        "highest_roi_change": {"title": "string", "why": "string", "how": "string"},
+        "if_you_do_one_thing": "string",
+        "projection_7d": {"if_unchanged": "string", "if_improved": "string"},
         "diagnosis": ["string", "string"],
         "tomorrow_focus": ["string", "string"],
         "actions": [{"title": "string", "why": "string", "how": "string"}],
         "risk_alerts": [{"type": "string", "level": "low|medium|high", "reason": "string"}],
     }
     return (
-        "Use this daily nutrition summary and produce coaching text only.\n"
+        "Use this daily nutrition summary and produce coaching insight, not a stat report.\n"
         "Rules:\n"
+        "- Keep deterministic numbers as truth; do not invent any number.\n"
+        "- Prioritize behavior pattern + cause/effect language.\n"
+        "- Avoid line-by-line metric repetition. Mention at most 4 numeric anchors in the whole output.\n"
+        "- If weekly memory exists, use it for pattern_detected or projection_7d.\n"
+        "- Use predictive_engine_weekly to explain likely 7-day direction in plain language.\n"
+        "- Never claim exact body-weight outcomes. Do not say 'you will lose X kg/lbs'.\n"
+        "- one_sentence_summary must be <= 18 words.\n"
+        "- projection_explained must explicitly mention the confidence band (low/medium/high).\n"
+        "- If confidence is low, phrase conclusions as early directional signals.\n"
+        "- If confidence is high, you may use stronger pattern language (still non-medical).\n"
+        "- if_you_do_one_thing must be one short actionable sentence.\n"
+        "- pattern_detected must be one concise sentence explaining behavior pattern.\n"
+        "- biggest_risk_lever must name the highest-impact bottleneck and why it matters.\n"
+        "- highest_roi_change must be one practical lever with why/how.\n"
+        "- projection_7d must include if_unchanged and if_improved in plain language.\n"
         "- Keep it practical and behavior-focused.\n"
         "- No medical advice, disease claims, supplements, dosages, or treatment language.\n"
         "- Every action must clearly reference at least one metric keyword from this set: "
@@ -1901,17 +2437,112 @@ def _coach_user_prompt(
     )
 
 
-def _coerce_coach_response_shape(parsed: Dict[str, Any], rule_alerts: List[Dict[str, str]]) -> Dict[str, Any]:
+def _coerce_coach_response_shape(
+    parsed: Dict[str, Any],
+    rule_alerts: List[Dict[str, str]],
+    weekly_predictive: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    def _trim_words(s: str, max_words: int) -> str:
+        words = [w for w in str(s or "").strip().split() if w]
+        if len(words) <= max_words:
+            return " ".join(words)
+        return " ".join(words[:max_words]).strip()
+
+    confidence_band = str((weekly_predictive or {}).get("projection_confidence_band") or "medium").strip().lower()
+    if confidence_band not in {"low", "medium", "high"}:
+        confidence_band = "medium"
+
+    one_sentence_summary = _trim_words(str(parsed.get("one_sentence_summary") or "").strip(), 18)
+    pattern_detected = str(parsed.get("pattern_detected") or "").strip()
+    projection_explained = str(parsed.get("projection_explained") or "").strip()
+    if_you_do_one_thing = str(parsed.get("if_you_do_one_thing") or "").strip()
+
+    biggest_risk_src = parsed.get("biggest_risk_lever") if isinstance(parsed.get("biggest_risk_lever"), dict) else {}
+    highest_roi_src = parsed.get("highest_roi_change") if isinstance(parsed.get("highest_roi_change"), dict) else {}
+    projection_src = parsed.get("projection_7d") if isinstance(parsed.get("projection_7d"), dict) else {}
+
+    biggest_risk = {
+        "title": str(biggest_risk_src.get("title") or "").strip(),
+        "reason": str(biggest_risk_src.get("reason") or "").strip(),
+    }
+    highest_roi = {
+        "title": str(highest_roi_src.get("title") or "").strip(),
+        "why": str(highest_roi_src.get("why") or "").strip(),
+        "how": str(highest_roi_src.get("how") or "").strip(),
+    }
+    projection = {
+        "if_unchanged": str(projection_src.get("if_unchanged") or "").strip(),
+        "if_improved": str(projection_src.get("if_improved") or "").strip(),
+    }
+
     diagnosis = parsed.get("diagnosis") if isinstance(parsed.get("diagnosis"), list) else []
     tomorrow_focus = parsed.get("tomorrow_focus") if isinstance(parsed.get("tomorrow_focus"), list) else []
     actions = parsed.get("actions") if isinstance(parsed.get("actions"), list) else []
     risk_alerts = parsed.get("risk_alerts") if isinstance(parsed.get("risk_alerts"), list) else []
 
+    merged_risks = coach_logic.merge_risk_alerts(rule_alerts, risk_alerts, limit=4)
+    primary_alert = merged_risks[0] if merged_risks else {}
+
+    if not pattern_detected:
+        if diagnosis:
+            pattern_detected = str(diagnosis[0]).strip()
+        elif primary_alert:
+            pattern_detected = str(primary_alert.get("reason") or "").strip()
+        else:
+            pattern_detected = "Daily pattern shows room to improve protein, fiber, and meal timing consistency."
+
+    if not biggest_risk["title"] or not biggest_risk["reason"]:
+        alert_type = str(primary_alert.get("type") or "").replace("_", " ").strip()
+        biggest_risk = {
+            "title": (alert_type or "Primary behavior risk").capitalize(),
+            "reason": str(primary_alert.get("reason") or "").strip()
+            or "Current behavior pattern can slow progress if repeated through the week.",
+        }
+
+    if highest_roi["why"] and not coach_logic.action_references_metrics(highest_roi):
+        highest_roi["why"] = f"{highest_roi['why']} This change targets protein/fiber/glycemic load behavior."
+    if not highest_roi["title"] or not highest_roi["why"] or not highest_roi["how"]:
+        highest_roi = {
+            "title": "Front-load protein and fiber before dinner",
+            "why": "Protein and fiber gaps are reducing satiety and driving late-calorie risk.",
+            "how": "Add one protein anchor plus one fiber booster at breakfast and lunch.",
+        }
+
+    if not projection["if_unchanged"] or not projection["if_improved"]:
+        projection = {
+            "if_unchanged": "If this pattern repeats for 7 days, adherence risk will likely stay elevated.",
+            "if_improved": "If the highest-ROI change is repeated for 7 days, satiety and score consistency should improve.",
+        }
+
+    if not one_sentence_summary:
+        one_sentence_summary = _trim_words(f"{biggest_risk['title']}: {highest_roi['title']}.", 18)
+    if not if_you_do_one_thing:
+        if_you_do_one_thing = f"{highest_roi['title']}: {highest_roi['how']}"
+    if not projection_explained:
+        projection_explained = f"7-day direction is {confidence_band} confidence based on weekly consistency and scan coverage."
+    elif confidence_band not in projection_explained.lower():
+        projection_explained = f"{projection_explained} Confidence: {confidence_band}."
+
+    clean_diagnosis = [str(x).strip() for x in diagnosis if str(x).strip()][:4]
+    if not clean_diagnosis:
+        clean_diagnosis = [pattern_detected, biggest_risk["reason"]]
+
+    clean_focus = [str(x).strip() for x in tomorrow_focus if str(x).strip()][:3]
+    if not clean_focus:
+        clean_focus = [highest_roi["title"], highest_roi["how"], projection["if_improved"]][:3]
+
     cleaned = {
-        "diagnosis": [str(x).strip() for x in diagnosis if str(x).strip()][:4],
-        "tomorrow_focus": [str(x).strip() for x in tomorrow_focus if str(x).strip()][:3],
+        "one_sentence_summary": one_sentence_summary,
+        "pattern_detected": pattern_detected,
+        "projection_explained": projection_explained,
+        "biggest_risk_lever": biggest_risk,
+        "highest_roi_change": highest_roi,
+        "if_you_do_one_thing": if_you_do_one_thing,
+        "projection_7d": projection,
+        "diagnosis": clean_diagnosis,
+        "tomorrow_focus": clean_focus,
         "actions": [],
-        "risk_alerts": coach_logic.merge_risk_alerts(rule_alerts, risk_alerts, limit=4),
+        "risk_alerts": merged_risks,
         "disclaimer": coach_logic.COACH_DISCLAIMER,
     }
 
@@ -1928,92 +2559,10 @@ def _coerce_coach_response_shape(parsed: Dict[str, Any], rule_alerts: List[Dict[
         if item["title"] and item["why"] and item["how"]:
             cleaned["actions"].append(item)
 
+    if not cleaned["actions"]:
+        cleaned["actions"].append(highest_roi)
+
     return cleaned
-
-
-def _list_available_gemini_models(ttl_sec: int = 600) -> List[str]:
-    """
-    Returns model names (without `models/` prefix) that support generateContent.
-    Cached to avoid listing on every request.
-    """
-    now = time.time()
-    cached_ts = float(_GEMINI_MODELS_CACHE.get("ts") or 0.0)
-    cached_models = _GEMINI_MODELS_CACHE.get("models") or []
-    if cached_models and (now - cached_ts) < ttl_sec:
-        return [str(m) for m in cached_models if str(m).strip()]
-
-    out: List[str] = []
-    try:
-        for m in genai.list_models():
-            methods = [str(x or "").strip().lower() for x in (getattr(m, "supported_generation_methods", None) or [])]
-            if "generatecontent" not in methods:
-                continue
-            name = str(getattr(m, "name", "") or "").strip()
-            if not name:
-                continue
-            if name.startswith("models/"):
-                name = name.split("models/", 1)[1].strip()
-            if name:
-                out.append(name)
-    except Exception as e:
-        logger.warning(f"Gemini list_models failed: {e}")
-        out = []
-
-    # stable unique
-    uniq: List[str] = []
-    seen = set()
-    for n in out:
-        k = n.strip()
-        if not k or k in seen:
-            continue
-        seen.add(k)
-        uniq.append(k)
-
-    _GEMINI_MODELS_CACHE["ts"] = now
-    _GEMINI_MODELS_CACHE["models"] = uniq
-    return uniq
-
-
-def _rank_gemini_models(models: List[str]) -> List[str]:
-    def score(name: str) -> tuple:
-        n = name.lower()
-        # Prefer stable flash models, then pro, then previews/exp.
-        return (
-            0 if "flash" in n else 1,
-            0 if ("2.5" in n or "2-" in n) else 1,
-            1 if ("exp" in n or "preview" in n) else 0,
-            len(n),
-            n,
-        )
-
-    return sorted(models, key=score)
-
-
-def _coach_model_candidates() -> List[str]:
-    env_models = [m.strip() for m in str(COACH_LLM_FALLBACK_MODELS or "").split(",") if m.strip()]
-    defaults = [
-        "gemini-2.5-flash",
-        "gemini-2.0-flash",
-        "gemini-2.0-flash-lite",
-        "gemini-1.5-flash-latest",
-        "gemini-1.5-flash-002",
-        "gemini-1.5-pro-latest",
-    ]
-    listed = _rank_gemini_models(_list_available_gemini_models())
-    ordered = [COACH_LLM_MODEL] + env_models + listed + defaults
-    out: List[str] = []
-    seen = set()
-    for raw in ordered:
-        name = str(raw or "").strip()
-        if not name:
-            continue
-        if name.startswith("models/"):
-            name = name.split("models/", 1)[1].strip()
-        if not name or name in seen:
-            continue
-        seen.add(name)
-        out.append(name)
-    return out
 
 
 def _generate_daily_coach_llm(
@@ -2021,48 +2570,101 @@ def _generate_daily_coach_llm(
     fat_loss_score: int,
     rule_alerts: List[Dict[str, str]],
     weekly_behavior: Optional[Dict[str, Any]] = None,
+    weekly_predictive: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     _require_gemini_key()
-    user_prompt = _coach_user_prompt(norm_payload, fat_loss_score, rule_alerts, weekly_behavior=weekly_behavior)
-    last_err = ""
-    tried_models: List[str] = []
-    for model_name in _coach_model_candidates():
-        tried_models.append(model_name)
-        model = genai.GenerativeModel(model_name)
-        for attempt in range(2):
-            try:
-                resp = model.generate_content([_COACH_SYSTEM_PROMPT, user_prompt])
-                text = (resp.text or "").strip()
-                parsed = coach_logic.extract_json_object(text)
-                if not isinstance(parsed, dict):
-                    raise ValueError("LLM did not return valid JSON object.")
-
-                cleaned = _coerce_coach_response_shape(parsed, rule_alerts)
-                ok, reason = coach_logic.validate_llm_response_shape(cleaned)
-                if not ok:
-                    raise ValueError(f"LLM JSON failed validation: {reason}")
-                cleaned["_llm_model"] = model_name
-                return cleaned
-            except Exception as e:
-                msg = str(e)
-                last_err = f"{model_name}: {msg}"
-                low = msg.lower()
-                # Fast-skip model IDs that are unavailable for this API version.
-                if (
-                    "not found for api version" in low
-                    or "not supported for generatecontent" in low
-                    or "404 models/" in low
-                ):
-                    break
-                time.sleep(0.6 * (attempt + 1))
-    raise HTTPException(
-        status_code=502,
-        detail={
-            "error": "coach_llm_failed",
-            "raw": last_err[:300],
-            "tried_models": tried_models[:8],
-        },
+    model = genai.GenerativeModel(COACH_LLM_MODEL)
+    user_prompt = _coach_user_prompt(
+        norm_payload,
+        fat_loss_score,
+        rule_alerts,
+        weekly_behavior=weekly_behavior,
+        weekly_predictive=weekly_predictive,
     )
+    last_err = ""
+    for attempt in range(3):
+        try:
+            resp = model.generate_content([_COACH_SYSTEM_PROMPT, user_prompt])
+            text = (resp.text or "").strip()
+            parsed = coach_logic.extract_json_object(text)
+            if not isinstance(parsed, dict):
+                raise ValueError("LLM did not return valid JSON object.")
+
+            cleaned = _coerce_coach_response_shape(parsed, rule_alerts, weekly_predictive=weekly_predictive)
+            ok, reason = coach_logic.validate_llm_response_shape(cleaned)
+            if not ok:
+                raise ValueError(f"LLM JSON failed validation: {reason}")
+            return cleaned
+        except Exception as e:
+            last_err = str(e)
+            time.sleep(0.6 * (attempt + 1))
+    raise HTTPException(status_code=502, detail={"error": "coach_llm_failed", "raw": last_err[:300]})
+
+
+def _public_predictive_signals(weekly_predictive: Optional[Dict[str, Any]], week_start_iso: str) -> Optional[Dict[str, Any]]:
+    if not isinstance(weekly_predictive, dict):
+        return None
+    conf = str(weekly_predictive.get("projection_confidence_band") or "medium").strip().lower()
+    if conf not in {"low", "medium", "high"}:
+        conf = "medium"
+    return {
+        "week_start": str(weekly_predictive.get("week_start") or week_start_iso),
+        "tz_used": str(weekly_predictive.get("tz_used") or ""),
+        "days_tracked": int(_safe_float(weekly_predictive.get("days_tracked"), 0) or 0),
+        "days_with_data_7d": int(_safe_float(weekly_predictive.get("days_with_data_7d"), 0) or 0),
+        "scans_7d": int(_safe_float(weekly_predictive.get("scans_7d"), 0) or 0),
+        "projection_confidence_band": conf,
+        "missing_data_reason": str(weekly_predictive.get("missing_data_reason") or ""),
+        "protein_consistency": _safe_float(weekly_predictive.get("protein_consistency"), 0.0),
+        "fiber_consistency": _safe_float(weekly_predictive.get("fiber_consistency"), 0.0),
+        "timing_volatility": _safe_float(weekly_predictive.get("timing_volatility"), 0.0),
+        "diet_volatility_index": _safe_float(weekly_predictive.get("diet_volatility_index"), 0.0),
+        "fat_loss_velocity_score": _safe_float(weekly_predictive.get("fat_loss_velocity_score"), 0.0),
+        "fat_loss_probability_7d": _safe_float(weekly_predictive.get("fat_loss_probability_7d"), 0.0),
+        "projection_7d_score": _safe_float(weekly_predictive.get("projection_7d_score"), 0.0),
+        "energy_balance_trend_7d": weekly_predictive.get("energy_balance_trend_7d")
+        if isinstance(weekly_predictive.get("energy_balance_trend_7d"), dict)
+        else {},
+        "hunger_volatility_projection": weekly_predictive.get("hunger_volatility_projection")
+        if isinstance(weekly_predictive.get("hunger_volatility_projection"), dict)
+        else {},
+        "muscle_retention_risk": weekly_predictive.get("muscle_retention_risk")
+        if isinstance(weekly_predictive.get("muscle_retention_risk"), dict)
+        else {},
+    }
+
+
+def _ensure_coach_voice_defaults(resp: Dict[str, Any], weekly_predictive: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    out = dict(resp or {})
+    conf = str((weekly_predictive or {}).get("projection_confidence_band") or "medium").strip().lower()
+    if conf not in {"low", "medium", "high"}:
+        conf = "medium"
+
+    pattern = str(out.get("pattern_detected") or "").strip()
+    roi = out.get("highest_roi_change") if isinstance(out.get("highest_roi_change"), dict) else {}
+    roi_title = str(roi.get("title") or "").strip()
+    roi_how = str(roi.get("how") or "").strip()
+
+    one_liner = str(out.get("one_sentence_summary") or "").strip()
+    if not one_liner:
+        one_liner = f"{roi_title or 'Focus shift needed'} to improve weekly fat-loss direction."
+    out["one_sentence_summary"] = " ".join(one_liner.split()[:18]).strip()
+
+    proj_exp = str(out.get("projection_explained") or "").strip()
+    if not proj_exp:
+        proj_exp = f"Current 7-day direction has {conf} confidence based on recent consistency and scan coverage."
+    elif conf not in proj_exp.lower():
+        proj_exp = f"{proj_exp} Confidence: {conf}."
+    out["projection_explained"] = proj_exp
+
+    one_thing = str(out.get("if_you_do_one_thing") or "").strip()
+    if not one_thing:
+        one_thing = roi_how or "Front-load protein and fiber before dinner for better satiety control."
+    out["if_you_do_one_thing"] = one_thing
+
+    if not pattern:
+        out["pattern_detected"] = "Daily pattern shows room to improve protein, fiber, and meal timing consistency."
+    return out
 
 
 @app.post("/coach/daily")
@@ -2070,6 +2672,8 @@ def coach_daily(
     payload: Dict[str, Any] = Body(...),
     user_id: Optional[str] = None,
     refresh: Optional[bool] = False,
+    tz: Optional[str] = None,
+    tz_offset_min: Optional[int] = None,
     x_user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
 ):
     """
@@ -2087,23 +2691,57 @@ def coach_daily(
     day_iso = str(norm.get("date") or _today_date().isoformat())
     week_start_iso = _week_start_monday(day_iso)
 
+    week_rows: Optional[List[Dict[str, Any]]] = None
     weekly_behavior: Optional[Dict[str, Any]] = None
     try:
         weekly_behavior = get_weekly_insight_payload(uid, week_start_iso)
     except Exception as e:
         logger.info(f"weekly insight read skipped in /coach/daily: {e}")
+    if _is_payload_stale(weekly_behavior, day_iso):
+        weekly_behavior = None
+
+    weekly_predictive: Optional[Dict[str, Any]] = None
+    try:
+        weekly_predictive = get_user_weekly_metrics_payload(uid, week_start_iso)
+    except Exception as e:
+        logger.info(f"weekly metrics read skipped in /coach/daily: {e}")
+    if _is_payload_stale(weekly_predictive, day_iso):
+        weekly_predictive = None
+
+    week_tz = _select_week_timezone(
+        weekly_behavior if isinstance(weekly_behavior, dict) else weekly_predictive,
+        tz=tz,
+        tz_offset_min=tz_offset_min,
+    )
+
     if not weekly_behavior:
         try:
             week_rows = get_daily_metrics_window(uid, week_start_iso)
             if week_rows:
-                weekly_behavior = build_weekly_insight_payload(uid, week_start_iso, week_rows)
+                weekly_behavior = build_weekly_insight_payload(uid, week_start_iso, week_rows, tz_used=week_tz)
                 upsert_weekly_insight(uid, week_start_iso, weekly_behavior)
         except Exception as e:
             logger.info(f"weekly insight recompute skipped in /coach/daily: {e}")
 
+    if not weekly_predictive:
+        try:
+            if week_rows is None:
+                week_rows = get_daily_metrics_window(uid, week_start_iso)
+            if week_rows:
+                weekly_predictive = build_weekly_prediction_payload(uid, week_start_iso, week_rows, tz_used=week_tz)
+                try:
+                    upsert_user_weekly_metrics(uid, week_start_iso, weekly_predictive)
+                except Exception as e:
+                    logger.info(f"weekly metrics write skipped in /coach/daily: {e}")
+        except Exception as e:
+            logger.info(f"weekly metrics recompute skipped in /coach/daily: {e}")
+
     weekly_hash = str((weekly_behavior or {}).get("payload_hash") or "").strip()
     if weekly_hash:
         p_hash = hashlib.sha256(f"{p_hash}:{weekly_hash}".encode("utf-8")).hexdigest()
+    weekly_metrics_hash = str((weekly_predictive or {}).get("payload_hash") or "").strip()
+    if weekly_metrics_hash:
+        p_hash = hashlib.sha256(f"{p_hash}:{weekly_metrics_hash}".encode("utf-8")).hexdigest()
 
     cached = _coach_cache_get(uid, day_iso, p_hash) if not refresh else None
     if isinstance(cached, dict):
@@ -2112,6 +2750,14 @@ def coach_daily(
         out["disclaimer"] = coach_logic.COACH_DISCLAIMER
         out["date"] = day_iso
         out["reasoning_source"] = str(out.get("reasoning_source") or "cache")
+        out = _ensure_coach_voice_defaults(out, weekly_predictive=weekly_predictive)
+        out["pattern_detected"] = str(out.get("pattern_detected") or "")
+        if not isinstance(out.get("biggest_risk_lever"), dict):
+            out["biggest_risk_lever"] = {"title": "", "reason": ""}
+        if not isinstance(out.get("highest_roi_change"), dict):
+            out["highest_roi_change"] = {"title": "", "why": "", "how": ""}
+        if not isinstance(out.get("projection_7d"), dict):
+            out["projection_7d"] = {"if_unchanged": "", "if_improved": ""}
         if isinstance(weekly_behavior, dict):
             out["behavior_memory"] = {
                 "week_start": str(weekly_behavior.get("week_start") or week_start_iso),
@@ -2119,17 +2765,24 @@ def coach_daily(
                 "patterns": weekly_behavior.get("patterns") or {},
                 "insights": (weekly_behavior.get("insights") or [])[:4],
             }
+        public_pred = _public_predictive_signals(weekly_predictive, week_start_iso)
+        if isinstance(public_pred, dict):
+            out["predictive_signals"] = public_pred
+        else:
+            out.pop("predictive_signals", None)
         return out
 
     llm_resp: Optional[Dict[str, Any]] = None
     reasoning_source = "fallback"
-    llm_model_used = ""
     if GEMINI_API_KEY:
         try:
-            llm_resp = _generate_daily_coach_llm(norm, fat_loss_score, rule_alerts, weekly_behavior=weekly_behavior)
-            llm_model_used = str((llm_resp or {}).get("_llm_model") or "")
-            if isinstance(llm_resp, dict) and "_llm_model" in llm_resp:
-                llm_resp = {k: v for k, v in llm_resp.items() if k != "_llm_model"}
+            llm_resp = _generate_daily_coach_llm(
+                norm,
+                fat_loss_score,
+                rule_alerts,
+                weekly_behavior=weekly_behavior,
+                weekly_predictive=weekly_predictive,
+            )
             reasoning_source = "llm"
         except Exception as e:
             logger.warning(f"Daily coach LLM failed, using fallback: {e}")
@@ -2140,15 +2793,28 @@ def coach_daily(
     final_resp = {
         "date": day_iso,
         "fat_loss_score": int(fat_loss_score),
+        "one_sentence_summary": str(llm_resp.get("one_sentence_summary") or ""),
+        "pattern_detected": str(llm_resp.get("pattern_detected") or ""),
+        "projection_explained": str(llm_resp.get("projection_explained") or ""),
+        "biggest_risk_lever": llm_resp.get("biggest_risk_lever")
+        if isinstance(llm_resp.get("biggest_risk_lever"), dict)
+        else {"title": "", "reason": ""},
+        "highest_roi_change": llm_resp.get("highest_roi_change")
+        if isinstance(llm_resp.get("highest_roi_change"), dict)
+        else {"title": "", "why": "", "how": ""},
+        "if_you_do_one_thing": str(llm_resp.get("if_you_do_one_thing") or ""),
+        "projection_7d": llm_resp.get("projection_7d")
+        if isinstance(llm_resp.get("projection_7d"), dict)
+        else {"if_unchanged": "", "if_improved": ""},
         "diagnosis": llm_resp.get("diagnosis", []),
         "tomorrow_focus": llm_resp.get("tomorrow_focus", []),
         "actions": llm_resp.get("actions", [])[:3],
         "risk_alerts": coach_logic.merge_risk_alerts(rule_alerts, llm_resp.get("risk_alerts", []), limit=4),
         "disclaimer": coach_logic.COACH_DISCLAIMER,
         "reasoning_source": reasoning_source,
-        "llm_model": llm_model_used if reasoning_source == "llm" else "",
         "week_start": week_start_iso,
     }
+    final_resp = _ensure_coach_voice_defaults(final_resp, weekly_predictive=weekly_predictive)
     if isinstance(weekly_behavior, dict):
         final_resp["behavior_memory"] = {
             "week_start": str(weekly_behavior.get("week_start") or week_start_iso),
@@ -2156,6 +2822,9 @@ def coach_daily(
             "patterns": weekly_behavior.get("patterns") or {},
             "insights": (weekly_behavior.get("insights") or [])[:4],
         }
+    public_pred = _public_predictive_signals(weekly_predictive, week_start_iso)
+    if isinstance(public_pred, dict):
+        final_resp["predictive_signals"] = public_pred
 
     # Final safety gate. If anything violates guardrails, return deterministic fallback.
     ok, reason = coach_logic.validate_llm_response_shape(final_resp)
@@ -2165,15 +2834,28 @@ def coach_daily(
         final_resp = {
             "date": day_iso,
             "fat_loss_score": int(fat_loss_score),
+            "one_sentence_summary": str(fb.get("one_sentence_summary") or ""),
+            "pattern_detected": str(fb.get("pattern_detected") or ""),
+            "projection_explained": str(fb.get("projection_explained") or ""),
+            "biggest_risk_lever": fb.get("biggest_risk_lever")
+            if isinstance(fb.get("biggest_risk_lever"), dict)
+            else {"title": "", "reason": ""},
+            "highest_roi_change": fb.get("highest_roi_change")
+            if isinstance(fb.get("highest_roi_change"), dict)
+            else {"title": "", "why": "", "how": ""},
+            "if_you_do_one_thing": str(fb.get("if_you_do_one_thing") or ""),
+            "projection_7d": fb.get("projection_7d")
+            if isinstance(fb.get("projection_7d"), dict)
+            else {"if_unchanged": "", "if_improved": ""},
             "diagnosis": fb.get("diagnosis", []),
             "tomorrow_focus": fb.get("tomorrow_focus", []),
             "actions": fb.get("actions", [])[:3],
             "risk_alerts": coach_logic.merge_risk_alerts(rule_alerts, fb.get("risk_alerts", []), limit=4),
             "disclaimer": coach_logic.COACH_DISCLAIMER,
             "reasoning_source": "fallback",
-            "llm_model": "",
             "week_start": week_start_iso,
         }
+        final_resp = _ensure_coach_voice_defaults(final_resp, weekly_predictive=weekly_predictive)
         if isinstance(weekly_behavior, dict):
             final_resp["behavior_memory"] = {
                 "week_start": str(weekly_behavior.get("week_start") or week_start_iso),
@@ -2181,6 +2863,9 @@ def coach_daily(
                 "patterns": weekly_behavior.get("patterns") or {},
                 "insights": (weekly_behavior.get("insights") or [])[:4],
             }
+        public_pred = _public_predictive_signals(weekly_predictive, week_start_iso)
+        if isinstance(public_pred, dict):
+            final_resp["predictive_signals"] = public_pred
 
     _coach_cache_set(uid, day_iso, p_hash, final_resp)
     return final_resp
@@ -3153,11 +3838,12 @@ async def analyze(
     except Exception as e:
         logger.warning(f"Daily totals update skipped: {e}")
 
-    # ---- PHASE 3.1: daily_metrics + weekly_insights cache (non-blocking) ----
+    # ---- PHASE 3.2: behavior memory + weekly prediction engine (non-blocking) ----
     try:
         memory = recompute_behavior_memory(uid, day_iso=day_local_iso, tz=tz, tz_offset_min=tz_offset_min)
         if isinstance(memory, dict):
             response["weekly_insights"] = memory.get("weekly_insights")
+            response["weekly_metrics"] = _public_predictive_signals(memory.get("weekly_metrics"), memory.get("week_start") or _week_start_monday(day_local_iso))
     except Exception as e:
         logger.warning(f"Behavior memory recompute skipped: {e}")
 
