@@ -1705,7 +1705,7 @@ async function analyzePhoto() {
   const coaching = result?.coaching || null;
   const locked = result?.locked || null;
   const coachTone = scoreTone(coachDaily?.fat_loss_score);
-  const coachIndicators = useMemo(() => buildCoachIndicators(coachLastPayload || {}), [coachLastPayload]);
+  const coachIndicators = buildCoachIndicators(coachLastPayload || {});
 
   const subscriptionPriceText = (key) => priceByEntitlement?.[key] || (rcReady ? "Loading…" : "See App Store");
 
