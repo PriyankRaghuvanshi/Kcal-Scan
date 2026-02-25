@@ -24,8 +24,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { createClient } from "@supabase/supabase-js";
 import "react-native-url-polyfill/auto";
 
-// OAuth helpers (Google)
-import * as AuthSession from "expo-auth-session";
+// OAuth helpers (Google/Apple)
 import * as Notifications from "expo-notifications";
 
 
@@ -496,7 +495,6 @@ function Meter({ label, value, max = 100, help, locked, lockedText }) {
 export default function App() {
   // ===== Auth (Supabase) =====
   const [session, setSession] = useState(null);
-  const redirectUri = AuthSession.makeRedirectUri({ scheme: "calorieclickai", path: "auth-callback" });
   const [authEmail, setAuthEmail] = useState("");
   const [authPass, setAuthPass] = useState("");
   const [authBusy, setAuthBusy] = useState(false);
@@ -1027,9 +1025,9 @@ export default function App() {
                 projection_7d_score: clampPct(num(data.predictive_signals?.projection_7d_score)),
               }
             : null,
-        diagnosis: Array.isArray(data?.diagnosis) ? data.diagnosis : [],
-        tomorrow_focus: Array.isArray(data?.tomorrow_focus) ? data.tomorrow_focus : [],
-        actions: Array.isArray(data?.actions) ? data.actions.slice(0, 3) : [],
+        diagnosis: Array.isArray(data?.diagnosis) ? data.diagnosis.slice(0, 2) : [],
+        tomorrow_focus: Array.isArray(data?.tomorrow_focus) ? data.tomorrow_focus.slice(0, 2) : [],
+        actions: Array.isArray(data?.actions) ? data.actions.slice(0, 2) : [],
         risk_alerts: Array.isArray(data?.risk_alerts) ? data.risk_alerts : [],
         disclaimer: String(data?.disclaimer || "Informational only."),
         reasoning_source: String(data?.reasoning_source || ""),
@@ -1267,8 +1265,7 @@ export default function App() {
     setCamOpen(false);
   }
 
-  // ===== NEW: Google OAuth =====
-  async function signInWithGoogle() {
+  async function signInWithOAuthProvider(provider, providerLabel) {
     if (!HAS_SUPABASE) {
       Alert.alert("Missing Supabase env", "Set EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY");
       return;
@@ -1277,15 +1274,15 @@ export default function App() {
     setAuthBusy(true);
     try {
       if (typeof supabase?.auth?.signInWithOAuth !== "function") {
-        throw new Error("Google OAuth is unavailable in this app build.");
+        throw new Error(`${providerLabel} OAuth is unavailable in this app build.`);
       }
       if (typeof WebBrowser.openAuthSessionAsync !== "function") {
         throw new Error("Auth browser helper is unavailable.");
       }
 
-      const redirectTo = OAUTH_REDIRECT_TO?.trim() || redirectUri;
+      const redirectTo = OAUTH_REDIRECT_TO?.trim() || "calorieclickai://auth-callback";
       const { data, error } = await supabase.auth.signInWithOAuth({
-        provider: "google",
+        provider,
         options: {
           redirectTo,
           skipBrowserRedirect: true,
@@ -1320,13 +1317,22 @@ export default function App() {
         return;
       }
 
-      throw new Error("Google callback did not include a valid auth session.");
+      throw new Error(`${providerLabel} callback did not include a valid auth session.`);
     } catch (e) {
-      console.log("Google login error:", e);
-      Alert.alert("Google login failed", String(e?.message || e));
+      console.log(`${providerLabel} login error:`, e);
+      Alert.alert(`${providerLabel} login failed`, String(e?.message || e));
     } finally {
       setAuthBusy(false);
     }
+  }
+
+  // ===== OAuth =====
+  async function signInWithGoogle() {
+    await signInWithOAuthProvider("google", "Google");
+  }
+
+  async function signInWithApple() {
+    await signInWithOAuthProvider("apple", "Apple");
   }
 
 
@@ -1651,7 +1657,10 @@ async function analyzePhoto() {
             <Text style={styles.h1}>CalorieClick.ai</Text>
             <Text style={styles.p}>Log in to scan meals and track your history.</Text>
 
-            {/* Google login */}
+            {/* Apple + Google login */}
+            <TouchableOpacity style={styles.appleBtn} onPress={signInWithApple} disabled={authBusy}>
+              {authBusy ? <ActivityIndicator /> : <Text style={styles.btnText}>Continue with Apple</Text>}
+            </TouchableOpacity>
             <TouchableOpacity style={styles.googleBtn} onPress={signInWithGoogle} disabled={authBusy}>
               {authBusy ? <ActivityIndicator /> : <Text style={styles.btnText}>Continue with Google</Text>}
             </TouchableOpacity>
@@ -1706,6 +1715,19 @@ async function analyzePhoto() {
   const locked = result?.locked || null;
   const coachTone = scoreTone(coachDaily?.fat_loss_score);
   const coachIndicators = buildCoachIndicators(coachLastPayload || {});
+  const outlook = coachDaily?.predictive_signals || null;
+  const outlookProbPct = clampPct(num(outlook?.fat_loss_probability_7d) * 100);
+  const outlookDays = Math.max(0, Math.round(num(outlook?.days_with_data_7d)));
+  const outlookScans = Math.max(0, Math.round(num(outlook?.scans_7d)));
+  const outlookConf = String(outlook?.projection_confidence_band || "medium").toLowerCase();
+  const outlookConfTone =
+    outlookConf === "high"
+      ? { color: "#22c55e", bg: "#0f2a1a", border: "#1f6f43" }
+      : outlookConf === "low"
+      ? { color: "#ef4444", bg: "#2a1515", border: "#6f2c2c" }
+      : { color: "#f59e0b", bg: "#2a220f", border: "#6d5621" };
+  const outlookBarColor =
+    outlookProbPct >= 70 ? "#22c55e" : outlookProbPct >= 45 ? "#f59e0b" : "#ef4444";
 
   const subscriptionPriceText = (key) => priceByEntitlement?.[key] || (rcReady ? "Loading…" : "See App Store");
 
@@ -1855,24 +1877,46 @@ async function analyzePhoto() {
                     </View>
                   ) : null}
 
-                  {coachDaily?.predictive_signals ? (
+                  {outlook ? (
                     <View style={{ marginTop: 10 }}>
                       <Text style={styles.cardTitle}>7-day outlook</Text>
-                      <Text style={styles.p}>
-                        Projection score {Math.round(num(coachDaily?.predictive_signals?.projection_7d_score))}/100 • probability{" "}
-                        {Math.round(num(coachDaily?.predictive_signals?.fat_loss_probability_7d) * 100)}% • confidence{" "}
-                        {String(coachDaily?.predictive_signals?.projection_confidence_band || "medium")}
-                      </Text>
+                      <View style={styles.intelOutlookCard}>
+                        <View style={styles.intelOutlookTop}>
+                          <Text style={styles.intelOutlookLabel}>Probability</Text>
+                          <View
+                            style={[
+                              styles.intelOutlookChip,
+                              { backgroundColor: outlookConfTone.bg, borderColor: outlookConfTone.border },
+                            ]}
+                          >
+                            <Text style={[styles.intelOutlookChipText, { color: outlookConfTone.color }]}>
+                              {String(outlookConf || "medium").toUpperCase()}
+                            </Text>
+                          </View>
+                        </View>
+                        <View style={styles.intelOutlookTrack}>
+                          <View
+                            style={[
+                              styles.intelOutlookFill,
+                              { width: `${outlookProbPct}%`, backgroundColor: outlookBarColor },
+                            ]}
+                          />
+                        </View>
+                        <Text style={styles.intelOutlookMetric}>
+                          {Math.round(outlookProbPct)}% fat-loss probability in the next 7 days
+                        </Text>
+                        <Text style={styles.intelOutlookData}>
+                          Data quality: {outlookDays}/7 days tracked • {outlookScans} scans
+                        </Text>
+                        {String(outlookConf).toLowerCase() === "low" ? (
+                          <Text style={styles.intelOutlookCta}>Scan 2 more days to improve accuracy.</Text>
+                        ) : null}
+                      </View>
                       {String(coachDaily?.projection_explained || "").trim() ? (
                         <Text style={styles.tiny}>{String(coachDaily?.projection_explained || "")}</Text>
                       ) : null}
-                      {String(coachDaily?.predictive_signals?.projection_confidence_band || "").toLowerCase() === "low" ? (
-                        <Text style={[styles.tiny, { color: "#ffb4b4" }]}>
-                          Low confidence - scan 2 more days to improve accuracy.
-                        </Text>
-                      ) : null}
-                      {String(coachDaily?.predictive_signals?.missing_data_reason || "").trim() ? (
-                        <Text style={styles.tiny}>{String(coachDaily?.predictive_signals?.missing_data_reason || "")}</Text>
+                      {String(outlook?.missing_data_reason || "").trim() ? (
+                        <Text style={styles.tiny}>{String(outlook?.missing_data_reason || "")}</Text>
                       ) : null}
                     </View>
                   ) : null}
@@ -1977,7 +2021,7 @@ async function analyzePhoto() {
                       {(coachDaily?.diagnosis || []).length ? (
                         <View style={{ marginTop: 8 }}>
                           <Text style={styles.cardTitle}>Diagnosis</Text>
-                          {(coachDaily.diagnosis || []).map((line, i) => (
+                          {(coachDaily.diagnosis || []).slice(0, 2).map((line, i) => (
                             <Text key={`diag-${i}`} style={styles.p}>
                               • {String(line)}
                             </Text>
@@ -1988,7 +2032,7 @@ async function analyzePhoto() {
                       {(coachDaily?.tomorrow_focus || []).length ? (
                         <View style={{ marginTop: 10 }}>
                           <Text style={styles.cardTitle}>Tomorrow focus</Text>
-                          {(coachDaily.tomorrow_focus || []).map((line, i) => (
+                          {(coachDaily.tomorrow_focus || []).slice(0, 2).map((line, i) => (
                             <Text key={`focus-${i}`} style={styles.p}>
                               • {String(line)}
                             </Text>
@@ -2019,7 +2063,7 @@ async function analyzePhoto() {
                       {(coachDaily?.actions || []).length ? (
                         <View style={{ marginTop: 10 }}>
                           <Text style={styles.cardTitle}>Actions</Text>
-                          {(coachDaily.actions || []).slice(0, 3).map((a, i) => (
+                          {(coachDaily.actions || []).slice(0, 2).map((a, i) => (
                             <View key={`action-${i}`} style={styles.actionBox}>
                               <Text style={styles.itemName}>{String(a?.title || "Action")}</Text>
                               <Text style={styles.tiny}>{String(a?.why || "")}</Text>
@@ -2598,7 +2642,17 @@ const styles = StyleSheet.create({
   btnText: { color: "#fff", fontWeight: "800" },
   label: { color: "#d7d7d7", marginTop: 8, fontSize: 13, fontWeight: "700" },
 
-  // NEW: Google button
+  // NEW: Apple / Google buttons
+  appleBtn: {
+    backgroundColor: "#000000",
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 14,
+    alignItems: "center",
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: "#2a2a2a",
+  },
   googleBtn: {
     backgroundColor: "#151515",
     paddingVertical: 12,
@@ -2767,6 +2821,34 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   intelSignalFill: { height: 7, borderRadius: 999 },
+  intelOutlookCard: {
+    marginTop: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#2a344a",
+    backgroundColor: "#0e141f",
+    padding: 10,
+    gap: 6,
+  },
+  intelOutlookTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  intelOutlookLabel: { color: "#d8e2fb", fontSize: 12, fontWeight: "800" },
+  intelOutlookChip: {
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: 9,
+    paddingVertical: 3,
+  },
+  intelOutlookChipText: { fontSize: 11, fontWeight: "900" },
+  intelOutlookTrack: {
+    height: 8,
+    borderRadius: 999,
+    backgroundColor: "#182235",
+    overflow: "hidden",
+  },
+  intelOutlookFill: { height: 8, borderRadius: 999 },
+  intelOutlookMetric: { color: "#e4ecff", fontSize: 12, fontWeight: "800" },
+  intelOutlookData: { color: "#9db0d2", fontSize: 12 },
+  intelOutlookCta: { color: "#ffb4b4", fontSize: 12, fontWeight: "800" },
   intelToggleBtn: {
     marginTop: 10,
     alignSelf: "flex-start",

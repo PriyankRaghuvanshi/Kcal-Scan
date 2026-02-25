@@ -95,6 +95,10 @@ def normalize_daily_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
     timing_src = _obj(src.get("meal_timing"))
     constraints_src = _obj(src.get("constraints"))
     profile_src = _obj(src.get("profile"))
+    athlete_src = _obj(profile_src.get("athlete_mode"))
+
+    show_date_raw = str(athlete_src.get("show_date") or "").strip()
+    show_date_iso = show_date_raw[:10] if re.match(r"^\d{4}-\d{2}-\d{2}", show_date_raw) else ""
 
     goals = {
         k: _safe_float(goals_src.get(k), _DEFAULT_GOALS[k]) for k in _METRIC_KEYS
@@ -129,6 +133,12 @@ def normalize_daily_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
         "diet_style": str(profile_src.get("diet_style") or constraints["diet"]).strip().lower(),
         "training_days_per_week": max(0, int(_safe_float(profile_src.get("training_days_per_week"), 0.0))),
         "training_time": str(profile_src.get("training_time") or "").strip().lower(),
+        "athlete_mode": {
+            "enabled": bool(athlete_src.get("enabled")),
+            "show_date": show_date_iso,
+            "weight_class_kg": max(0.0, _safe_float(athlete_src.get("weight_class_kg"), 0.0)),
+            "target_look": str(athlete_src.get("target_look") or "balanced").strip().lower(),
+        },
     }
 
     date_raw = str(src.get("date") or "").strip()
@@ -412,8 +422,8 @@ def validate_llm_response_shape(obj: Dict[str, Any]) -> Tuple[bool, str]:
         return False, "tomorrow_focus must be a non-empty array"
     if not isinstance(actions, list) or not actions:
         return False, "actions must be a non-empty array"
-    if len(actions) > 3:
-        return False, "actions must be <= 3"
+    if len(actions) > 2:
+        return False, "actions must be <= 2"
 
     if not isinstance(summary, str) or not summary.strip():
         return False, "one_sentence_summary is required"
@@ -429,7 +439,7 @@ def validate_llm_response_shape(obj: Dict[str, Any]) -> Tuple[bool, str]:
     for line in diagnosis[:4]:
         if not isinstance(line, str) or not line.strip():
             return False, "diagnosis lines must be non-empty strings"
-    for line in focus[:4]:
+    for line in focus[:2]:
         if not isinstance(line, str) or not line.strip():
             return False, "focus lines must be non-empty strings"
 
@@ -556,7 +566,7 @@ def build_fallback_coach_response(norm_payload: Dict[str, Any], fat_loss_score: 
         tomorrow_focus.append(f"Shift calories earlier; late calories are currently {int(round(late_pct))}%.")
     if l_target > 0 and l_hit < l_target:
         tomorrow_focus.append(f"Hit at least {l_target} leucine triggers (today {l_hit}).")
-    tomorrow_focus = tomorrow_focus[:3]
+    tomorrow_focus = tomorrow_focus[:2]
 
     diet = str(constraints.get("diet") or "non-veg").lower()
     if diet == "vegan":
@@ -583,7 +593,7 @@ def build_fallback_coach_response(norm_payload: Dict[str, Any], fat_loss_score: 
             "how": "Reduce refined carbs at dinner and pair carbs with protein + vegetables.",
         },
     ]
-    actions = actions[:3]
+    actions = actions[:2]
 
     largest_gap = "protein"
     largest_gap_ratio = p_ratio
@@ -635,7 +645,7 @@ def build_fallback_coach_response(norm_payload: Dict[str, Any], fat_loss_score: 
         "if_you_do_one_thing": if_you_do_one_thing,
         "projection_7d": projection,
         "diagnosis": diagnosis[:4],
-        "tomorrow_focus": tomorrow_focus[:3],
+        "tomorrow_focus": tomorrow_focus[:2],
         "actions": actions,
         "risk_alerts": merge_risk_alerts(rule_alerts, []),
         "disclaimer": COACH_DISCLAIMER,

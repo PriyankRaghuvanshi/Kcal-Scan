@@ -1272,6 +1272,78 @@ def get_daily_metrics_window(user_id: str, week_start_iso: str) -> List[Dict[str
     return filtered
 
 
+def get_daily_metrics_range(user_id: str, start_day_iso: str, end_day_iso: str, limit: int = 80) -> List[Dict[str, Any]]:
+    _require_supabase()
+    rows = sb_get_many(
+        TBL_DAILY_METRICS,
+        params={
+            "select": "*",
+            "user_id": f"eq.{user_id}",
+            "day": f"gte.{start_day_iso}",
+            "order": "day.asc",
+            "limit": str(max(1, int(limit))),
+        },
+    )
+    out: List[Dict[str, Any]] = []
+    for r in rows or []:
+        day = str((r or {}).get("day") or "")[:10]
+        if start_day_iso <= day <= end_day_iso:
+            out.append(r)
+    return out
+
+
+def _is_stable_day_metric_row(row: Dict[str, Any]) -> bool:
+    score = _day_score_from_metric_row(row)
+    protein_hit = _extract_metric_val(row, "protein_hit_pct")
+    fiber_hit = _extract_metric_val(row, "fiber_hit_pct")
+    late_pct = _extract_metric_val(row, "late_calories_pct")
+    return score >= 65.0 and protein_hit >= 85.0 and fiber_hit >= 70.0 and late_pct <= 55.0
+
+
+def _current_consecutive_streak_by_day(rows: List[Dict[str, Any]], pred) -> int:
+    ordered = sorted(rows or [], key=lambda r: str((r or {}).get("day") or ""))
+    streak = 0
+    prev_day: Optional[dt.date] = None
+    for r in reversed(ordered):
+        day_iso = str((r or {}).get("day") or "")[:10]
+        try:
+            cur_day = dt.date.fromisoformat(day_iso)
+        except Exception:
+            break
+        if prev_day is not None and (prev_day - cur_day).days != 1:
+            break
+        if not pred(r):
+            break
+        streak += 1
+        prev_day = cur_day
+    return streak
+
+
+def _longest_consecutive_streak_by_day(rows: List[Dict[str, Any]], pred) -> int:
+    ordered = sorted(rows or [], key=lambda r: str((r or {}).get("day") or ""))
+    best = 0
+    cur = 0
+    prev_day: Optional[dt.date] = None
+    for r in ordered:
+        day_iso = str((r or {}).get("day") or "")[:10]
+        try:
+            day = dt.date.fromisoformat(day_iso)
+        except Exception:
+            prev_day = None
+            cur = 0
+            continue
+        contiguous = prev_day is None or (day - prev_day).days == 1
+        if not contiguous:
+            cur = 0
+        if pred(r):
+            cur = cur + 1 if contiguous else 1
+            best = max(best, cur)
+        else:
+            cur = 0
+        prev_day = day
+    return best
+
+
 def build_weekly_insight_payload(
     user_id: str,
     week_start_iso: str,
@@ -1395,6 +1467,22 @@ def build_weekly_prediction_payload(
     week_end_iso = _week_end_from_start(week_start_iso)
     rows = sorted(metric_rows or [], key=lambda r: str((r or {}).get("day") or ""))
     days = len(rows)
+    week_end_day = _iso_to_date_safe(week_end_iso)
+    history_start_iso = (week_end_day - dt.timedelta(days=13)).isoformat()
+
+    recent_rows = rows
+    try:
+        recent_rows = get_daily_metrics_range(user_id, history_start_iso, week_end_iso, limit=50)
+    except Exception:
+        recent_rows = rows
+    recent_rows = sorted((recent_rows or rows), key=lambda r: str((r or {}).get("day") or ""))
+
+    prev_week_payload: Dict[str, Any] = {}
+    try:
+        prev_week_start_iso = (_iso_to_date_safe(week_start_iso) - dt.timedelta(days=7)).isoformat()
+        prev_week_payload = get_user_weekly_metrics_payload(user_id, prev_week_start_iso) or {}
+    except Exception:
+        prev_week_payload = {}
 
     protein_hit_vals = [_extract_metric_val(r, "protein_hit_pct") for r in rows]
     fiber_hit_vals = [_extract_metric_val(r, "fiber_hit_pct") for r in rows]
@@ -1483,17 +1571,116 @@ def build_weekly_prediction_payload(
     )
     fat_loss_probability_7d = round(_clamp(probability_pct / 100.0, 0.0, 1.0), 3)
 
-    hunger_volatility_score = round(
+    # Phase 3.3A: Hunger Prediction Engine (exact HIS formula)
+    deficit_depth_pct = round(max(0.0, -_safe_avg(kcal_delta_vals)), 1)
+    deep_deficit_flag = 1.0 if deficit_depth_pct > 20.0 else 0.0
+    protein_consistency_7d = _clamp(protein_consistency / 100.0, 0.0, 1.0)
+    fiber_consistency_7d = _clamp(fiber_consistency / 100.0, 0.0, 1.0)
+    timing_volatility_index_7d = _clamp(timing_volatility / 100.0, 0.0, 1.0)
+    diet_volatility_index_7d = _clamp(diet_volatility_index / 100.0, 0.0, 1.0)
+    hunger_instability_score = round(
         _clamp(
-            ((100.0 - fiber_consistency) * 0.35)
-            + (_norm_score_from_range(glycemic_avg, 12.0, 38.0) * 0.25)
-            + (_norm_score_from_range(_safe_avg(late_vals), 20.0, 75.0) * 0.25)
-            + (diet_volatility_index * 0.15),
+            (
+                (1.0 - protein_consistency_7d) * 0.25
+                + (1.0 - fiber_consistency_7d) * 0.20
+                + timing_volatility_index_7d * 0.20
+                + diet_volatility_index_7d * 0.20
+                + deep_deficit_flag * 0.15
+            )
+            * 100.0,
             0.0,
             100.0,
         ),
         1,
     )
+    recent_5 = recent_rows[-5:] if recent_rows else []
+    low_satiety_days_5 = sum(1 for r in recent_5 if 0.0 < _extract_metric_val(r, "avg_satiety") < 45.0)
+    if hunger_instability_score > 65.0 and deficit_depth_pct > 20.0 and low_satiety_days_5 >= 2:
+        hunger_risk_level = "high"
+        hunger_spike_probability_72h = 0.78
+    elif 45.0 <= hunger_instability_score <= 65.0:
+        hunger_risk_level = "moderate"
+        hunger_spike_probability_72h = 0.52
+    else:
+        hunger_risk_level = "low"
+        hunger_spike_probability_72h = 0.24
+    hunger_summary = (
+        "You are entering a high hunger volatility window in the next 48-72 hours."
+        if hunger_risk_level == "high"
+        else (
+            "Appetite volatility risk is moderate over the next 48-72 hours."
+            if hunger_risk_level == "moderate"
+            else "Appetite volatility risk is currently low for the next 48-72 hours."
+        )
+    )
+    hunger_volatility_score = hunger_instability_score
+
+    # Phase 3.3B: 14-day Metabolic Drift Detection
+    prev_protein_consistency = float(_safe_float(prev_week_payload.get("protein_consistency"), protein_consistency) or protein_consistency)
+    prev_fiber_consistency = float(_safe_float(prev_week_payload.get("fiber_consistency"), fiber_consistency) or fiber_consistency)
+    prev_timing_volatility = float(_safe_float(prev_week_payload.get("timing_volatility"), timing_volatility) or timing_volatility)
+    prev_diet_volatility = float(_safe_float(prev_week_payload.get("diet_volatility_index"), diet_volatility_index) or diet_volatility_index)
+    prev_readiness_score = float(_safe_float(prev_week_payload.get("readiness_score"), readiness_score) or readiness_score)
+    prev_readiness_trend = float(_safe_float(prev_week_payload.get("readiness_trend"), 0.0) or 0.0)
+    prev_timing_balance = float(_safe_float(prev_week_payload.get("timing_balance_avg"), timing_balance_avg) or timing_balance_avg)
+
+    delta_protein_consistency_14d = round(protein_consistency - prev_protein_consistency, 1)
+    delta_fiber_consistency_14d = round(fiber_consistency - prev_fiber_consistency, 1)
+    carb_clustering_increase_14d = round(_safe_avg(late_vals) - max(0.0, 100.0 - prev_timing_balance), 1)
+    readiness_score_delta_14d = round(readiness_score - prev_readiness_score, 1)
+    volatility_delta_14d = round(
+        ((_safe_avg([timing_volatility, diet_volatility_index])) - _safe_avg([prev_timing_volatility, prev_diet_volatility])),
+        1,
+    )
+    metabolic_drift_score_14d = round(
+        _clamp(
+            (max(0.0, -delta_protein_consistency_14d) * 0.25)
+            + (max(0.0, -delta_fiber_consistency_14d) * 0.20)
+            + (max(0.0, carb_clustering_increase_14d) * 0.20)
+            + (max(0.0, -readiness_score_delta_14d) * 0.20)
+            + (max(0.0, volatility_delta_14d) * 0.15),
+            0.0,
+            100.0,
+        ),
+        1,
+    )
+    trend_declining_2w = readiness_trend < -1.0 and prev_readiness_trend < -1.0
+    volatility_rising = volatility_delta_14d > 4.0
+    protein_falling = delta_protein_consistency_14d < -5.0
+    drift_detected = bool(trend_declining_2w and volatility_rising and protein_falling)
+    if drift_detected:
+        metabolic_drift_level = "high"
+    elif metabolic_drift_score_14d >= 65.0:
+        metabolic_drift_level = "medium"
+    elif metabolic_drift_score_14d >= 40.0:
+        metabolic_drift_level = "moderate"
+    else:
+        metabolic_drift_level = "low"
+    metabolic_drift_summary = (
+        "Drift detected: weekly pattern is moving away from stable fat-loss trajectory."
+        if drift_detected
+        else "No strong drift signal: trajectory is relatively stable over the last 14 days."
+    )
+
+    # Phase 3.3D: Habit Addiction Engine (metabolic stability streak)
+    current_metabolic_streak = int(_current_consecutive_streak_by_day(recent_rows, _is_stable_day_metric_row))
+    longest_metabolic_streak_14d = int(_longest_consecutive_streak_by_day(recent_rows, _is_stable_day_metric_row))
+    stability_bar_pct = round(_clamp((current_metabolic_streak / 7.0) * 100.0, 0.0, 100.0), 1)
+    if current_metabolic_streak >= 7:
+        streak_status = "locked_in"
+    elif current_metabolic_streak >= 4:
+        streak_status = "building"
+    elif current_metabolic_streak >= 2:
+        streak_status = "fragile"
+    else:
+        streak_status = "reset_risk"
+    recovery_boost_mode = bool(current_metabolic_streak < 2 and longest_metabolic_streak_14d >= 4)
+    streak_summary = (
+        f"You have maintained metabolic stability for {current_metabolic_streak} day(s)."
+        if current_metabolic_streak > 0
+        else "Metabolic stability streak is broken. Recovery boost mode is active."
+    )
+
     leucine_hit_rate_pct = round(_safe_avg([v * 100.0 for v in leucine_hit_rate_vals]), 1)
     muscle_retention_risk_score = round(
         _clamp(
@@ -1548,6 +1735,22 @@ def build_weekly_prediction_payload(
         fat_loss_probability_7d = 0.0
         projection_7d_score = 0.0
         projected_weight_change_kg_7d = 0.0
+        deficit_depth_pct = 0.0
+        hunger_instability_score = 0.0
+        low_satiety_days_5 = 0
+        hunger_risk_level = "low"
+        hunger_spike_probability_72h = 0.0
+        hunger_summary = "Need more tracked days to estimate appetite volatility."
+        metabolic_drift_score_14d = 0.0
+        metabolic_drift_level = "low"
+        drift_detected = False
+        metabolic_drift_summary = "Need more tracked days to estimate metabolic drift."
+        current_metabolic_streak = 0
+        longest_metabolic_streak_14d = 0
+        stability_bar_pct = 0.0
+        streak_status = "reset_risk"
+        recovery_boost_mode = False
+        streak_summary = "Need more tracked days to compute metabolic stability streak."
         projection_confidence_band = "low"
         missing_data_reason = "No tracked days in this week."
         scans_7d = 0
@@ -1603,6 +1806,33 @@ def build_weekly_prediction_payload(
             "score": hunger_volatility_score,
             "level": _band_from_score(hunger_volatility_score),
             "summary": "Higher score means more unstable appetite/hunger pattern risk over the next 7 days.",
+        },
+        "hunger_prediction_72h": {
+            "hunger_instability_score": hunger_instability_score,
+            "calorie_deficit_depth_pct": deficit_depth_pct,
+            "low_satiety_days_5": int(low_satiety_days_5),
+            "risk_level": hunger_risk_level,
+            "hunger_spike_probability_72h": float(round(_clamp(hunger_spike_probability_72h, 0.0, 1.0), 3)),
+            "summary": hunger_summary,
+        },
+        "metabolic_drift_14d": {
+            "drift_detected": bool(drift_detected),
+            "drift_score": metabolic_drift_score_14d,
+            "level": metabolic_drift_level,
+            "delta_protein_consistency_14d": delta_protein_consistency_14d,
+            "delta_fiber_consistency_14d": delta_fiber_consistency_14d,
+            "carb_clustering_increase_14d": carb_clustering_increase_14d,
+            "readiness_score_delta_14d": readiness_score_delta_14d,
+            "volatility_delta_14d": volatility_delta_14d,
+            "summary": metabolic_drift_summary,
+        },
+        "habit_addiction_engine": {
+            "metabolic_stability_streak": current_metabolic_streak,
+            "longest_stability_streak_14d": longest_metabolic_streak_14d,
+            "stability_bar_pct": stability_bar_pct,
+            "status": streak_status,
+            "recovery_boost_mode": recovery_boost_mode,
+            "summary": streak_summary,
         },
         "muscle_retention_risk": {
             "score": muscle_retention_risk_score,
@@ -2413,6 +2643,11 @@ def _coach_user_prompt(
         "- Keep deterministic numbers as truth; do not invent any number.\n"
         "- Prioritize behavior pattern + cause/effect language.\n"
         "- Avoid line-by-line metric repetition. Mention at most 4 numeric anchors in the whole output.\n"
+        "- Do not repeat the same idea across summary, pattern, risk, focus, and actions.\n"
+        "- one_sentence_summary must be exactly one sentence.\n"
+        "- pattern_detected must be exactly one sentence.\n"
+        "- biggest_risk_lever.reason must be one concise line.\n"
+        "- tomorrow_focus must contain at most 2 bullets.\n"
         "- If weekly memory exists, use it for pattern_detected or projection_7d.\n"
         "- Use predictive_engine_weekly to explain likely 7-day direction in plain language.\n"
         "- Never claim exact body-weight outcomes. Do not say 'you will lose X kg/lbs'.\n"
@@ -2429,7 +2664,7 @@ def _coach_user_prompt(
         "- No medical advice, disease claims, supplements, dosages, or treatment language.\n"
         "- Every action must clearly reference at least one metric keyword from this set: "
         "protein, fiber, glycemic load, ultra-processed, leucine, late calories, kcal, carbs, fat.\n"
-        "- Max 3 actions.\n"
+        "- Max 2 actions.\n"
         "- Keep language concise.\n\n"
         f"Allowed suggestion palette:\n{json.dumps(allowed_palette, ensure_ascii=True)}\n\n"
         f"Input payload:\n{json.dumps(compact, ensure_ascii=True)}\n\n"
@@ -2523,13 +2758,13 @@ def _coerce_coach_response_shape(
     elif confidence_band not in projection_explained.lower():
         projection_explained = f"{projection_explained} Confidence: {confidence_band}."
 
-    clean_diagnosis = [str(x).strip() for x in diagnosis if str(x).strip()][:4]
+    clean_diagnosis = [str(x).strip() for x in diagnosis if str(x).strip()][:2]
     if not clean_diagnosis:
         clean_diagnosis = [pattern_detected, biggest_risk["reason"]]
 
-    clean_focus = [str(x).strip() for x in tomorrow_focus if str(x).strip()][:3]
+    clean_focus = [str(x).strip() for x in tomorrow_focus if str(x).strip()][:2]
     if not clean_focus:
-        clean_focus = [highest_roi["title"], highest_roi["how"], projection["if_improved"]][:3]
+        clean_focus = [highest_roi["how"], projection["if_improved"]][:2]
 
     cleaned = {
         "one_sentence_summary": one_sentence_summary,
@@ -2546,7 +2781,7 @@ def _coerce_coach_response_shape(
         "disclaimer": coach_logic.COACH_DISCLAIMER,
     }
 
-    for a in actions[:3]:
+    for a in actions[:2]:
         if not isinstance(a, dict):
             continue
         item = {
@@ -2562,7 +2797,7 @@ def _coerce_coach_response_shape(
     if not cleaned["actions"]:
         cleaned["actions"].append(highest_roi)
 
-    return cleaned
+    return _apply_scannable_contract(cleaned)
 
 
 def _generate_daily_coach_llm(
@@ -2628,9 +2863,277 @@ def _public_predictive_signals(weekly_predictive: Optional[Dict[str, Any]], week
         "hunger_volatility_projection": weekly_predictive.get("hunger_volatility_projection")
         if isinstance(weekly_predictive.get("hunger_volatility_projection"), dict)
         else {},
+        "hunger_prediction_72h": weekly_predictive.get("hunger_prediction_72h")
+        if isinstance(weekly_predictive.get("hunger_prediction_72h"), dict)
+        else {},
+        "metabolic_drift_14d": weekly_predictive.get("metabolic_drift_14d")
+        if isinstance(weekly_predictive.get("metabolic_drift_14d"), dict)
+        else {},
+        "habit_addiction_engine": weekly_predictive.get("habit_addiction_engine")
+        if isinstance(weekly_predictive.get("habit_addiction_engine"), dict)
+        else {},
         "muscle_retention_risk": weekly_predictive.get("muscle_retention_risk")
         if isinstance(weekly_predictive.get("muscle_retention_risk"), dict)
         else {},
+    }
+
+
+def _first_sentence(text: str, max_words: Optional[int] = None) -> str:
+    raw = " ".join(str(text or "").replace("\n", " ").split()).strip()
+    if not raw:
+        return ""
+    m = re.search(r"[.!?]", raw)
+    if m:
+        raw = raw[: m.end()].strip()
+    if max_words is not None:
+        words = [w for w in raw.split() if w]
+        raw = " ".join(words[:max_words]).strip()
+    return raw
+
+
+def _semantic_tokens(text: str) -> set:
+    base = re.sub(r"[^a-z0-9\s]", " ", str(text or "").lower())
+    stop = {
+        "the", "and", "for", "with", "that", "this", "your", "you", "are", "was", "were", "from", "into",
+        "have", "has", "had", "will", "can", "could", "should", "today", "daily", "week", "over",
+    }
+    return {w for w in base.split() if len(w) > 2 and w not in stop}
+
+
+def _is_semantic_repeat(tokens: set, seen: List[set], threshold: float = 0.72) -> bool:
+    if not tokens:
+        return False
+    for prev in seen:
+        if not prev:
+            continue
+        overlap = len(tokens & prev) / float(max(1, min(len(tokens), len(prev))))
+        if overlap >= threshold:
+            return True
+    return False
+
+
+def _collect_unique_lines(candidates: List[str], seen: List[set], limit: int) -> List[str]:
+    out: List[str] = []
+    for candidate in candidates:
+        line = _first_sentence(candidate)
+        if not line:
+            continue
+        toks = _semantic_tokens(line)
+        if _is_semantic_repeat(toks, seen):
+            continue
+        out.append(line)
+        seen.append(toks)
+        if len(out) >= limit:
+            break
+    return out
+
+
+def _apply_scannable_contract(resp: Dict[str, Any]) -> Dict[str, Any]:
+    out = dict(resp or {})
+
+    summary = _first_sentence(str(out.get("one_sentence_summary") or ""), max_words=18)
+    pattern = _first_sentence(str(out.get("pattern_detected") or ""))
+    projection_explained = _first_sentence(str(out.get("projection_explained") or ""))
+    one_thing = _first_sentence(str(out.get("if_you_do_one_thing") or ""))
+
+    risk_src = out.get("biggest_risk_lever") if isinstance(out.get("biggest_risk_lever"), dict) else {}
+    roi_src = out.get("highest_roi_change") if isinstance(out.get("highest_roi_change"), dict) else {}
+    proj_src = out.get("projection_7d") if isinstance(out.get("projection_7d"), dict) else {}
+
+    biggest_risk = {
+        "title": _first_sentence(str(risk_src.get("title") or "")) or "Primary behavior risk",
+        "reason": _first_sentence(str(risk_src.get("reason") or "")),
+    }
+    highest_roi = {
+        "title": _first_sentence(str(roi_src.get("title") or "")) or "Front-load protein and fiber before dinner",
+        "why": _first_sentence(str(roi_src.get("why") or "")),
+        "how": _first_sentence(str(roi_src.get("how") or "")),
+    }
+    projection = {
+        "if_unchanged": _first_sentence(str(proj_src.get("if_unchanged") or "")),
+        "if_improved": _first_sentence(str(proj_src.get("if_improved") or "")),
+    }
+
+    if not summary:
+        summary = _first_sentence(f"{biggest_risk['title']}: {highest_roi['title']}.", max_words=18)
+    if not pattern:
+        pattern = "Daily pattern shows room to improve protein, fiber, and meal timing consistency."
+    if not biggest_risk["reason"]:
+        biggest_risk["reason"] = "Current behavior pattern can slow progress if repeated through the week."
+    if not highest_roi["why"]:
+        highest_roi["why"] = "Protein and fiber gaps are reducing satiety and driving late-calorie risk."
+    if not highest_roi["how"]:
+        highest_roi["how"] = "Add one protein anchor plus one fiber booster at breakfast and lunch."
+    if not projection["if_unchanged"] or not projection["if_improved"]:
+        projection = {
+            "if_unchanged": "If this pattern repeats for 7 days, adherence risk will likely stay elevated.",
+            "if_improved": "If this change is repeated for 7 days, satiety and score consistency should improve.",
+        }
+    if not one_thing:
+        one_thing = _first_sentence(highest_roi["how"])
+
+    seen: List[set] = []
+    for txt in [summary, pattern, biggest_risk["reason"], highest_roi["why"], highest_roi["how"], one_thing]:
+        toks = _semantic_tokens(txt)
+        if toks and not _is_semantic_repeat(toks, seen, threshold=0.85):
+            seen.append(toks)
+
+    diagnosis_src = out.get("diagnosis") if isinstance(out.get("diagnosis"), list) else []
+    focus_src = out.get("tomorrow_focus") if isinstance(out.get("tomorrow_focus"), list) else []
+    actions_src = out.get("actions") if isinstance(out.get("actions"), list) else []
+
+    diagnosis = _collect_unique_lines([str(x) for x in diagnosis_src], seen, limit=2)
+    if not diagnosis:
+        diagnosis = _collect_unique_lines([pattern, biggest_risk["reason"]], seen, limit=2)
+    if not diagnosis:
+        diagnosis = [pattern]
+
+    tomorrow_focus = _collect_unique_lines([str(x) for x in focus_src], seen, limit=2)
+    if not tomorrow_focus:
+        tomorrow_focus = _collect_unique_lines([highest_roi["how"], projection["if_improved"], one_thing], seen, limit=2)
+    if not tomorrow_focus:
+        tomorrow_focus = [highest_roi["how"]]
+
+    actions: List[Dict[str, str]] = []
+    action_seen: List[set] = []
+    for raw in actions_src:
+        if not isinstance(raw, dict):
+            continue
+        item = {
+            "title": _first_sentence(str(raw.get("title") or "")),
+            "why": _first_sentence(str(raw.get("why") or "")),
+            "how": _first_sentence(str(raw.get("how") or "")),
+        }
+        if not item["title"] or not item["why"] or not item["how"]:
+            continue
+        if not coach_logic.action_references_metrics(item):
+            item["why"] = f"{item['why']} Targets protein/fiber/glycemic load trends."
+        combo_toks = _semantic_tokens(f"{item['title']} {item['why']} {item['how']}")
+        if _is_semantic_repeat(combo_toks, action_seen, threshold=0.82):
+            continue
+        if _is_semantic_repeat(combo_toks, seen, threshold=0.88):
+            continue
+        actions.append(item)
+        action_seen.append(combo_toks)
+        seen.append(combo_toks)
+        if len(actions) >= 2:
+            break
+
+    if not actions:
+        fallback_action = {
+            "title": highest_roi["title"],
+            "why": highest_roi["why"],
+            "how": highest_roi["how"],
+        }
+        if not coach_logic.action_references_metrics(fallback_action):
+            fallback_action["why"] = f"{fallback_action['why']} Targets protein/fiber/glycemic load trends."
+        actions = [fallback_action]
+
+    out["one_sentence_summary"] = summary
+    out["pattern_detected"] = pattern
+    out["projection_explained"] = projection_explained
+    out["biggest_risk_lever"] = biggest_risk
+    out["highest_roi_change"] = highest_roi
+    out["if_you_do_one_thing"] = one_thing
+    out["projection_7d"] = projection
+    out["diagnosis"] = diagnosis[:2]
+    out["tomorrow_focus"] = tomorrow_focus[:2]
+    out["actions"] = actions[:2]
+    return out
+
+
+def _build_athlete_mode_payload(
+    norm_payload: Dict[str, Any],
+    weekly_predictive: Optional[Dict[str, Any]],
+    plan: str,
+) -> Dict[str, Any]:
+    profile = norm_payload.get("profile") if isinstance(norm_payload.get("profile"), dict) else {}
+    athlete = profile.get("athlete_mode") if isinstance(profile.get("athlete_mode"), dict) else {}
+    training_days = int(_safe_float(profile.get("training_days_per_week"), 0) or 0)
+    target_look = str(athlete.get("target_look") or "balanced").strip().lower()
+    if target_look not in {"full", "dry", "balanced"}:
+        target_look = "balanced"
+
+    athlete_enabled = bool(athlete.get("enabled")) or training_days >= 5
+    if not athlete_enabled:
+        return {
+            "enabled": False,
+            "locked": False,
+            "summary": "Athlete mode is off. Enable it in profile for peak-week signals.",
+        }
+
+    if not plan_at_least(plan, "pro"):
+        return {
+            "enabled": False,
+            "locked": True,
+            "required_plan": "pro",
+            "summary": "Athlete mode is available on Pro or Infinite.",
+        }
+
+    goals = norm_payload.get("goals") if isinstance(norm_payload.get("goals"), dict) else {}
+    consumed = norm_payload.get("consumed") if isinstance(norm_payload.get("consumed"), dict) else {}
+    carbs_goal = float(_safe_float(goals.get("carbs_g"), 0.0) or 0.0)
+    carbs_used = float(_safe_float(consumed.get("carbs_g"), 0.0) or 0.0)
+    fiber_used = float(_safe_float(consumed.get("fiber_g"), 0.0) or 0.0)
+    carbs_ratio = (carbs_used / carbs_goal) if carbs_goal > 0 else 0.0
+
+    show_date_iso = str(athlete.get("show_date") or "").strip()[:10]
+    days_to_show: Optional[int] = None
+    if re.match(r"^\d{4}-\d{2}-\d{2}$", show_date_iso):
+        try:
+            days_to_show = (dt.date.fromisoformat(show_date_iso) - _today_date()).days
+        except Exception:
+            days_to_show = None
+
+    if days_to_show is None:
+        phase = "training_block"
+    elif days_to_show <= 7:
+        phase = "peak_week"
+    elif days_to_show <= 21:
+        phase = "pre_peak"
+    else:
+        phase = "build_phase"
+
+    carb_depletion_detected = bool(training_days >= 5 and carbs_goal > 0 and carbs_ratio < 0.60)
+    glycogen_loading_window = bool(days_to_show is not None and 2 <= days_to_show <= 4)
+    fiber_taper_flag = bool(days_to_show is not None and days_to_show <= 3 and fiber_used > 20.0)
+    timing_vol = float(_safe_float((weekly_predictive or {}).get("timing_volatility"), 50.0) or 50.0)
+    sodium_stability_proxy = round(_clamp(100.0 - timing_vol, 0.0, 100.0), 1)
+
+    signals: List[str] = []
+    if glycogen_loading_window:
+        signals.append("Carb intake timing supports glycogen loading window.")
+    if carb_depletion_detected:
+        signals.append("Carb depletion signal detected from low carb intake versus training load.")
+    if fiber_taper_flag:
+        signals.append("Fiber is high for peak-week aesthetic control; tapering may improve comfort.")
+    if not signals:
+        signals.append("Current intake pattern is compatible with steady athlete mode progression.")
+
+    recommendations: List[str] = []
+    if carb_depletion_detected:
+        recommendations.append("Increase quality carbs around training sessions to stabilize output.")
+    if glycogen_loading_window:
+        recommendations.append("Keep sodium and meal timing consistent during loading days.")
+    if fiber_taper_flag:
+        recommendations.append("Reduce high-fiber volume meals in the last 48-72h before show date.")
+    if not recommendations:
+        recommendations.append("Maintain consistent protein, carbs, and timing to preserve physique signal quality.")
+
+    return {
+        "enabled": True,
+        "locked": False,
+        "target_look": target_look,
+        "show_date": show_date_iso,
+        "days_to_show": days_to_show if days_to_show is not None else None,
+        "phase": phase,
+        "signals": signals[:3],
+        "recommendations": recommendations[:3],
+        "sodium_stability_proxy": sodium_stability_proxy,
+        "carb_depletion_detected": carb_depletion_detected,
+        "glycogen_loading_window": glycogen_loading_window,
+        "fiber_taper_flag": fiber_taper_flag,
+        "summary": signals[0],
     }
 
 
@@ -2664,7 +3167,7 @@ def _ensure_coach_voice_defaults(resp: Dict[str, Any], weekly_predictive: Option
 
     if not pattern:
         out["pattern_detected"] = "Daily pattern shows room to improve protein, fiber, and meal timing consistency."
-    return out
+    return _apply_scannable_contract(out)
 
 
 @app.post("/coach/daily")
@@ -2684,10 +3187,15 @@ def coach_daily(
     norm = coach_logic.normalize_daily_payload(payload or {})
     if not norm.get("date"):
         norm["date"] = _today_date().isoformat()
+    try:
+        user_plan = get_user_plan(uid)
+    except Exception:
+        user_plan = DEFAULT_PLAN
 
     fat_loss_score = coach_logic.compute_fat_loss_score(norm)
     rule_alerts = coach_logic.build_rule_risk_alerts(norm)
     p_hash = coach_logic.payload_hash(norm)
+    p_hash = hashlib.sha256(f"{p_hash}:{user_plan}".encode("utf-8")).hexdigest()
     day_iso = str(norm.get("date") or _today_date().isoformat())
     week_start_iso = _week_start_monday(day_iso)
 
@@ -2742,6 +3250,7 @@ def coach_daily(
     weekly_metrics_hash = str((weekly_predictive or {}).get("payload_hash") or "").strip()
     if weekly_metrics_hash:
         p_hash = hashlib.sha256(f"{p_hash}:{weekly_metrics_hash}".encode("utf-8")).hexdigest()
+    athlete_mode = _build_athlete_mode_payload(norm, weekly_predictive, user_plan)
 
     cached = _coach_cache_get(uid, day_iso, p_hash) if not refresh else None
     if isinstance(cached, dict):
@@ -2770,6 +3279,7 @@ def coach_daily(
             out["predictive_signals"] = public_pred
         else:
             out.pop("predictive_signals", None)
+        out["athlete_mode"] = athlete_mode
         return out
 
     llm_resp: Optional[Dict[str, Any]] = None
@@ -2808,11 +3318,12 @@ def coach_daily(
         else {"if_unchanged": "", "if_improved": ""},
         "diagnosis": llm_resp.get("diagnosis", []),
         "tomorrow_focus": llm_resp.get("tomorrow_focus", []),
-        "actions": llm_resp.get("actions", [])[:3],
+        "actions": llm_resp.get("actions", [])[:2],
         "risk_alerts": coach_logic.merge_risk_alerts(rule_alerts, llm_resp.get("risk_alerts", []), limit=4),
         "disclaimer": coach_logic.COACH_DISCLAIMER,
         "reasoning_source": reasoning_source,
         "week_start": week_start_iso,
+        "athlete_mode": athlete_mode,
     }
     final_resp = _ensure_coach_voice_defaults(final_resp, weekly_predictive=weekly_predictive)
     if isinstance(weekly_behavior, dict):
@@ -2849,11 +3360,12 @@ def coach_daily(
             else {"if_unchanged": "", "if_improved": ""},
             "diagnosis": fb.get("diagnosis", []),
             "tomorrow_focus": fb.get("tomorrow_focus", []),
-            "actions": fb.get("actions", [])[:3],
+            "actions": fb.get("actions", [])[:2],
             "risk_alerts": coach_logic.merge_risk_alerts(rule_alerts, fb.get("risk_alerts", []), limit=4),
             "disclaimer": coach_logic.COACH_DISCLAIMER,
             "reasoning_source": "fallback",
             "week_start": week_start_iso,
+            "athlete_mode": athlete_mode,
         }
         final_resp = _ensure_coach_voice_defaults(final_resp, weekly_predictive=weekly_predictive)
         if isinstance(weekly_behavior, dict):
