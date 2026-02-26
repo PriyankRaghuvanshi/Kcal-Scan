@@ -16,6 +16,7 @@ import {
   Platform,
   Modal,
   Linking,
+  Share,
 } from "react-native";
 
 import { CameraView, useCameraPermissions } from "expo-camera";
@@ -24,7 +25,8 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { createClient } from "@supabase/supabase-js";
 import "react-native-url-polyfill/auto";
 
-// OAuth helpers (Google/Apple)
+// OAuth helpers (Google)
+import * as AuthSession from "expo-auth-session";
 import * as Notifications from "expo-notifications";
 
 
@@ -80,8 +82,12 @@ const DAILY_COACH_KEY = "kcal_daily_coach_v1";
 const dailyCoachKey = (uid, day) => `${DAILY_COACH_KEY}:${uid}:${day}`;
 const COACH_PROFILE_KEY = "kcal_coach_profile_v1";
 const coachProfileKey = (uid) => `${COACH_PROFILE_KEY}:${uid}`;
+const COACH_VOICE_MEMORY_KEY = "kcal_coach_voice_memory_v1";
+const coachVoiceMemoryKey = (uid, day) => `${COACH_VOICE_MEMORY_KEY}:${uid}:${day}`;
 const UPGRADE_NUDGE_KEY = "kcal_upgrade_nudge_v1";
 const upgradeNudgeKey = (uid) => `${UPGRADE_NUDGE_KEY}:${uid}`;
+const COACH_FEEDBACK_QUEUE_KEY = "kcal_coach_feedback_queue_v1";
+const coachFeedbackQueueKey = (uid) => `${COACH_FEEDBACK_QUEUE_KEY}:${uid}`;
 
 const RC_IOS_KEY = process.env.EXPO_PUBLIC_RC_IOS_KEY || "";
 const RC_ANDROID_KEY = process.env.EXPO_PUBLIC_RC_ANDROID_KEY || "";
@@ -111,6 +117,7 @@ const DEFAULT_COACH_PROFILE = {
   diet_style: "non-veg",
   training_days_per_week: 3,
   training_time: "evening",
+  tone_preference: "supportive",
 };
 
 // ===================== HELPERS =====================
@@ -175,6 +182,7 @@ function normalizeCoachProfile(raw) {
   const goalType = String(src.goal_type || DEFAULT_COACH_PROFILE.goal_type).toLowerCase();
   const dietStyle = String(src.diet_style || DEFAULT_COACH_PROFILE.diet_style).toLowerCase();
   const trainingTime = String(src.training_time || DEFAULT_COACH_PROFILE.training_time).toLowerCase();
+  const tonePreference = String(src.tone_preference || DEFAULT_COACH_PROFILE.tone_preference).toLowerCase();
   const out = {
     goal_type: ["fat_loss", "recomposition", "lean_gain"].includes(goalType) ? goalType : DEFAULT_COACH_PROFILE.goal_type,
     diet_style: ["veg", "non-veg", "vegan"].includes(dietStyle) ? dietStyle : DEFAULT_COACH_PROFILE.diet_style,
@@ -182,6 +190,9 @@ function normalizeCoachProfile(raw) {
     training_time: ["morning", "afternoon", "evening", "night", "variable"].includes(trainingTime)
       ? trainingTime
       : DEFAULT_COACH_PROFILE.training_time,
+    tone_preference: ["supportive", "firm", "fun", "neutral"].includes(tonePreference)
+      ? tonePreference
+      : DEFAULT_COACH_PROFILE.tone_preference,
   };
   return out;
 }
@@ -373,6 +384,241 @@ function normalizeMicros(raw) {
     magnesium_mg: num(raw.magnesium_mg),
   };
 }
+function normalizeTopCandidates(raw) {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((x) => x && typeof x === "object")
+    .map((x, idx) => ({
+      candidate_id: String(x.candidate_id || `c${idx + 1}`),
+      label: String(x.label || "").trim(),
+      confidence: Math.max(0, Math.min(1, num(x.confidence))),
+      evidence: Array.isArray(x.evidence) ? x.evidence.map((s) => String(s || "").trim()).filter(Boolean) : [],
+      assumptions: Array.isArray(x.assumptions) ? x.assumptions.map((s) => String(s || "").trim()).filter(Boolean) : [],
+      portion_guess_g: num(x.portion_guess_g),
+    }))
+    .filter((x) => x.label);
+}
+function normalizeEditableItems(raw) {
+  const src = Array.isArray(raw?.items) ? raw.items : Array.isArray(raw) ? raw : [];
+  return src
+    .filter((x) => x && typeof x === "object")
+    .map((x, idx) => ({
+      item_id: String(x.item_id || `i${idx + 1}`),
+      name: String(x.name || "").trim(),
+      grams: num(x.grams),
+      cooking_method: String(x.cooking_method || "unknown").trim().toLowerCase(),
+      oil_added_tsp: Math.max(0, num(x.oil_added_tsp)),
+      confidence: Math.max(0, Math.min(1, num(x.confidence))),
+      candidate_alternatives: Array.isArray(x.candidate_alternatives)
+        ? x.candidate_alternatives.map((s) => String(s || "").trim()).filter(Boolean)
+        : [],
+    }))
+    .filter((x) => x.name && x.grams > 0);
+}
+function normalizeMealQA(raw) {
+  const src = raw && typeof raw === "object" ? raw : {};
+  const issues = Array.isArray(src.issues) ? src.issues : [];
+  const fixes = Array.isArray(src.one_tap_fixes) ? src.one_tap_fixes : [];
+  return {
+    qa_score: Math.max(0, Math.min(100, num(src.qa_score))),
+    issues: issues
+      .filter((x) => x && typeof x === "object")
+      .map((x) => ({
+        issue_type: String(x.issue_type || "quality_check").trim(),
+        severity: String(x.severity || "medium").trim().toLowerCase(),
+        message: String(x.message || "").trim(),
+      }))
+      .filter((x) => x.message),
+    one_tap_fixes: fixes
+      .filter((x) => x && typeof x === "object")
+      .map((x) => ({
+        label: String(x.label || "").trim(),
+        patch: x.patch && typeof x.patch === "object" ? x.patch : {},
+      }))
+      .filter((x) => x.label),
+    ask_to_confirm: String(src.ask_to_confirm || "").trim() || null,
+  };
+}
+function normalizeAnalyzeResult(data) {
+  const src = data && typeof data === "object" ? data : {};
+  return {
+    ...src,
+    analysis_id: String(src.analysis_id || "").trim() || null,
+    vision_confidence: Math.max(0, Math.min(1, num(src.vision_confidence))),
+    top_candidates: normalizeTopCandidates(src.top_candidates),
+    clarifying_question:
+      src.clarifying_question && typeof src.clarifying_question === "object"
+        ? {
+            ask: String(src.clarifying_question.ask || "").trim(),
+            options: Array.isArray(src.clarifying_question.options)
+              ? src.clarifying_question.options.map((x) => String(x || "").trim()).filter(Boolean)
+              : [],
+          }
+        : null,
+    editable_context: { items: normalizeEditableItems(src.editable_context) },
+    meal_qa: normalizeMealQA(src.meal_qa),
+    micros: normalizeMicros(src?.micros || src?.totals?.micros),
+    learning_applied: Boolean(src?.learning_applied),
+    personalization_used:
+      src?.personalization_used && typeof src.personalization_used === "object"
+        ? {
+            portion_prior_used: Boolean(src.personalization_used?.portion_prior_used),
+            oil_prior_used: Boolean(src.personalization_used?.oil_prior_used),
+            asked_clarifying_question: Boolean(src.personalization_used?.asked_clarifying_question),
+            asked_clarifying_question_reason: String(src.personalization_used?.asked_clarifying_question_reason || "").trim(),
+          }
+        : null,
+  };
+}
+function normalizeCoachDaily(raw, dayFallback = localDayISO()) {
+  const data = raw && typeof raw === "object" ? raw : {};
+  return {
+    date: String(data?.date || dayFallback),
+    fat_loss_score: Math.round(num(data?.fat_loss_score)),
+    one_sentence_summary: String(data?.one_sentence_summary || ""),
+    pattern_detected: String(data?.pattern_detected || ""),
+    projection_explained: String(data?.projection_explained || ""),
+    biggest_risk_lever:
+      data?.biggest_risk_lever && typeof data.biggest_risk_lever === "object"
+        ? {
+            title: String(data.biggest_risk_lever?.title || ""),
+            reason: String(data.biggest_risk_lever?.reason || ""),
+          }
+        : null,
+    highest_roi_change:
+      data?.highest_roi_change && typeof data.highest_roi_change === "object"
+        ? {
+            title: String(data.highest_roi_change?.title || ""),
+            why: String(data.highest_roi_change?.why || ""),
+            how: String(data.highest_roi_change?.how || ""),
+          }
+        : null,
+    projection_7d:
+      data?.projection_7d && typeof data.projection_7d === "object"
+        ? {
+            if_unchanged: String(data.projection_7d?.if_unchanged || ""),
+            if_improved: String(data.projection_7d?.if_improved || ""),
+          }
+        : null,
+    if_you_do_one_thing: String(data?.if_you_do_one_thing || ""),
+    predictive_signals:
+      data?.predictive_signals && typeof data.predictive_signals === "object"
+        ? {
+            days_with_data_7d: Math.max(0, Math.round(num(data.predictive_signals?.days_with_data_7d))),
+            scans_7d: Math.max(0, Math.round(num(data.predictive_signals?.scans_7d))),
+            projection_confidence_band: String(data.predictive_signals?.projection_confidence_band || ""),
+            missing_data_reason: String(data.predictive_signals?.missing_data_reason || ""),
+            fat_loss_probability_7d: Math.max(0, Math.min(1, num(data.predictive_signals?.fat_loss_probability_7d))),
+            projection_7d_score: clampPct(num(data.predictive_signals?.projection_7d_score)),
+          }
+        : null,
+    diagnosis: Array.isArray(data?.diagnosis) ? data.diagnosis : [],
+    tomorrow_focus: Array.isArray(data?.tomorrow_focus) ? data.tomorrow_focus : [],
+    actions: Array.isArray(data?.actions) ? data.actions.slice(0, 2) : [],
+    risk_alerts: Array.isArray(data?.risk_alerts) ? data.risk_alerts : [],
+    disclaimer: String(data?.disclaimer || "Informational only."),
+    reasoning_source: String(data?.reasoning_source || ""),
+    last_processed_scan_id: String(data?.last_processed_scan_id || data?.latest_scan_id || "").trim(),
+    last_processed_scan_ts: String(data?.last_processed_scan_ts || data?.latest_scan_ts || "").trim(),
+    updatedAt: String(data?.updatedAt || data?.updated_at || ""),
+    coach_generated_ts: String(data?.coach_generated_ts || data?.updatedAt || data?.updated_at || ""),
+    payload_hash_used: String(data?.payload_hash_used || ""),
+    meals_count_today: Math.max(0, Math.round(num(data?.meals_count_today))),
+  };
+}
+function normalizeCoachVoice(raw) {
+  const data = raw && typeof raw === "object" ? raw : {};
+  const action = data?.one_action && typeof data.one_action === "object" ? data.one_action : {};
+  const steps = Array.isArray(action?.steps) ? action.steps.map((x) => String(x || "").trim()).filter(Boolean) : [];
+  return {
+    coach_generated_ts: String(data?.coach_generated_ts || ""),
+    tone_tag: String(data?.tone_tag || "neutral").toLowerCase(),
+    empathy_line: String(data?.empathy_line || "").trim(),
+    insight_line: String(data?.insight_line || "").trim(),
+    one_action: {
+      title: String(action?.title || "").trim(),
+      steps: steps.slice(0, 3),
+    },
+    why_this_action: String(data?.why_this_action || "").trim(),
+    advice_key: String(data?.advice_key || "").trim(),
+    safety_disclaimer: String(data?.safety_disclaimer || "Informational only.").trim(),
+  };
+}
+function normalizeWeeklyReport(raw) {
+  const data = raw && typeof raw === "object" ? raw : {};
+  return {
+    week_start: String(data?.week_start || ""),
+    week_end: String(data?.week_end || ""),
+    resilience_score: clampPct(num(data?.resilience_score)),
+    risk_score: clampPct(num(data?.risk_score)),
+    confidence_band: String(data?.confidence_band || "medium").toLowerCase(),
+    top_risks: Array.isArray(data?.top_risks) ? data.top_risks : [],
+    top_wins: Array.isArray(data?.top_wins) ? data.top_wins : [],
+    next_week_plan: Array.isArray(data?.next_week_plan) ? data.next_week_plan : [],
+    report_card_facts: data?.report_card_facts && typeof data.report_card_facts === "object" ? data.report_card_facts : {},
+    data_quality: data?.data_quality && typeof data.data_quality === "object" ? data.data_quality : {},
+    disclaimer: String(data?.disclaimer || "Informational only."),
+  };
+}
+function isCoachStaleForScan(coachPayload, latestScanId) {
+  const latest = String(latestScanId || "").trim();
+  if (!latest) return false;
+  const processed = String(coachPayload?.last_processed_scan_id || "").trim();
+  if (!processed) return true;
+  return processed !== latest;
+}
+function buildCoachStateSignature(payload) {
+  const p = payload || {};
+  const goals = p.goals || {};
+  const consumed = p.consumed || {};
+  const signals = p.signals || {};
+  const timing = p.meal_timing || {};
+  const profile = p.profile || {};
+  const seed = {
+    day: String(p.date || ""),
+    goals: {
+      kcal: round1(goals.kcal),
+      protein_g: round1(goals.protein_g),
+      carbs_g: round1(goals.carbs_g),
+      fat_g: round1(goals.fat_g),
+      fiber_g: round1(goals.fiber_g),
+    },
+    consumed: {
+      kcal: round1(consumed.kcal),
+      protein_g: round1(consumed.protein_g),
+      carbs_g: round1(consumed.carbs_g),
+      fat_g: round1(consumed.fat_g),
+      fiber_g: round1(consumed.fiber_g),
+    },
+    signals: {
+      avg_satiety: round1(signals.avg_satiety),
+      avg_glycemic_load: round1(signals.avg_glycemic_load),
+      ultra_processed_avg: round1(signals.ultra_processed_avg),
+      leucine_hit: Math.round(num(signals?.leucine_triggers?.hit)),
+      leucine_target: Math.round(num(signals?.leucine_triggers?.target)),
+    },
+    timing: {
+      late_calories_pct: round1(timing.late_calories_pct),
+      biggest_meal: String(timing.biggest_meal || ""),
+    },
+    profile: {
+      goal_type: String(profile.goal_type || ""),
+      training_days_per_week: Math.round(num(profile.training_days_per_week)),
+      training_time: String(profile.training_time || ""),
+    },
+  };
+  return hashString(JSON.stringify(seed));
+}
+function waitMs(ms) {
+  return new Promise((resolve) => setTimeout(resolve, Math.max(0, Math.round(num(ms) || 0))));
+}
+function logFliEvent(name, payload) {
+  try {
+    console.log(`[fli] ${String(name || "event")}`, JSON.stringify(payload || {}));
+  } catch {
+    console.log(`[fli] ${String(name || "event")}`);
+  }
+}
 function errorToMessage(detail, fallbackStatus) {
   if (detail == null) return `HTTP ${fallbackStatus}`;
   if (typeof detail === "string") return detail;
@@ -495,6 +741,7 @@ function Meter({ label, value, max = 100, help, locked, lockedText }) {
 export default function App() {
   // ===== Auth (Supabase) =====
   const [session, setSession] = useState(null);
+  const redirectUri = AuthSession.makeRedirectUri({ scheme: "calorieclickai", path: "auth-callback" });
   const [authEmail, setAuthEmail] = useState("");
   const [authPass, setAuthPass] = useState("");
   const [authBusy, setAuthBusy] = useState(false);
@@ -515,20 +762,31 @@ export default function App() {
   const [goalsModal, setGoalsModal] = useState(false);
   const [goalsBusy, setGoalsBusy] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [rerunBusy, setRerunBusy] = useState(false);
 
   // ===== History (isolated by user id) =====
   const [history, setHistory] = useState([]);
   const [coachDaily, setCoachDaily] = useState(null);
+  const [coachVoice, setCoachVoice] = useState(null);
+  const [coachVoiceBusy, setCoachVoiceBusy] = useState(false);
   const [coachTrend, setCoachTrend] = useState([]);
   const [coachLastPayload, setCoachLastPayload] = useState(null);
+  const [weeklyReport, setWeeklyReport] = useState(null);
+  const [weeklyReportBusy, setWeeklyReportBusy] = useState(false);
   const [coachBusy, setCoachBusy] = useState(false);
+  const [fliSyncing, setFliSyncing] = useState(false);
+  const [fliPending, setFliPending] = useState(false);
   const [coachErr, setCoachErr] = useState("");
+  const [showCoachDebug, setShowCoachDebug] = useState(false);
+  const [latestScanMeta, setLatestScanMeta] = useState({ id: "", ts: "" });
   const [showCoachDetails, setShowCoachDetails] = useState(false);
   const [coachProfile, setCoachProfile] = useState(DEFAULT_COACH_PROFILE);
   const [coachProfileDraft, setCoachProfileDraft] = useState(DEFAULT_COACH_PROFILE);
   const [coachProfileReady, setCoachProfileReady] = useState(false);
   const [coachProfileModal, setCoachProfileModal] = useState(false);
   const coachReqRef = useRef(false);
+  const coachRefreshTimerRef = useRef(null);
+  const coachTitleTapRef = useRef({ count: 0, lastTs: 0 });
 
   // ===== Camera Modal =====
   const [camOpen, setCamOpen] = useState(false);
@@ -623,6 +881,16 @@ export default function App() {
     } catch {}
   }, []);
 
+  useEffect(
+    () => () => {
+      if (coachRefreshTimerRef.current) {
+        clearTimeout(coachRefreshTimerRef.current);
+        coachRefreshTimerRef.current = null;
+      }
+    },
+    []
+  );
+
   useEffect(() => {
     let cancelled = false;
     let unsub = null;
@@ -660,9 +928,15 @@ export default function App() {
     setDailySummary(null);
     setHistory([]);
     setCoachDaily(null);
+    setCoachVoice(null);
     setCoachTrend([]);
     setCoachLastPayload(null);
+    setWeeklyReport(null);
+    setFliSyncing(false);
+    setFliPending(false);
     setCoachErr("");
+    setShowCoachDebug(false);
+    setLatestScanMeta({ id: "", ts: "" });
     setCoachProfile(DEFAULT_COACH_PROFILE);
     setCoachProfileDraft(DEFAULT_COACH_PROFILE);
     setCoachProfileReady(false);
@@ -670,6 +944,11 @@ export default function App() {
     setBarcodeManual("");
     setBarcodeOpen(false);
     setCamOpen(false);
+    setRerunBusy(false);
+    if (coachRefreshTimerRef.current) {
+      clearTimeout(coachRefreshTimerRef.current);
+      coachRefreshTimerRef.current = null;
+    }
     if (!userId) {
       setGoals(null);
       setGoalsDraft(DEFAULT_GOALS);
@@ -683,6 +962,7 @@ export default function App() {
     ensureGoals();
     fetchDailySummary();
     loadHistory();
+    void flushCoachFeedbackQueue(userId);
   }, [userId]);
 
   async function refreshUsage() {
@@ -703,6 +983,68 @@ export default function App() {
     } catch {
       setHistory([]);
     }
+  }
+
+  async function enqueueCoachFeedback(uid, body) {
+    if (!uid || !body) return;
+    const key = coachFeedbackQueueKey(uid);
+    try {
+      const raw = await AsyncStorage.getItem(key);
+      const arr = raw ? JSON.parse(raw) : [];
+      const queue = Array.isArray(arr) ? arr : [];
+      queue.push({
+        payload: body,
+        attempts: 0,
+        queued_at: nowISO(),
+      });
+      await AsyncStorage.setItem(key, JSON.stringify(queue.slice(-30)));
+    } catch (e) {
+      console.log("feedback queue write failed", String(e));
+    }
+  }
+
+  async function flushCoachFeedbackQueue(uid) {
+    if (!uid) return;
+    const key = coachFeedbackQueueKey(uid);
+    let queue = [];
+    try {
+      const raw = await AsyncStorage.getItem(key);
+      queue = raw ? JSON.parse(raw) : [];
+      queue = Array.isArray(queue) ? queue : [];
+    } catch {
+      queue = [];
+    }
+    if (!queue.length) return;
+
+    const remaining = [];
+    for (const row of queue) {
+      const payload = row?.payload && typeof row.payload === "object" ? row.payload : null;
+      if (!payload) continue;
+      try {
+        const res = await fetch(withTimezoneQuery(`${API_BASE}/coach/memory/feedback`), {
+          method: "POST",
+          headers: { "Content-Type": "application/json", accept: "application/json" },
+          body: JSON.stringify(payload),
+        });
+        await safeJson(res);
+      } catch (e) {
+        const attempts = Math.max(0, Math.round(num(row?.attempts)));
+        if (attempts < 1) {
+          remaining.push({
+            payload,
+            attempts: attempts + 1,
+            queued_at: row?.queued_at || nowISO(),
+          });
+        }
+      }
+    }
+    try {
+      if (remaining.length) {
+        await AsyncStorage.setItem(key, JSON.stringify(remaining));
+      } else {
+        await AsyncStorage.removeItem(key);
+      }
+    } catch {}
   }
 
   async function pushHistory(entry) {
@@ -820,6 +1162,17 @@ export default function App() {
     }
   }
 
+  function onCoachTitleTap() {
+    const now = Date.now();
+    const prev = coachTitleTapRef.current || { count: 0, lastTs: 0 };
+    const nextCount = now - Number(prev.lastTs || 0) > 1700 ? 1 : Number(prev.count || 0) + 1;
+    coachTitleTapRef.current = { count: nextCount, lastTs: now };
+    if (nextCount >= 7) {
+      coachTitleTapRef.current = { count: 0, lastTs: now };
+      setShowCoachDebug((v) => !v);
+    }
+  }
+
   function getTodayPhotoMeals() {
     const today = localDayISO();
     return (history || [])
@@ -927,22 +1280,271 @@ export default function App() {
     };
   }
 
-  async function ensureDailyCoach(force = false) {
+  function localWeekStartISO(dayIso = localDayISO()) {
+    try {
+      const d = new Date(`${String(dayIso)}T00:00:00`);
+      if (!Number.isFinite(d.getTime())) return String(dayIso);
+      const wd = (d.getDay() + 6) % 7; // Monday=0
+      d.setDate(d.getDate() - wd);
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, "0");
+      const day = String(d.getDate()).padStart(2, "0");
+      return `${y}-${m}-${day}`;
+    } catch {
+      return String(dayIso);
+    }
+  }
+
+  async function loadRecentCoachVoiceMessages(uid, dayIso) {
+    try {
+      const raw = await AsyncStorage.getItem(coachVoiceMemoryKey(uid, dayIso));
+      if (!raw) return [];
+      const arr = JSON.parse(raw);
+      if (!Array.isArray(arr)) return [];
+      return arr
+        .map((x) => ({
+          advice_key: String(x?.advice_key || "").trim(),
+          ts: String(x?.ts || "").trim(),
+          summary: String(x?.summary || "").trim().slice(0, 180),
+        }))
+        .filter((x) => x.advice_key)
+        .slice(0, 6);
+    } catch {
+      return [];
+    }
+  }
+
+  async function rememberCoachVoiceMessage(uid, dayIso, voiceObj) {
+    try {
+      const cur = await loadRecentCoachVoiceMessages(uid, dayIso);
+      const msg = {
+        advice_key: String(voiceObj?.advice_key || "").trim(),
+        ts: String(voiceObj?.coach_generated_ts || nowISO()),
+        summary: `${String(voiceObj?.empathy_line || "")} ${String(voiceObj?.insight_line || "")}`.trim().slice(0, 180),
+      };
+      if (!msg.advice_key) return;
+      const merged = [msg, ...cur.filter((x) => x.advice_key !== msg.advice_key)].slice(0, 6);
+      await AsyncStorage.setItem(coachVoiceMemoryKey(uid, dayIso), JSON.stringify(merged));
+    } catch {}
+  }
+
+  function getTodayVoiceMeals(latestResult = null) {
+    const today = localDayISO();
+    const rows = (history || [])
+      .filter((h) => (h?.kind || "") === "photo" && localDayFromISO(h?.ts) === today)
+      .map((h) => ({
+        meal_id: String(h?.analysis_id || h?.ts || ""),
+        ts: String(h?.ts || ""),
+        label: String((h?.items?.[0]?.name || h?.items?.[0]?.item || "meal") || "meal"),
+        kcal: round1(num(h?.totals?.kcal ?? h?.totals?.total_kcal ?? h?.total_kcal)),
+        protein_g: round1(num(h?.totals?.protein_g)),
+        carbs_g: round1(num(h?.totals?.carbs_g)),
+        fat_g: round1(num(h?.totals?.fat_g)),
+        confidence: Math.max(0, Math.min(1, num(h?.vision_confidence))),
+        notes: String(h?.items?.map?.((x) => x?.name || x?.item || "").filter(Boolean).slice(0, 3).join(", ") || ""),
+      }));
+
+    const latest = latestResult && typeof latestResult === "object" ? latestResult : null;
+    if (latest?.analysis_id) {
+      const latestMeal = {
+        meal_id: String(latest.analysis_id),
+        ts: nowISO(),
+        label: String((latest?.items?.[0]?.name || latest?.items?.[0]?.item || "meal") || "meal"),
+        kcal: round1(num(latest?.totals?.kcal ?? latest?.totals?.total_kcal ?? latest?.total_kcal)),
+        protein_g: round1(num(latest?.totals?.protein_g)),
+        carbs_g: round1(num(latest?.totals?.carbs_g)),
+        fat_g: round1(num(latest?.totals?.fat_g)),
+        confidence: Math.max(0, Math.min(1, num(latest?.vision_confidence))),
+        notes: String(latest?.items?.map?.((x) => x?.name || x?.item || "").filter(Boolean).slice(0, 3).join(", ") || ""),
+      };
+      const exists = rows.some((m) => String(m.meal_id) === String(latestMeal.meal_id));
+      if (!exists) rows.push(latestMeal);
+    }
+    return rows.slice(-10);
+  }
+
+  async function fetchCoachVoice(latestResult = null, force = false) {
+    const uid = userId || session?.user?.id;
+    if (!uid || !canCoaching) return;
+    const base = buildDailyCoachPayload();
+    const day = String(base?.date || localDayISO());
+    const payloadHash = hashString(
+      JSON.stringify({
+        goals: base?.goals || {},
+        consumed: base?.consumed || {},
+        meals: getTodayVoiceMeals(latestResult),
+        tone: coachProfile?.tone_preference || "supportive",
+      })
+    );
+    if (!force && coachVoice?.advice_key && String(coachVoice?.coach_generated_ts || "").startsWith(day)) {
+      return;
+    }
+    const recentMessages = await loadRecentCoachVoiceMessages(uid, day);
+    const requestBody = {
+      user_id: uid,
+      day,
+      payload_hash: payloadHash,
+      goals: base?.goals || {},
+      consumed: base?.consumed || {},
+      meals: getTodayVoiceMeals(latestResult),
+      recent_messages: recentMessages,
+      user_profile: {
+        goal_type: coachProfile?.goal_type || "fat_loss",
+        diet_style: coachProfile?.diet_style || "non-veg",
+        training_days_per_week: Math.round(num(coachProfile?.training_days_per_week)),
+        training_time: coachProfile?.training_time || "evening",
+      },
+      tone_preference: coachProfile?.tone_preference || "supportive",
+    };
+    setCoachVoiceBusy(true);
+    try {
+      const url = withTimezoneQuery(`${API_BASE}/coach/voice`);
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", accept: "application/json" },
+        body: JSON.stringify(requestBody),
+      });
+      const data = await safeJson(res);
+      const cleaned = normalizeCoachVoice(data);
+      setCoachVoice(cleaned);
+      await rememberCoachVoiceMessage(uid, day, cleaned);
+    } catch (e) {
+      console.log("coach voice fetch failed", String(e));
+    } finally {
+      setCoachVoiceBusy(false);
+    }
+  }
+
+  async function sendCoachFeedback(feedbackType, corrections = {}) {
+    const uid = userId || session?.user?.id;
+    if (!uid || !result?.analysis_id) return;
+    const items = Array.isArray(result?.items) ? result.items : [];
+    const itemFromPatchId = String(corrections?.item_id || "").trim();
+    const firstItem =
+      items.find((it) => String(it?.item_id || "").trim() === itemFromPatchId) ||
+      items.find((it) => String(it?.name || "").trim()) ||
+      null;
+    const itemName = String(corrections?.item_name || firstItem?.name || "").trim();
+    const itemId = String(corrections?.item_id || firstItem?.item_id || "").trim();
+    const foodKey = String(corrections?.food_key || itemName)
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "_")
+      .replace(/^_+|_+$/g, "")
+      .slice(0, 64);
+    const confirmedItems = items
+      .map((it) => ({ name: String(it?.name || it?.item || "").trim(), grams: round1(num(it?.grams)) }))
+      .filter((x) => x.name)
+      .slice(0, 5);
+    const body = {
+      user_id: uid,
+      analysis_id: String(result?.analysis_id || ""),
+      meal_id: String(result?.analysis_id || ""),
+      feedback_type: String(feedbackType || "overall"),
+      rating: 4,
+      free_text: "",
+      corrections: {
+        item_id: itemId,
+        item_name: itemName,
+        food_key: foodKey,
+        cooking_method: String(corrections?.cooking_method || ""),
+        oil_added_tsp:
+          corrections?.oil_added_tsp == null || corrections?.oil_added_tsp === ""
+            ? null
+            : num(corrections?.oil_added_tsp),
+        portion_multiplier:
+          corrections?.portion_multiplier == null || corrections?.portion_multiplier === ""
+            ? null
+            : num(corrections?.portion_multiplier),
+        confirmed_items: confirmedItems,
+      },
+    };
+    try {
+      const res = await fetch(withTimezoneQuery(`${API_BASE}/coach/memory/feedback`), {
+        method: "POST",
+        headers: { "Content-Type": "application/json", accept: "application/json" },
+        body: JSON.stringify(body),
+      });
+      await safeJson(res);
+      void flushCoachFeedbackQueue(uid);
+    } catch (e) {
+      console.log("coach feedback failed", String(e));
+      await enqueueCoachFeedback(uid, body);
+    }
+  }
+
+  async function fetchWeeklyReport(force = false) {
+    const uid = userId || session?.user?.id;
+    if (!uid || !canCoaching) return;
+    if (weeklyReport && !force) return;
+    setWeeklyReportBusy(true);
+    try {
+      const body = {
+        user_id: uid,
+        week_start: localWeekStartISO(localDayISO()),
+        tone_preference: coachProfile?.tone_preference || "supportive",
+        training_days_per_week: Math.round(num(coachProfile?.training_days_per_week)),
+      };
+      const res = await fetch(withTimezoneQuery(`${API_BASE}/coach/weekly_report`), {
+        method: "POST",
+        headers: { "Content-Type": "application/json", accept: "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await safeJson(res);
+      setWeeklyReport(normalizeWeeklyReport(data));
+    } catch (e) {
+      console.log("weekly report fetch failed", String(e));
+    } finally {
+      setWeeklyReportBusy(false);
+    }
+  }
+
+  async function shareWeeklyReportCard() {
+    if (!weeklyReport) return;
+    const facts = weeklyReport?.report_card_facts || {};
+    const msg = [
+      `CalorieClick Weekly Report (${weeklyReport?.week_start} to ${weeklyReport?.week_end})`,
+      `Resilience: ${Math.round(num(weeklyReport?.resilience_score))}/100`,
+      `Risk: ${Math.round(num(weeklyReport?.risk_score))}/100`,
+      `Confidence: ${String(weeklyReport?.confidence_band || "medium")}`,
+      `Avg protein: ${round1(num(facts?.avg_protein_g))}g`,
+      `Avg UPF: ${round1(num(facts?.avg_upf_score))}/10`,
+      `Late calories: ${round1(num(facts?.late_calories_pct))}%`,
+      `${String(weeklyReport?.disclaimer || "Informational only.")}`,
+    ].join("\n");
+    try {
+      await Share.share({ message: msg });
+    } catch (e) {
+      console.log("share weekly report failed", String(e));
+    }
+  }
+
+  async function ensureDailyCoach(force = false, opts = {}) {
     const uid = userId || session?.user?.id;
     if (!uid || !coachProfileReady) return;
 
     const payload = buildDailyCoachPayload();
     setCoachLastPayload(payload || null);
+    const day = String(payload?.date || localDayISO());
+    const requestedLatestScanId = String(opts?.latestScanId || latestScanMeta?.id || "").trim();
+    const requestedLatestScanTs = String(opts?.latestScanTs || latestScanMeta?.ts || "").trim();
+    const pollForLatest = Boolean(opts?.pollForLatest && requestedLatestScanId);
+    const refreshServer = Boolean(opts?.refreshServer ?? force);
+    const fastMode = opts?.fastMode !== false;
+    const trigger = String(opts?.trigger || (force ? "manual" : "auto"));
+
     if (!payload || num(payload?.consumed?.kcal) <= 0) {
-      const dayKey = localDayISO();
+      setFliSyncing(false);
+      setFliPending(false);
       try {
-        const raw = await AsyncStorage.getItem(dailyCoachKey(uid, dayKey));
+        const raw = await AsyncStorage.getItem(dailyCoachKey(uid, day));
         if (raw) {
           const parsed = JSON.parse(raw);
-          const cachedResp = parsed?.response || parsed;
+          const cachedResp = normalizeCoachDaily(parsed?.response || parsed, day);
           if (cachedResp && typeof cachedResp === "object") {
             setCoachDaily(cachedResp);
             setCoachErr("");
+            setFliPending(false);
             await loadCoachTrend(uid);
             return;
           }
@@ -950,23 +1552,39 @@ export default function App() {
       } catch {}
       setCoachDaily(null);
       setCoachErr("");
+      setFliPending(false);
       return;
     }
-    const day = payload.date || localDayISO();
+
     const cacheKey = dailyCoachKey(uid, day);
     const payloadHash = hashString(JSON.stringify(payload));
+    const stateSignature = buildCoachStateSignature(payload);
 
     if (!force) {
       try {
         const raw = await AsyncStorage.getItem(cacheKey);
         if (raw) {
           const parsed = JSON.parse(raw);
-          const cachedResp = parsed?.response || parsed;
-          if (cachedResp && typeof cachedResp === "object") {
+          const cachedPayloadHash = String(parsed?.payloadHash || "");
+          const cachedResp = normalizeCoachDaily(parsed?.response || parsed, day);
+          if (
+            cachedResp &&
+            typeof cachedResp === "object" &&
+            cachedPayloadHash === payloadHash &&
+            !isCoachStaleForScan(cachedResp, requestedLatestScanId)
+          ) {
             setCoachDaily(cachedResp);
             setCoachErr("");
+            setFliPending(false);
             await loadCoachTrend(uid);
             return;
+          }
+          if (isCoachStaleForScan(cachedResp, requestedLatestScanId)) {
+            logFliEvent("fli_stale_detected", {
+              trigger: "cache",
+              latest_scan_id: requestedLatestScanId,
+              last_processed_scan_id: String(cachedResp?.last_processed_scan_id || ""),
+            });
           }
         }
       } catch {}
@@ -975,74 +1593,99 @@ export default function App() {
     if (coachReqRef.current) return;
     coachReqRef.current = true;
     setCoachBusy(true);
+    if (pollForLatest) setFliSyncing(true);
     if (force) setCoachErr("");
-    try {
-      const refreshParam = force ? "&refresh=1" : "";
-      const url = withTimezoneQuery(`${API_BASE}/coach/daily?user_id=${encodeURIComponent(uid)}${refreshParam}`);
+
+    const fetchCoachOnce = async (refreshFlag = false, pollAttempt = 0) => {
+      const params = [`user_id=${encodeURIComponent(uid)}`];
+      if (refreshFlag) params.push("refresh=1");
+      if (fastMode) params.push("fast=1");
+      if (requestedLatestScanId) params.push(`latest_scan_id=${encodeURIComponent(requestedLatestScanId)}`);
+      if (requestedLatestScanTs) params.push(`latest_scan_ts=${encodeURIComponent(requestedLatestScanTs)}`);
+      if (stateSignature) params.push(`state_signature=${encodeURIComponent(stateSignature)}`);
+      const url = withTimezoneQuery(`${API_BASE}/coach/daily?${params.join("&")}`);
       const res = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json", accept: "application/json" },
         body: JSON.stringify(payload),
       });
       const data = await safeJson(res);
-      const cleaned = {
-        date: String(data?.date || day),
-        fat_loss_score: Math.round(num(data?.fat_loss_score)),
-        one_sentence_summary: String(data?.one_sentence_summary || ""),
-        pattern_detected: String(data?.pattern_detected || ""),
-        projection_explained: String(data?.projection_explained || ""),
-        biggest_risk_lever:
-          data?.biggest_risk_lever && typeof data.biggest_risk_lever === "object"
-            ? {
-                title: String(data.biggest_risk_lever?.title || ""),
-                reason: String(data.biggest_risk_lever?.reason || ""),
-              }
-            : null,
-        highest_roi_change:
-          data?.highest_roi_change && typeof data.highest_roi_change === "object"
-            ? {
-                title: String(data.highest_roi_change?.title || ""),
-                why: String(data.highest_roi_change?.why || ""),
-                how: String(data.highest_roi_change?.how || ""),
-              }
-            : null,
-        projection_7d:
-          data?.projection_7d && typeof data.projection_7d === "object"
-            ? {
-                if_unchanged: String(data.projection_7d?.if_unchanged || ""),
-                if_improved: String(data.projection_7d?.if_improved || ""),
-              }
-            : null,
-        if_you_do_one_thing: String(data?.if_you_do_one_thing || ""),
-        predictive_signals:
-          data?.predictive_signals && typeof data.predictive_signals === "object"
-            ? {
-                days_with_data_7d: Math.max(0, Math.round(num(data.predictive_signals?.days_with_data_7d))),
-                scans_7d: Math.max(0, Math.round(num(data.predictive_signals?.scans_7d))),
-                projection_confidence_band: String(data.predictive_signals?.projection_confidence_band || ""),
-                missing_data_reason: String(data.predictive_signals?.missing_data_reason || ""),
-                fat_loss_probability_7d: Math.max(0, Math.min(1, num(data.predictive_signals?.fat_loss_probability_7d))),
-                projection_7d_score: clampPct(num(data.predictive_signals?.projection_7d_score)),
-              }
-            : null,
-        diagnosis: Array.isArray(data?.diagnosis) ? data.diagnosis.slice(0, 2) : [],
-        tomorrow_focus: Array.isArray(data?.tomorrow_focus) ? data.tomorrow_focus.slice(0, 2) : [],
-        actions: Array.isArray(data?.actions) ? data.actions.slice(0, 2) : [],
-        risk_alerts: Array.isArray(data?.risk_alerts) ? data.risk_alerts : [],
-        disclaimer: String(data?.disclaimer || "Informational only."),
-        reasoning_source: String(data?.reasoning_source || ""),
-      };
+      const cleaned = normalizeCoachDaily(data, day);
+      logFliEvent("fli_fetch", {
+        trigger,
+        poll_attempt: pollAttempt,
+        updatedAt: cleaned?.updatedAt || "",
+        coach_generated_ts: cleaned?.coach_generated_ts || "",
+        payload_hash_used: cleaned?.payload_hash_used || "",
+        meals_count_today: cleaned?.meals_count_today ?? null,
+        last_processed_scan_id: cleaned?.last_processed_scan_id || "",
+      });
+      return cleaned;
+    };
+
+    const autoRefreshStarted = Date.now();
+    let autoRefreshAttemptCount = 0;
+    try {
+      let cleaned = await fetchCoachOnce(refreshServer, 0);
+      let stale = isCoachStaleForScan(cleaned, requestedLatestScanId);
+      if (stale) {
+        logFliEvent("fli_stale_detected", {
+          trigger,
+          latest_scan_id: requestedLatestScanId,
+          last_processed_scan_id: String(cleaned?.last_processed_scan_id || ""),
+        });
+      }
+
+      if (stale && pollForLatest) {
+        const maxPollAttempts = 10;
+        for (let attempt = 1; attempt <= maxPollAttempts; attempt += 1) {
+          autoRefreshAttemptCount = attempt;
+          await waitMs(1200);
+          cleaned = await fetchCoachOnce(true, attempt);
+          stale = isCoachStaleForScan(cleaned, requestedLatestScanId);
+          if (!stale) break;
+        }
+        logFliEvent("fli_auto_refreshed", {
+          trigger,
+          success: !stale,
+          duration_ms: Date.now() - autoRefreshStarted,
+          attempts: autoRefreshAttemptCount,
+        });
+      }
+
       setCoachDaily(cleaned);
       setCoachErr("");
-      await AsyncStorage.setItem(cacheKey, JSON.stringify({ payloadHash, ts: nowISO(), payload, response: cleaned }));
+      setFliPending(false);
+      await AsyncStorage.setItem(
+        cacheKey,
+        JSON.stringify({
+          payloadHash,
+          stateSignature,
+          latestScanId: requestedLatestScanId,
+          ts: nowISO(),
+          payload,
+          response: cleaned,
+        })
+      );
       await loadCoachTrend(uid);
     } catch (e) {
-      setCoachErr(String(e).slice(0, 200));
+      const errMsg = String(e).slice(0, 200);
+      setCoachErr(errMsg);
+      setFliPending(false);
+      if (pollForLatest) {
+        logFliEvent("fli_auto_refreshed", {
+          trigger,
+          success: false,
+          duration_ms: Date.now() - autoRefreshStarted,
+          attempts: autoRefreshAttemptCount,
+          error: errMsg,
+        });
+      }
       try {
         const raw = await AsyncStorage.getItem(cacheKey);
         if (raw) {
           const parsed = JSON.parse(raw);
-          const cachedResp = parsed?.response || parsed;
+          const cachedResp = normalizeCoachDaily(parsed?.response || parsed, day);
           if (cachedResp && typeof cachedResp === "object") {
             setCoachDaily(cachedResp);
             await loadCoachTrend(uid);
@@ -1052,7 +1695,22 @@ export default function App() {
     } finally {
       coachReqRef.current = false;
       setCoachBusy(false);
+      setFliSyncing(false);
+      setFliPending(false);
     }
+  }
+
+  function scheduleDailyCoachRefresh(opts = {}) {
+    if (coachRefreshTimerRef.current) {
+      clearTimeout(coachRefreshTimerRef.current);
+      coachRefreshTimerRef.current = null;
+    }
+    const safeOpts = opts && typeof opts === "object" ? opts : {};
+    setFliPending(true);
+    coachRefreshTimerRef.current = setTimeout(() => {
+      coachRefreshTimerRef.current = null;
+      void ensureDailyCoach(true, safeOpts);
+    }, 600);
   }
 
   useEffect(() => {
@@ -1075,10 +1733,16 @@ export default function App() {
     if (!userId || !coachProfileReady) return;
     if (!canCoaching) {
       setCoachDaily(null);
+      setCoachVoice(null);
+      setWeeklyReport(null);
+      setFliSyncing(false);
+      setFliPending(false);
       setCoachErr("");
       return;
     }
-    ensureDailyCoach(false);
+    void ensureDailyCoach(false);
+    void fetchCoachVoice(null, false);
+    void fetchWeeklyReport(false);
   }, [userId, coachProfileReady, goals, dailySummary, history, coachProfile, canCoaching]);
 
   async function applyCoachProfile() {
@@ -1086,7 +1750,7 @@ export default function App() {
     const normalized = normalizeCoachProfile(coachProfileDraft);
     await saveCoachProfile(uid, normalized);
     setCoachProfileModal(false);
-    await ensureDailyCoach(true);
+    await ensureDailyCoach(true, { refreshServer: true, fastMode: true, trigger: "profile_update" });
   }
 
   function clearCurrentScan() {
@@ -1250,9 +1914,14 @@ export default function App() {
     setDailySummary(null);
     setHistory([]);
     setCoachDaily(null);
+    setCoachVoice(null);
     setCoachTrend([]);
     setCoachLastPayload(null);
+    setWeeklyReport(null);
+    setFliSyncing(false);
+    setFliPending(false);
     setCoachErr("");
+    setShowCoachDebug(false);
     setCoachProfile(DEFAULT_COACH_PROFILE);
     setCoachProfileDraft(DEFAULT_COACH_PROFILE);
     setCoachProfileReady(false);
@@ -1263,9 +1932,14 @@ export default function App() {
     setBarcodeManual("");
     setBarcodeOpen(false);
     setCamOpen(false);
+    setRerunBusy(false);
+    if (coachRefreshTimerRef.current) {
+      clearTimeout(coachRefreshTimerRef.current);
+      coachRefreshTimerRef.current = null;
+    }
   }
 
-  async function signInWithOAuthProvider(provider, providerLabel) {
+  async function signInWithOAuthProvider(provider, failTitle) {
     if (!HAS_SUPABASE) {
       Alert.alert("Missing Supabase env", "Set EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY");
       return;
@@ -1274,13 +1948,13 @@ export default function App() {
     setAuthBusy(true);
     try {
       if (typeof supabase?.auth?.signInWithOAuth !== "function") {
-        throw new Error(`${providerLabel} OAuth is unavailable in this app build.`);
+        throw new Error("OAuth login is unavailable in this app build.");
       }
       if (typeof WebBrowser.openAuthSessionAsync !== "function") {
         throw new Error("Auth browser helper is unavailable.");
       }
 
-      const redirectTo = OAUTH_REDIRECT_TO?.trim() || "calorieclickai://auth-callback";
+      const redirectTo = OAUTH_REDIRECT_TO?.trim() || redirectUri;
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider,
         options: {
@@ -1317,22 +1991,21 @@ export default function App() {
         return;
       }
 
-      throw new Error(`${providerLabel} callback did not include a valid auth session.`);
+      throw new Error("OAuth callback did not include a valid auth session.");
     } catch (e) {
-      console.log(`${providerLabel} login error:`, e);
-      Alert.alert(`${providerLabel} login failed`, String(e?.message || e));
+      console.log(`${String(provider || "oauth")} login error:`, e);
+      Alert.alert(failTitle, String(e?.message || e));
     } finally {
       setAuthBusy(false);
     }
   }
 
-  // ===== OAuth =====
   async function signInWithGoogle() {
-    await signInWithOAuthProvider("google", "Google");
+    await signInWithOAuthProvider("google", "Google login failed");
   }
 
   async function signInWithApple() {
-    await signInWithOAuthProvider("apple", "Apple");
+    await signInWithOAuthProvider("apple", "Apple login failed");
   }
 
 
@@ -1488,7 +2161,7 @@ async function openCamera() {
   }
 
 
-async function analyzePhoto() {
+  async function analyzePhoto() {
     if (!userId) return;
     if (!photoUri) {
       Alert.alert("No photo", "Take a photo first.");
@@ -1525,11 +2198,22 @@ async function analyzePhoto() {
       });
 
       const data = await safeJson(res);
-      const normalized = {
-        ...data,
-        micros: normalizeMicros(data?.micros || data?.totals?.micros),
-      };
+      const normalized = normalizeAnalyzeResult(data);
       setResult(normalized);
+      const latestScanId = String(data?.scan_id || data?.latest_scan_id || data?.analysis_id || normalized?.analysis_id || "").trim();
+      const latestScanTs = String(data?.latest_scan_ts || nowISO()).trim();
+      if (latestScanId) {
+        setLatestScanMeta({ id: latestScanId, ts: latestScanTs });
+      }
+      if (data?.fat_loss_intelligence && typeof data.fat_loss_intelligence === "object") {
+        const quickCoach = normalizeCoachDaily(data.fat_loss_intelligence, localDayISO());
+        setCoachDaily(quickCoach);
+        setCoachErr("");
+      }
+      const coachStatus = String(data?.fat_loss_intelligence_status || "").trim().toLowerCase();
+      const coachPendingNow = coachStatus === "pending";
+      setFliPending(coachPendingNow);
+      if (coachPendingNow) setFliSyncing(true);
       if (data?.daily && typeof data.daily === "object") {
         const dailyGoals = normalizeGoals(data?.daily?.goals, goals || DEFAULT_GOALS);
         setDailySummary({ ...data.daily, goals: dailyGoals });
@@ -1570,24 +2254,149 @@ async function analyzePhoto() {
       }
       await fetchDailySummary(userId);
       await refreshUsage();
+      const totalsHash = hashString(
+        JSON.stringify({
+          kcal: round1(num(normalized?.totals?.kcal ?? normalized?.totals?.total_kcal ?? normalized?.total_kcal)),
+          protein_g: round1(num(normalized?.totals?.protein_g)),
+          carbs_g: round1(num(normalized?.totals?.carbs_g)),
+          fat_g: round1(num(normalized?.totals?.fat_g)),
+          fiber_g: round1(num(normalized?.micros?.fiber_g)),
+        })
+      );
+      logFliEvent("analyze_success", {
+        scan_id: latestScanId || "",
+        scanCount: Math.round(num(data?.daily_signals?.scan_count ?? data?.daily_signals?.meals_count)),
+        totalsHash,
+      });
+      scheduleDailyCoachRefresh({
+        latestScanId,
+        latestScanTs,
+        pollForLatest: Boolean(latestScanId),
+        refreshServer: false,
+        fastMode: true,
+        trigger: "analyze",
+      });
+      void fetchCoachVoice(normalized, true);
+      void fetchWeeklyReport(true);
 
       await pushHistory({
         ts: nowISO(),
         kind: "photo",
         photo_uri: photoUri,
         total_kcal: data?.total_kcal,
+        analysis_id: data?.analysis_id || null,
         totals: data?.totals,
         micros: data?.micros || data?.totals?.micros,
         items: data?.items,
+        vision_confidence: data?.vision_confidence ?? null,
         coaching: data?.coaching || null,
         locked: data?.locked || null,
       });
       await maybeSendScanUpgradeNudge(photoScansAfterThisAnalyze);
     } catch (e) {
+      setFliPending(false);
       Alert.alert("Analyze failed", String(e).slice(0, 220));
     } finally {
       setBusy(false);
     }
+  }
+
+  async function rerunAnalyzeWithPatch(editPatch) {
+    if (!userId) return;
+    const analysisId = String(result?.analysis_id || "").trim();
+    if (!analysisId) {
+      Alert.alert("Rerun unavailable", "Analyze a meal first.");
+      return;
+    }
+
+    setRerunBusy(true);
+    try {
+      const rerunUrl = withTimezoneQuery(`${API_BASE}/analyze/rerun?user_id=${encodeURIComponent(userId)}`);
+      const res = await fetch(rerunUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", accept: "application/json" },
+        body: JSON.stringify({
+          analysis_id: analysisId,
+          edits: editPatch && typeof editPatch === "object" ? editPatch : {},
+        }),
+      });
+      const data = await safeJson(res);
+      const normalized = normalizeAnalyzeResult(data);
+      setResult(normalized);
+      const latestScanId = String(data?.scan_id || data?.latest_scan_id || data?.analysis_id || analysisId || "").trim();
+      const latestScanTs = String(data?.latest_scan_ts || nowISO()).trim();
+      if (latestScanId) {
+        setLatestScanMeta({ id: latestScanId, ts: latestScanTs });
+      }
+      if (data?.fat_loss_intelligence && typeof data.fat_loss_intelligence === "object") {
+        const quickCoach = normalizeCoachDaily(data.fat_loss_intelligence, localDayISO());
+        setCoachDaily(quickCoach);
+        setCoachErr("");
+      }
+      const coachStatus = String(data?.fat_loss_intelligence_status || "").trim().toLowerCase();
+      const coachPendingNow = coachStatus === "pending";
+      setFliPending(coachPendingNow);
+      if (coachPendingNow) setFliSyncing(true);
+
+      if (data?.daily && typeof data.daily === "object") {
+        const dailyGoals = normalizeGoals(data?.daily?.goals, goals || DEFAULT_GOALS);
+        setDailySummary({ ...data.daily, goals: dailyGoals });
+      } else {
+        await fetchDailySummary(userId);
+      }
+      await refreshUsage();
+      scheduleDailyCoachRefresh({
+        latestScanId,
+        latestScanTs,
+        pollForLatest: Boolean(latestScanId),
+        refreshServer: false,
+        fastMode: true,
+        trigger: "rerun",
+      });
+      void fetchCoachVoice(normalized, true);
+      void fetchWeeklyReport(true);
+    } catch (e) {
+      setFliPending(false);
+      Alert.alert("Rerun failed", String(e).slice(0, 220));
+    } finally {
+      setRerunBusy(false);
+    }
+  }
+
+  async function applyClarifyingAnswer(answer) {
+    const a = String(answer || "").trim();
+    if (!a) return;
+    setFliPending(true);
+    await rerunAnalyzeWithPatch({ clarifying_answer: a });
+    const lowered = a.toLowerCase();
+    let cookingMethod = "";
+    if (lowered.includes("air")) cookingMethod = "air_fried";
+    else if (lowered.includes("deep")) cookingMethod = "deep_fried";
+    else if (lowered.includes("pan") || lowered.includes("shallow")) cookingMethod = "pan_fried";
+    else if (lowered.includes("grill")) cookingMethod = "grilled";
+    else if (lowered.includes("boil")) cookingMethod = "boiled";
+    const oilGuess =
+      lowered.includes("heavy") || lowered.includes("deep")
+        ? 3
+        : lowered.includes("normal") || lowered.includes("pan")
+        ? 1.5
+        : lowered.includes("light") || lowered.includes("air")
+        ? 0.5
+        : 0;
+    void sendCoachFeedback("cooking", { cooking_method: cookingMethod, oil_added_tsp: oilGuess });
+  }
+
+  async function applyQaFix(fix) {
+    const patch = fix?.patch && typeof fix.patch === "object" ? fix.patch : null;
+    if (!patch) return;
+    setFliPending(true);
+    await rerunAnalyzeWithPatch(patch);
+    void sendCoachFeedback("overall", {
+      item_id: patch?.set_cooking_method?.item_id || patch?.set_oil_added_tsp?.item_id || patch?.swap_item?.item_id || "",
+      cooking_method: patch?.set_cooking_method?.method || "",
+      oil_added_tsp: patch?.set_oil_added_tsp?.tsp,
+      portion_multiplier: patch?.portion_multiplier,
+    });
   }
 
   // ===================== BARCODE =====================
@@ -1657,10 +2466,13 @@ async function analyzePhoto() {
             <Text style={styles.h1}>CalorieClick.ai</Text>
             <Text style={styles.p}>Log in to scan meals and track your history.</Text>
 
-            {/* Apple + Google login */}
-            <TouchableOpacity style={styles.appleBtn} onPress={signInWithApple} disabled={authBusy}>
-              {authBusy ? <ActivityIndicator /> : <Text style={styles.btnText}>Continue with Apple</Text>}
-            </TouchableOpacity>
+            {Platform.OS === "ios" ? (
+              <TouchableOpacity style={styles.appleBtn} onPress={signInWithApple} disabled={authBusy}>
+                {authBusy ? <ActivityIndicator /> : <Text style={styles.btnText}>Continue with Apple</Text>}
+              </TouchableOpacity>
+            ) : null}
+
+            {/* Google login */}
             <TouchableOpacity style={styles.googleBtn} onPress={signInWithGoogle} disabled={authBusy}>
               {authBusy ? <ActivityIndicator /> : <Text style={styles.btnText}>Continue with Google</Text>}
             </TouchableOpacity>
@@ -1715,19 +2527,8 @@ async function analyzePhoto() {
   const locked = result?.locked || null;
   const coachTone = scoreTone(coachDaily?.fat_loss_score);
   const coachIndicators = buildCoachIndicators(coachLastPayload || {});
-  const outlook = coachDaily?.predictive_signals || null;
-  const outlookProbPct = clampPct(num(outlook?.fat_loss_probability_7d) * 100);
-  const outlookDays = Math.max(0, Math.round(num(outlook?.days_with_data_7d)));
-  const outlookScans = Math.max(0, Math.round(num(outlook?.scans_7d)));
-  const outlookConf = String(outlook?.projection_confidence_band || "medium").toLowerCase();
-  const outlookConfTone =
-    outlookConf === "high"
-      ? { color: "#22c55e", bg: "#0f2a1a", border: "#1f6f43" }
-      : outlookConf === "low"
-      ? { color: "#ef4444", bg: "#2a1515", border: "#6f2c2c" }
-      : { color: "#f59e0b", bg: "#2a220f", border: "#6d5621" };
-  const outlookBarColor =
-    outlookProbPct >= 70 ? "#22c55e" : outlookProbPct >= 45 ? "#f59e0b" : "#ef4444";
+  const latestScanIdForCoach = String(latestScanMeta?.id || "").trim();
+  const coachStale = Boolean(canCoaching && latestScanIdForCoach && isCoachStaleForScan(coachDaily, latestScanIdForCoach));
 
   const subscriptionPriceText = (key) => priceByEntitlement?.[key] || (rcReady ? "Loading…" : "See App Store");
 
@@ -1778,7 +2579,9 @@ async function analyzePhoto() {
 
         <View style={styles.card}>
           <View style={styles.intelHeader}>
-            <Text style={styles.cardTitle}>Fat Loss Intelligence</Text>
+            <TouchableOpacity onPress={onCoachTitleTap} activeOpacity={0.9}>
+              <Text style={styles.cardTitle}>Fat Loss Intelligence</Text>
+            </TouchableOpacity>
             {canCoaching ? (
               <View style={{ flexDirection: "row", gap: 8 }}>
                 <TouchableOpacity
@@ -1790,8 +2593,19 @@ async function analyzePhoto() {
                 >
                   <Text style={styles.smallBtnText}>Profile</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.smallBtn} onPress={() => ensureDailyCoach(true)} disabled={coachBusy}>
+                <TouchableOpacity
+                  style={styles.smallBtn}
+                  onPress={() => ensureDailyCoach(true, { refreshServer: true, fastMode: true, trigger: "manual_refresh" })}
+                  disabled={coachBusy}
+                >
                   <Text style={styles.smallBtnText}>{coachBusy ? "…" : "Refresh"}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.smallBtn}
+                  onPress={() => fetchWeeklyReport(true)}
+                  disabled={weeklyReportBusy}
+                >
+                  <Text style={styles.smallBtnText}>{weeklyReportBusy ? "…" : "Weekly"}</Text>
                 </TouchableOpacity>
               </View>
             ) : (
@@ -1803,7 +2617,7 @@ async function analyzePhoto() {
             {canCoaching
               ? `${coachProfile?.goal_type || "fat_loss"} • ${coachProfile?.diet_style || "non-veg"} • ${Math.round(
                   num(coachProfile?.training_days_per_week)
-                )} training day(s)/week • ${coachProfile?.training_time || "evening"}`
+                )} training day(s)/week • ${coachProfile?.training_time || "evening"} • ${coachProfile?.tone_preference || "supportive"}`
               : `${String(plan || "free").toUpperCase()} plan preview • Pro unlocks diagnosis, risk alerts, and actions`}
           </Text>
 
@@ -1838,6 +2652,69 @@ async function analyzePhoto() {
           ) : (
             <>
               {coachErr ? <Text style={[styles.tiny, { color: "#ffb4b4", marginTop: 8 }]}>{coachErr}</Text> : null}
+              {(fliSyncing || coachStale || fliPending) ? (
+                <View style={styles.fliUpdateBanner}>
+                  <Text style={styles.fliUpdateText}>
+                    {fliPending ? "New scan saved. Refining insights…" : "New scan detected. Updating insights…"}
+                  </Text>
+                </View>
+              ) : null}
+
+              {coachVoice ? (
+                <View style={{ marginTop: 10, padding: 10, borderWidth: 1, borderColor: "#1f2e45", borderRadius: 12, backgroundColor: "#08101e" }}>
+                  <Text style={[styles.tiny, { textTransform: "uppercase", letterSpacing: 0.4 }]}>
+                    Coach voice • {String(coachVoice?.tone_tag || "neutral")}
+                  </Text>
+                  {!!String(coachVoice?.empathy_line || "").trim() && <Text style={styles.p}>{String(coachVoice?.empathy_line || "")}</Text>}
+                  {!!String(coachVoice?.insight_line || "").trim() && <Text style={styles.p}>{String(coachVoice?.insight_line || "")}</Text>}
+                  {coachVoice?.one_action?.title ? (
+                    <View style={{ marginTop: 6 }}>
+                      <Text style={styles.itemName}>{String(coachVoice?.one_action?.title || "")}</Text>
+                      {(coachVoice?.one_action?.steps || []).map((s, i) => (
+                        <Text key={`${s}-${i}`} style={styles.tiny}>• {String(s || "")}</Text>
+                      ))}
+                      {!!String(coachVoice?.why_this_action || "").trim() && (
+                        <Text style={[styles.tiny, { marginTop: 4 }]}>{String(coachVoice?.why_this_action || "")}</Text>
+                      )}
+                    </View>
+                  ) : null}
+                  {!!String(coachVoice?.safety_disclaimer || "").trim() && (
+                    <Text style={[styles.tiny, { marginTop: 6 }]}>{String(coachVoice?.safety_disclaimer || "")}</Text>
+                  )}
+                </View>
+              ) : coachVoiceBusy ? (
+                <View style={{ marginTop: 10 }}>
+                  <ActivityIndicator />
+                </View>
+              ) : null}
+
+              {weeklyReport ? (
+                <View style={{ marginTop: 10, padding: 10, borderWidth: 1, borderColor: "#1f2e45", borderRadius: 12 }}>
+                  <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                    <Text style={styles.cardTitle}>Weekly report card</Text>
+                    <TouchableOpacity style={styles.smallBtn} onPress={shareWeeklyReportCard}>
+                      <Text style={styles.smallBtnText}>Share</Text>
+                    </TouchableOpacity>
+                  </View>
+                  <Text style={styles.tiny}>
+                    {String(weeklyReport?.week_start || "")} to {String(weeklyReport?.week_end || "")} • confidence {String(weeklyReport?.confidence_band || "medium")}
+                  </Text>
+                  <Text style={styles.p}>
+                    Resilience {Math.round(num(weeklyReport?.resilience_score))}/100 • Risk {Math.round(num(weeklyReport?.risk_score))}/100
+                  </Text>
+                  {(weeklyReport?.top_risks || []).slice(0, 2).map((r, i) => (
+                    <Text key={`wr-risk-${i}`} style={styles.tiny}>• Risk: {String(r?.title || "")}</Text>
+                  ))}
+                  {(weeklyReport?.top_wins || []).slice(0, 2).map((w, i) => (
+                    <Text key={`wr-win-${i}`} style={styles.tiny}>• Win: {String(w?.title || "")}</Text>
+                  ))}
+                  {!!String(weeklyReport?.disclaimer || "").trim() && <Text style={[styles.tiny, { marginTop: 6 }]}>{String(weeklyReport?.disclaimer || "")}</Text>}
+                </View>
+              ) : weeklyReportBusy ? (
+                <View style={{ marginTop: 10 }}>
+                  <ActivityIndicator />
+                </View>
+              ) : null}
 
               {coachBusy && !coachDaily ? (
                 <View style={{ marginTop: 10 }}>
@@ -1865,8 +2742,28 @@ async function analyzePhoto() {
                         />
                       </View>
                       <Text style={styles.tiny}>
-                        Updated {String(coachDaily?.date || localDayISO())} • source: {String(coachDaily?.reasoning_source || "unknown")}
+                        Updated {String(coachDaily?.updatedAt || coachDaily?.date || localDayISO())} • source:{" "}
+                        {String(coachDaily?.reasoning_source || "unknown")}
                       </Text>
+                      {showCoachDebug ? (
+                        <View style={{ marginTop: 6, padding: 8, borderWidth: 1, borderColor: "#26364f", borderRadius: 8 }}>
+                          <Text style={styles.tiny}>payload_hash_used: {String(coachDaily?.payload_hash_used || "-")}</Text>
+                          <Text style={styles.tiny}>
+                            confidence_band: {String(coachDaily?.predictive_signals?.projection_confidence_band || "-")}
+                          </Text>
+                          <Text style={styles.tiny}>coach_generated_ts: {String(coachDaily?.coach_generated_ts || "-")}</Text>
+                          <Text style={styles.tiny}>meals_count_today: {String(coachDaily?.meals_count_today ?? "-")}</Text>
+                          <Text style={styles.tiny}>learning_applied: {result?.learning_applied ? "true" : "false"}</Text>
+                          <Text style={styles.tiny}>
+                            personalization_used: p={result?.personalization_used?.portion_prior_used ? "1" : "0"} / o=
+                            {result?.personalization_used?.oil_prior_used ? "1" : "0"} / q=
+                            {result?.personalization_used?.asked_clarifying_question ? "1" : "0"}
+                          </Text>
+                          <Text style={styles.tiny}>
+                            clarifying_reason: {String(result?.personalization_used?.asked_clarifying_question_reason || "-")}
+                          </Text>
+                        </View>
+                      ) : null}
                     </View>
                   </View>
 
@@ -1877,46 +2774,24 @@ async function analyzePhoto() {
                     </View>
                   ) : null}
 
-                  {outlook ? (
+                  {coachDaily?.predictive_signals ? (
                     <View style={{ marginTop: 10 }}>
                       <Text style={styles.cardTitle}>7-day outlook</Text>
-                      <View style={styles.intelOutlookCard}>
-                        <View style={styles.intelOutlookTop}>
-                          <Text style={styles.intelOutlookLabel}>Probability</Text>
-                          <View
-                            style={[
-                              styles.intelOutlookChip,
-                              { backgroundColor: outlookConfTone.bg, borderColor: outlookConfTone.border },
-                            ]}
-                          >
-                            <Text style={[styles.intelOutlookChipText, { color: outlookConfTone.color }]}>
-                              {String(outlookConf || "medium").toUpperCase()}
-                            </Text>
-                          </View>
-                        </View>
-                        <View style={styles.intelOutlookTrack}>
-                          <View
-                            style={[
-                              styles.intelOutlookFill,
-                              { width: `${outlookProbPct}%`, backgroundColor: outlookBarColor },
-                            ]}
-                          />
-                        </View>
-                        <Text style={styles.intelOutlookMetric}>
-                          {Math.round(outlookProbPct)}% fat-loss probability in the next 7 days
-                        </Text>
-                        <Text style={styles.intelOutlookData}>
-                          Data quality: {outlookDays}/7 days tracked • {outlookScans} scans
-                        </Text>
-                        {String(outlookConf).toLowerCase() === "low" ? (
-                          <Text style={styles.intelOutlookCta}>Scan 2 more days to improve accuracy.</Text>
-                        ) : null}
-                      </View>
+                      <Text style={styles.p}>
+                        Projection score {Math.round(num(coachDaily?.predictive_signals?.projection_7d_score))}/100 • probability{" "}
+                        {Math.round(num(coachDaily?.predictive_signals?.fat_loss_probability_7d) * 100)}% • confidence{" "}
+                        {String(coachDaily?.predictive_signals?.projection_confidence_band || "medium")}
+                      </Text>
                       {String(coachDaily?.projection_explained || "").trim() ? (
                         <Text style={styles.tiny}>{String(coachDaily?.projection_explained || "")}</Text>
                       ) : null}
-                      {String(outlook?.missing_data_reason || "").trim() ? (
-                        <Text style={styles.tiny}>{String(outlook?.missing_data_reason || "")}</Text>
+                      {String(coachDaily?.predictive_signals?.projection_confidence_band || "").toLowerCase() === "low" ? (
+                        <Text style={[styles.tiny, { color: "#ffb4b4" }]}>
+                          Low confidence - scan 2 more days to improve accuracy.
+                        </Text>
+                      ) : null}
+                      {String(coachDaily?.predictive_signals?.missing_data_reason || "").trim() ? (
+                        <Text style={styles.tiny}>{String(coachDaily?.predictive_signals?.missing_data_reason || "")}</Text>
                       ) : null}
                     </View>
                   ) : null}
@@ -2021,7 +2896,7 @@ async function analyzePhoto() {
                       {(coachDaily?.diagnosis || []).length ? (
                         <View style={{ marginTop: 8 }}>
                           <Text style={styles.cardTitle}>Diagnosis</Text>
-                          {(coachDaily.diagnosis || []).slice(0, 2).map((line, i) => (
+                          {(coachDaily.diagnosis || []).map((line, i) => (
                             <Text key={`diag-${i}`} style={styles.p}>
                               • {String(line)}
                             </Text>
@@ -2032,7 +2907,7 @@ async function analyzePhoto() {
                       {(coachDaily?.tomorrow_focus || []).length ? (
                         <View style={{ marginTop: 10 }}>
                           <Text style={styles.cardTitle}>Tomorrow focus</Text>
-                          {(coachDaily.tomorrow_focus || []).slice(0, 2).map((line, i) => (
+                          {(coachDaily.tomorrow_focus || []).map((line, i) => (
                             <Text key={`focus-${i}`} style={styles.p}>
                               • {String(line)}
                             </Text>
@@ -2101,7 +2976,7 @@ async function analyzePhoto() {
             <TouchableOpacity style={styles.primaryBtn} onPress={openCamera}>
               <Text style={styles.btnText}>Open Camera</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.primaryBtn} onPress={analyzePhoto} disabled={busy || !photoUri}>
+            <TouchableOpacity style={styles.primaryBtn} onPress={analyzePhoto} disabled={busy || rerunBusy || !photoUri}>
               {busy ? <ActivityIndicator /> : <Text style={styles.btnText}>Analyze</Text>}
             </TouchableOpacity>
           </View>
@@ -2119,6 +2994,97 @@ async function analyzePhoto() {
                 Protein {round1(result?.totals?.protein_g)}g • Carbs {round1(result?.totals?.carbs_g)}g • Fat{" "}
                 {round1(result?.totals?.fat_g)}g
               </Text>
+              {rerunBusy ? <Text style={[styles.tiny, { marginTop: 6 }]}>Applying edit and rerunning analysis…</Text> : null}
+
+              {result?.vision_confidence != null ? (
+                <View style={{ marginTop: 10 }}>
+                  <Text style={styles.cardTitle}>Scan confidence</Text>
+                  <Text style={styles.p}>
+                    {Math.round(Math.max(0, Math.min(1, num(result?.vision_confidence))) * 100)}% •{" "}
+                    {Math.max(0, Math.min(1, num(result?.vision_confidence))) >= 0.82
+                      ? "High"
+                      : Math.max(0, Math.min(1, num(result?.vision_confidence))) >= 0.72
+                      ? "Medium"
+                      : "Low"}
+                  </Text>
+                  <View style={styles.barOuter}>
+                    <View
+                      style={[
+                        styles.barFill,
+                        {
+                          width: `${Math.round(Math.max(0, Math.min(1, num(result?.vision_confidence))) * 100)}%`,
+                          backgroundColor:
+                            Math.max(0, Math.min(1, num(result?.vision_confidence))) >= 0.82
+                              ? "#22c55e"
+                              : Math.max(0, Math.min(1, num(result?.vision_confidence))) >= 0.72
+                              ? "#f59e0b"
+                              : "#ef4444",
+                        },
+                      ]}
+                    />
+                  </View>
+                </View>
+              ) : null}
+
+              {(result?.top_candidates || []).length ? (
+                <View style={{ marginTop: 10 }}>
+                  <Text style={styles.cardTitle}>Top candidates</Text>
+                  {(result.top_candidates || []).slice(0, 3).map((c, idx) => (
+                    <View key={`${c?.candidate_id || idx}`} style={styles.itemRow}>
+                      <Text style={styles.itemName}>{String(c?.label || "")}</Text>
+                      <Text style={styles.itemMeta}>
+                        {Math.round(Math.max(0, Math.min(1, num(c?.confidence))) * 100)}% confidence • portion{" "}
+                        {round1(c?.portion_guess_g)}g
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              ) : null}
+
+              {result?.clarifying_question?.ask ? (
+                <View style={{ marginTop: 10 }}>
+                  <Text style={styles.cardTitle}>Confirm for better accuracy</Text>
+                  <Text style={styles.p}>{String(result?.clarifying_question?.ask || "")}</Text>
+                  <View style={styles.rowWrap}>
+                    {(result?.clarifying_question?.options || []).slice(0, 6).map((opt, idx) => (
+                      <TouchableOpacity
+                        key={`${String(opt)}-${idx}`}
+                        style={styles.chip}
+                        onPress={() => applyClarifyingAnswer(opt)}
+                        disabled={rerunBusy}
+                      >
+                        <Text style={styles.chipText}>{String(opt)}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+              ) : null}
+
+              {result?.meal_qa ? (
+                <View style={{ marginTop: 10 }}>
+                  <Text style={styles.cardTitle}>Meal QA</Text>
+                  <Text style={styles.p}>Quality score: {round1(result?.meal_qa?.qa_score)}/100</Text>
+                  {(result?.meal_qa?.issues || []).slice(0, 3).map((iss, idx) => (
+                    <Text key={`qa-issue-${idx}`} style={styles.tiny}>
+                      • {String(iss?.message || "")}
+                    </Text>
+                  ))}
+                  {(result?.meal_qa?.one_tap_fixes || []).length ? (
+                    <View style={styles.rowWrap}>
+                      {(result?.meal_qa?.one_tap_fixes || []).slice(0, 3).map((fix, idx) => (
+                        <TouchableOpacity
+                          key={`fix-${idx}`}
+                          style={styles.chip}
+                          onPress={() => applyQaFix(fix)}
+                          disabled={rerunBusy}
+                        >
+                          <Text style={styles.chipText}>{String(fix?.label || "Apply fix")}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  ) : null}
+                </View>
+              ) : null}
 
               {/* Micronutrients (Free) */}
 {result?.micros ? (
@@ -2513,6 +3479,19 @@ async function analyzePhoto() {
                     </TouchableOpacity>
                   ))}
                 </View>
+
+                <Text style={styles.label}>Coach style</Text>
+                <View style={styles.rowWrap}>
+                  {["supportive", "firm", "fun", "neutral"].map((t) => (
+                    <TouchableOpacity
+                      key={t}
+                      style={[styles.chip, coachProfileDraft?.tone_preference === t && styles.chipActive]}
+                      onPress={() => setCoachProfileDraft((p) => ({ ...p, tone_preference: t }))}
+                    >
+                      <Text style={styles.chipText}>{t}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
               </View>
 
               <View style={{ flexDirection: "row", gap: 10, marginTop: 14 }}>
@@ -2642,9 +3621,9 @@ const styles = StyleSheet.create({
   btnText: { color: "#fff", fontWeight: "800" },
   label: { color: "#d7d7d7", marginTop: 8, fontSize: 13, fontWeight: "700" },
 
-  // NEW: Apple / Google buttons
-  appleBtn: {
-    backgroundColor: "#000000",
+  // NEW: Google button
+  googleBtn: {
+    backgroundColor: "#151515",
     paddingVertical: 12,
     paddingHorizontal: 14,
     borderRadius: 14,
@@ -2653,7 +3632,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#2a2a2a",
   },
-  googleBtn: {
+  appleBtn: {
     backgroundColor: "#151515",
     paddingVertical: 12,
     paddingHorizontal: 14,
@@ -2752,6 +3731,16 @@ const styles = StyleSheet.create({
   histTitle: { color: "#fff", fontWeight: "800" },
   intelHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   intelSubline: { fontSize: 12, color: "#8ea0bf", marginTop: 4, lineHeight: 17 },
+  fliUpdateBanner: {
+    marginTop: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#305390",
+    backgroundColor: "#0f1f37",
+  },
+  fliUpdateText: { color: "#cfe0ff", fontSize: 12, fontWeight: "700" },
   intelScoreRow: { marginTop: 10, flexDirection: "row", gap: 12, alignItems: "center" },
   scoreOrb: {
     width: 92,
@@ -2821,34 +3810,6 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   intelSignalFill: { height: 7, borderRadius: 999 },
-  intelOutlookCard: {
-    marginTop: 8,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#2a344a",
-    backgroundColor: "#0e141f",
-    padding: 10,
-    gap: 6,
-  },
-  intelOutlookTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  intelOutlookLabel: { color: "#d8e2fb", fontSize: 12, fontWeight: "800" },
-  intelOutlookChip: {
-    borderRadius: 999,
-    borderWidth: 1,
-    paddingHorizontal: 9,
-    paddingVertical: 3,
-  },
-  intelOutlookChipText: { fontSize: 11, fontWeight: "900" },
-  intelOutlookTrack: {
-    height: 8,
-    borderRadius: 999,
-    backgroundColor: "#182235",
-    overflow: "hidden",
-  },
-  intelOutlookFill: { height: 8, borderRadius: 999 },
-  intelOutlookMetric: { color: "#e4ecff", fontSize: 12, fontWeight: "800" },
-  intelOutlookData: { color: "#9db0d2", fontSize: 12 },
-  intelOutlookCta: { color: "#ffb4b4", fontSize: 12, fontWeight: "800" },
   intelToggleBtn: {
     marginTop: 10,
     alignSelf: "flex-start",

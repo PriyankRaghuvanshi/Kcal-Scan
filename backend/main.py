@@ -7,7 +7,9 @@ import math
 import hashlib
 import logging
 import datetime as dt
-from typing import Any, Dict, Optional, List
+import uuid
+import threading
+from typing import Any, Dict, Optional, List, Tuple
 from zoneinfo import ZoneInfo
 
 import requests
@@ -16,6 +18,7 @@ from PIL import Image
 from fastapi import FastAPI, File, UploadFile, Request, HTTPException, Header, Body
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import PlainTextResponse
+from pydantic import BaseModel, Field
 
 import google.generativeai as genai
 import coach_daily_logic as coach_logic
@@ -63,12 +66,36 @@ TBL_MEAL_EVENTS = "meal_events"
 TBL_DAILY_METRICS = "daily_metrics"
 TBL_WEEKLY_INSIGHTS = "weekly_insights"
 TBL_USER_WEEKLY_METRICS = "user_weekly_metrics"
+TBL_MEAL_ANALYSES = "meal_analyses"
+TBL_ANALYSIS_MEMORY = "analysis_memory"
+TBL_MEAL_EDITS = "meal_edits"
+TBL_USER_CALIBRATION = "user_calibration"
+TBL_COACH_MEMORY = "coach_memory"
+TBL_COACH_FEEDBACK = "coach_feedback"
+TBL_USER_FOOD_PRIORS = "user_food_priors"
+TBL_COACH_VOICE_CACHE = "coach_voice_cache"
+TBL_WEEKLY_REPORTS = "weekly_reports"
+TBL_PROGRAM_STATUS = "program_status"
 
 # Plans (your requirements)
 DEFAULT_PLAN = "free"
 PLAN_ORDER = ["free", "elite", "advanced", "pro", "infinite"]
 COACH_LLM_MODEL = os.getenv("COACH_LLM_MODEL", "gemini-1.5-flash").strip() or "gemini-1.5-flash"
 BEHAVIOR_ENGINE_VERSION = "phase_3_2_v1"
+SCAN_LLM_MODEL = os.getenv("SCAN_LLM_MODEL", "gemini-3-flash-preview").strip() or "gemini-3-flash-preview"
+COACH_VOICE_LLM_MODEL = os.getenv("COACH_VOICE_LLM_MODEL", COACH_LLM_MODEL).strip() or COACH_LLM_MODEL
+try:
+    COACH_LLM_TIMEOUT_SEC = max(3.0, min(25.0, float(os.getenv("COACH_LLM_TIMEOUT_SEC", "8").strip() or "8")))
+except Exception:
+    COACH_LLM_TIMEOUT_SEC = 8.0
+try:
+    COACH_VOICE_TIMEOUT_SEC = max(2.0, min(20.0, float(os.getenv("COACH_VOICE_TIMEOUT_SEC", "6").strip() or "6")))
+except Exception:
+    COACH_VOICE_TIMEOUT_SEC = 6.0
+try:
+    COACH_VOICE_CACHE_TTL_MIN = max(10, min(30, int(float(os.getenv("COACH_VOICE_CACHE_TTL_MIN", "20").strip() or "20"))))
+except Exception:
+    COACH_VOICE_CACHE_TTL_MIN = 20
 
 # Goal defaults used when an older schema is missing one or more goal columns.
 DEFAULT_DAILY_GOALS = {
@@ -159,6 +186,199 @@ def _month_start(d: dt.date) -> dt.date:
 
 def _digits_only(s: str) -> str:
     return "".join([c for c in (s or "").strip() if c.isdigit()])
+
+
+# -------------------- Pydantic / Scan Contracts --------------------
+def _model_dump(obj: Any) -> Dict[str, Any]:
+    if hasattr(obj, "model_dump"):
+        return obj.model_dump()
+    return obj.dict()
+
+
+def _model_validate(cls: Any, data: Dict[str, Any]):
+    if hasattr(cls, "model_validate"):
+        return cls.model_validate(data)
+    return cls.parse_obj(data)
+
+
+def _clamp01(v: Any, default: float = 0.0) -> float:
+    n = _safe_float(v, default)
+    if n is None:
+        n = default
+    return max(0.0, min(1.0, float(n)))
+
+
+class ScanCandidateModel(BaseModel):
+    candidate_id: str = ""
+    label: str
+    confidence: float = 0.0
+    evidence: List[str] = Field(default_factory=list)
+    assumptions: List[str] = Field(default_factory=list)
+    portion_guess_g: float = 0.0
+
+
+class ClarifyingQuestionModel(BaseModel):
+    ask: str
+    options: List[str] = Field(default_factory=list)
+
+
+class EditableItemModel(BaseModel):
+    item_id: str
+    name: str
+    grams: float
+    cooking_method: str = "unknown"
+    oil_added_tsp: float = 0.0
+    confidence: float = 0.0
+    candidate_alternatives: List[str] = Field(default_factory=list)
+
+
+class EditableContextModel(BaseModel):
+    items: List[EditableItemModel] = Field(default_factory=list)
+
+
+class VisionScanV1Model(BaseModel):
+    vision_confidence: float = 0.0
+    top_candidates: List[ScanCandidateModel] = Field(default_factory=list)
+    clarifying_question: Optional[ClarifyingQuestionModel] = None
+    editable_context: EditableContextModel = Field(default_factory=EditableContextModel)
+    items: List[EditableItemModel] = Field(default_factory=list)
+
+
+class MealQAIssueModel(BaseModel):
+    issue_type: str
+    severity: str = "medium"
+    message: str
+
+
+class MealQAFixModel(BaseModel):
+    label: str
+    patch: Dict[str, Any] = Field(default_factory=dict)
+
+
+class MealQAModel(BaseModel):
+    qa_score: float = 75.0
+    issues: List[MealQAIssueModel] = Field(default_factory=list)
+    one_tap_fixes: List[MealQAFixModel] = Field(default_factory=list)
+    ask_to_confirm: Optional[str] = None
+
+
+class SetCookingMethodEdit(BaseModel):
+    item_id: str
+    method: str
+
+
+class SetOilAddedEdit(BaseModel):
+    item_id: str
+    tsp: float
+
+
+class SwapItemEdit(BaseModel):
+    item_id: str
+    new_name: str
+
+
+class AnalyzeRerunEditsModel(BaseModel):
+    portion_multiplier: Optional[float] = None
+    set_cooking_method: Optional[SetCookingMethodEdit] = None
+    set_oil_added_tsp: Optional[SetOilAddedEdit] = None
+    swap_item: Optional[SwapItemEdit] = None
+    clarifying_answer: Optional[str] = None
+
+
+class AnalyzeRerunRequestModel(BaseModel):
+    analysis_id: str
+    edits: AnalyzeRerunEditsModel = Field(default_factory=AnalyzeRerunEditsModel)
+
+
+class CoachVoiceMealModel(BaseModel):
+    meal_id: str = ""
+    ts: str = ""
+    label: str = ""
+    kcal: float = 0.0
+    protein_g: float = 0.0
+    carbs_g: float = 0.0
+    fat_g: float = 0.0
+    confidence: float = 0.0
+    notes: str = ""
+
+
+class CoachVoiceRecentMessageModel(BaseModel):
+    advice_key: str = ""
+    ts: str = ""
+    summary: str = ""
+
+
+class CoachVoiceProfileModel(BaseModel):
+    goal_type: str = "fat_loss"
+    diet_style: str = "non-veg"
+    training_days_per_week: int = 0
+    training_time: str = "evening"
+
+
+class CoachVoiceRequestModel(BaseModel):
+    user_id: str
+    day: str
+    payload_hash: str = ""
+    goals: Dict[str, Any] = Field(default_factory=dict)
+    consumed: Dict[str, Any] = Field(default_factory=dict)
+    meals: List[CoachVoiceMealModel] = Field(default_factory=list)
+    recent_messages: List[CoachVoiceRecentMessageModel] = Field(default_factory=list)
+    user_profile: CoachVoiceProfileModel = Field(default_factory=CoachVoiceProfileModel)
+    tone_preference: str = "supportive"
+
+
+class CoachFeedbackConfirmedItemModel(BaseModel):
+    name: str = ""
+    grams: float = 0.0
+
+
+class CoachFeedbackCorrectionsModel(BaseModel):
+    item_id: str = ""
+    item_name: str = ""
+    food_key: str = ""
+    cooking_method: str = ""
+    oil_added_tsp: Optional[float] = None
+    portion_multiplier: Optional[float] = None
+    confirmed_items: List[CoachFeedbackConfirmedItemModel] = Field(default_factory=list)
+
+
+class CoachFeedbackRequestModel(BaseModel):
+    user_id: str
+    analysis_id: str = ""
+    meal_id: str = ""
+    feedback_type: str = "overall"
+    rating: Optional[int] = None
+    free_text: str = ""
+    corrections: CoachFeedbackCorrectionsModel = Field(default_factory=CoachFeedbackCorrectionsModel)
+
+
+class WeeklyReportRequestModel(BaseModel):
+    user_id: str
+    week_start: str = ""
+    tz: str = ""
+    tz_offset_min: Optional[int] = None
+    daily_rows: List[Dict[str, Any]] = Field(default_factory=list)
+    training_days_per_week: Optional[int] = None
+    tone_preference: str = "supportive"
+
+
+class ProgramCreateRequestModel(BaseModel):
+    user_id: str
+    program_goal: str = "fat_loss"
+    duration_weeks: int = 12
+    tone_preference: str = "supportive"
+    user_profile: CoachVoiceProfileModel = Field(default_factory=CoachVoiceProfileModel)
+
+
+class ProgramDailyCheckinRequestModel(BaseModel):
+    user_id: str
+    date: str = ""
+    adherence_score: Optional[float] = None
+    notes: str = ""
+    signals: Dict[str, Any] = Field(default_factory=dict)
+
+
+_MEAL_ANALYSIS_CACHE: Dict[str, Dict[str, Any]] = {}
 
 
 # -------------------- PLAN GATING HELPERS (NEW) --------------------
@@ -301,6 +521,148 @@ def _sb_patch_with_column_fallback(table: str, match: Dict[str, str], patch: Dic
                 continue
             raise
     return payload
+
+
+def _parse_jsonish(v: Any, default: Any):
+    if isinstance(v, (dict, list)):
+        return v
+    if isinstance(v, str):
+        try:
+            return json.loads(v)
+        except Exception:
+            return default
+    return default
+
+
+def _sha256_bytes(payload: bytes) -> str:
+    return hashlib.sha256(payload or b"").hexdigest()
+
+
+def _analysis_cache_set(row: Dict[str, Any]) -> None:
+    aid = str(row.get("analysis_id") or "").strip()
+    if not aid:
+        return
+    _MEAL_ANALYSIS_CACHE[aid] = dict(row)
+
+
+def _analysis_cache_get(analysis_id: str) -> Optional[Dict[str, Any]]:
+    return _MEAL_ANALYSIS_CACHE.get(str(analysis_id or "").strip())
+
+
+def _store_meal_analysis(row: Dict[str, Any]) -> Dict[str, Any]:
+    payload = dict(row or {})
+    _analysis_cache_set(payload)
+    if not (SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY):
+        return payload
+    try:
+        stored = _sb_insert_with_column_fallback(
+            TBL_MEAL_ANALYSES,
+            payload,
+            locked_cols={"analysis_id", "user_id"},
+        )
+        _analysis_cache_set(stored)
+        return stored
+    except Exception as e:
+        logger.info(f"meal analysis write skipped: {e}")
+        return payload
+
+
+def _store_analysis_memory(row: Dict[str, Any]) -> None:
+    payload = dict(row or {})
+    if not payload:
+        return
+    if not (SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY):
+        return
+    try:
+        existing = sb_get_one(
+            TBL_ANALYSIS_MEMORY,
+            params={
+                "select": "*",
+                "analysis_id": f"eq.{str(payload.get('analysis_id') or '')}",
+                "user_id": f"eq.{str(payload.get('user_id') or '')}",
+                "limit": "1",
+            },
+        )
+        if existing:
+            patch = {k: v for k, v in payload.items() if k not in {"analysis_id", "user_id", "created_at"}}
+            _sb_patch_with_column_fallback(
+                TBL_ANALYSIS_MEMORY,
+                {
+                    "analysis_id": f"eq.{str(payload.get('analysis_id') or '')}",
+                    "user_id": f"eq.{str(payload.get('user_id') or '')}",
+                },
+                patch,
+            )
+        else:
+            _sb_insert_with_column_fallback(
+                TBL_ANALYSIS_MEMORY,
+                payload,
+                locked_cols={"analysis_id", "user_id"},
+            )
+    except Exception as e:
+        logger.info(f"analysis memory write skipped: {e}")
+
+
+def _get_meal_analysis(user_id: str, analysis_id: str) -> Optional[Dict[str, Any]]:
+    aid = str(analysis_id or "").strip()
+    if not aid:
+        return None
+
+    mem = _analysis_cache_get(aid)
+    if isinstance(mem, dict) and str(mem.get("user_id") or "").strip() == str(user_id or "").strip():
+        return dict(mem)
+
+    if not (SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY):
+        return mem
+    try:
+        row = sb_get_one(
+            TBL_MEAL_ANALYSES,
+            params={
+                "select": "*",
+                "analysis_id": f"eq.{aid}",
+                "user_id": f"eq.{user_id}",
+                "limit": "1",
+            },
+        )
+        if row:
+            _analysis_cache_set(row)
+            return row
+    except Exception as e:
+        logger.info(f"meal analysis read skipped: {e}")
+    return mem
+
+
+def _patch_meal_analysis(analysis_id: str, user_id: str, patch: Dict[str, Any]) -> None:
+    aid = str(analysis_id or "").strip()
+    if not aid:
+        return
+    merged = dict(_analysis_cache_get(aid) or {})
+    merged.update(dict(patch or {}))
+    _analysis_cache_set(merged)
+
+    if not (SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY):
+        return
+    try:
+        _sb_patch_with_column_fallback(
+            TBL_MEAL_ANALYSES,
+            {"analysis_id": f"eq.{aid}", "user_id": f"eq.{user_id}"},
+            dict(patch or {}),
+        )
+    except Exception as e:
+        logger.info(f"meal analysis patch skipped: {e}")
+
+
+def _store_meal_edit(row: Dict[str, Any]) -> None:
+    if not (SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY):
+        return
+    try:
+        _sb_insert_with_column_fallback(
+            TBL_MEAL_EDITS,
+            dict(row or {}),
+            locked_cols={"edit_id", "analysis_id", "user_id"},
+        )
+    except Exception as e:
+        logger.info(f"meal edit write skipped: {e}")
 
 
 
@@ -834,7 +1196,31 @@ def build_daily_summary(
             remaining[outk] = left
             remaining[f"{outk}_left"] = left
 
-    return {"day": totals.get("day"), "totals": totals, "goals": goals, "remaining": remaining}
+    day_iso = str(day or totals.get("day") or _today_date(tz=tz, tz_offset_min=tz_offset_min).isoformat())
+    meals_count_today = 0
+    last_meal_ts = ""
+    if SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY:
+        try:
+            events = get_meal_events_for_day(user_id, day_iso)
+            photo_events = [
+                e for e in (events or [])
+                if _event_text(e, "source", "event_source").lower() in {"photo", "scan", "meal", ""}
+                or _event_text(e, "event_type").lower() in {"photo_analyze", "analyze", "scan"}
+            ]
+            meals_count_today = len(photo_events)
+            if photo_events:
+                last_meal_ts = str((photo_events[-1] or {}).get("created_at") or "")
+        except Exception as e:
+            logger.info(f"daily summary meal-event read skipped: {e}")
+
+    return {
+        "day": totals.get("day"),
+        "totals": totals,
+        "goals": goals,
+        "remaining": remaining,
+        "meals_count_today": meals_count_today,
+        "last_meal_ts": last_meal_ts,
+    }
 
 
 # -------------------- PHASE 3.1: BEHAVIOR MEMORY --------------------
@@ -1272,78 +1658,6 @@ def get_daily_metrics_window(user_id: str, week_start_iso: str) -> List[Dict[str
     return filtered
 
 
-def get_daily_metrics_range(user_id: str, start_day_iso: str, end_day_iso: str, limit: int = 80) -> List[Dict[str, Any]]:
-    _require_supabase()
-    rows = sb_get_many(
-        TBL_DAILY_METRICS,
-        params={
-            "select": "*",
-            "user_id": f"eq.{user_id}",
-            "day": f"gte.{start_day_iso}",
-            "order": "day.asc",
-            "limit": str(max(1, int(limit))),
-        },
-    )
-    out: List[Dict[str, Any]] = []
-    for r in rows or []:
-        day = str((r or {}).get("day") or "")[:10]
-        if start_day_iso <= day <= end_day_iso:
-            out.append(r)
-    return out
-
-
-def _is_stable_day_metric_row(row: Dict[str, Any]) -> bool:
-    score = _day_score_from_metric_row(row)
-    protein_hit = _extract_metric_val(row, "protein_hit_pct")
-    fiber_hit = _extract_metric_val(row, "fiber_hit_pct")
-    late_pct = _extract_metric_val(row, "late_calories_pct")
-    return score >= 65.0 and protein_hit >= 85.0 and fiber_hit >= 70.0 and late_pct <= 55.0
-
-
-def _current_consecutive_streak_by_day(rows: List[Dict[str, Any]], pred) -> int:
-    ordered = sorted(rows or [], key=lambda r: str((r or {}).get("day") or ""))
-    streak = 0
-    prev_day: Optional[dt.date] = None
-    for r in reversed(ordered):
-        day_iso = str((r or {}).get("day") or "")[:10]
-        try:
-            cur_day = dt.date.fromisoformat(day_iso)
-        except Exception:
-            break
-        if prev_day is not None and (prev_day - cur_day).days != 1:
-            break
-        if not pred(r):
-            break
-        streak += 1
-        prev_day = cur_day
-    return streak
-
-
-def _longest_consecutive_streak_by_day(rows: List[Dict[str, Any]], pred) -> int:
-    ordered = sorted(rows or [], key=lambda r: str((r or {}).get("day") or ""))
-    best = 0
-    cur = 0
-    prev_day: Optional[dt.date] = None
-    for r in ordered:
-        day_iso = str((r or {}).get("day") or "")[:10]
-        try:
-            day = dt.date.fromisoformat(day_iso)
-        except Exception:
-            prev_day = None
-            cur = 0
-            continue
-        contiguous = prev_day is None or (day - prev_day).days == 1
-        if not contiguous:
-            cur = 0
-        if pred(r):
-            cur = cur + 1 if contiguous else 1
-            best = max(best, cur)
-        else:
-            cur = 0
-        prev_day = day
-    return best
-
-
 def build_weekly_insight_payload(
     user_id: str,
     week_start_iso: str,
@@ -1467,22 +1781,6 @@ def build_weekly_prediction_payload(
     week_end_iso = _week_end_from_start(week_start_iso)
     rows = sorted(metric_rows or [], key=lambda r: str((r or {}).get("day") or ""))
     days = len(rows)
-    week_end_day = _iso_to_date_safe(week_end_iso)
-    history_start_iso = (week_end_day - dt.timedelta(days=13)).isoformat()
-
-    recent_rows = rows
-    try:
-        recent_rows = get_daily_metrics_range(user_id, history_start_iso, week_end_iso, limit=50)
-    except Exception:
-        recent_rows = rows
-    recent_rows = sorted((recent_rows or rows), key=lambda r: str((r or {}).get("day") or ""))
-
-    prev_week_payload: Dict[str, Any] = {}
-    try:
-        prev_week_start_iso = (_iso_to_date_safe(week_start_iso) - dt.timedelta(days=7)).isoformat()
-        prev_week_payload = get_user_weekly_metrics_payload(user_id, prev_week_start_iso) or {}
-    except Exception:
-        prev_week_payload = {}
 
     protein_hit_vals = [_extract_metric_val(r, "protein_hit_pct") for r in rows]
     fiber_hit_vals = [_extract_metric_val(r, "fiber_hit_pct") for r in rows]
@@ -1571,116 +1869,17 @@ def build_weekly_prediction_payload(
     )
     fat_loss_probability_7d = round(_clamp(probability_pct / 100.0, 0.0, 1.0), 3)
 
-    # Phase 3.3A: Hunger Prediction Engine (exact HIS formula)
-    deficit_depth_pct = round(max(0.0, -_safe_avg(kcal_delta_vals)), 1)
-    deep_deficit_flag = 1.0 if deficit_depth_pct > 20.0 else 0.0
-    protein_consistency_7d = _clamp(protein_consistency / 100.0, 0.0, 1.0)
-    fiber_consistency_7d = _clamp(fiber_consistency / 100.0, 0.0, 1.0)
-    timing_volatility_index_7d = _clamp(timing_volatility / 100.0, 0.0, 1.0)
-    diet_volatility_index_7d = _clamp(diet_volatility_index / 100.0, 0.0, 1.0)
-    hunger_instability_score = round(
+    hunger_volatility_score = round(
         _clamp(
-            (
-                (1.0 - protein_consistency_7d) * 0.25
-                + (1.0 - fiber_consistency_7d) * 0.20
-                + timing_volatility_index_7d * 0.20
-                + diet_volatility_index_7d * 0.20
-                + deep_deficit_flag * 0.15
-            )
-            * 100.0,
+            ((100.0 - fiber_consistency) * 0.35)
+            + (_norm_score_from_range(glycemic_avg, 12.0, 38.0) * 0.25)
+            + (_norm_score_from_range(_safe_avg(late_vals), 20.0, 75.0) * 0.25)
+            + (diet_volatility_index * 0.15),
             0.0,
             100.0,
         ),
         1,
     )
-    recent_5 = recent_rows[-5:] if recent_rows else []
-    low_satiety_days_5 = sum(1 for r in recent_5 if 0.0 < _extract_metric_val(r, "avg_satiety") < 45.0)
-    if hunger_instability_score > 65.0 and deficit_depth_pct > 20.0 and low_satiety_days_5 >= 2:
-        hunger_risk_level = "high"
-        hunger_spike_probability_72h = 0.78
-    elif 45.0 <= hunger_instability_score <= 65.0:
-        hunger_risk_level = "moderate"
-        hunger_spike_probability_72h = 0.52
-    else:
-        hunger_risk_level = "low"
-        hunger_spike_probability_72h = 0.24
-    hunger_summary = (
-        "You are entering a high hunger volatility window in the next 48-72 hours."
-        if hunger_risk_level == "high"
-        else (
-            "Appetite volatility risk is moderate over the next 48-72 hours."
-            if hunger_risk_level == "moderate"
-            else "Appetite volatility risk is currently low for the next 48-72 hours."
-        )
-    )
-    hunger_volatility_score = hunger_instability_score
-
-    # Phase 3.3B: 14-day Metabolic Drift Detection
-    prev_protein_consistency = float(_safe_float(prev_week_payload.get("protein_consistency"), protein_consistency) or protein_consistency)
-    prev_fiber_consistency = float(_safe_float(prev_week_payload.get("fiber_consistency"), fiber_consistency) or fiber_consistency)
-    prev_timing_volatility = float(_safe_float(prev_week_payload.get("timing_volatility"), timing_volatility) or timing_volatility)
-    prev_diet_volatility = float(_safe_float(prev_week_payload.get("diet_volatility_index"), diet_volatility_index) or diet_volatility_index)
-    prev_readiness_score = float(_safe_float(prev_week_payload.get("readiness_score"), readiness_score) or readiness_score)
-    prev_readiness_trend = float(_safe_float(prev_week_payload.get("readiness_trend"), 0.0) or 0.0)
-    prev_timing_balance = float(_safe_float(prev_week_payload.get("timing_balance_avg"), timing_balance_avg) or timing_balance_avg)
-
-    delta_protein_consistency_14d = round(protein_consistency - prev_protein_consistency, 1)
-    delta_fiber_consistency_14d = round(fiber_consistency - prev_fiber_consistency, 1)
-    carb_clustering_increase_14d = round(_safe_avg(late_vals) - max(0.0, 100.0 - prev_timing_balance), 1)
-    readiness_score_delta_14d = round(readiness_score - prev_readiness_score, 1)
-    volatility_delta_14d = round(
-        ((_safe_avg([timing_volatility, diet_volatility_index])) - _safe_avg([prev_timing_volatility, prev_diet_volatility])),
-        1,
-    )
-    metabolic_drift_score_14d = round(
-        _clamp(
-            (max(0.0, -delta_protein_consistency_14d) * 0.25)
-            + (max(0.0, -delta_fiber_consistency_14d) * 0.20)
-            + (max(0.0, carb_clustering_increase_14d) * 0.20)
-            + (max(0.0, -readiness_score_delta_14d) * 0.20)
-            + (max(0.0, volatility_delta_14d) * 0.15),
-            0.0,
-            100.0,
-        ),
-        1,
-    )
-    trend_declining_2w = readiness_trend < -1.0 and prev_readiness_trend < -1.0
-    volatility_rising = volatility_delta_14d > 4.0
-    protein_falling = delta_protein_consistency_14d < -5.0
-    drift_detected = bool(trend_declining_2w and volatility_rising and protein_falling)
-    if drift_detected:
-        metabolic_drift_level = "high"
-    elif metabolic_drift_score_14d >= 65.0:
-        metabolic_drift_level = "medium"
-    elif metabolic_drift_score_14d >= 40.0:
-        metabolic_drift_level = "moderate"
-    else:
-        metabolic_drift_level = "low"
-    metabolic_drift_summary = (
-        "Drift detected: weekly pattern is moving away from stable fat-loss trajectory."
-        if drift_detected
-        else "No strong drift signal: trajectory is relatively stable over the last 14 days."
-    )
-
-    # Phase 3.3D: Habit Addiction Engine (metabolic stability streak)
-    current_metabolic_streak = int(_current_consecutive_streak_by_day(recent_rows, _is_stable_day_metric_row))
-    longest_metabolic_streak_14d = int(_longest_consecutive_streak_by_day(recent_rows, _is_stable_day_metric_row))
-    stability_bar_pct = round(_clamp((current_metabolic_streak / 7.0) * 100.0, 0.0, 100.0), 1)
-    if current_metabolic_streak >= 7:
-        streak_status = "locked_in"
-    elif current_metabolic_streak >= 4:
-        streak_status = "building"
-    elif current_metabolic_streak >= 2:
-        streak_status = "fragile"
-    else:
-        streak_status = "reset_risk"
-    recovery_boost_mode = bool(current_metabolic_streak < 2 and longest_metabolic_streak_14d >= 4)
-    streak_summary = (
-        f"You have maintained metabolic stability for {current_metabolic_streak} day(s)."
-        if current_metabolic_streak > 0
-        else "Metabolic stability streak is broken. Recovery boost mode is active."
-    )
-
     leucine_hit_rate_pct = round(_safe_avg([v * 100.0 for v in leucine_hit_rate_vals]), 1)
     muscle_retention_risk_score = round(
         _clamp(
@@ -1735,22 +1934,6 @@ def build_weekly_prediction_payload(
         fat_loss_probability_7d = 0.0
         projection_7d_score = 0.0
         projected_weight_change_kg_7d = 0.0
-        deficit_depth_pct = 0.0
-        hunger_instability_score = 0.0
-        low_satiety_days_5 = 0
-        hunger_risk_level = "low"
-        hunger_spike_probability_72h = 0.0
-        hunger_summary = "Need more tracked days to estimate appetite volatility."
-        metabolic_drift_score_14d = 0.0
-        metabolic_drift_level = "low"
-        drift_detected = False
-        metabolic_drift_summary = "Need more tracked days to estimate metabolic drift."
-        current_metabolic_streak = 0
-        longest_metabolic_streak_14d = 0
-        stability_bar_pct = 0.0
-        streak_status = "reset_risk"
-        recovery_boost_mode = False
-        streak_summary = "Need more tracked days to compute metabolic stability streak."
         projection_confidence_band = "low"
         missing_data_reason = "No tracked days in this week."
         scans_7d = 0
@@ -1806,33 +1989,6 @@ def build_weekly_prediction_payload(
             "score": hunger_volatility_score,
             "level": _band_from_score(hunger_volatility_score),
             "summary": "Higher score means more unstable appetite/hunger pattern risk over the next 7 days.",
-        },
-        "hunger_prediction_72h": {
-            "hunger_instability_score": hunger_instability_score,
-            "calorie_deficit_depth_pct": deficit_depth_pct,
-            "low_satiety_days_5": int(low_satiety_days_5),
-            "risk_level": hunger_risk_level,
-            "hunger_spike_probability_72h": float(round(_clamp(hunger_spike_probability_72h, 0.0, 1.0), 3)),
-            "summary": hunger_summary,
-        },
-        "metabolic_drift_14d": {
-            "drift_detected": bool(drift_detected),
-            "drift_score": metabolic_drift_score_14d,
-            "level": metabolic_drift_level,
-            "delta_protein_consistency_14d": delta_protein_consistency_14d,
-            "delta_fiber_consistency_14d": delta_fiber_consistency_14d,
-            "carb_clustering_increase_14d": carb_clustering_increase_14d,
-            "readiness_score_delta_14d": readiness_score_delta_14d,
-            "volatility_delta_14d": volatility_delta_14d,
-            "summary": metabolic_drift_summary,
-        },
-        "habit_addiction_engine": {
-            "metabolic_stability_streak": current_metabolic_streak,
-            "longest_stability_streak_14d": longest_metabolic_streak_14d,
-            "stability_bar_pct": stability_bar_pct,
-            "status": streak_status,
-            "recovery_boost_mode": recovery_boost_mode,
-            "summary": streak_summary,
         },
         "muscle_retention_risk": {
             "score": muscle_retention_risk_score,
@@ -2454,6 +2610,8 @@ def weekly_insights(
 
 # -------------------- DAILY COACH (LLM INTERPRETER ONLY) --------------------
 _COACH_MEM_CACHE: Dict[str, Dict[str, Any]] = {}
+_COACH_VOICE_CACHE_MEM: Dict[str, Dict[str, Any]] = {}
+_WEEKLY_REPORT_CACHE_MEM: Dict[str, Dict[str, Any]] = {}
 
 _COACH_SYSTEM_PROMPT = (
     "You are a nutrition coaching assistant. "
@@ -2463,6 +2621,1376 @@ _COACH_SYSTEM_PROMPT = (
     "Do not invent metrics. "
     "Output strict JSON only."
 )
+
+_COACH_MEMORY_CACHE: Dict[str, Dict[str, Any]] = {}
+_COACH_PERSONA_PROMPTS = {
+    "supportive": (
+        "Persona: supportive. "
+        "Warm, encouraging, calm. "
+        "Acknowledge effort, avoid guilt language, keep tone reassuring."
+    ),
+    "direct": (
+        "Persona: direct. "
+        "Short, blunt, no fluff. "
+        "State the issue and exact fix in plain language."
+    ),
+    "performance": (
+        "Persona: performance. "
+        "Athletic framing: recovery, training readiness, adherence. "
+        "Action-first with performance intent."
+    ),
+    "data": (
+        "Persona: data-driven. "
+        "Analytical and concise. Mention one key metric anchor without overload."
+    ),
+}
+_COACH_VOICE_SYSTEM_PROMPT = (
+    "You are a nutrition coaching assistant for a consumer app. "
+    "Output strict JSON only, no markdown, no extra keys. "
+    "Never provide medical diagnosis, treatment, or disease claims. "
+    "Never guarantee body-weight outcomes. "
+    "Always keep empathy_line effort-acknowledging and practical."
+)
+_UNCERTAINTY_HINTS = ("likely", "might", "looks like", "appears", "could")
+
+
+def _normalize_persona_mode(mode: Any) -> str:
+    m = str(mode or "supportive").strip().lower()
+    if m not in _COACH_PERSONA_PROMPTS:
+        return "supportive"
+    return m
+
+
+def _normalize_semantic_key(key: Any) -> str:
+    text = str(key or "").strip().lower()
+    text = re.sub(r"[^a-z0-9]+", "_", text)
+    text = re.sub(r"_+", "_", text).strip("_")
+    return text[:64]
+
+
+def _normalize_semantic_key_list(values: Any, limit: int = 12) -> List[str]:
+    out: List[str] = []
+    seen = set()
+    for v in (values or []):
+        k = _normalize_semantic_key(v)
+        if not k or k in seen:
+            continue
+        seen.add(k)
+        out.append(k)
+        if len(out) >= limit:
+            break
+    return out
+
+
+def _normalize_short_text_list(values: Any, limit: int = 3, max_chars: int = 180) -> List[str]:
+    out: List[str] = []
+    for v in (values or []):
+        s = str(v or "").strip()
+        if not s:
+            continue
+        out.append(s[:max_chars])
+        if len(out) >= limit:
+            break
+    return out
+
+
+def _safe_day_iso(day_iso: Any) -> str:
+    raw = str(day_iso or "").strip()
+    if not raw:
+        return _today_date().isoformat()
+    try:
+        return dt.date.fromisoformat(raw[:10]).isoformat()
+    except Exception:
+        return _today_date().isoformat()
+
+
+def _coach_day_memory_key(user_id: str, day_iso: str) -> str:
+    return f"{str(user_id or '').strip()}:{_safe_day_iso(day_iso)}"
+
+
+def _blank_coach_memory(day_iso: str) -> Dict[str, Any]:
+    return {
+        "day": _safe_day_iso(day_iso),
+        "recent_advice_keys": [],
+        "recent_user_friction": [],
+        "last_3_coach_messages": [],
+        "updated_at": dt.datetime.utcnow().isoformat(),
+    }
+
+
+def _read_coach_memory_day(user_id: str, day_iso: str) -> Dict[str, Any]:
+    key = _coach_day_memory_key(user_id, day_iso)
+    cached = _COACH_MEMORY_CACHE.get(key)
+    if isinstance(cached, dict):
+        return dict(cached)
+
+    out = _blank_coach_memory(day_iso)
+    if not (SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY):
+        _COACH_MEMORY_CACHE[key] = out
+        return out
+    try:
+        row = sb_get_one(
+            TBL_COACH_MEMORY,
+            params={
+                "select": "*",
+                "user_id": f"eq.{user_id}",
+                "day": f"eq.{_safe_day_iso(day_iso)}",
+                "limit": "1",
+            },
+        )
+        if isinstance(row, dict):
+            out = {
+                "day": _safe_day_iso(row.get("day") or day_iso),
+                "recent_advice_keys": _normalize_semantic_key_list(
+                    row.get("recent_advice_keys") or row.get("advice_keys") or []
+                ),
+                "recent_user_friction": _normalize_short_text_list(
+                    row.get("recent_user_friction") or row.get("user_friction") or [],
+                    limit=6,
+                    max_chars=90,
+                ),
+                "last_3_coach_messages": _normalize_short_text_list(
+                    row.get("last_3_coach_messages") or row.get("last_messages") or [],
+                    limit=3,
+                    max_chars=180,
+                ),
+                "updated_at": str(row.get("updated_at") or dt.datetime.utcnow().isoformat()),
+            }
+    except Exception as e:
+        logger.info(f"coach memory day read skipped: {e}")
+    _COACH_MEMORY_CACHE[key] = out
+    return dict(out)
+
+
+def _read_coach_memory_window(user_id: str, day_iso: str) -> Dict[str, Any]:
+    day_key = _safe_day_iso(day_iso)
+    day_mem = _read_coach_memory_day(user_id, day_key)
+    out = {
+        "day": day_key,
+        "recent_advice_keys": _normalize_semantic_key_list(day_mem.get("recent_advice_keys"), limit=24),
+        "recent_user_friction": _normalize_short_text_list(day_mem.get("recent_user_friction"), limit=8, max_chars=90),
+        "last_3_coach_messages": _normalize_short_text_list(day_mem.get("last_3_coach_messages"), limit=3, max_chars=180),
+    }
+    if not (SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY):
+        return out
+    try:
+        start_day = (dt.date.fromisoformat(day_key) - dt.timedelta(days=6)).isoformat()
+        rows = sb_get_many(
+            TBL_COACH_MEMORY,
+            params={
+                "select": "*",
+                "user_id": f"eq.{user_id}",
+                "day": f"gte.{start_day}",
+                "order": "day.desc",
+                "limit": "7",
+            },
+        )
+        recent_keys: List[str] = list(out["recent_advice_keys"])
+        seen = set(recent_keys)
+        last_messages: List[str] = list(out["last_3_coach_messages"])
+        for row in (rows or []):
+            for k in _normalize_semantic_key_list(row.get("recent_advice_keys") or [], limit=12):
+                if k in seen:
+                    continue
+                seen.add(k)
+                recent_keys.append(k)
+                if len(recent_keys) >= 24:
+                    break
+            for msg in _normalize_short_text_list(row.get("last_3_coach_messages") or [], limit=3, max_chars=180):
+                if msg not in last_messages:
+                    last_messages.append(msg)
+                if len(last_messages) >= 3:
+                    break
+        out["recent_advice_keys"] = recent_keys[:24]
+        out["last_3_coach_messages"] = last_messages[:3]
+    except Exception as e:
+        logger.info(f"coach memory 7-day read skipped: {e}")
+    return out
+
+
+def _write_coach_memory_day(user_id: str, day_iso: str, memory: Dict[str, Any]) -> Dict[str, Any]:
+    day_key = _safe_day_iso(day_iso)
+    payload = {
+        "user_id": str(user_id or "").strip(),
+        "day": day_key,
+        "recent_advice_keys": _normalize_semantic_key_list((memory or {}).get("recent_advice_keys"), limit=24),
+        "recent_user_friction": _normalize_short_text_list((memory or {}).get("recent_user_friction"), limit=8, max_chars=90),
+        "last_3_coach_messages": _normalize_short_text_list((memory or {}).get("last_3_coach_messages"), limit=3, max_chars=180),
+        "updated_at": dt.datetime.utcnow().isoformat(),
+    }
+    _COACH_MEMORY_CACHE[_coach_day_memory_key(user_id, day_key)] = dict(payload)
+    if not (SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY):
+        return payload
+    try:
+        existing = sb_get_one(
+            TBL_COACH_MEMORY,
+            params={
+                "select": "*",
+                "user_id": f"eq.{user_id}",
+                "day": f"eq.{day_key}",
+                "limit": "1",
+            },
+        )
+        if existing:
+            patch = {k: v for k, v in payload.items() if k not in {"user_id", "day"}}
+            _sb_patch_with_column_fallback(
+                TBL_COACH_MEMORY,
+                {"user_id": f"eq.{user_id}", "day": f"eq.{day_key}"},
+                patch,
+            )
+        else:
+            _sb_insert_with_column_fallback(
+                TBL_COACH_MEMORY,
+                payload,
+                locked_cols={"user_id", "day"},
+            )
+    except Exception as e:
+        logger.info(f"coach memory write skipped: {e}")
+    return payload
+
+
+def _infer_semantic_key_from_action(title: Any, how: Any) -> str:
+    text = f"{str(title or '')} {str(how or '')}".lower()
+    mapping = [
+        ("protein_at_breakfast", ("protein", "breakfast")),
+        ("add_fiber_veg", ("fiber", "veg")),
+        ("reduce_upf_snack", ("ultra", "processed")),
+        ("flatten_glycemic_spike", ("glycemic", "load")),
+        ("add_oil_tracking", ("oil", "track")),
+        ("portion_down_0_8", ("portion", "smaller")),
+        ("hit_leucine_trigger", ("leucine", "mps")),
+        ("scan_more_days", ("scan", "days")),
+        ("confirm_cooking_oil", ("cooking", "oil")),
+    ]
+    for key, clues in mapping:
+        if all(c in text for c in clues):
+            return key
+    if "protein" in text:
+        return "protein_anchor"
+    if "fiber" in text:
+        return "fiber_boost"
+    if "oil" in text or "fried" in text:
+        return "add_oil_tracking"
+    return "consistency_focus"
+
+
+def _context_gap(context: Dict[str, Any], macro_key: str) -> float:
+    goals = (context or {}).get("goals") if isinstance((context or {}).get("goals"), dict) else {}
+    consumed = (context or {}).get("consumed_today") if isinstance((context or {}).get("consumed_today"), dict) else {}
+    g = float(_safe_float(goals.get(macro_key), 0.0) or 0.0)
+    c = float(_safe_float(consumed.get(macro_key), 0.0) or 0.0)
+    return max(0.0, round(g - c, 1))
+
+
+def _is_low_confidence_context(context: Dict[str, Any]) -> bool:
+    conf = (context or {}).get("confidence") if isinstance((context or {}).get("confidence"), dict) else {}
+    vision_conf = float(_safe_float(conf.get("vision_confidence"), 1.0) or 1.0)
+    band = str(conf.get("projection_confidence_band") or "medium").strip().lower()
+    return vision_conf < 0.55 or band == "low"
+
+
+def _repeat_allowed_for_key(context: Dict[str, Any], semantic_key: str) -> bool:
+    key = _normalize_semantic_key(semantic_key)
+    if not key:
+        return False
+    protein_gap = _context_gap(context, "protein_g")
+    profile = (context or {}).get("profile") if isinstance((context or {}).get("profile"), dict) else {}
+    training_days = int(_safe_float(profile.get("training_days_per_week"), 0) or 0)
+    if "protein" in key and protein_gap > 60 and training_days >= 4:
+        return True
+    return False
+
+
+def _voice_action_candidates(context: Dict[str, Any]) -> List[Dict[str, str]]:
+    gaps = {
+        "protein": _context_gap(context, "protein_g"),
+        "fiber": _context_gap(context, "fiber_g"),
+    }
+    signals = (context or {}).get("signals") if isinstance((context or {}).get("signals"), dict) else {}
+    conf = (context or {}).get("confidence") if isinstance((context or {}).get("confidence"), dict) else {}
+    candidates: List[Dict[str, str]] = []
+
+    if _is_low_confidence_context(context):
+        candidates.append(
+            {
+                "semantic_key": "confirm_cooking_oil",
+                "title": "Confirm cooking style + oil",
+                "how": "Tap edit and set fried/air-fried + oil so macros recalculate correctly.",
+            }
+        )
+        days_with_data = int(_safe_float(conf.get("days_with_data_7d"), 0) or 0)
+        if days_with_data < 4:
+            candidates.append(
+                {
+                    "semantic_key": "scan_more_days",
+                    "title": "Improve data confidence",
+                    "how": "Scan 2 more days this week to make coaching more reliable.",
+                }
+            )
+        return candidates
+
+    if gaps["protein"] >= 25:
+        candidates.append(
+            {
+                "semantic_key": "protein_at_breakfast",
+                "title": "Add early protein anchor",
+                "how": "Add 25-35g protein at breakfast to close today’s protein gap faster.",
+            }
+        )
+    if gaps["fiber"] >= 8:
+        candidates.append(
+            {
+                "semantic_key": "add_fiber_veg",
+                "title": "Add fiber booster now",
+                "how": "Add one veg + legume side at the next meal to reduce your fiber gap.",
+            }
+        )
+    if float(_safe_float(signals.get("ultra_processed_score"), 0.0) or 0.0) >= 7:
+        candidates.append(
+            {
+                "semantic_key": "reduce_upf_snack",
+                "title": "Swap one ultra-processed item",
+                "how": "Replace one packaged snack with fruit + yogurt or nuts today.",
+            }
+        )
+    if float(_safe_float(signals.get("glycemic_load"), 0.0) or 0.0) >= 20:
+        candidates.append(
+            {
+                "semantic_key": "flatten_glycemic_spike",
+                "title": "Flatten next glucose spike",
+                "how": "Pair carbs with protein + veg at your next meal.",
+            }
+        )
+    if not bool(signals.get("mps_triggered")) and gaps["protein"] > 0:
+        candidates.append(
+            {
+                "semantic_key": "hit_leucine_trigger",
+                "title": "Hit one leucine trigger",
+                "how": "Add one high-quality protein hit (eggs/chicken/fish/tofu + dairy).",
+            }
+        )
+    if not candidates:
+        candidates.append(
+            {
+                "semantic_key": "consistency_focus",
+                "title": "Hold consistency tonight",
+                "how": "Keep the next meal simple: lean protein + veg + controlled carbs.",
+            }
+        )
+    return candidates
+
+
+def _pick_non_repeating_action(context: Dict[str, Any], recent_keys: List[str]) -> Dict[str, str]:
+    seen = set(_normalize_semantic_key_list(recent_keys, limit=24))
+    candidates = _voice_action_candidates(context)
+    for cand in candidates:
+        key = _normalize_semantic_key(cand.get("semantic_key"))
+        if not key:
+            continue
+        if key not in seen or _repeat_allowed_for_key(context, key):
+            return cand
+    return candidates[0] if candidates else {
+        "semantic_key": "consistency_focus",
+        "title": "Keep consistency",
+        "how": "Keep meals simple and balanced for the rest of the day.",
+    }
+
+
+def _limit_text(s: Any, max_chars: int) -> str:
+    text = str(s or "").strip()
+    if len(text) <= max_chars:
+        return text
+    return text[: max_chars - 1].rstrip() + "…"
+
+
+def _ensure_uncertainty_language(line: str) -> str:
+    text = str(line or "").strip()
+    lower = text.lower()
+    if any(h in lower for h in _UNCERTAINTY_HINTS):
+        return text
+    if not text:
+        return "This likely needs a quick confirmation before we lock coaching."
+    return f"It looks like {text[0].lower() + text[1:]}" if len(text) > 1 else "Likely needs confirmation."
+
+
+def _build_voice_fallback(mode: str, context: Dict[str, Any], recent_keys: List[str]) -> Dict[str, Any]:
+    persona = _normalize_persona_mode(mode)
+    action = _pick_non_repeating_action(context, recent_keys)
+    low_conf = _is_low_confidence_context(context)
+    protein_gap = _context_gap(context, "protein_g")
+    fiber_gap = _context_gap(context, "fiber_g")
+
+    empathy = "Nice work logging this meal. Small consistent tweaks will compound."
+    if persona == "direct":
+        empathy = "Good logging. Now execute one fix."
+    elif persona == "performance":
+        empathy = "Good check-in. Let’s protect recovery and adherence."
+    elif persona == "data":
+        empathy = "Good data point. One targeted change will move today’s trend."
+
+    if low_conf:
+        coach = "This scan likely needs one quick confirmation before we finalize coaching."
+    elif protein_gap >= fiber_gap and protein_gap > 0:
+        coach = f"Protein is still the main limiter today; closing ~{round(protein_gap, 1)}g changes the day."
+    elif fiber_gap > 0:
+        coach = f"Fiber remains low by ~{round(fiber_gap, 1)}g, which can hurt satiety later."
+    else:
+        coach = "You’re close to targets; one precise action can keep momentum strong."
+
+    if low_conf:
+        coach = _ensure_uncertainty_language(coach)
+
+    tone_map = {
+        "supportive": ["calm", "supportive", "confident"],
+        "direct": ["direct", "concise", "clear"],
+        "performance": ["focused", "athletic", "intentional"],
+        "data": ["analytical", "calm", "precise"],
+    }
+    out = {
+        "coach_line": _limit_text(coach, 160),
+        "empathy_line": _limit_text(empathy, 120),
+        "one_action": {
+            "title": _limit_text(action.get("title") or "One next step", 42),
+            "how": _limit_text(action.get("how") or "Apply one practical change in the next meal.", 120),
+        },
+        "avoid_repeats": _normalize_semantic_key_list([action.get("semantic_key")], limit=2),
+        "tone_tags": tone_map.get(persona, tone_map["supportive"]),
+    }
+    if low_conf:
+        out["safety_disclaimer"] = "Informational only. Confidence is currently low; confirm meal details."
+    return out
+
+
+def _coerce_coach_voice_output(
+    parsed: Dict[str, Any],
+    mode: str,
+    context: Dict[str, Any],
+    recent_keys: List[str],
+) -> Dict[str, Any]:
+    persona = _normalize_persona_mode(mode)
+    low_conf = _is_low_confidence_context(context)
+
+    coach_line = _limit_text(parsed.get("coach_line"), 160)
+    empathy_line = _limit_text(parsed.get("empathy_line"), 120)
+    one_action_src = parsed.get("one_action") if isinstance(parsed.get("one_action"), dict) else {}
+    title = _limit_text(one_action_src.get("title"), 42)
+    how = _limit_text(one_action_src.get("how"), 120)
+
+    if not empathy_line:
+        empathy_line = _build_voice_fallback(persona, context, recent_keys).get("empathy_line", "")
+    if not coach_line:
+        coach_line = _build_voice_fallback(persona, context, recent_keys).get("coach_line", "")
+    if low_conf:
+        coach_line = _ensure_uncertainty_language(coach_line)
+
+    inferred_key = _infer_semantic_key_from_action(title, how)
+    provided_keys = _normalize_semantic_key_list(parsed.get("avoid_repeats"), limit=4)
+    key = provided_keys[0] if provided_keys else inferred_key
+    if (key in set(_normalize_semantic_key_list(recent_keys, limit=24))) and not _repeat_allowed_for_key(context, key):
+        alt = _pick_non_repeating_action(context, recent_keys)
+        title = _limit_text(alt.get("title"), 42)
+        how = _limit_text(alt.get("how"), 120)
+        key = _normalize_semantic_key(alt.get("semantic_key"))
+
+    if low_conf and key not in {"confirm_cooking_oil", "scan_more_days"}:
+        alt = _pick_non_repeating_action({**context, "confidence": {"vision_confidence": 0.5, "projection_confidence_band": "low"}}, recent_keys)
+        title = _limit_text(alt.get("title"), 42)
+        how = _limit_text(alt.get("how"), 120)
+        key = _normalize_semantic_key(alt.get("semantic_key"))
+
+    if not title or not how:
+        alt = _pick_non_repeating_action(context, recent_keys)
+        title = _limit_text(alt.get("title"), 42)
+        how = _limit_text(alt.get("how"), 120)
+        key = _normalize_semantic_key(alt.get("semantic_key"))
+
+    tone_tags = parsed.get("tone_tags") if isinstance(parsed.get("tone_tags"), list) else []
+    tone_tags = [str(t).strip().lower() for t in tone_tags if str(t).strip()][:3]
+    if not tone_tags:
+        tone_tags = _build_voice_fallback(persona, context, recent_keys).get("tone_tags", ["calm", "supportive"])
+
+    out = {
+        "coach_line": coach_line,
+        "empathy_line": empathy_line,
+        "one_action": {"title": title, "how": how},
+        "avoid_repeats": _normalize_semantic_key_list([key] + provided_keys, limit=2),
+        "tone_tags": tone_tags,
+    }
+    disclaimer = str(parsed.get("safety_disclaimer") or "").strip()
+    if low_conf:
+        out["safety_disclaimer"] = disclaimer or "Informational only. Confidence is currently low; confirm meal details."
+    elif disclaimer:
+        out["safety_disclaimer"] = _limit_text(disclaimer, 140)
+    return out
+
+
+def _build_coach_voice_prompt(
+    mode: str,
+    compact_context: Dict[str, Any],
+    recent_advice_keys: List[str],
+    last_messages: List[str],
+) -> str:
+    template = {
+        "coach_line": "string <=160 chars (1-2 sentences)",
+        "empathy_line": "string <=120 chars (must acknowledge effort)",
+        "one_action": {"title": "string <=42 chars", "how": "string <=120 chars"},
+        "avoid_repeats": ["semantic_key_1", "semantic_key_2"],
+        "tone_tags": ["calm", "supportive", "confident"],
+        "safety_disclaimer": "optional string",
+    }
+    low_conf = _is_low_confidence_context(compact_context)
+    low_conf_rule = (
+        "LOW_CONFIDENCE_MODE=true. coach_line must include uncertainty words "
+        "('likely', 'might', 'looks like'). one_action must be confirmation/data-quality focused."
+        if low_conf
+        else "LOW_CONFIDENCE_MODE=false."
+    )
+    return (
+        f"{_COACH_PERSONA_PROMPTS.get(_normalize_persona_mode(mode), _COACH_PERSONA_PROMPTS['supportive'])}\n"
+        "Contract:\n"
+        "- JSON only, no markdown.\n"
+        "- No extra keys.\n"
+        "- No medical claims.\n"
+        "- coach_line 1-2 sentences max.\n"
+        "- Exactly one action.\n"
+        "- Use recent_advice_keys to avoid repeats unless urgency is clearly high.\n"
+        f"- {low_conf_rule}\n\n"
+        f"recent_advice_keys: {json.dumps(_normalize_semantic_key_list(recent_advice_keys, limit=12), ensure_ascii=True)}\n"
+        f"last_3_coach_messages: {json.dumps(_normalize_short_text_list(last_messages, limit=3), ensure_ascii=True)}\n"
+        f"context: {json.dumps(compact_context, ensure_ascii=True)}\n"
+        f"Output schema: {json.dumps(template, ensure_ascii=True)}"
+    )
+
+
+def _generate_coach_voice_llm(
+    mode: str,
+    compact_context: Dict[str, Any],
+    recent_advice_keys: List[str],
+    last_messages: List[str],
+) -> Dict[str, Any]:
+    _require_gemini_key()
+    model = genai.GenerativeModel(COACH_VOICE_LLM_MODEL)
+    prompt = _build_coach_voice_prompt(mode, compact_context, recent_advice_keys, last_messages)
+    last_err = ""
+    for attempt in range(2):
+        try:
+            resp = model.generate_content(
+                [_COACH_VOICE_SYSTEM_PROMPT, prompt],
+                request_options={"timeout": COACH_VOICE_TIMEOUT_SEC},
+            )
+            parsed = coach_logic.extract_json_object(str((resp.text or "")).strip())
+            if not isinstance(parsed, dict):
+                raise ValueError("Coach voice response is not valid JSON.")
+            return parsed
+        except Exception as e:
+            last_err = str(e)
+            time.sleep(0.35 * (attempt + 1))
+    raise HTTPException(status_code=502, detail={"error": "coach_voice_llm_failed", "raw": last_err[:300]})
+
+
+def _merge_memory_payload(
+    persisted: Dict[str, Any],
+    incoming: Dict[str, Any],
+) -> Dict[str, Any]:
+    out = {
+        "recent_advice_keys": _normalize_semantic_key_list((persisted or {}).get("recent_advice_keys"), limit=24),
+        "recent_user_friction": _normalize_short_text_list((persisted or {}).get("recent_user_friction"), limit=8, max_chars=90),
+        "last_3_coach_messages": _normalize_short_text_list((persisted or {}).get("last_3_coach_messages"), limit=3, max_chars=180),
+    }
+    in_mem = incoming if isinstance(incoming, dict) else {}
+    for k in _normalize_semantic_key_list(in_mem.get("recent_advice_keys"), limit=12):
+        if k not in out["recent_advice_keys"]:
+            out["recent_advice_keys"].append(k)
+    out["recent_advice_keys"] = out["recent_advice_keys"][:24]
+    for msg in _normalize_short_text_list(in_mem.get("last_3_coach_messages"), limit=3, max_chars=180):
+        if msg not in out["last_3_coach_messages"]:
+            out["last_3_coach_messages"].insert(0, msg)
+    out["last_3_coach_messages"] = out["last_3_coach_messages"][:3]
+    for fx in _normalize_short_text_list(in_mem.get("recent_user_friction"), limit=6, max_chars=90):
+        if fx not in out["recent_user_friction"]:
+            out["recent_user_friction"].append(fx)
+    out["recent_user_friction"] = out["recent_user_friction"][:8]
+    return out
+
+
+def _compact_voice_context(raw_context: Dict[str, Any]) -> Dict[str, Any]:
+    ctx = raw_context if isinstance(raw_context, dict) else {}
+    goals = ctx.get("goals") if isinstance(ctx.get("goals"), dict) else {}
+    consumed = ctx.get("consumed_today") if isinstance(ctx.get("consumed_today"), dict) else {}
+    meal = ctx.get("meal_totals") if isinstance(ctx.get("meal_totals"), dict) else {}
+    signals = ctx.get("signals") if isinstance(ctx.get("signals"), dict) else {}
+    conf = ctx.get("confidence") if isinstance(ctx.get("confidence"), dict) else {}
+    profile = ctx.get("profile") if isinstance(ctx.get("profile"), dict) else {}
+    return {
+        "meal_id": str(ctx.get("meal_id") or ""),
+        "date": _safe_day_iso(ctx.get("date")),
+        "timezone": str(ctx.get("timezone") or ""),
+        "goals": {
+            "kcal": round(_safe_float(goals.get("kcal"), 0.0), 1),
+            "protein_g": round(_safe_float(goals.get("protein_g"), 0.0), 1),
+            "carbs_g": round(_safe_float(goals.get("carbs_g"), 0.0), 1),
+            "fat_g": round(_safe_float(goals.get("fat_g"), 0.0), 1),
+            "fiber_g": round(_safe_float(goals.get("fiber_g"), 0.0), 1),
+        },
+        "consumed_today": {
+            "kcal": round(_safe_float(consumed.get("kcal"), 0.0), 1),
+            "protein_g": round(_safe_float(consumed.get("protein_g"), 0.0), 1),
+            "carbs_g": round(_safe_float(consumed.get("carbs_g"), 0.0), 1),
+            "fat_g": round(_safe_float(consumed.get("fat_g"), 0.0), 1),
+            "fiber_g": round(_safe_float(consumed.get("fiber_g"), 0.0), 1),
+        },
+        "meal_totals": {
+            "kcal": round(_safe_float(meal.get("kcal"), 0.0), 1),
+            "protein_g": round(_safe_float(meal.get("protein_g"), 0.0), 1),
+            "carbs_g": round(_safe_float(meal.get("carbs_g"), 0.0), 1),
+            "fat_g": round(_safe_float(meal.get("fat_g"), 0.0), 1),
+            "fiber_g": round(_safe_float(meal.get("fiber_g"), 0.0), 1),
+        },
+        "signals": {
+            "ultra_processed_score": round(_safe_float(signals.get("ultra_processed_score"), 0.0), 1),
+            "glycemic_load": round(_safe_float(signals.get("glycemic_load"), 0.0), 1),
+            "satiety_score": round(_safe_float(signals.get("satiety_score"), 0.0), 1),
+            "protein_bv_score": round(_safe_float(signals.get("protein_bv_score"), 0.0), 1),
+            "mps_triggered": bool(signals.get("mps_triggered")),
+        },
+        "confidence": {
+            "vision_confidence": round(_safe_float(conf.get("vision_confidence"), 1.0), 3),
+            "projection_confidence_band": str(conf.get("projection_confidence_band") or "medium").strip().lower(),
+            "days_with_data_7d": int(_safe_float(conf.get("days_with_data_7d"), 0) or 0),
+            "scans_7d": int(_safe_float(conf.get("scans_7d"), 0) or 0),
+        },
+        "profile": {
+            "goal_type": str(profile.get("goal_type") or ""),
+            "training_days_per_week": int(_safe_float(profile.get("training_days_per_week"), 0) or 0),
+            "training_time": str(profile.get("training_time") or ""),
+            "coach_persona": _normalize_persona_mode(profile.get("coach_persona")),
+        },
+    }
+
+
+def _append_coach_memory_entry(
+    user_id: str,
+    day_iso: str,
+    semantic_key: str,
+    coach_line: str,
+    friction: Optional[List[str]] = None,
+) -> Dict[str, Any]:
+    cur = _read_coach_memory_day(user_id, day_iso)
+    keys = _normalize_semantic_key_list([semantic_key] + list(cur.get("recent_advice_keys") or []), limit=24)
+    msgs = _normalize_short_text_list([coach_line] + list(cur.get("last_3_coach_messages") or []), limit=3, max_chars=180)
+    fx = _normalize_short_text_list(list(cur.get("recent_user_friction") or []) + list(friction or []), limit=8, max_chars=90)
+    return _write_coach_memory_day(
+        user_id,
+        day_iso,
+        {
+            "recent_advice_keys": keys,
+            "last_3_coach_messages": msgs,
+            "recent_user_friction": fx,
+        },
+    )
+
+
+def _now_utc_naive() -> dt.datetime:
+    return dt.datetime.utcnow()
+
+
+def _parse_iso_dt_naive(value: Any) -> Optional[dt.datetime]:
+    raw = str(value or "").strip()
+    if not raw:
+        return None
+    try:
+        parsed = dt.datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        if parsed.tzinfo is not None:
+            return parsed.astimezone(dt.timezone.utc).replace(tzinfo=None)
+        return parsed
+    except Exception:
+        return None
+
+
+def _normalize_tone_preference(v: Any) -> str:
+    tone = str(v or "supportive").strip().lower()
+    if tone not in {"supportive", "firm", "fun", "neutral"}:
+        return "supportive"
+    return tone
+
+
+def _normalize_tone_tag(v: Any, fallback: str = "neutral") -> str:
+    tone = str(v or "").strip().lower()
+    if tone not in {"supportive", "firm", "celebratory", "neutral"}:
+        return fallback if fallback in {"supportive", "firm", "celebratory", "neutral"} else "neutral"
+    return tone
+
+
+def _voice_cache_key(user_id: str, day_iso: str, payload_hash: str, tone_preference: str) -> str:
+    return f"{str(user_id or '').strip()}:{_safe_day_iso(day_iso)}:{str(payload_hash or '').strip()}:{_normalize_tone_preference(tone_preference)}"
+
+
+def _coach_voice_cache_get(user_id: str, day_iso: str, payload_hash: str, tone_preference: str) -> Optional[Dict[str, Any]]:
+    key = _voice_cache_key(user_id, day_iso, payload_hash, tone_preference)
+    now = _now_utc_naive()
+
+    mem = _COACH_VOICE_CACHE_MEM.get(key)
+    if isinstance(mem, dict):
+        exp = _parse_iso_dt_naive(mem.get("expires_at"))
+        if exp and exp > now and isinstance(mem.get("response"), dict):
+            return dict(mem.get("response"))
+
+    if not (SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY):
+        return None
+    try:
+        row = sb_get_one(
+            TBL_COACH_VOICE_CACHE,
+            params={
+                "select": "*",
+                "user_id": f"eq.{user_id}",
+                "day": f"eq.{_safe_day_iso(day_iso)}",
+                "payload_hash": f"eq.{str(payload_hash or '').strip()}",
+                "tone_preference": f"eq.{_normalize_tone_preference(tone_preference)}",
+                "order": "updated_at.desc",
+                "limit": "1",
+            },
+        )
+    except Exception as e:
+        logger.info(f"coach voice cache read skipped: {e}")
+        return None
+    if not row:
+        return None
+    exp = _parse_iso_dt_naive(row.get("expires_at"))
+    if not exp or exp <= now:
+        return None
+
+    resp = _parse_jsonish(row.get("response_json"), None)
+    if not isinstance(resp, dict):
+        return None
+    _COACH_VOICE_CACHE_MEM[key] = {
+        "expires_at": str(row.get("expires_at") or ""),
+        "response": dict(resp),
+    }
+    return dict(resp)
+
+
+def _coach_voice_cache_set(
+    user_id: str,
+    day_iso: str,
+    payload_hash: str,
+    tone_preference: str,
+    response_payload: Dict[str, Any],
+) -> None:
+    key = _voice_cache_key(user_id, day_iso, payload_hash, tone_preference)
+    now_iso = _now_utc_naive().isoformat()
+    expires_at = (_now_utc_naive() + dt.timedelta(minutes=COACH_VOICE_CACHE_TTL_MIN)).isoformat()
+    resp = dict(response_payload or {})
+    _COACH_VOICE_CACHE_MEM[key] = {
+        "expires_at": expires_at,
+        "response": resp,
+    }
+
+    if not (SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY):
+        return
+    row = {
+        "user_id": str(user_id or "").strip(),
+        "day": _safe_day_iso(day_iso),
+        "payload_hash": str(payload_hash or "").strip(),
+        "tone_preference": _normalize_tone_preference(tone_preference),
+        "response_json": resp,
+        "coach_generated_ts": str(resp.get("coach_generated_ts") or now_iso),
+        "advice_key": str(resp.get("advice_key") or ""),
+        "expires_at": expires_at,
+        "updated_at": now_iso,
+    }
+    try:
+        existing = sb_get_one(
+            TBL_COACH_VOICE_CACHE,
+            params={
+                "select": "*",
+                "user_id": f"eq.{row['user_id']}",
+                "day": f"eq.{row['day']}",
+                "payload_hash": f"eq.{row['payload_hash']}",
+                "tone_preference": f"eq.{row['tone_preference']}",
+                "limit": "1",
+            },
+        )
+        if existing:
+            patch = {k: v for k, v in row.items() if k not in {"user_id", "day", "payload_hash", "tone_preference"}}
+            _sb_patch_with_column_fallback(
+                TBL_COACH_VOICE_CACHE,
+                {
+                    "user_id": f"eq.{row['user_id']}",
+                    "day": f"eq.{row['day']}",
+                    "payload_hash": f"eq.{row['payload_hash']}",
+                    "tone_preference": f"eq.{row['tone_preference']}",
+                },
+                patch,
+            )
+        else:
+            _sb_insert_with_column_fallback(
+                TBL_COACH_VOICE_CACHE,
+                row,
+                locked_cols={"user_id", "day", "payload_hash", "tone_preference"},
+            )
+    except Exception as e:
+        logger.info(f"coach voice cache write skipped: {e}")
+
+
+def _weekly_report_cache_key(user_id: str, week_start_iso: str, payload_hash: str) -> str:
+    return f"{str(user_id or '').strip()}:{str(week_start_iso or '').strip()}:{str(payload_hash or '').strip()}"
+
+
+def _weekly_report_cache_get(user_id: str, week_start_iso: str, payload_hash: str) -> Optional[Dict[str, Any]]:
+    key = _weekly_report_cache_key(user_id, week_start_iso, payload_hash)
+    mem = _WEEKLY_REPORT_CACHE_MEM.get(key)
+    if isinstance(mem, dict):
+        return dict(mem)
+    if not (SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY):
+        return None
+    try:
+        row = sb_get_one(
+            TBL_WEEKLY_REPORTS,
+            params={
+                "select": "*",
+                "user_id": f"eq.{user_id}",
+                "week_start": f"eq.{week_start_iso}",
+                "payload_hash": f"eq.{payload_hash}",
+                "limit": "1",
+            },
+        )
+    except Exception as e:
+        logger.info(f"weekly report cache read skipped: {e}")
+        return None
+    if not row:
+        return None
+    payload = _parse_jsonish(row.get("report_json"), None)
+    if not isinstance(payload, dict):
+        return None
+    _WEEKLY_REPORT_CACHE_MEM[key] = dict(payload)
+    return dict(payload)
+
+
+def _weekly_report_cache_set(user_id: str, week_start_iso: str, payload_hash: str, report: Dict[str, Any]) -> None:
+    key = _weekly_report_cache_key(user_id, week_start_iso, payload_hash)
+    payload = dict(report or {})
+    _WEEKLY_REPORT_CACHE_MEM[key] = payload
+    if not (SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY):
+        return
+    row = {
+        "user_id": str(user_id or "").strip(),
+        "week_start": str(week_start_iso or "").strip(),
+        "payload_hash": str(payload_hash or "").strip(),
+        "report_json": payload,
+        "updated_at": _now_utc_naive().isoformat(),
+    }
+    try:
+        existing = sb_get_one(
+            TBL_WEEKLY_REPORTS,
+            params={
+                "select": "*",
+                "user_id": f"eq.{row['user_id']}",
+                "week_start": f"eq.{row['week_start']}",
+                "payload_hash": f"eq.{row['payload_hash']}",
+                "limit": "1",
+            },
+        )
+        if existing:
+            patch = {k: v for k, v in row.items() if k not in {"user_id", "week_start", "payload_hash"}}
+            _sb_patch_with_column_fallback(
+                TBL_WEEKLY_REPORTS,
+                {
+                    "user_id": f"eq.{row['user_id']}",
+                    "week_start": f"eq.{row['week_start']}",
+                    "payload_hash": f"eq.{row['payload_hash']}",
+                },
+                patch,
+            )
+        else:
+            _sb_insert_with_column_fallback(
+                TBL_WEEKLY_REPORTS,
+                row,
+                locked_cols={"user_id", "week_start", "payload_hash"},
+            )
+    except Exception as e:
+        logger.info(f"weekly report cache write skipped: {e}")
+
+
+def _feedback_type_normalize(v: Any) -> str:
+    t = str(v or "overall").strip().lower()
+    if t not in {"accuracy", "portion", "cooking", "oil", "ingredients", "overall"}:
+        return "overall"
+    return t
+
+
+def _food_token(name: Any) -> str:
+    text = str(name or "").strip().lower()
+    text = re.sub(r"[^a-z0-9]+", "_", text)
+    text = re.sub(r"_+", "_", text).strip("_")
+    return text[:64]
+
+
+def _blend_avg(old_avg: float, old_n: int, new_val: float) -> float:
+    if old_n <= 0:
+        return float(new_val)
+    return ((old_avg * old_n) + new_val) / float(old_n + 1)
+
+
+def _method_norm(v: Any) -> str:
+    return _food_token(v).replace("_", " ")
+
+
+def _extract_prior_count(row: Dict[str, Any], *keys: str) -> int:
+    for k in keys:
+        if k in (row or {}) and row.get(k) is not None:
+            return int(_safe_float(row.get(k), 0) or 0)
+    return 0
+
+
+def _extract_prior_float(row: Dict[str, Any], *keys: str, default: float = 0.0) -> float:
+    for k in keys:
+        if k in (row or {}) and row.get(k) is not None:
+            return float(_safe_float(row.get(k), default) or default)
+    return float(default)
+
+
+def _extract_oil_by_method(row: Dict[str, Any]) -> Dict[str, Dict[str, float]]:
+    src = _parse_jsonish((row or {}).get("oil_by_method"), {})
+    if not isinstance(src, dict):
+        src = {}
+    out: Dict[str, Dict[str, float]] = {}
+    for mk, mv in src.items():
+        key = _food_token(mk).replace("_", " ")
+        if not key:
+            continue
+        if isinstance(mv, dict):
+            out[key] = {
+                "mean": round(float(_safe_float(mv.get("mean"), 0.0) or 0.0), 4),
+                "n": int(_safe_float(mv.get("n"), 0) or 0),
+            }
+    return out
+
+
+def _extract_always_ask_methods(row: Dict[str, Any]) -> List[str]:
+    arr = _parse_jsonish((row or {}).get("always_ask_oil_for_methods"), [])
+    out: List[str] = []
+    seen = set()
+    if isinstance(arr, list):
+        for x in arr:
+            m = _food_token(x).replace("_", " ")
+            if m and m not in seen:
+                seen.add(m)
+                out.append(m)
+    if bool((row or {}).get("always_ask_clarifying")) and "pan fried" not in seen:
+        out.append("pan fried")
+    return out
+
+
+def _row_food_key(row: Dict[str, Any]) -> str:
+    return _food_token((row or {}).get("food_key") or (row or {}).get("food_token"))
+
+
+def _read_user_food_prior(user_id: str, food_token: str) -> Optional[Dict[str, Any]]:
+    if not (SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY):
+        return None
+    token = _food_token(food_token)
+    if not token:
+        return None
+    try:
+        row = sb_get_one(
+            TBL_USER_FOOD_PRIORS,
+            params={"select": "*", "user_id": f"eq.{user_id}", "food_key": f"eq.{token}", "limit": "1"},
+        )
+        if row:
+            return row
+    except Exception:
+        pass
+    try:
+        return sb_get_one(
+            TBL_USER_FOOD_PRIORS,
+            params={"select": "*", "user_id": f"eq.{user_id}", "food_token": f"eq.{token}", "limit": "1"},
+        )
+    except Exception as e:
+        logger.info(f"user food prior read skipped: {e}")
+        return None
+
+
+def _list_user_food_priors(user_id: str, limit: int = 20) -> List[Dict[str, Any]]:
+    if not (SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY):
+        return []
+    try:
+        rows = sb_get_many(
+            TBL_USER_FOOD_PRIORS,
+            params={"select": "*", "user_id": f"eq.{user_id}", "order": "updated_at.desc", "limit": str(max(1, min(200, limit)))},
+        )
+        return rows if isinstance(rows, list) else []
+    except Exception as e:
+        logger.info(f"user priors list skipped: {e}")
+        return []
+
+
+def _recent_oil_corrections_for_method(user_id: str, method: str, food_key: str) -> int:
+    if not (SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY):
+        return 0
+    rows: List[Dict[str, Any]] = []
+    try:
+        rows = sb_get_many(
+            TBL_COACH_FEEDBACK,
+            params={
+                "select": "corrections_json,corrections,feedback_type,created_at",
+                "user_id": f"eq.{user_id}",
+                "order": "created_at.desc",
+                "limit": "30",
+            },
+        )
+    except Exception as e:
+        logger.info(f"feedback history read skipped: {e}")
+        return 0
+    method_norm = _method_norm(method)
+    key_norm = _food_token(food_key)
+    checked = 0
+    matched = 0
+    for row in (rows or []):
+        if checked >= 10:
+            break
+        checked += 1
+        corr = _parse_jsonish(row.get("corrections_json"), None)
+        if not isinstance(corr, dict):
+            corr = _parse_jsonish(row.get("corrections"), {})
+        if not isinstance(corr, dict):
+            continue
+        corr_key = _food_token(corr.get("food_key") or corr.get("item_name") or corr.get("food_token"))
+        if key_norm and corr_key and corr_key != key_norm:
+            continue
+        corr_method = _method_norm(corr.get("cooking_method"))
+        oil = _safe_float(corr.get("oil_added_tsp"), None)
+        if corr_method == method_norm and oil is not None:
+            matched += 1
+    return matched
+
+
+def _build_food_prior_payload(row: Dict[str, Any]) -> Dict[str, Any]:
+    oil_by_method = _extract_oil_by_method(row)
+    return {
+        "portion_multiplier_mean": round(_extract_prior_float(row, "portion_multiplier_mean", "portion_multiplier_avg", default=1.0), 4),
+        "portion_multiplier_n": int(_extract_prior_count(row, "portion_multiplier_n", "portion_feedback_count")),
+        "oil_tsp_mean": round(_extract_prior_float(row, "oil_tsp_mean", "oil_added_tsp_avg", default=0.0), 4),
+        "oil_tsp_n": int(_extract_prior_count(row, "oil_tsp_n", "oil_feedback_count")),
+        "oil_by_method": oil_by_method,
+        "always_ask_oil_for_methods": _extract_always_ask_methods(row),
+    }
+
+
+def _derive_feedback_food_key(req: CoachFeedbackRequestModel) -> str:
+    corr = req.corrections or CoachFeedbackCorrectionsModel()
+    candidates: List[Any] = [
+        corr.food_key,
+        corr.item_name,
+        corr.item_id,
+        req.meal_id,
+    ]
+    for item in (corr.confirmed_items or []):
+        if isinstance(item, CoachFeedbackConfirmedItemModel):
+            candidates.append(item.name)
+        elif isinstance(item, dict):
+            candidates.append(item.get("name"))
+    for raw in candidates:
+        token = _food_token(raw)
+        if token:
+            return token
+    return ""
+
+
+def _upsert_user_food_prior(
+    user_id: str,
+    food_token: str,
+    *,
+    rating: Optional[int] = None,
+    portion_multiplier: Optional[float] = None,
+    oil_added_tsp: Optional[float] = None,
+    cooking_method: Optional[str] = None,
+) -> Dict[str, Any]:
+    if not (SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY):
+        return {}
+    token = _food_token(food_token)
+    if not token:
+        return {}
+
+    existing = _read_user_food_prior(user_id, token) or {}
+    feedback_count = int(_safe_float(existing.get("feedback_count"), 0) or 0)
+    avg_rating = float(_safe_float(existing.get("avg_rating"), 0.0) or 0.0)
+    portion_count = int(_extract_prior_count(existing, "portion_multiplier_n", "portion_feedback_count"))
+    portion_avg = float(_extract_prior_float(existing, "portion_multiplier_mean", "portion_multiplier_avg", default=1.0))
+    oil_count = int(_extract_prior_count(existing, "oil_tsp_n", "oil_feedback_count"))
+    oil_avg = float(_extract_prior_float(existing, "oil_tsp_mean", "oil_added_tsp_avg", default=0.0))
+    oil_by_method = _extract_oil_by_method(existing)
+    always_ask_methods = _extract_always_ask_methods(existing)
+    always_ask_set = set(always_ask_methods)
+
+    if rating is not None:
+        safe_rating = max(1, min(5, int(rating)))
+        avg_rating = _blend_avg(avg_rating, feedback_count, float(safe_rating))
+        feedback_count += 1
+    if portion_multiplier is not None and portion_multiplier > 0:
+        safe_portion = float(max(0.4, min(2.2, portion_multiplier)))
+        portion_avg = _blend_avg(portion_avg, portion_count, safe_portion)
+        portion_count += 1
+    if oil_added_tsp is not None and oil_added_tsp >= 0:
+        safe_oil = float(max(0.0, min(8.0, oil_added_tsp)))
+        oil_avg = _blend_avg(oil_avg, oil_count, safe_oil)
+        oil_count += 1
+    method = _method_norm(cooking_method)
+    if method and oil_added_tsp is not None and oil_added_tsp >= 0:
+        current_method = oil_by_method.get(method) if isinstance(oil_by_method.get(method), dict) else {"mean": 0.0, "n": 0}
+        m_n = int(_safe_float(current_method.get("n"), 0) or 0)
+        m_mean = float(_safe_float(current_method.get("mean"), 0.0) or 0.0)
+        m_mean = _blend_avg(m_mean, m_n, float(max(0.0, min(8.0, oil_added_tsp))))
+        oil_by_method[method] = {"mean": round(m_mean, 4), "n": m_n + 1}
+
+    if method and _recent_oil_corrections_for_method(user_id, method, token) >= 2:
+        always_ask_set.add(method)
+    always_ask_methods = sorted(always_ask_set)
+    always_ask = bool(always_ask_methods)
+    row = {
+        "id": str(existing.get("id") or uuid.uuid4()),
+        "user_id": str(user_id or "").strip(),
+        "food_key": token,
+        "food_token": token,
+        "feedback_count": feedback_count,
+        "avg_rating": round(avg_rating, 3),
+        "portion_multiplier_mean": round(portion_avg, 4),
+        "portion_multiplier_n": portion_count,
+        "oil_tsp_mean": round(oil_avg, 4),
+        "oil_tsp_n": oil_count,
+        "oil_by_method": oil_by_method,
+        "always_ask_oil_for_methods": always_ask_methods,
+        "portion_feedback_count": portion_count,
+        "portion_multiplier_avg": round(portion_avg, 4),
+        "oil_feedback_count": oil_count,
+        "oil_added_tsp_avg": round(oil_avg, 4),
+        "cooking_methods_json": oil_by_method,
+        "always_ask_clarifying": always_ask,
+        "updated_at": _now_utc_naive().isoformat(),
+    }
+    try:
+        match = {"user_id": f"eq.{row['user_id']}"}
+        existing_key = _row_food_key(existing)
+        if existing_key:
+            if "food_key" in existing:
+                match["food_key"] = f"eq.{existing_key}"
+            else:
+                match["food_token"] = f"eq.{existing_key}"
+        else:
+            match["food_key"] = f"eq.{row['food_key']}"
+        if existing:
+            patch = {k: v for k, v in row.items() if k not in {"user_id", "food_key", "food_token"}}
+            _sb_patch_with_column_fallback(
+                TBL_USER_FOOD_PRIORS,
+                match,
+                patch,
+            )
+        else:
+            _sb_insert_with_column_fallback(
+                TBL_USER_FOOD_PRIORS,
+                row,
+                locked_cols={"user_id", "food_key", "food_token"},
+            )
+    except Exception as e:
+        logger.info(f"user food prior write skipped: {e}")
+    return {
+        "food_key": token,
+        "portion_multiplier_mean": round(portion_avg, 4),
+        "portion_multiplier_n": int(portion_count),
+        "oil_tsp_mean": round(oil_avg, 4),
+        "oil_tsp_n": int(oil_count),
+        "oil_by_method": oil_by_method,
+        "always_ask_oil_for_methods": always_ask_methods,
+    }
+
+
+def _build_user_priors_context(user_id: str, limit: int = 12) -> Dict[str, Any]:
+    rows = _list_user_food_priors(user_id, limit=max(8, min(50, limit)))
+    priors: Dict[str, Any] = {}
+    always_methods: List[str] = []
+    seen_methods = set()
+    for row in rows:
+        key = _row_food_key(row)
+        if not key:
+            continue
+        prior_payload = _build_food_prior_payload(row)
+        priors[key] = {
+            "portion_multiplier_mean": prior_payload.get("portion_multiplier_mean"),
+            "portion_multiplier_n": prior_payload.get("portion_multiplier_n"),
+            "oil_tsp_mean": prior_payload.get("oil_tsp_mean"),
+            "oil_tsp_n": prior_payload.get("oil_tsp_n"),
+            "oil_by_method": prior_payload.get("oil_by_method"),
+        }
+        for m in (prior_payload.get("always_ask_oil_for_methods") or []):
+            mk = _method_norm(m)
+            if mk and mk not in seen_methods:
+                seen_methods.add(mk)
+                always_methods.append(mk)
+    return {
+        "user_priors": priors,
+        "always_ask_oil_for_methods": always_methods[:10],
+        "defaults_policy": "Use priors only as soft defaults. Ask clarifying question if confidence<0.75 or method in always_ask_oil_for_methods.",
+    }
+
+
+def _build_user_priors_context_for_candidates(
+    user_id: str,
+    candidate_food_keys: Optional[List[str]] = None,
+    limit: int = 12,
+) -> Dict[str, Any]:
+    base = _build_user_priors_context(user_id, limit=limit)
+    priors = dict(base.get("user_priors") or {})
+    always_methods = [_method_norm(m) for m in (base.get("always_ask_oil_for_methods") or []) if _method_norm(m)]
+    seen_methods = set(always_methods)
+    for raw in (candidate_food_keys or []):
+        token = _food_token(raw)
+        if not token or token in priors:
+            continue
+        row = _read_user_food_prior(user_id, token) or {}
+        if not row:
+            continue
+        payload = _build_food_prior_payload(row)
+        priors[token] = {
+            "portion_multiplier_mean": payload.get("portion_multiplier_mean"),
+            "portion_multiplier_n": payload.get("portion_multiplier_n"),
+            "oil_tsp_mean": payload.get("oil_tsp_mean"),
+            "oil_tsp_n": payload.get("oil_tsp_n"),
+            "oil_by_method": payload.get("oil_by_method"),
+        }
+        for m in (payload.get("always_ask_oil_for_methods") or []):
+            mk = _method_norm(m)
+            if mk and mk not in seen_methods:
+                seen_methods.add(mk)
+                always_methods.append(mk)
+    return {
+        "user_priors": priors,
+        "always_ask_oil_for_methods": always_methods[:12],
+        "defaults_policy": str(base.get("defaults_policy") or ""),
+    }
+
+
+def _needs_user_prior_oil_question(items: List[Dict[str, Any]], always_ask_methods: List[str]) -> bool:
+    methods = {_method_norm(m) for m in (always_ask_methods or []) if _method_norm(m)}
+    if not methods:
+        return False
+    for it in (items or []):
+        if not isinstance(it, dict):
+            continue
+        method = _method_norm(it.get("cooking_method"))
+        if not method:
+            continue
+        if method in methods:
+            return True
+    return False
+
+
+def _apply_scan_user_priors(
+    user_id: str,
+    items: List[Dict[str, Any]],
+    always_ask_methods: List[str],
+) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+    out = [dict(x or {}) for x in (items or [])]
+    used = {
+        "portion_prior_used": False,
+        "oil_prior_used": False,
+        "asked_clarifying_question": False,
+        "asked_clarifying_question_reason": "",
+    }
+    if not out:
+        return out, used
+
+    for it in out:
+        token = _food_token(it.get("name"))
+        if not token:
+            continue
+        prior = _read_user_food_prior(user_id, token) or {}
+        if not prior:
+            continue
+        p_mean = _extract_prior_float(prior, "portion_multiplier_mean", "portion_multiplier_avg", default=1.0)
+        p_n = _extract_prior_count(prior, "portion_multiplier_n", "portion_feedback_count")
+        if p_n >= 3 and 0.7 <= p_mean <= 1.3 and abs(p_mean - 1.0) >= 0.08:
+            grams = float(_safe_float(it.get("grams"), 0.0) or 0.0)
+            if grams > 0:
+                it["grams"] = round(max(1.0, grams * p_mean), 1)
+                used["portion_prior_used"] = True
+
+        method = _method_norm(it.get("cooking_method"))
+        if method and method not in {_method_norm(x) for x in (always_ask_methods or [])}:
+            oil_by_method = _extract_oil_by_method(prior)
+            method_prior = oil_by_method.get(method) if isinstance(oil_by_method.get(method), dict) else {}
+            m_n = int(_safe_float(method_prior.get("n"), 0) or 0)
+            m_mean = float(_safe_float(method_prior.get("mean"), 0.0) or 0.0)
+            if m_n >= 2 and m_mean > 0:
+                cur_oil = float(_safe_float(it.get("oil_added_tsp"), 0.0) or 0.0)
+                if m_mean > cur_oil:
+                    it["oil_added_tsp"] = round(m_mean, 1)
+                    used["oil_prior_used"] = True
+
+    if _needs_user_prior_oil_question(out, always_ask_methods):
+        used["asked_clarifying_question"] = True
+        used["asked_clarifying_question_reason"] = "user_prior_requires_oil_question"
+    return out, used
+
+
+def _apply_user_priors_to_items(
+    user_id: str,
+    items: List[Dict[str, Any]],
+    edits: AnalyzeRerunEditsModel,
+) -> Tuple[List[Dict[str, Any]], Dict[str, bool]]:
+    out = [dict(x or {}) for x in (items or [])]
+    used = {
+        "portion_prior_used": False,
+        "oil_prior_used": False,
+        "asked_clarifying_question": False,
+        "asked_clarifying_question_reason": "",
+    }
+    if not out:
+        return out, used
+
+    explicit_portion = edits is not None and edits.portion_multiplier is not None
+    explicit_oil = edits is not None and edits.set_oil_added_tsp is not None
+
+    for it in out:
+        token = _food_token(it.get("name"))
+        if not token:
+            continue
+        prior = _read_user_food_prior(user_id, token) or {}
+        if not prior:
+            continue
+
+        if not explicit_portion:
+            prior_mul = _extract_prior_float(prior, "portion_multiplier_mean", "portion_multiplier_avg", default=1.0)
+            prior_n = _extract_prior_count(prior, "portion_multiplier_n", "portion_feedback_count")
+            if prior_n >= 3 and 0.7 <= prior_mul <= 1.3 and abs(prior_mul - 1.0) >= 0.08:
+                grams = float(_safe_float(it.get("grams"), 0.0) or 0.0)
+                if grams > 0:
+                    it["grams"] = round(max(1.0, grams * prior_mul), 1)
+                    used["portion_prior_used"] = True
+
+        if not explicit_oil:
+            method = str(it.get("cooking_method") or "").strip().lower()
+            prior_oil = _extract_prior_float(prior, "oil_tsp_mean", "oil_added_tsp_avg", default=0.0)
+            oil_n = _extract_prior_count(prior, "oil_tsp_n", "oil_feedback_count")
+            if oil_n >= 2 and prior_oil > 0 and ("fried" in method or method in {"pan_fried", "shallow_fried", "deep_fried", "air_fried"}):
+                cur_oil = float(_safe_float(it.get("oil_added_tsp"), 0.0) or 0.0)
+                if prior_oil > cur_oil:
+                    it["oil_added_tsp"] = round(prior_oil, 1)
+                    used["oil_prior_used"] = True
+
+    if not used["asked_clarifying_question"]:
+        merged_methods = []
+        for it in out:
+            token = _food_token(it.get("name"))
+            if not token:
+                continue
+            prior = _read_user_food_prior(user_id, token) or {}
+            for m in _extract_always_ask_methods(prior):
+                if m not in merged_methods:
+                    merged_methods.append(m)
+        if _needs_user_prior_oil_question(out, merged_methods):
+            used["asked_clarifying_question"] = True
+            used["asked_clarifying_question_reason"] = "user_prior_requires_oil_question"
+
+    return out, used
 
 
 def _coach_mem_key(user_id: str, day_iso: str, payload_hash: str) -> str:
@@ -2568,6 +4096,7 @@ def _coach_user_prompt(
     rule_alerts: List[Dict[str, str]],
     weekly_behavior: Optional[Dict[str, Any]] = None,
     weekly_predictive: Optional[Dict[str, Any]] = None,
+    fast_mode: bool = False,
 ) -> str:
     allowed_palette = coach_logic.allowed_suggestion_palette(norm_payload)
     goals = (norm_payload.get("goals") or {}) if isinstance(norm_payload.get("goals"), dict) else {}
@@ -2637,17 +4166,63 @@ def _coach_user_prompt(
         "actions": [{"title": "string", "why": "string", "how": "string"}],
         "risk_alerts": [{"type": "string", "level": "low|medium|high", "reason": "string"}],
     }
+    if fast_mode:
+        fast_payload = {
+            "date": compact.get("date"),
+            "today_totals": compact.get("consumed"),
+            "goal_gaps": {
+                "protein_gap_g": deltas.get("protein_gap_g"),
+                "fiber_gap_g": deltas.get("fiber_gap_g"),
+                "kcal_delta": deltas.get("kcal_delta"),
+                "carbs_delta_g": deltas.get("carbs_delta_g"),
+                "fat_delta_g": deltas.get("fat_delta_g"),
+            },
+            "signals": {
+                "avg_glycemic_load": _safe_float((compact.get("signals") or {}).get("avg_glycemic_load"), 0.0),
+                "glycemic_bucket": "high"
+                if _safe_float((compact.get("signals") or {}).get("avg_glycemic_load"), 0.0) >= 25
+                else "moderate"
+                if _safe_float((compact.get("signals") or {}).get("avg_glycemic_load"), 0.0) >= 15
+                else "low",
+                "ultra_processed_avg": _safe_float((compact.get("signals") or {}).get("ultra_processed_avg"), 0.0),
+                "upf_bucket": "high"
+                if _safe_float((compact.get("signals") or {}).get("ultra_processed_avg"), 0.0) >= 6.5
+                else "moderate"
+                if _safe_float((compact.get("signals") or {}).get("ultra_processed_avg"), 0.0) >= 4
+                else "low",
+                "leucine_triggers": (compact.get("signals") or {}).get("leucine_triggers"),
+                "avg_satiety": _safe_float((compact.get("signals") or {}).get("avg_satiety"), 0.0),
+                "late_calories_pct": _safe_float((compact.get("meal_timing") or {}).get("late_calories_pct"), 0.0),
+            },
+            "meta": {
+                "fat_loss_score": fat_loss_score,
+                "scans_7d": int(_safe_float((predictive or {}).get("scans_7d"), 0) or 0),
+                "days_with_data_7d": int(_safe_float((predictive or {}).get("days_with_data_7d"), 0) or 0),
+                "projection_confidence_band": str((predictive or {}).get("projection_confidence_band") or "medium"),
+                "goal_type": str((compact.get("profile") or {}).get("goal_type") or "fat_loss"),
+                "training_time": str((compact.get("profile") or {}).get("training_time") or "evening"),
+            },
+            "rule_risk_alerts": rule_alerts[:3],
+        }
+        return (
+            "FAST_MODE: produce concise high-signal coaching from compact metrics only.\n"
+            "Rules:\n"
+            "- Strict JSON only.\n"
+            "- No medical advice, no disease/supplement/treatment claims.\n"
+            "- No exact body-weight promises.\n"
+            "- Max 2 actions.\n"
+            "- one_sentence_summary <= 18 words.\n"
+            "- Avoid repeating the same point across sections.\n\n"
+            f"Allowed suggestion palette:\n{json.dumps(allowed_palette, ensure_ascii=True)}\n\n"
+            f"Compact payload:\n{json.dumps(fast_payload, ensure_ascii=True)}\n\n"
+            f"Output JSON shape:\n{json.dumps(template, ensure_ascii=True)}"
+        )
     return (
         "Use this daily nutrition summary and produce coaching insight, not a stat report.\n"
         "Rules:\n"
         "- Keep deterministic numbers as truth; do not invent any number.\n"
         "- Prioritize behavior pattern + cause/effect language.\n"
         "- Avoid line-by-line metric repetition. Mention at most 4 numeric anchors in the whole output.\n"
-        "- Do not repeat the same idea across summary, pattern, risk, focus, and actions.\n"
-        "- one_sentence_summary must be exactly one sentence.\n"
-        "- pattern_detected must be exactly one sentence.\n"
-        "- biggest_risk_lever.reason must be one concise line.\n"
-        "- tomorrow_focus must contain at most 2 bullets.\n"
         "- If weekly memory exists, use it for pattern_detected or projection_7d.\n"
         "- Use predictive_engine_weekly to explain likely 7-day direction in plain language.\n"
         "- Never claim exact body-weight outcomes. Do not say 'you will lose X kg/lbs'.\n"
@@ -2664,7 +4239,7 @@ def _coach_user_prompt(
         "- No medical advice, disease claims, supplements, dosages, or treatment language.\n"
         "- Every action must clearly reference at least one metric keyword from this set: "
         "protein, fiber, glycemic load, ultra-processed, leucine, late calories, kcal, carbs, fat.\n"
-        "- Max 2 actions.\n"
+        "- Max 3 actions.\n"
         "- Keep language concise.\n\n"
         f"Allowed suggestion palette:\n{json.dumps(allowed_palette, ensure_ascii=True)}\n\n"
         f"Input payload:\n{json.dumps(compact, ensure_ascii=True)}\n\n"
@@ -2758,13 +4333,13 @@ def _coerce_coach_response_shape(
     elif confidence_band not in projection_explained.lower():
         projection_explained = f"{projection_explained} Confidence: {confidence_band}."
 
-    clean_diagnosis = [str(x).strip() for x in diagnosis if str(x).strip()][:2]
+    clean_diagnosis = [str(x).strip() for x in diagnosis if str(x).strip()][:4]
     if not clean_diagnosis:
         clean_diagnosis = [pattern_detected, biggest_risk["reason"]]
 
-    clean_focus = [str(x).strip() for x in tomorrow_focus if str(x).strip()][:2]
+    clean_focus = [str(x).strip() for x in tomorrow_focus if str(x).strip()][:3]
     if not clean_focus:
-        clean_focus = [highest_roi["how"], projection["if_improved"]][:2]
+        clean_focus = [highest_roi["title"], highest_roi["how"], projection["if_improved"]][:3]
 
     cleaned = {
         "one_sentence_summary": one_sentence_summary,
@@ -2781,7 +4356,7 @@ def _coerce_coach_response_shape(
         "disclaimer": coach_logic.COACH_DISCLAIMER,
     }
 
-    for a in actions[:2]:
+    for a in actions[:3]:
         if not isinstance(a, dict):
             continue
         item = {
@@ -2797,7 +4372,7 @@ def _coerce_coach_response_shape(
     if not cleaned["actions"]:
         cleaned["actions"].append(highest_roi)
 
-    return _apply_scannable_contract(cleaned)
+    return cleaned
 
 
 def _generate_daily_coach_llm(
@@ -2806,6 +4381,7 @@ def _generate_daily_coach_llm(
     rule_alerts: List[Dict[str, str]],
     weekly_behavior: Optional[Dict[str, Any]] = None,
     weekly_predictive: Optional[Dict[str, Any]] = None,
+    fast_mode: bool = False,
 ) -> Dict[str, Any]:
     _require_gemini_key()
     model = genai.GenerativeModel(COACH_LLM_MODEL)
@@ -2815,11 +4391,17 @@ def _generate_daily_coach_llm(
         rule_alerts,
         weekly_behavior=weekly_behavior,
         weekly_predictive=weekly_predictive,
+        fast_mode=fast_mode,
     )
     last_err = ""
-    for attempt in range(3):
+    max_attempts = 1 if fast_mode else 2
+    timeout_sec = min(COACH_LLM_TIMEOUT_SEC, 5.0) if fast_mode else COACH_LLM_TIMEOUT_SEC
+    for attempt in range(max_attempts):
         try:
-            resp = model.generate_content([_COACH_SYSTEM_PROMPT, user_prompt])
+            resp = model.generate_content(
+                [_COACH_SYSTEM_PROMPT, user_prompt],
+                request_options={"timeout": timeout_sec},
+            )
             text = (resp.text or "").strip()
             parsed = coach_logic.extract_json_object(text)
             if not isinstance(parsed, dict):
@@ -2832,7 +4414,8 @@ def _generate_daily_coach_llm(
             return cleaned
         except Exception as e:
             last_err = str(e)
-            time.sleep(0.6 * (attempt + 1))
+            if attempt < max_attempts - 1:
+                time.sleep(0.6 * (attempt + 1))
     raise HTTPException(status_code=502, detail={"error": "coach_llm_failed", "raw": last_err[:300]})
 
 
@@ -2863,277 +4446,9 @@ def _public_predictive_signals(weekly_predictive: Optional[Dict[str, Any]], week
         "hunger_volatility_projection": weekly_predictive.get("hunger_volatility_projection")
         if isinstance(weekly_predictive.get("hunger_volatility_projection"), dict)
         else {},
-        "hunger_prediction_72h": weekly_predictive.get("hunger_prediction_72h")
-        if isinstance(weekly_predictive.get("hunger_prediction_72h"), dict)
-        else {},
-        "metabolic_drift_14d": weekly_predictive.get("metabolic_drift_14d")
-        if isinstance(weekly_predictive.get("metabolic_drift_14d"), dict)
-        else {},
-        "habit_addiction_engine": weekly_predictive.get("habit_addiction_engine")
-        if isinstance(weekly_predictive.get("habit_addiction_engine"), dict)
-        else {},
         "muscle_retention_risk": weekly_predictive.get("muscle_retention_risk")
         if isinstance(weekly_predictive.get("muscle_retention_risk"), dict)
         else {},
-    }
-
-
-def _first_sentence(text: str, max_words: Optional[int] = None) -> str:
-    raw = " ".join(str(text or "").replace("\n", " ").split()).strip()
-    if not raw:
-        return ""
-    m = re.search(r"[.!?]", raw)
-    if m:
-        raw = raw[: m.end()].strip()
-    if max_words is not None:
-        words = [w for w in raw.split() if w]
-        raw = " ".join(words[:max_words]).strip()
-    return raw
-
-
-def _semantic_tokens(text: str) -> set:
-    base = re.sub(r"[^a-z0-9\s]", " ", str(text or "").lower())
-    stop = {
-        "the", "and", "for", "with", "that", "this", "your", "you", "are", "was", "were", "from", "into",
-        "have", "has", "had", "will", "can", "could", "should", "today", "daily", "week", "over",
-    }
-    return {w for w in base.split() if len(w) > 2 and w not in stop}
-
-
-def _is_semantic_repeat(tokens: set, seen: List[set], threshold: float = 0.72) -> bool:
-    if not tokens:
-        return False
-    for prev in seen:
-        if not prev:
-            continue
-        overlap = len(tokens & prev) / float(max(1, min(len(tokens), len(prev))))
-        if overlap >= threshold:
-            return True
-    return False
-
-
-def _collect_unique_lines(candidates: List[str], seen: List[set], limit: int) -> List[str]:
-    out: List[str] = []
-    for candidate in candidates:
-        line = _first_sentence(candidate)
-        if not line:
-            continue
-        toks = _semantic_tokens(line)
-        if _is_semantic_repeat(toks, seen):
-            continue
-        out.append(line)
-        seen.append(toks)
-        if len(out) >= limit:
-            break
-    return out
-
-
-def _apply_scannable_contract(resp: Dict[str, Any]) -> Dict[str, Any]:
-    out = dict(resp or {})
-
-    summary = _first_sentence(str(out.get("one_sentence_summary") or ""), max_words=18)
-    pattern = _first_sentence(str(out.get("pattern_detected") or ""))
-    projection_explained = _first_sentence(str(out.get("projection_explained") or ""))
-    one_thing = _first_sentence(str(out.get("if_you_do_one_thing") or ""))
-
-    risk_src = out.get("biggest_risk_lever") if isinstance(out.get("biggest_risk_lever"), dict) else {}
-    roi_src = out.get("highest_roi_change") if isinstance(out.get("highest_roi_change"), dict) else {}
-    proj_src = out.get("projection_7d") if isinstance(out.get("projection_7d"), dict) else {}
-
-    biggest_risk = {
-        "title": _first_sentence(str(risk_src.get("title") or "")) or "Primary behavior risk",
-        "reason": _first_sentence(str(risk_src.get("reason") or "")),
-    }
-    highest_roi = {
-        "title": _first_sentence(str(roi_src.get("title") or "")) or "Front-load protein and fiber before dinner",
-        "why": _first_sentence(str(roi_src.get("why") or "")),
-        "how": _first_sentence(str(roi_src.get("how") or "")),
-    }
-    projection = {
-        "if_unchanged": _first_sentence(str(proj_src.get("if_unchanged") or "")),
-        "if_improved": _first_sentence(str(proj_src.get("if_improved") or "")),
-    }
-
-    if not summary:
-        summary = _first_sentence(f"{biggest_risk['title']}: {highest_roi['title']}.", max_words=18)
-    if not pattern:
-        pattern = "Daily pattern shows room to improve protein, fiber, and meal timing consistency."
-    if not biggest_risk["reason"]:
-        biggest_risk["reason"] = "Current behavior pattern can slow progress if repeated through the week."
-    if not highest_roi["why"]:
-        highest_roi["why"] = "Protein and fiber gaps are reducing satiety and driving late-calorie risk."
-    if not highest_roi["how"]:
-        highest_roi["how"] = "Add one protein anchor plus one fiber booster at breakfast and lunch."
-    if not projection["if_unchanged"] or not projection["if_improved"]:
-        projection = {
-            "if_unchanged": "If this pattern repeats for 7 days, adherence risk will likely stay elevated.",
-            "if_improved": "If this change is repeated for 7 days, satiety and score consistency should improve.",
-        }
-    if not one_thing:
-        one_thing = _first_sentence(highest_roi["how"])
-
-    seen: List[set] = []
-    for txt in [summary, pattern, biggest_risk["reason"], highest_roi["why"], highest_roi["how"], one_thing]:
-        toks = _semantic_tokens(txt)
-        if toks and not _is_semantic_repeat(toks, seen, threshold=0.85):
-            seen.append(toks)
-
-    diagnosis_src = out.get("diagnosis") if isinstance(out.get("diagnosis"), list) else []
-    focus_src = out.get("tomorrow_focus") if isinstance(out.get("tomorrow_focus"), list) else []
-    actions_src = out.get("actions") if isinstance(out.get("actions"), list) else []
-
-    diagnosis = _collect_unique_lines([str(x) for x in diagnosis_src], seen, limit=2)
-    if not diagnosis:
-        diagnosis = _collect_unique_lines([pattern, biggest_risk["reason"]], seen, limit=2)
-    if not diagnosis:
-        diagnosis = [pattern]
-
-    tomorrow_focus = _collect_unique_lines([str(x) for x in focus_src], seen, limit=2)
-    if not tomorrow_focus:
-        tomorrow_focus = _collect_unique_lines([highest_roi["how"], projection["if_improved"], one_thing], seen, limit=2)
-    if not tomorrow_focus:
-        tomorrow_focus = [highest_roi["how"]]
-
-    actions: List[Dict[str, str]] = []
-    action_seen: List[set] = []
-    for raw in actions_src:
-        if not isinstance(raw, dict):
-            continue
-        item = {
-            "title": _first_sentence(str(raw.get("title") or "")),
-            "why": _first_sentence(str(raw.get("why") or "")),
-            "how": _first_sentence(str(raw.get("how") or "")),
-        }
-        if not item["title"] or not item["why"] or not item["how"]:
-            continue
-        if not coach_logic.action_references_metrics(item):
-            item["why"] = f"{item['why']} Targets protein/fiber/glycemic load trends."
-        combo_toks = _semantic_tokens(f"{item['title']} {item['why']} {item['how']}")
-        if _is_semantic_repeat(combo_toks, action_seen, threshold=0.82):
-            continue
-        if _is_semantic_repeat(combo_toks, seen, threshold=0.88):
-            continue
-        actions.append(item)
-        action_seen.append(combo_toks)
-        seen.append(combo_toks)
-        if len(actions) >= 2:
-            break
-
-    if not actions:
-        fallback_action = {
-            "title": highest_roi["title"],
-            "why": highest_roi["why"],
-            "how": highest_roi["how"],
-        }
-        if not coach_logic.action_references_metrics(fallback_action):
-            fallback_action["why"] = f"{fallback_action['why']} Targets protein/fiber/glycemic load trends."
-        actions = [fallback_action]
-
-    out["one_sentence_summary"] = summary
-    out["pattern_detected"] = pattern
-    out["projection_explained"] = projection_explained
-    out["biggest_risk_lever"] = biggest_risk
-    out["highest_roi_change"] = highest_roi
-    out["if_you_do_one_thing"] = one_thing
-    out["projection_7d"] = projection
-    out["diagnosis"] = diagnosis[:2]
-    out["tomorrow_focus"] = tomorrow_focus[:2]
-    out["actions"] = actions[:2]
-    return out
-
-
-def _build_athlete_mode_payload(
-    norm_payload: Dict[str, Any],
-    weekly_predictive: Optional[Dict[str, Any]],
-    plan: str,
-) -> Dict[str, Any]:
-    profile = norm_payload.get("profile") if isinstance(norm_payload.get("profile"), dict) else {}
-    athlete = profile.get("athlete_mode") if isinstance(profile.get("athlete_mode"), dict) else {}
-    training_days = int(_safe_float(profile.get("training_days_per_week"), 0) or 0)
-    target_look = str(athlete.get("target_look") or "balanced").strip().lower()
-    if target_look not in {"full", "dry", "balanced"}:
-        target_look = "balanced"
-
-    athlete_enabled = bool(athlete.get("enabled")) or training_days >= 5
-    if not athlete_enabled:
-        return {
-            "enabled": False,
-            "locked": False,
-            "summary": "Athlete mode is off. Enable it in profile for peak-week signals.",
-        }
-
-    if not plan_at_least(plan, "pro"):
-        return {
-            "enabled": False,
-            "locked": True,
-            "required_plan": "pro",
-            "summary": "Athlete mode is available on Pro or Infinite.",
-        }
-
-    goals = norm_payload.get("goals") if isinstance(norm_payload.get("goals"), dict) else {}
-    consumed = norm_payload.get("consumed") if isinstance(norm_payload.get("consumed"), dict) else {}
-    carbs_goal = float(_safe_float(goals.get("carbs_g"), 0.0) or 0.0)
-    carbs_used = float(_safe_float(consumed.get("carbs_g"), 0.0) or 0.0)
-    fiber_used = float(_safe_float(consumed.get("fiber_g"), 0.0) or 0.0)
-    carbs_ratio = (carbs_used / carbs_goal) if carbs_goal > 0 else 0.0
-
-    show_date_iso = str(athlete.get("show_date") or "").strip()[:10]
-    days_to_show: Optional[int] = None
-    if re.match(r"^\d{4}-\d{2}-\d{2}$", show_date_iso):
-        try:
-            days_to_show = (dt.date.fromisoformat(show_date_iso) - _today_date()).days
-        except Exception:
-            days_to_show = None
-
-    if days_to_show is None:
-        phase = "training_block"
-    elif days_to_show <= 7:
-        phase = "peak_week"
-    elif days_to_show <= 21:
-        phase = "pre_peak"
-    else:
-        phase = "build_phase"
-
-    carb_depletion_detected = bool(training_days >= 5 and carbs_goal > 0 and carbs_ratio < 0.60)
-    glycogen_loading_window = bool(days_to_show is not None and 2 <= days_to_show <= 4)
-    fiber_taper_flag = bool(days_to_show is not None and days_to_show <= 3 and fiber_used > 20.0)
-    timing_vol = float(_safe_float((weekly_predictive or {}).get("timing_volatility"), 50.0) or 50.0)
-    sodium_stability_proxy = round(_clamp(100.0 - timing_vol, 0.0, 100.0), 1)
-
-    signals: List[str] = []
-    if glycogen_loading_window:
-        signals.append("Carb intake timing supports glycogen loading window.")
-    if carb_depletion_detected:
-        signals.append("Carb depletion signal detected from low carb intake versus training load.")
-    if fiber_taper_flag:
-        signals.append("Fiber is high for peak-week aesthetic control; tapering may improve comfort.")
-    if not signals:
-        signals.append("Current intake pattern is compatible with steady athlete mode progression.")
-
-    recommendations: List[str] = []
-    if carb_depletion_detected:
-        recommendations.append("Increase quality carbs around training sessions to stabilize output.")
-    if glycogen_loading_window:
-        recommendations.append("Keep sodium and meal timing consistent during loading days.")
-    if fiber_taper_flag:
-        recommendations.append("Reduce high-fiber volume meals in the last 48-72h before show date.")
-    if not recommendations:
-        recommendations.append("Maintain consistent protein, carbs, and timing to preserve physique signal quality.")
-
-    return {
-        "enabled": True,
-        "locked": False,
-        "target_look": target_look,
-        "show_date": show_date_iso,
-        "days_to_show": days_to_show if days_to_show is not None else None,
-        "phase": phase,
-        "signals": signals[:3],
-        "recommendations": recommendations[:3],
-        "sodium_stability_proxy": sodium_stability_proxy,
-        "carb_depletion_detected": carb_depletion_detected,
-        "glycogen_loading_window": glycogen_loading_window,
-        "fiber_taper_flag": fiber_taper_flag,
-        "summary": signals[0],
     }
 
 
@@ -3167,7 +4482,1051 @@ def _ensure_coach_voice_defaults(resp: Dict[str, Any], weekly_predictive: Option
 
     if not pattern:
         out["pattern_detected"] = "Daily pattern shows room to improve protein, fiber, and meal timing consistency."
-    return _apply_scannable_contract(out)
+    return out
+
+
+def _latest_scan_meta(user_id: str, day_iso: str) -> Dict[str, str]:
+    scan_id = ""
+    scan_ts = ""
+    meals_count_today = 0
+    try:
+        events = get_meal_events_for_day(user_id, day_iso)
+    except Exception:
+        events = []
+    eligible_events: List[Dict[str, Any]] = []
+    for e in (events or []):
+        source = _event_text(e, "source", "event_source").lower()
+        etype = _event_text(e, "event_type").lower()
+        if source not in {"photo", "scan", "meal", ""} and etype not in {"photo_analyze", "analyze", "scan"}:
+            continue
+        eligible_events.append(e)
+    meals_count_today = len(eligible_events)
+
+    for e in reversed(eligible_events):
+        event_json = _parse_jsonish(e.get("event_json"), {})
+        extra = event_json.get("extra") if isinstance(event_json, dict) and isinstance(event_json.get("extra"), dict) else {}
+        sid = str(extra.get("analysis_id") or "").strip()
+        sts = str(e.get("created_at") or e.get("updated_at") or "").strip()
+        if sid:
+            scan_id = sid
+            scan_ts = sts
+            break
+
+    if scan_id:
+        return {"scan_id": scan_id, "scan_ts": scan_ts, "meals_count_today": str(meals_count_today)}
+
+    # Fallback to meal_analyses table if available.
+    if SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY:
+        try:
+            rows = sb_get_many(
+                TBL_MEAL_ANALYSES,
+                params={
+                    "select": "analysis_id,created_at,day",
+                    "user_id": f"eq.{user_id}",
+                    "day": f"eq.{day_iso}",
+                    "order": "created_at.desc",
+                    "limit": "1",
+                },
+            )
+            if rows:
+                row = rows[0] or {}
+                return {
+                    "scan_id": str(row.get("analysis_id") or "").strip(),
+                    "scan_ts": str(row.get("created_at") or "").strip(),
+                    "meals_count_today": str(meals_count_today),
+                }
+        except Exception:
+            pass
+    return {"scan_id": "", "scan_ts": "", "meals_count_today": str(meals_count_today)}
+
+
+def _build_server_daily_coach_payload(
+    user_id: str,
+    day_iso: str,
+    *,
+    tz: Optional[str] = None,
+    tz_offset_min: Optional[int] = None,
+) -> Dict[str, Any]:
+    summary = build_daily_summary(user_id, day=day_iso, tz=tz, tz_offset_min=tz_offset_min)
+    events = get_meal_events_for_day(user_id, day_iso)
+    metrics = compute_daily_metrics_payload(user_id, day_iso, summary, events)
+    mj = (metrics or {}).get("metrics_json") if isinstance((metrics or {}).get("metrics_json"), dict) else {}
+    consumed = (mj.get("consumed") or {}) if isinstance(mj.get("consumed"), dict) else {}
+    goals = (mj.get("goals") or {}) if isinstance(mj.get("goals"), dict) else {}
+    sig = (mj.get("signals") or {}) if isinstance(mj.get("signals"), dict) else {}
+
+    payload = {
+        "date": day_iso,
+        "goals": {
+            "kcal": round(_safe_float(goals.get("kcal"), DEFAULT_DAILY_GOALS["kcal"]), 1),
+            "protein_g": round(_safe_float(goals.get("protein_g"), DEFAULT_DAILY_GOALS["protein_g"]), 1),
+            "carbs_g": round(_safe_float(goals.get("carbs_g"), DEFAULT_DAILY_GOALS["carbs_g"]), 1),
+            "fat_g": round(_safe_float(goals.get("fat_g"), DEFAULT_DAILY_GOALS["fat_g"]), 1),
+            "fiber_g": round(_safe_float(goals.get("fiber_g"), DEFAULT_DAILY_GOALS["fiber_g"]), 1),
+        },
+        "consumed": {
+            "kcal": round(_safe_float(consumed.get("kcal"), 0.0), 1),
+            "protein_g": round(_safe_float(consumed.get("protein_g"), 0.0), 1),
+            "carbs_g": round(_safe_float(consumed.get("carbs_g"), 0.0), 1),
+            "fat_g": round(_safe_float(consumed.get("fat_g"), 0.0), 1),
+            "fiber_g": round(_safe_float(consumed.get("fiber_g"), 0.0), 1),
+        },
+        "signals": {
+            "leucine_triggers": {
+                "target": max(0.0, _safe_float(sig.get("leucine_triggers_target"), 3.0)),
+                "hit": max(0.0, _safe_float(sig.get("leucine_triggers_hit"), 0.0)),
+            },
+            "avg_satiety": round(_safe_float(sig.get("avg_satiety"), 0.0), 1),
+            "avg_glycemic_load": round(_safe_float(sig.get("avg_glycemic_load"), 0.0), 1),
+            "ultra_processed_avg": round(_safe_float(sig.get("ultra_processed_avg"), 0.0), 1),
+        },
+        "meal_timing": {
+            "late_calories_pct": round(_safe_float(sig.get("late_calories_pct"), 0.0), 1),
+            "biggest_meal": str(sig.get("biggest_meal") or "dinner"),
+        },
+        "constraints": {"diet": "non-veg", "allergies": [], "region": "US"},
+        "profile": {
+            "goal_type": "fat_loss",
+            "diet_style": "non-veg",
+            "training_days_per_week": 0,
+            "training_time": "evening",
+        },
+        "_state": {
+            "scan_count": int(_safe_float(sig.get("meals_count"), 0) or 0),
+            "day": day_iso,
+        },
+    }
+    sig_seed = {
+        "day": day_iso,
+        "scan_count": payload["_state"]["scan_count"],
+        "totals": payload["consumed"],
+        "upf": payload["signals"]["ultra_processed_avg"],
+        "gl": payload["signals"]["avg_glycemic_load"],
+    }
+    payload["_state_signature"] = hashlib.sha256(
+        json.dumps(sig_seed, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+    return payload
+
+
+def _build_quick_fli_response(
+    payload: Dict[str, Any],
+    *,
+    weekly_predictive: Optional[Dict[str, Any]] = None,
+    latest_scan_id: str = "",
+    latest_scan_ts: str = "",
+) -> Dict[str, Any]:
+    norm = coach_logic.normalize_daily_payload(payload or {})
+    fat_loss_score = coach_logic.compute_fat_loss_score(norm)
+    rule_alerts = coach_logic.build_rule_risk_alerts(norm)
+    fb = coach_logic.build_fallback_coach_response(norm, fat_loss_score, rule_alerts)
+    generated_ts = dt.datetime.utcnow().isoformat()
+    out = {
+        "date": str(norm.get("date") or _today_date().isoformat()),
+        "fat_loss_score": int(fat_loss_score),
+        "one_sentence_summary": str(fb.get("one_sentence_summary") or ""),
+        "pattern_detected": str(fb.get("pattern_detected") or ""),
+        "projection_explained": str(fb.get("projection_explained") or ""),
+        "biggest_risk_lever": fb.get("biggest_risk_lever")
+        if isinstance(fb.get("biggest_risk_lever"), dict)
+        else {"title": "", "reason": ""},
+        "highest_roi_change": fb.get("highest_roi_change")
+        if isinstance(fb.get("highest_roi_change"), dict)
+        else {"title": "", "why": "", "how": ""},
+        "if_you_do_one_thing": str(fb.get("if_you_do_one_thing") or ""),
+        "projection_7d": fb.get("projection_7d")
+        if isinstance(fb.get("projection_7d"), dict)
+        else {"if_unchanged": "", "if_improved": ""},
+        "diagnosis": fb.get("diagnosis", []),
+        "tomorrow_focus": fb.get("tomorrow_focus", []),
+        "actions": (fb.get("actions") or [])[:2],
+        "risk_alerts": coach_logic.merge_risk_alerts(rule_alerts, fb.get("risk_alerts", []), limit=4),
+        "disclaimer": coach_logic.COACH_DISCLAIMER,
+        "reasoning_source": "heuristic",
+        "last_processed_scan_id": str(latest_scan_id or ""),
+        "last_processed_scan_ts": str(latest_scan_ts or ""),
+        "updatedAt": generated_ts,
+        "coach_generated_ts": generated_ts,
+        "payload_hash_used": coach_logic.payload_hash(norm),
+        "meals_count_today": int(_safe_float(((norm.get("signals") or {}).get("meals_count")), 0) or 0),
+    }
+    public_pred = _public_predictive_signals(weekly_predictive, _week_start_monday(out["date"]))
+    if isinstance(public_pred, dict):
+        out["predictive_signals"] = public_pred
+    return _ensure_coach_voice_defaults(out, weekly_predictive=weekly_predictive)
+
+
+def _warm_daily_coach_async(
+    user_id: str,
+    day_iso: str,
+    *,
+    latest_scan_id: str = "",
+    latest_scan_ts: str = "",
+    tz: Optional[str] = None,
+    tz_offset_min: Optional[int] = None,
+) -> None:
+    def _job():
+        try:
+            payload = _build_server_daily_coach_payload(user_id, day_iso, tz=tz, tz_offset_min=tz_offset_min)
+            coach_daily(
+                payload=payload,
+                user_id=user_id,
+                refresh=True,
+                tz=tz,
+                tz_offset_min=tz_offset_min,
+                fast=True,
+                latest_scan_id=latest_scan_id or None,
+                latest_scan_ts=latest_scan_ts or None,
+                state_signature=str(payload.get("_state_signature") or ""),
+            )
+        except Exception as e:
+            logger.warning(f"FLI warm async failed: {e}")
+
+    try:
+        threading.Thread(target=_job, daemon=True).start()
+    except Exception as e:
+        logger.warning(f"FLI warm async thread start failed: {e}")
+
+
+def _voice_metrics_from_request(req: CoachVoiceRequestModel) -> Dict[str, Any]:
+    goals = req.goals or {}
+    consumed = req.consumed or {}
+    meals = list(req.meals or [])
+
+    protein_gap = max(0.0, round(_safe_float(goals.get("protein_g"), 0.0) - _safe_float(consumed.get("protein_g"), 0.0), 1))
+    fiber_gap = max(0.0, round(_safe_float(goals.get("fiber_g"), 0.0) - _safe_float(consumed.get("fiber_g"), 0.0), 1))
+    kcal_delta = round(_safe_float(consumed.get("kcal"), 0.0) - _safe_float(goals.get("kcal"), 0.0), 1)
+    avg_conf = round(_safe_avg([_safe_float((m or {}).get("confidence"), 0.0) for m in meals]), 3)
+
+    late_kcal = 0.0
+    total_meal_kcal = 0.0
+    upf_hints = 0
+    for m in meals:
+        kcal = float(_safe_float(m.kcal, 0.0) or 0.0)
+        total_meal_kcal += kcal
+        ts = _parse_iso_dt_naive(m.ts)
+        if ts and (ts.hour >= 19 or ts.hour <= 1):
+            late_kcal += kcal
+        notes = str(m.notes or "").lower()
+        label = str(m.label or "").lower()
+        if any(x in notes or x in label for x in ("fried", "packaged", "processed", "sugary", "dessert")):
+            upf_hints += 1
+    late_calories_pct = round(((late_kcal / total_meal_kcal) * 100.0), 1) if total_meal_kcal > 0 else 0.0
+
+    return {
+        "protein_gap": protein_gap,
+        "fiber_gap": fiber_gap,
+        "kcal_delta": kcal_delta,
+        "avg_confidence": avg_conf,
+        "late_calories_pct": late_calories_pct,
+        "upf_hints": upf_hints,
+        "meals_count": len(meals),
+    }
+
+
+def _voice_action_templates(metrics: Dict[str, Any]) -> List[Dict[str, Any]]:
+    out: List[Dict[str, Any]] = []
+    protein_gap = float(_safe_float((metrics or {}).get("protein_gap"), 0.0) or 0.0)
+    fiber_gap = float(_safe_float((metrics or {}).get("fiber_gap"), 0.0) or 0.0)
+    kcal_delta = float(_safe_float((metrics or {}).get("kcal_delta"), 0.0) or 0.0)
+    late_pct = float(_safe_float((metrics or {}).get("late_calories_pct"), 0.0) or 0.0)
+    avg_conf = float(_safe_float((metrics or {}).get("avg_confidence"), 1.0) or 1.0)
+    upf_hints = int(_safe_float((metrics or {}).get("upf_hints"), 0) or 0)
+
+    if avg_conf < 0.55:
+        out.append(
+            {
+                "advice_key": "confirm_cooking_oil_and_portion",
+                "title": "Confirm cooking + portion",
+                "steps": [
+                    "Open Edit on this meal",
+                    "Set cooking method and oil",
+                    "Confirm portion size once",
+                ],
+                "why": "This improves scan accuracy before we optimize your next action.",
+            }
+        )
+        out.append(
+            {
+                "advice_key": "scan_two_more_days",
+                "title": "Build stronger data confidence",
+                "steps": [
+                    "Log your next 2 days",
+                    "Keep portions consistent",
+                    "Recheck Fat Loss Intelligence",
+                ],
+                "why": "More data makes coaching more accurate and less repetitive.",
+            }
+        )
+    if protein_gap >= 25:
+        out.append(
+            {
+                "advice_key": "protein_anchor_next_meal",
+                "title": "Anchor next meal with protein",
+                "steps": [
+                    "Pick one main protein source",
+                    "Target 30-40g protein",
+                    "Pair with vegetables or salad",
+                ],
+                "why": "Closing the protein shortfall improves satiety and recovery quality.",
+            }
+        )
+    if fiber_gap >= 8:
+        out.append(
+            {
+                "advice_key": "fiber_boost_next_meal",
+                "title": "Add one fiber booster",
+                "steps": [
+                    "Add a vegetable side",
+                    "Include beans or whole grain",
+                    "Keep refined carbs smaller",
+                ],
+                "why": "Higher fiber helps reduce hunger swings later in the day.",
+            }
+        )
+    if late_pct >= 45:
+        out.append(
+            {
+                "advice_key": "front_load_day_calories",
+                "title": "Shift calories earlier",
+                "steps": [
+                    "Add protein at breakfast",
+                    "Eat a structured lunch",
+                    "Keep dinner lighter",
+                ],
+                "why": "Lower late-calorie load usually improves appetite control.",
+            }
+        )
+    if upf_hints >= 1:
+        out.append(
+            {
+                "advice_key": "swap_one_upf_item",
+                "title": "Swap one processed item",
+                "steps": [
+                    "Identify one packaged food",
+                    "Replace with whole-food option",
+                    "Keep same calories",
+                ],
+                "why": "This can improve satiety quality without increasing calories.",
+            }
+        )
+    if kcal_delta > 250:
+        out.append(
+            {
+                "advice_key": "tighten_evening_portion",
+                "title": "Tighten evening portion",
+                "steps": [
+                    "Reduce dinner carbs by 20%",
+                    "Keep protein unchanged",
+                    "Add water before meal",
+                ],
+                "why": "Small evening control reduces overshoot without aggressive restriction.",
+            }
+        )
+    if not out:
+        out.append(
+            {
+                "advice_key": "hold_consistency_tonight",
+                "title": "Hold consistency tonight",
+                "steps": [
+                    "Repeat your balanced pattern",
+                    "Keep portion stable",
+                    "Log the next meal",
+                ],
+                "why": "Consistency compounds more than perfect one-off meals.",
+            }
+        )
+    return out
+
+
+def _pick_non_repeating_advice_key(candidates: List[Dict[str, Any]], recent_keys: List[str]) -> Dict[str, Any]:
+    seen = set(_normalize_semantic_key_list(recent_keys, limit=32))
+    for c in (candidates or []):
+        key = _normalize_semantic_key(c.get("advice_key"))
+        if key and key not in seen:
+            return c
+    return (candidates or [{}])[0]
+
+
+def _voice_fallback_response(
+    req: CoachVoiceRequestModel,
+    recent_keys: List[str],
+    *,
+    timeout_mode: bool = False,
+) -> Dict[str, Any]:
+    metrics = _voice_metrics_from_request(req)
+    candidate = _pick_non_repeating_advice_key(_voice_action_templates(metrics), recent_keys)
+    tone_pref = _normalize_tone_preference(req.tone_preference)
+    tone_map = {
+        "supportive": "supportive",
+        "firm": "firm",
+        "fun": "celebratory",
+        "neutral": "neutral",
+    }
+    tone_tag = tone_map.get(tone_pref, "neutral")
+
+    empathy = "Good job logging this meal. Small changes now will compound."
+    if tone_pref == "firm":
+        empathy = "Logged. Now execute one correction."
+    elif tone_pref == "fun":
+        empathy = "Nice check-in. Let’s win this next meal."
+    elif tone_pref == "neutral":
+        empathy = "Meal logged. Here is the highest-impact next step."
+
+    protein_gap = float(_safe_float(metrics.get("protein_gap"), 0.0) or 0.0)
+    fiber_gap = float(_safe_float(metrics.get("fiber_gap"), 0.0) or 0.0)
+    late_pct = float(_safe_float(metrics.get("late_calories_pct"), 0.0) or 0.0)
+    avg_conf = float(_safe_float(metrics.get("avg_confidence"), 1.0) or 1.0)
+    if timeout_mode:
+        insight = "I’m still refining details. Use one practical step now while your full coaching updates."
+    elif avg_conf < 0.55:
+        insight = "This scan likely needs one quick confirmation before precision coaching."
+    elif protein_gap >= fiber_gap and protein_gap > 0:
+        insight = f"Protein shortfall is still about {round(protein_gap, 1)}g, which is the main limiter today."
+    elif fiber_gap > 0:
+        insight = f"Fiber is short by about {round(fiber_gap, 1)}g, which may increase evening hunger."
+    elif late_pct >= 45:
+        insight = f"Calories are back-loaded ({round(late_pct, 1)}% late), so timing is the main lever."
+    else:
+        insight = "Your day is close to target; consistency is now the highest-ROI lever."
+
+    out = {
+        "coach_generated_ts": _now_utc_naive().isoformat(),
+        "tone_tag": tone_tag,
+        "empathy_line": _limit_text(empathy, 120),
+        "insight_line": _limit_text(insight, 200),
+        "one_action": {
+            "title": _limit_text(str(candidate.get("title") or "One next step"), 64),
+            "steps": [str(x)[:120] for x in (candidate.get("steps") or []) if str(x).strip()][:3] or ["Log your next meal."],
+        },
+        "why_this_action": _limit_text(str(candidate.get("why") or "It addresses today’s main nutrition limiter."), 220),
+        "advice_key": _normalize_semantic_key(candidate.get("advice_key") or "consistency_focus"),
+        "safety_disclaimer": "Informational only. Not medical advice.",
+    }
+    return out
+
+
+def _coerce_voice_output(
+    raw: Dict[str, Any],
+    req: CoachVoiceRequestModel,
+    recent_keys: List[str],
+) -> Dict[str, Any]:
+    fallback = _voice_fallback_response(req, recent_keys, timeout_mode=False)
+    metrics = _voice_metrics_from_request(req)
+
+    tone_pref = _normalize_tone_preference(req.tone_preference)
+    default_tone = {"supportive": "supportive", "firm": "firm", "fun": "celebratory", "neutral": "neutral"}.get(tone_pref, "neutral")
+    tone_tag = _normalize_tone_tag(raw.get("tone_tag"), fallback=default_tone)
+    empathy_line = _limit_text(raw.get("empathy_line"), 120) or fallback["empathy_line"]
+    insight_line = _limit_text(raw.get("insight_line"), 200) or fallback["insight_line"]
+
+    action_obj = raw.get("one_action") if isinstance(raw.get("one_action"), dict) else {}
+    title = _limit_text(action_obj.get("title"), 64) or fallback["one_action"]["title"]
+    steps = action_obj.get("steps") if isinstance(action_obj.get("steps"), list) else []
+    steps = [str(s).strip()[:120] for s in steps if str(s).strip()][:3]
+    if not steps:
+        steps = list(fallback["one_action"]["steps"])
+
+    why = _limit_text(raw.get("why_this_action"), 220) or fallback["why_this_action"]
+    advice_key = _normalize_semantic_key(raw.get("advice_key"))
+    if not advice_key:
+        advice_key = fallback["advice_key"]
+    if advice_key in set(_normalize_semantic_key_list(recent_keys, limit=32)):
+        advice_key = fallback["advice_key"]
+        title = fallback["one_action"]["title"]
+        steps = list(fallback["one_action"]["steps"])
+        why = fallback["why_this_action"]
+
+    grounded_words = ("protein", "fiber", "calorie", "upf", "glycemic", "late")
+    if not any(w in insight_line.lower() for w in grounded_words):
+        protein_gap = float(_safe_float(metrics.get("protein_gap"), 0.0) or 0.0)
+        fiber_gap = float(_safe_float(metrics.get("fiber_gap"), 0.0) or 0.0)
+        if protein_gap > 0:
+            insight_line = _limit_text(f"{insight_line} Protein shortfall remains around {round(protein_gap, 1)}g.", 200)
+        elif fiber_gap > 0:
+            insight_line = _limit_text(f"{insight_line} Fiber shortfall remains around {round(fiber_gap, 1)}g.", 200)
+
+    disclaimer = _limit_text(raw.get("safety_disclaimer"), 140) or "Informational only. Not medical advice."
+    return {
+        "coach_generated_ts": str(raw.get("coach_generated_ts") or _now_utc_naive().isoformat()),
+        "tone_tag": tone_tag,
+        "empathy_line": empathy_line,
+        "insight_line": insight_line,
+        "one_action": {"title": title, "steps": steps},
+        "why_this_action": why,
+        "advice_key": advice_key,
+        "safety_disclaimer": disclaimer,
+    }
+
+
+def _generate_human_coach_voice_llm(
+    req: CoachVoiceRequestModel,
+    recent_keys: List[str],
+) -> Dict[str, Any]:
+    _require_gemini_key()
+    model = genai.GenerativeModel(COACH_VOICE_LLM_MODEL)
+    metrics = _voice_metrics_from_request(req)
+    tone_pref = _normalize_tone_preference(req.tone_preference)
+    candidate_actions = _voice_action_templates(metrics)
+    allowed_keys = [_normalize_semantic_key(a.get("advice_key")) for a in candidate_actions if _normalize_semantic_key(a.get("advice_key"))]
+    recent_norm = _normalize_semantic_key_list(recent_keys, limit=24)
+    payload = {
+        "day": _safe_day_iso(req.day),
+        "goals": req.goals,
+        "consumed": req.consumed,
+        "metrics": metrics,
+        "user_profile": _model_dump(req.user_profile),
+        "tone_preference": tone_pref,
+        "allowed_actions": candidate_actions,
+        "recent_advice_keys": recent_norm,
+    }
+    schema = {
+        "coach_generated_ts": "ISO",
+        "tone_tag": "supportive|firm|celebratory|neutral",
+        "empathy_line": "string <=120 chars",
+        "insight_line": "string <=200 chars",
+        "one_action": {"title": "string", "steps": ["string", "string", "string"]},
+        "why_this_action": "string",
+        "advice_key": "string",
+        "safety_disclaimer": "string",
+    }
+    prompt = (
+        "Return strict JSON only, no markdown, no extra keys.\n"
+        "No medical claims or diagnosis.\n"
+        "Keep empathy_line short and human.\n"
+        "insight_line must reference measurable context.\n"
+        "Choose exactly one action from allowed_actions and use its advice_key.\n"
+        "Avoid advice keys that appear in recent_advice_keys unless no other option exists.\n"
+        f"Input:\n{json.dumps(payload, ensure_ascii=True)}\n"
+        f"Output schema:\n{json.dumps(schema, ensure_ascii=True)}"
+    )
+    last_err = ""
+    for attempt in range(2):
+        try:
+            resp = model.generate_content(
+                [_COACH_VOICE_SYSTEM_PROMPT, prompt],
+                request_options={"timeout": COACH_VOICE_TIMEOUT_SEC},
+            )
+            parsed = coach_logic.extract_json_object(str((resp.text or "")).strip())
+            if not isinstance(parsed, dict):
+                raise ValueError("Coach voice output is not valid JSON.")
+            return parsed
+        except Exception as e:
+            last_err = str(e)
+            if attempt < 1:
+                time.sleep(0.25)
+    raise HTTPException(status_code=502, detail={"error": "coach_voice_llm_failed", "raw": last_err[:300]})
+
+
+@app.post("/coach/voice")
+def coach_voice(
+    payload: Dict[str, Any] = Body(...),
+    user_id: Optional[str] = None,
+    x_user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
+):
+    try:
+        req = _model_validate(CoachVoiceRequestModel, payload or {})
+    except Exception as e:
+        raise HTTPException(status_code=400, detail={"error": "invalid_coach_voice_payload", "raw": str(e)[:300]})
+
+    uid = require_user_id(x_user_id, user_id or req.user_id)
+    day_iso = _safe_day_iso(req.day)
+    tone_pref = _normalize_tone_preference(req.tone_preference)
+    payload_hash = str(req.payload_hash or "").strip()
+    if not payload_hash:
+        payload_hash = hashlib.sha256(
+            json.dumps(
+                {
+                    "day": day_iso,
+                    "goals": req.goals,
+                    "consumed": req.consumed,
+                    "meals": [_model_dump(m) for m in (req.meals or [])],
+                    "tone_preference": tone_pref,
+                },
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode("utf-8")
+        ).hexdigest()
+
+    cached = _coach_voice_cache_get(uid, day_iso, payload_hash, tone_pref)
+    if isinstance(cached, dict):
+        return cached
+
+    mem_window = _read_coach_memory_window(uid, day_iso)
+    recent_keys = _normalize_semantic_key_list(
+        [m.advice_key for m in (req.recent_messages or [])] + list(mem_window.get("recent_advice_keys") or []),
+        limit=32,
+    )
+
+    output: Dict[str, Any]
+    if GEMINI_API_KEY:
+        try:
+            llm_raw = _generate_human_coach_voice_llm(req, recent_keys)
+            output = _coerce_voice_output(llm_raw, req, recent_keys)
+        except Exception as e:
+            logger.warning(f"coach voice llm failed, using fallback: {e}")
+            output = _voice_fallback_response(req, recent_keys, timeout_mode=True)
+    else:
+        output = _voice_fallback_response(req, recent_keys, timeout_mode=False)
+
+    _append_coach_memory_entry(
+        uid,
+        day_iso,
+        output.get("advice_key"),
+        f"{output.get('empathy_line', '')} {output.get('insight_line', '')}".strip(),
+    )
+    _coach_voice_cache_set(uid, day_iso, payload_hash, tone_pref, output)
+    return output
+
+
+@app.post("/coach/memory/feedback")
+def coach_memory_feedback(
+    payload: Dict[str, Any] = Body(...),
+    user_id: Optional[str] = None,
+    x_user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
+):
+    try:
+        req = _model_validate(CoachFeedbackRequestModel, payload or {})
+    except Exception as e:
+        raise HTTPException(status_code=400, detail={"error": "invalid_feedback_payload", "raw": str(e)[:280]})
+
+    uid = require_user_id(x_user_id, user_id or req.user_id)
+    feedback_type = _feedback_type_normalize(req.feedback_type)
+    rating = None if req.rating is None else max(1, min(5, int(_safe_float(req.rating, 3) or 3)))
+    corr = req.corrections or CoachFeedbackCorrectionsModel()
+    food_key = _derive_feedback_food_key(req)
+    correction_method = str(corr.cooking_method or "").strip().lower()
+    correction_oil = corr.oil_added_tsp
+    correction_portion = corr.portion_multiplier
+    confirmed_items = [
+        {"name": str(ci.name or "").strip(), "grams": float(_safe_float(ci.grams, 0.0) or 0.0)}
+        for ci in (corr.confirmed_items or [])
+        if str(ci.name or "").strip()
+    ]
+
+    row = {
+        "id": str(uuid.uuid4()),
+        "feedback_id": str(uuid.uuid4()),
+        "user_id": uid,
+        "analysis_id": str(req.analysis_id or "").strip(),
+        "meal_id": str(req.meal_id or "").strip(),
+        "feedback_type": feedback_type,
+        "rating": rating,
+        "free_text": str(req.free_text or "").strip()[:500],
+        "corrections_json": _model_dump(corr),
+        "corrections": _model_dump(corr),
+        "item_name": str(corr.item_name or "").strip(),
+        "item_id": str(corr.item_id or "").strip(),
+        "cooking_method": correction_method,
+        "oil_added_tsp": correction_oil,
+        "portion_multiplier": correction_portion,
+        "confirmed_items": confirmed_items,
+        "created_at": _now_utc_naive().isoformat(),
+    }
+    try:
+        if SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY:
+            _sb_insert_with_column_fallback(TBL_COACH_FEEDBACK, row)
+    except Exception as e:
+        logger.info(f"coach feedback write skipped: {e}")
+
+    updated_prior: Dict[str, Any] = {}
+    if food_key:
+        updated_prior = _upsert_user_food_prior(
+            uid,
+            food_key,
+            rating=rating,
+            portion_multiplier=correction_portion,
+            oil_added_tsp=correction_oil,
+            cooking_method=correction_method,
+        )
+
+    return {
+        "ok": True,
+        "priors_updated": bool(updated_prior),
+        "updated_food_key": str(updated_prior.get("food_key") or food_key or ""),
+        "new_priors": {
+            "portion_multiplier_mean": float(_safe_float(updated_prior.get("portion_multiplier_mean"), 1.0) or 1.0),
+            "oil_tsp_mean": float(_safe_float(updated_prior.get("oil_tsp_mean"), 0.0) or 0.0),
+            "always_ask_oil_for_methods": updated_prior.get("always_ask_oil_for_methods") or [],
+        },
+    }
+
+
+def _weekly_report_fallback(
+    week_start_iso: str,
+    rows: List[Dict[str, Any]],
+    weekly_predictive: Optional[Dict[str, Any]],
+) -> Dict[str, Any]:
+    week_end_iso = _week_end_from_start(week_start_iso)
+    days_logged = len(rows or [])
+    avg_protein_g = round(_safe_avg([_extract_metric_val(r, "protein_consumed_g") for r in rows]), 1)
+    avg_upf = round(_safe_avg([_extract_metric_val(r, "ultra_processed_avg") for r in rows]), 1)
+    late_pct = round(_safe_avg([_extract_metric_val(r, "late_calories_pct") for r in rows]), 1)
+    day_scores = [_day_score_from_metric_row(r) for r in rows]
+    resilience = int(round(_safe_avg(day_scores), 0)) if day_scores else 45
+    resilience = max(0, min(100, resilience))
+    risk = max(0, min(100, int(round(100 - resilience, 0))))
+
+    scans_7d = int(_safe_float((weekly_predictive or {}).get("scans_7d"), 0) or 0)
+    conf = str((weekly_predictive or {}).get("projection_confidence_band") or "").strip().lower()
+    if conf not in {"low", "medium", "high"}:
+        if days_logged >= 6 and scans_7d >= 6:
+            conf = "high"
+        elif days_logged >= 4:
+            conf = "medium"
+        else:
+            conf = "low"
+
+    top_risks: List[Dict[str, str]] = []
+    top_wins: List[Dict[str, str]] = []
+    next_plan: List[Dict[str, Any]] = []
+
+    if avg_protein_g > 0 and avg_protein_g < 100:
+        top_risks.append(
+            {
+                "title": "Protein consistency risk",
+                "reason": f"Average protein is {avg_protein_g}g, which may limit satiety and recovery.",
+                "signal": "avg_protein_g",
+            }
+        )
+    if avg_upf >= 6:
+        top_risks.append(
+            {
+                "title": "Ultra-processed load high",
+                "reason": f"Average UPF score is {avg_upf}/10, increasing appetite volatility risk.",
+                "signal": "avg_upf_score",
+            }
+        )
+    if late_pct >= 45:
+        top_risks.append(
+            {
+                "title": "Late-calorie clustering",
+                "reason": f"{late_pct}% of calories are late, which can destabilize appetite patterns.",
+                "signal": "late_calories_pct",
+            }
+        )
+    if not top_risks:
+        top_risks.append(
+            {
+                "title": "Data confidence risk",
+                "reason": "Low tracked days limits precision of pattern detection.",
+                "signal": "days_logged",
+            }
+        )
+
+    if days_logged >= 5:
+        top_wins.append(
+            {
+                "title": "Strong logging adherence",
+                "why_it_matters": "Consistent logging improves coaching precision and behavior momentum.",
+            }
+        )
+    if avg_upf < 5:
+        top_wins.append(
+            {
+                "title": "Whole-food quality trend",
+                "why_it_matters": "Lower processed-food load supports better satiety control.",
+            }
+        )
+    if resilience >= 60:
+        top_wins.append(
+            {
+                "title": "Readiness trend is stable",
+                "why_it_matters": "Stable readiness indicates improved consistency across the week.",
+            }
+        )
+    if not top_wins:
+        top_wins.append(
+            {
+                "title": "Baseline established",
+                "why_it_matters": "You now have enough data to improve week-over-week decisions.",
+            }
+        )
+
+    next_plan.append(
+        {
+            "title": "Protein-first planning",
+            "steps": ["Anchor breakfast protein", "Hit one high-protein lunch option"],
+        }
+    )
+    next_plan.append(
+        {
+            "title": "Timing cleanup",
+            "steps": ["Shift part of dinner earlier", "Keep late snacks controlled"],
+        }
+    )
+
+    data_quality_reasons = []
+    if days_logged < 4:
+        data_quality_reasons.append("Low tracked days this week.")
+    if scans_7d < 4:
+        data_quality_reasons.append("Low scan frequency reduces confidence.")
+    quality_score = int(round(min(100.0, (days_logged / 7.0) * 70.0 + min(scans_7d, 7) * 4.0), 0))
+
+    return {
+        "week_start": week_start_iso,
+        "week_end": week_end_iso,
+        "resilience_score": resilience,
+        "risk_score": risk,
+        "confidence_band": conf,
+        "top_risks": top_risks[:3],
+        "top_wins": top_wins[:3],
+        "next_week_plan": next_plan[:3],
+        "report_card_facts": {
+            "avg_protein_g": avg_protein_g,
+            "avg_upf_score": avg_upf,
+            "late_calories_pct": late_pct,
+            "days_logged": days_logged,
+        },
+        "data_quality": {
+            "score": quality_score,
+            "reasons": data_quality_reasons[:3],
+        },
+        "disclaimer": "Informational only. Not medical advice.",
+    }
+
+
+def _coerce_weekly_report_shape(raw: Dict[str, Any], fallback: Dict[str, Any]) -> Dict[str, Any]:
+    out = {
+        "week_start": str(raw.get("week_start") or fallback["week_start"]),
+        "week_end": str(raw.get("week_end") or fallback["week_end"]),
+        "resilience_score": int(max(0, min(100, _safe_float(raw.get("resilience_score"), fallback["resilience_score"]) or fallback["resilience_score"]))),
+        "risk_score": int(max(0, min(100, _safe_float(raw.get("risk_score"), fallback["risk_score"]) or fallback["risk_score"]))),
+        "confidence_band": str(raw.get("confidence_band") or fallback["confidence_band"]).strip().lower(),
+        "top_risks": raw.get("top_risks") if isinstance(raw.get("top_risks"), list) else fallback["top_risks"],
+        "top_wins": raw.get("top_wins") if isinstance(raw.get("top_wins"), list) else fallback["top_wins"],
+        "next_week_plan": raw.get("next_week_plan") if isinstance(raw.get("next_week_plan"), list) else fallback["next_week_plan"],
+        "report_card_facts": fallback["report_card_facts"],
+        "data_quality": fallback["data_quality"],
+        "disclaimer": str(raw.get("disclaimer") or fallback["disclaimer"]),
+    }
+    if out["confidence_band"] not in {"low", "medium", "high"}:
+        out["confidence_band"] = fallback["confidence_band"]
+    out["top_risks"] = [x for x in out["top_risks"] if isinstance(x, dict)][:3] or list(fallback["top_risks"])
+    out["top_wins"] = [x for x in out["top_wins"] if isinstance(x, dict)][:3] or list(fallback["top_wins"])
+    out["next_week_plan"] = [x for x in out["next_week_plan"] if isinstance(x, dict)][:3] or list(fallback["next_week_plan"])
+    return out
+
+
+def _generate_weekly_report_llm(base_payload: Dict[str, Any], tone_preference: str) -> Dict[str, Any]:
+    _require_gemini_key()
+    model = genai.GenerativeModel(COACH_LLM_MODEL)
+    schema = {
+        "week_start": "YYYY-MM-DD",
+        "week_end": "YYYY-MM-DD",
+        "resilience_score": 0,
+        "risk_score": 0,
+        "confidence_band": "low|medium|high",
+        "top_risks": [{"title": "string", "reason": "string", "signal": "string"}],
+        "top_wins": [{"title": "string", "why_it_matters": "string"}],
+        "next_week_plan": [{"title": "string", "steps": ["string", "string"]}],
+        "report_card_facts": {"avg_protein_g": 0, "avg_upf_score": 0, "late_calories_pct": 0, "days_logged": 0},
+        "disclaimer": "Informational only. Not medical advice.",
+    }
+    prompt = (
+        "Return strict JSON only, no markdown, no extra keys.\n"
+        "No medical diagnosis or treatment claims.\n"
+        "Use only the provided deterministic metrics.\n"
+        f"Tone preference: {_normalize_tone_preference(tone_preference)}\n"
+        f"Input:\n{json.dumps(base_payload, ensure_ascii=True)}\n"
+        f"Output schema:\n{json.dumps(schema, ensure_ascii=True)}"
+    )
+    last_err = ""
+    for attempt in range(2):
+        try:
+            resp = model.generate_content(
+                [_COACH_SYSTEM_PROMPT, prompt],
+                request_options={"timeout": COACH_LLM_TIMEOUT_SEC},
+            )
+            parsed = coach_logic.extract_json_object(str((resp.text or "")).strip())
+            if not isinstance(parsed, dict):
+                raise ValueError("weekly report output invalid JSON")
+            return parsed
+        except Exception as e:
+            last_err = str(e)
+            if attempt < 1:
+                time.sleep(0.35)
+    raise HTTPException(status_code=502, detail={"error": "weekly_report_llm_failed", "raw": last_err[:300]})
+
+
+@app.post("/coach/weekly_report")
+def coach_weekly_report(
+    payload: Dict[str, Any] = Body(...),
+    user_id: Optional[str] = None,
+    x_user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
+):
+    try:
+        req = _model_validate(WeeklyReportRequestModel, payload or {})
+    except Exception as e:
+        raise HTTPException(status_code=400, detail={"error": "invalid_weekly_report_payload", "raw": str(e)[:280]})
+
+    uid = require_user_id(x_user_id, user_id or req.user_id)
+    anchor_day = _safe_day_iso(req.week_start or _today_date(tz=req.tz or None, tz_offset_min=req.tz_offset_min).isoformat())
+    week_start_iso = _week_start_monday(anchor_day)
+
+    rows = [r for r in (req.daily_rows or []) if isinstance(r, dict)]
+    if not rows:
+        try:
+            rows = get_daily_metrics_window(uid, week_start_iso)
+        except Exception:
+            rows = []
+    weekly_predictive = get_user_weekly_metrics_payload(uid, week_start_iso) if (SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY) else None
+    fallback = _weekly_report_fallback(week_start_iso, rows, weekly_predictive)
+    cache_hash = hashlib.sha256(
+        json.dumps(
+            {
+                "uid": uid,
+                "week_start": week_start_iso,
+                "rows": rows,
+                "predictive": weekly_predictive or {},
+                "tone": _normalize_tone_preference(req.tone_preference),
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).hexdigest()
+
+    cached = _weekly_report_cache_get(uid, week_start_iso, cache_hash)
+    if isinstance(cached, dict):
+        return cached
+
+    out = dict(fallback)
+    if GEMINI_API_KEY:
+        try:
+            llm_raw = _generate_weekly_report_llm(
+                {
+                    "fallback": fallback,
+                    "weekly_predictive": weekly_predictive or {},
+                    "training_days_per_week": int(_safe_float(req.training_days_per_week, 0) or 0),
+                },
+                req.tone_preference,
+            )
+            out = _coerce_weekly_report_shape(llm_raw, fallback)
+        except Exception as e:
+            logger.warning(f"weekly report llm failed, using fallback: {e}")
+    _weekly_report_cache_set(uid, week_start_iso, cache_hash, out)
+    return out
+
+
+def _generate_program_plan_fallback(req: ProgramCreateRequestModel) -> Dict[str, Any]:
+    goal = str(req.program_goal or "fat_loss").strip().lower()
+    weeks = int(max(4, min(24, req.duration_weeks)))
+    return {
+        "program_goal": goal,
+        "duration_weeks": weeks,
+        "weekly_targets": [
+            {"week": 1, "focus": "logging_consistency", "target": "Log at least 5 days"},
+            {"week": 2, "focus": "protein_anchor", "target": "Hit protein anchor in first 2 meals"},
+            {"week": 3, "focus": "fiber_and_timing", "target": "Add fiber and reduce late-calorie load"},
+        ],
+        "daily_checkin_prompt": "How consistent were your meals today, and what is one correction for tonight?",
+    }
+
+
+@app.post("/program/create")
+def program_create(
+    payload: Dict[str, Any] = Body(...),
+    user_id: Optional[str] = None,
+    x_user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
+):
+    try:
+        req = _model_validate(ProgramCreateRequestModel, payload or {})
+    except Exception as e:
+        raise HTTPException(status_code=400, detail={"error": "invalid_program_create_payload", "raw": str(e)[:280]})
+    uid = require_user_id(x_user_id, user_id or req.user_id)
+    now = _now_utc_naive().isoformat()
+    plan = _generate_program_plan_fallback(req)
+    row = {
+        "program_id": str(uuid.uuid4()),
+        "user_id": uid,
+        "program_goal": str(plan.get("program_goal") or "fat_loss"),
+        "duration_weeks": int(_safe_float(plan.get("duration_weeks"), 12) or 12),
+        "status": "active",
+        "plan_json": plan,
+        "created_at": now,
+        "updated_at": now,
+    }
+    if SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY:
+        try:
+            existing = sb_get_one(
+                TBL_PROGRAM_STATUS,
+                params={"select": "*", "user_id": f"eq.{uid}", "status": "eq.active", "limit": "1"},
+            )
+            if existing:
+                _sb_patch_with_column_fallback(
+                    TBL_PROGRAM_STATUS,
+                    {"user_id": f"eq.{uid}", "status": "eq.active"},
+                    {
+                        "program_goal": row["program_goal"],
+                        "duration_weeks": row["duration_weeks"],
+                        "plan_json": row["plan_json"],
+                        "updated_at": now,
+                    },
+                )
+            else:
+                _sb_insert_with_column_fallback(TBL_PROGRAM_STATUS, row)
+        except Exception as e:
+            logger.info(f"program create write skipped: {e}")
+    return {"ok": True, "program": row}
+
+
+@app.post("/program/daily_checkin")
+def program_daily_checkin(
+    payload: Dict[str, Any] = Body(...),
+    user_id: Optional[str] = None,
+    x_user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
+):
+    try:
+        req = _model_validate(ProgramDailyCheckinRequestModel, payload or {})
+    except Exception as e:
+        raise HTTPException(status_code=400, detail={"error": "invalid_program_checkin_payload", "raw": str(e)[:280]})
+    uid = require_user_id(x_user_id, user_id or req.user_id)
+    checkin = {
+        "date": _safe_day_iso(req.date),
+        "adherence_score": _safe_float(req.adherence_score, None),
+        "notes": str(req.notes or "")[:300],
+        "signals": req.signals if isinstance(req.signals, dict) else {},
+        "ts": _now_utc_naive().isoformat(),
+    }
+    if SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY:
+        try:
+            existing = sb_get_one(
+                TBL_PROGRAM_STATUS,
+                params={"select": "*", "user_id": f"eq.{uid}", "status": "eq.active", "limit": "1"},
+            )
+            if existing:
+                history = _parse_jsonish(existing.get("checkins_json"), [])
+                if not isinstance(history, list):
+                    history = []
+                history.append(checkin)
+                history = history[-30:]
+                _sb_patch_with_column_fallback(
+                    TBL_PROGRAM_STATUS,
+                    {"user_id": f"eq.{uid}", "status": "eq.active"},
+                    {"checkins_json": history, "updated_at": _now_utc_naive().isoformat()},
+                )
+        except Exception as e:
+            logger.info(f"program checkin write skipped: {e}")
+    return {"ok": True, "checkin": checkin}
+
+
+@app.get("/program/status")
+def program_status(
+    user_id: Optional[str] = None,
+    x_user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
+):
+    uid = require_user_id(x_user_id, user_id)
+    if not (SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY):
+        return {"ok": True, "program": None}
+    try:
+        row = sb_get_one(
+            TBL_PROGRAM_STATUS,
+            params={"select": "*", "user_id": f"eq.{uid}", "status": "eq.active", "order": "updated_at.desc", "limit": "1"},
+        )
+        return {"ok": True, "program": row or None}
+    except Exception as e:
+        logger.info(f"program status read skipped: {e}")
+        return {"ok": True, "program": None}
 
 
 @app.post("/coach/daily")
@@ -3175,6 +5534,10 @@ def coach_daily(
     payload: Dict[str, Any] = Body(...),
     user_id: Optional[str] = None,
     refresh: Optional[bool] = False,
+    fast: Optional[bool] = False,
+    latest_scan_id: Optional[str] = None,
+    latest_scan_ts: Optional[str] = None,
+    state_signature: Optional[str] = None,
     tz: Optional[str] = None,
     tz_offset_min: Optional[int] = None,
     x_user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
@@ -3184,20 +5547,23 @@ def coach_daily(
     Numbers are always computed by Python rules; LLM only interprets.
     """
     uid = require_user_id(x_user_id, user_id)
+    started = time.time()
     norm = coach_logic.normalize_daily_payload(payload or {})
     if not norm.get("date"):
         norm["date"] = _today_date().isoformat()
-    try:
-        user_plan = get_user_plan(uid)
-    except Exception:
-        user_plan = DEFAULT_PLAN
 
     fat_loss_score = coach_logic.compute_fat_loss_score(norm)
     rule_alerts = coach_logic.build_rule_risk_alerts(norm)
     p_hash = coach_logic.payload_hash(norm)
-    p_hash = hashlib.sha256(f"{p_hash}:{user_plan}".encode("utf-8")).hexdigest()
     day_iso = str(norm.get("date") or _today_date().isoformat())
     week_start_iso = _week_start_monday(day_iso)
+    scan_meta = _latest_scan_meta(uid, day_iso)
+    processed_scan_id = str(latest_scan_id or scan_meta.get("scan_id") or "").strip()
+    processed_scan_ts = str(latest_scan_ts or scan_meta.get("scan_ts") or "").strip()
+    incoming_state = payload.get("_state") if isinstance(payload, dict) and isinstance(payload.get("_state"), dict) else {}
+    meals_count_today = int(_safe_float(incoming_state.get("scan_count"), 0) or 0)
+    if meals_count_today <= 0:
+        meals_count_today = int(_safe_float(scan_meta.get("meals_count_today"), 0) or 0)
 
     week_rows: Optional[List[Dict[str, Any]]] = None
     weekly_behavior: Optional[Dict[str, Any]] = None
@@ -3250,15 +5616,35 @@ def coach_daily(
     weekly_metrics_hash = str((weekly_predictive or {}).get("payload_hash") or "").strip()
     if weekly_metrics_hash:
         p_hash = hashlib.sha256(f"{p_hash}:{weekly_metrics_hash}".encode("utf-8")).hexdigest()
-    athlete_mode = _build_athlete_mode_payload(norm, weekly_predictive, user_plan)
+    if state_signature:
+        p_hash = hashlib.sha256(f"{p_hash}:{state_signature}".encode("utf-8")).hexdigest()
+    if processed_scan_id:
+        p_hash = hashlib.sha256(f"{p_hash}:{processed_scan_id}".encode("utf-8")).hexdigest()
 
     cached = _coach_cache_get(uid, day_iso, p_hash) if not refresh else None
+    if isinstance(cached, dict):
+        out = dict(cached)
+        if processed_scan_id:
+            cached_scan_id = str(out.get("last_processed_scan_id") or "").strip()
+            if cached_scan_id and cached_scan_id != processed_scan_id:
+                logger.info(
+                    f"fli_stale_detected user={uid} latest_scan_id={processed_scan_id} last_processed_scan_id={cached_scan_id}"
+                )
+                out = {}
+        if not out:
+            cached = None
     if isinstance(cached, dict):
         out = dict(cached)
         out["fat_loss_score"] = int(fat_loss_score)
         out["disclaimer"] = coach_logic.COACH_DISCLAIMER
         out["date"] = day_iso
         out["reasoning_source"] = str(out.get("reasoning_source") or "cache")
+        out["last_processed_scan_id"] = str(out.get("last_processed_scan_id") or processed_scan_id)
+        out["last_processed_scan_ts"] = str(out.get("last_processed_scan_ts") or processed_scan_ts)
+        out["updatedAt"] = str(out.get("updatedAt") or dt.datetime.utcnow().isoformat())
+        out["payload_hash_used"] = str(out.get("payload_hash_used") or p_hash)
+        out["coach_generated_ts"] = str(out.get("coach_generated_ts") or out.get("updatedAt") or dt.datetime.utcnow().isoformat())
+        out["meals_count_today"] = int(_safe_float(out.get("meals_count_today"), meals_count_today) or 0)
         out = _ensure_coach_voice_defaults(out, weekly_predictive=weekly_predictive)
         out["pattern_detected"] = str(out.get("pattern_detected") or "")
         if not isinstance(out.get("biggest_risk_lever"), dict):
@@ -3279,7 +5665,12 @@ def coach_daily(
             out["predictive_signals"] = public_pred
         else:
             out.pop("predictive_signals", None)
-        out["athlete_mode"] = athlete_mode
+        logger.info(
+            f"fli_fetch source=cache user={uid} updatedAt={out.get('updatedAt')} "
+            f"last_processed_scan_id={out.get('last_processed_scan_id')} "
+            f"payload_hash_used={out.get('payload_hash_used')} meals_count_today={out.get('meals_count_today')} "
+            f"duration_ms={int((time.time()-started)*1000)}"
+        )
         return out
 
     llm_resp: Optional[Dict[str, Any]] = None
@@ -3292,6 +5683,7 @@ def coach_daily(
                 rule_alerts,
                 weekly_behavior=weekly_behavior,
                 weekly_predictive=weekly_predictive,
+                fast_mode=bool(fast),
             )
             reasoning_source = "llm"
         except Exception as e:
@@ -3300,6 +5692,7 @@ def coach_daily(
     if not llm_resp:
         llm_resp = coach_logic.build_fallback_coach_response(norm, fat_loss_score, rule_alerts)
 
+    generated_ts = dt.datetime.utcnow().isoformat()
     final_resp = {
         "date": day_iso,
         "fat_loss_score": int(fat_loss_score),
@@ -3318,12 +5711,17 @@ def coach_daily(
         else {"if_unchanged": "", "if_improved": ""},
         "diagnosis": llm_resp.get("diagnosis", []),
         "tomorrow_focus": llm_resp.get("tomorrow_focus", []),
-        "actions": llm_resp.get("actions", [])[:2],
+        "actions": llm_resp.get("actions", [])[: (2 if fast else 3)],
         "risk_alerts": coach_logic.merge_risk_alerts(rule_alerts, llm_resp.get("risk_alerts", []), limit=4),
         "disclaimer": coach_logic.COACH_DISCLAIMER,
         "reasoning_source": reasoning_source,
         "week_start": week_start_iso,
-        "athlete_mode": athlete_mode,
+        "last_processed_scan_id": processed_scan_id,
+        "last_processed_scan_ts": processed_scan_ts,
+        "updatedAt": generated_ts,
+        "coach_generated_ts": generated_ts,
+        "payload_hash_used": p_hash,
+        "meals_count_today": meals_count_today,
     }
     final_resp = _ensure_coach_voice_defaults(final_resp, weekly_predictive=weekly_predictive)
     if isinstance(weekly_behavior, dict):
@@ -3342,6 +5740,7 @@ def coach_daily(
     if not ok:
         logger.warning(f"Daily coach response failed safety gate: {reason}")
         fb = coach_logic.build_fallback_coach_response(norm, fat_loss_score, rule_alerts)
+        generated_ts = dt.datetime.utcnow().isoformat()
         final_resp = {
             "date": day_iso,
             "fat_loss_score": int(fat_loss_score),
@@ -3360,12 +5759,17 @@ def coach_daily(
             else {"if_unchanged": "", "if_improved": ""},
             "diagnosis": fb.get("diagnosis", []),
             "tomorrow_focus": fb.get("tomorrow_focus", []),
-            "actions": fb.get("actions", [])[:2],
+            "actions": fb.get("actions", [])[: (2 if fast else 3)],
             "risk_alerts": coach_logic.merge_risk_alerts(rule_alerts, fb.get("risk_alerts", []), limit=4),
             "disclaimer": coach_logic.COACH_DISCLAIMER,
             "reasoning_source": "fallback",
             "week_start": week_start_iso,
-            "athlete_mode": athlete_mode,
+            "last_processed_scan_id": processed_scan_id,
+            "last_processed_scan_ts": processed_scan_ts,
+            "updatedAt": generated_ts,
+            "coach_generated_ts": generated_ts,
+            "payload_hash_used": p_hash,
+            "meals_count_today": meals_count_today,
         }
         final_resp = _ensure_coach_voice_defaults(final_resp, weekly_predictive=weekly_predictive)
         if isinstance(weekly_behavior, dict):
@@ -3380,6 +5784,12 @@ def coach_daily(
             final_resp["predictive_signals"] = public_pred
 
     _coach_cache_set(uid, day_iso, p_hash, final_resp)
+    logger.info(
+        f"fli_fetch source={final_resp.get('reasoning_source')} user={uid} updatedAt={final_resp.get('updatedAt')} "
+        f"last_processed_scan_id={final_resp.get('last_processed_scan_id')} "
+        f"payload_hash_used={final_resp.get('payload_hash_used')} meals_count_today={final_resp.get('meals_count_today')} "
+        f"duration_ms={int((time.time()-started)*1000)}"
+    )
     return final_resp
 
 
@@ -3625,59 +6035,582 @@ def extract_micros_per_100g(food_details: dict) -> Dict[str, Any]:
     }
     return out
 
-# -------------------- GEMINI FOOD DETECTION --------------------
-def gemini_detect_foods(image_bytes: bytes) -> List[Dict[str, Any]]:
-    """
-    Returns list: { name, grams, confidence }
-    Retries on rate limit-ish failures.
-    """
-    _require_gemini_key()
-    model = genai.GenerativeModel("gemini-3-flash-preview")
+# -------------------- GEMINI FOOD DETECTION (Confidence-first V1) --------------------
+def _coerce_vision_scan_payload(raw: Dict[str, Any]) -> VisionScanV1Model:
+    src = raw if isinstance(raw, dict) else {}
+    items_in = src.get("items") if isinstance(src.get("items"), list) else []
+    cleaned_items: List[Dict[str, Any]] = []
+    for idx, it in enumerate(items_in):
+        if not isinstance(it, dict):
+            continue
+        name = str(it.get("name") or "").strip()
+        grams = max(0.0, float(_safe_float(it.get("grams"), 0.0) or 0.0))
+        if not name or grams <= 0:
+            continue
+        cleaned_items.append(
+            {
+                "item_id": str(it.get("item_id") or f"i{idx + 1}"),
+                "name": name,
+                "grams": round(grams, 1),
+                "cooking_method": str(it.get("cooking_method") or "unknown").strip().lower() or "unknown",
+                "oil_added_tsp": max(0.0, float(_safe_float(it.get("oil_added_tsp"), 0.0) or 0.0)),
+                "confidence": round(_clamp01(it.get("confidence"), 0.65), 3),
+                "candidate_alternatives": [
+                    str(x).strip()
+                    for x in (it.get("candidate_alternatives") or [])
+                    if str(x).strip()
+                ][:4],
+            }
+        )
 
+    if not cleaned_items:
+        raise ValueError("No usable items from scan payload.")
+
+    top_in = src.get("top_candidates") if isinstance(src.get("top_candidates"), list) else []
+    cleaned_top: List[Dict[str, Any]] = []
+    for idx, c in enumerate(top_in[:5]):
+        if not isinstance(c, dict):
+            continue
+        label = str(c.get("label") or "").strip()
+        if not label:
+            continue
+        cleaned_top.append(
+            {
+                "candidate_id": str(c.get("candidate_id") or f"c{idx + 1}"),
+                "label": label,
+                "confidence": round(_clamp01(c.get("confidence"), 0.5), 3),
+                "evidence": [str(x).strip() for x in (c.get("evidence") or []) if str(x).strip()][:4],
+                "assumptions": [str(x).strip() for x in (c.get("assumptions") or []) if str(x).strip()][:4],
+                "portion_guess_g": max(0.0, float(_safe_float(c.get("portion_guess_g"), 0.0) or 0.0)),
+            }
+        )
+
+    if not cleaned_top:
+        cleaned_top = [
+            {
+                "candidate_id": f"c{idx + 1}",
+                "label": item["name"],
+                "confidence": item["confidence"],
+                "evidence": [],
+                "assumptions": [],
+                "portion_guess_g": item["grams"],
+            }
+            for idx, item in enumerate(cleaned_items[:3])
+        ]
+
+    vis_conf = _clamp01(src.get("vision_confidence"), default=_safe_float(src.get("confidence"), 0.65) or 0.65)
+    # Deterministic trigger rules (non-random):
+    # 1) Any fried/air-fried style item with zero explicit oil -> always ask oil-method clarification.
+    # 2) Otherwise, low confidence scans ask generic clarification.
+    # 3) High confidence + non-fried pattern -> no clarification.
+    if _needs_fried_oil_question(cleaned_items):
+        clarifying = dict(_FRIED_CLARIFY_QUESTION)
+    elif vis_conf < 0.72:
+        clarifying = dict(_LOW_CONF_CLARIFY_QUESTION)
+    else:
+        clarifying = None
+
+    payload = {
+        "vision_confidence": round(vis_conf, 3),
+        "top_candidates": cleaned_top,
+        "clarifying_question": clarifying,
+        "editable_context": {"items": cleaned_items},
+        "items": cleaned_items,
+    }
+    return _model_validate(VisionScanV1Model, payload)
+
+
+def _fallback_vision_scan_from_items(items: List[Dict[str, Any]]) -> VisionScanV1Model:
+    cleaned_items = []
+    for idx, it in enumerate(items or []):
+        name = str((it or {}).get("name") or "").strip()
+        grams = max(0.0, float(_safe_float((it or {}).get("grams"), 0.0) or 0.0))
+        if not name or grams <= 0:
+            continue
+        cleaned_items.append(
+            {
+                "item_id": str((it or {}).get("item_id") or f"i{idx + 1}"),
+                "name": name,
+                "grams": round(grams, 1),
+                "cooking_method": str((it or {}).get("cooking_method") or "unknown"),
+                "oil_added_tsp": max(0.0, float(_safe_float((it or {}).get("oil_added_tsp"), 0.0) or 0.0)),
+                "confidence": round(_clamp01((it or {}).get("confidence"), 0.62), 3),
+                "candidate_alternatives": [
+                    str(x).strip()
+                    for x in ((it or {}).get("candidate_alternatives") or [])
+                    if str(x).strip()
+                ][:4],
+            }
+        )
+    if not cleaned_items:
+        raise HTTPException(status_code=502, detail={"error": "scan_failed", "raw": "No recognizable items."})
+
+    avg_conf = sum(i["confidence"] for i in cleaned_items) / max(1, len(cleaned_items))
+    vis_conf = round(_clamp01(avg_conf, 0.62), 3)
+    top = [
+        {
+            "candidate_id": f"c{idx + 1}",
+            "label": item["name"],
+            "confidence": item["confidence"],
+            "evidence": [],
+            "assumptions": [],
+            "portion_guess_g": item["grams"],
+        }
+        for idx, item in enumerate(cleaned_items[:3])
+    ]
+    if _needs_fried_oil_question(cleaned_items):
+        clarifying = dict(_FRIED_CLARIFY_QUESTION)
+    elif vis_conf < 0.72:
+        clarifying = {
+            "ask": "Is this portion size accurate and was extra oil used?",
+            "options": ["Looks right", "Portion is larger", "Portion is smaller", "Extra oil used"],
+        }
+    else:
+        clarifying = None
+    return _model_validate(
+        VisionScanV1Model,
+        {
+            "vision_confidence": vis_conf,
+            "top_candidates": top,
+            "clarifying_question": clarifying,
+            "editable_context": {"items": cleaned_items},
+            "items": cleaned_items,
+        },
+    )
+
+
+def gemini_vision_scan_v1(
+    image_bytes: bytes,
+    personalization_context: Optional[Dict[str, Any]] = None,
+) -> VisionScanV1Model:
+    _require_gemini_key()
+    model = genai.GenerativeModel(SCAN_LLM_MODEL)
+    priors_ctx = personalization_context if isinstance(personalization_context, dict) else {}
+    priors_json = json.dumps(
+        {
+            "user_priors": priors_ctx.get("user_priors") if isinstance(priors_ctx.get("user_priors"), dict) else {},
+            "always_ask_oil_for_methods": priors_ctx.get("always_ask_oil_for_methods")
+            if isinstance(priors_ctx.get("always_ask_oil_for_methods"), list)
+            else [],
+            "defaults_policy": str(priors_ctx.get("defaults_policy") or ""),
+        },
+        ensure_ascii=True,
+        separators=(",", ":"),
+    )
     prompt = """
-You are a food recognition assistant.
-From the image, detect the foods visible and estimate grams for each item.
-Return ONLY valid JSON (no markdown) in this format:
+You are a food-vision assistant for a nutrition app.
+Return ONLY valid JSON (no markdown) with this exact shape:
 {
+  "vision_confidence": 0.0,
+  "top_candidates": [
+    {
+      "candidate_id": "c1",
+      "label": "grilled chicken salad",
+      "confidence": 0.0,
+      "evidence": ["leafy greens", "grilled chicken pieces"],
+      "assumptions": ["dressing included"],
+      "portion_guess_g": 0.0
+    }
+  ],
+  "clarifying_question": {
+    "ask": "Is there dressing/oil added? If yes, how much?",
+    "options": ["No", "Yes - light", "Yes - normal", "Yes - heavy"]
+  },
   "items": [
-    { "name": "chicken biryani", "grams": 280, "confidence": 0.72 }
+    {
+      "item_id": "i1",
+      "name": "grilled chicken",
+      "grams": 180,
+      "cooking_method": "grilled",
+      "oil_added_tsp": 0,
+      "confidence": 0.0,
+      "candidate_alternatives": ["chicken thigh", "chicken breast"]
+    }
   ]
 }
 
 Rules:
-- Use simple, USDA-friendly names.
-- grams must be a positive number.
-- confidence must be 0..1.
-- Never return empty items.
-"""
-
+- Use simple USDA-friendly item names.
+- items must not be empty.
+- grams > 0 for each item.
+- confidence fields must be 0..1.
+- Use personalization context only as soft defaults, never as guaranteed truth.
+- If an item's cooking method is in always_ask_oil_for_methods, include clarifying_question even when confidence is high.
+- If confidence >= 0.72, set clarifying_question to null.
+- If confidence < 0.72, include exactly one clarifying_question.
+- Personalization context JSON:
+""" + priors_json
     img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
-
-    last_err = None
+    last_err = ""
     for attempt in range(4):
         try:
             resp = model.generate_content([prompt, img])
-            text = (resp.text or "").strip()
-            data = json.loads(text)
-            items = data.get("items", [])
-            if not isinstance(items, list) or not items:
-                raise ValueError("No items list")
-            cleaned = []
-            for it in items:
-                name = str(it.get("name", "")).strip()
-                grams = float(it.get("grams", 0) or 0)
-                conf = float(it.get("confidence", 0) or 0)
-                if name and grams > 0:
-                    cleaned.append({"name": name, "grams": grams, "confidence": conf})
-            if not cleaned:
-                raise ValueError("No usable items")
-            return cleaned
+            text = str((resp.text or "")).strip()
+            parsed = coach_logic.extract_json_object(text)
+            if not isinstance(parsed, dict):
+                raise ValueError("No JSON object returned by model.")
+            return _coerce_vision_scan_payload(parsed)
         except Exception as e:
             last_err = str(e)
-            # backoff
-            time.sleep(0.6 * (attempt + 1))
+            time.sleep(0.7 * (attempt + 1))
+    raise HTTPException(status_code=502, detail={"error": "vision_scan_failed", "raw": last_err[:320]})
 
-    raise HTTPException(status_code=502, detail={"error": "Gemini failed / invalid JSON", "raw": last_err})
+
+def gemini_detect_foods(image_bytes: bytes) -> List[Dict[str, Any]]:
+    """
+    Backward-compatible shim used by older callers.
+    """
+    scan = gemini_vision_scan_v1(image_bytes)
+    return [
+        {
+            "item_id": it.item_id,
+            "name": it.name,
+            "grams": it.grams,
+            "confidence": it.confidence,
+            "cooking_method": it.cooking_method,
+            "oil_added_tsp": it.oil_added_tsp,
+            "candidate_alternatives": it.candidate_alternatives,
+        }
+        for it in (scan.items or [])
+    ]
+
+
+def _compute_scan_nutrition(detected_items: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], Dict[str, float], Dict[str, float], List[Dict[str, Any]]]:
+    results: List[Dict[str, Any]] = []
+    total_kcal = 0.0
+    total_p = total_c = total_f = 0.0
+    total_micros = {
+        "vitamin_d_ug": 0.0,
+        "vitamin_b12_ug": 0.0,
+        "iron_mg": 0.0,
+        "magnesium_mg": 0.0,
+        "calcium_mg": 0.0,
+        "potassium_mg": 0.0,
+        "sodium_mg": 0.0,
+        "fiber_g": 0.0,
+    }
+    item_warnings: List[Dict[str, Any]] = []
+
+    for idx, d in enumerate(detected_items or []):
+        name = str((d or {}).get("name") or "").strip()
+        if not name:
+            continue
+        grams = max(0.0, float(_safe_float((d or {}).get("grams"), 0.0) or 0.0))
+        if grams <= 0:
+            continue
+        conf = _clamp01((d or {}).get("confidence"), 0.6)
+        item_id = str((d or {}).get("item_id") or f"i{idx + 1}")
+        cooking_method = str((d or {}).get("cooking_method") or "unknown").strip().lower() or "unknown"
+        oil_added_tsp = max(0.0, float(_safe_float((d or {}).get("oil_added_tsp"), 0.0) or 0.0))
+        if oil_added_tsp <= 0 and "fried" in cooking_method:
+            oil_added_tsp = 1.0
+        candidate_alternatives = [
+            str(x).strip() for x in ((d or {}).get("candidate_alternatives") or []) if str(x).strip()
+        ][:4]
+
+        candidates = usda_search_candidates(name)
+        details = None
+        macros100 = None
+        micros100 = None
+        fdc_id = None
+        last_item_err = None
+        for cand in candidates[:6]:
+            try:
+                fdc_id = int(cand["fdcId"])
+                maybe_details = usda_food_details(fdc_id)
+                maybe_macros = extract_macros_per_100g(maybe_details)
+                maybe_micros = extract_micros_per_100g(maybe_details)
+                details = maybe_details
+                macros100 = maybe_macros
+                micros100 = maybe_micros
+                break
+            except Exception as e:
+                last_item_err = str(getattr(e, "detail", e))
+                continue
+
+        if not details or not macros100:
+            item_warnings.append(
+                {
+                    "item_id": item_id,
+                    "name": name,
+                    "warning": "nutrition_lookup_failed",
+                    "detail": (last_item_err or "No usable USDA match found")[:220],
+                }
+            )
+            results.append(
+                {
+                    "item_id": item_id,
+                    "name": name,
+                    "grams": round(grams, 1),
+                    "confidence": round(conf, 2),
+                    "cooking_method": cooking_method,
+                    "oil_added_tsp": round(oil_added_tsp, 2),
+                    "candidate_alternatives": candidate_alternatives,
+                    "kcal": 0.0,
+                    "macros": {"protein_g": 0.0, "carbs_g": 0.0, "fat_g": 0.0},
+                    "micros": {},
+                    "micros_units": None,
+                    "unverified": True,
+                }
+            )
+            continue
+
+        factor = grams / 100.0
+        kcal = macros100["kcal_per_100g"] * factor
+        p = macros100["protein_g_per_100g"] * factor
+        c = macros100["carbs_g_per_100g"] * factor
+        f = macros100["fat_g_per_100g"] * factor
+
+        # Minimal deterministic correction for user-specified cooking/oil edits.
+        if oil_added_tsp > 0:
+            kcal += oil_added_tsp * 40.5
+            f += oil_added_tsp * 4.5
+
+        micros = {}
+        for k, v in (micros100 or {}).items():
+            if k == "_units":
+                continue
+            micros[k] = round(float(v) * factor, 3)
+
+        results.append(
+            {
+                "item_id": item_id,
+                "name": name,
+                "grams": round(grams, 1),
+                "confidence": round(conf, 2),
+                "cooking_method": cooking_method,
+                "oil_added_tsp": round(oil_added_tsp, 2),
+                "candidate_alternatives": candidate_alternatives,
+                "kcal": round(kcal, 1),
+                "macros": {
+                    "protein_g": round(p, 1),
+                    "carbs_g": round(c, 1),
+                    "fat_g": round(f, 1),
+                },
+                "micros": micros,
+                "micros_units": (micros100 or {}).get("_units"),
+                "usda": {
+                    "fdcId": fdc_id,
+                    "description": (details or {}).get("description"),
+                    "dataType": (details or {}).get("dataType"),
+                },
+            }
+        )
+
+        total_kcal += kcal
+        total_p += p
+        total_c += c
+        total_f += f
+        for mk, mv in micros.items():
+            if mk in total_micros:
+                total_micros[mk] += float(mv)
+
+    totals = {
+        "kcal": round(total_kcal, 1),
+        "protein_g": round(total_p, 1),
+        "carbs_g": round(total_c, 1),
+        "fat_g": round(total_f, 1),
+    }
+    return results, totals, total_micros, item_warnings
+
+
+def _build_micros_payload(total_micros: Dict[str, float]) -> Dict[str, Any]:
+    tm = total_micros or {}
+    return {
+        "vitamin_d_ug": round(float(_safe_float(tm.get("vitamin_d_ug"), 0.0) or 0.0), 3),
+        "vitamin_b12_ug": round(float(_safe_float(tm.get("vitamin_b12_ug"), 0.0) or 0.0), 3),
+        "iron_mg": round(float(_safe_float(tm.get("iron_mg"), 0.0) or 0.0), 3),
+        "magnesium_mg": round(float(_safe_float(tm.get("magnesium_mg"), 0.0) or 0.0), 3),
+        "calcium_mg": round(float(_safe_float(tm.get("calcium_mg"), 0.0) or 0.0), 3),
+        "potassium_mg": round(float(_safe_float(tm.get("potassium_mg"), 0.0) or 0.0), 3),
+        "sodium_mg": round(float(_safe_float(tm.get("sodium_mg"), 0.0) or 0.0), 3),
+        "fiber_g": round(float(_safe_float(tm.get("fiber_g"), 0.0) or 0.0), 3),
+        "_units": {
+            "vitamin_d_ug": "µg",
+            "vitamin_b12_ug": "µg",
+            "iron_mg": "mg",
+            "magnesium_mg": "mg",
+            "calcium_mg": "mg",
+            "potassium_mg": "mg",
+            "sodium_mg": "mg",
+            "fiber_g": "g",
+        },
+    }
+
+
+def _build_rerun_daily_delta(
+    old_totals: Dict[str, Any],
+    old_micros: Dict[str, Any],
+    new_totals: Dict[str, Any],
+    new_micros: Dict[str, Any],
+) -> Dict[str, float]:
+    old_totals = old_totals if isinstance(old_totals, dict) else {}
+    old_micros = old_micros if isinstance(old_micros, dict) else {}
+    new_totals = new_totals if isinstance(new_totals, dict) else {}
+    new_micros = new_micros if isinstance(new_micros, dict) else {}
+    return {
+        "total_kcal": float(_safe_float(new_totals.get("kcal"), 0.0) or 0.0)
+        - float(_safe_float(old_totals.get("kcal"), 0.0) or 0.0),
+        "protein_g": float(_safe_float(new_totals.get("protein_g"), 0.0) or 0.0)
+        - float(_safe_float(old_totals.get("protein_g"), 0.0) or 0.0),
+        "carbs_g": float(_safe_float(new_totals.get("carbs_g"), 0.0) or 0.0)
+        - float(_safe_float(old_totals.get("carbs_g"), 0.0) or 0.0),
+        "fat_g": float(_safe_float(new_totals.get("fat_g"), 0.0) or 0.0)
+        - float(_safe_float(old_totals.get("fat_g"), 0.0) or 0.0),
+        "fiber_g": float(_safe_float(new_micros.get("fiber_g"), 0.0) or 0.0)
+        - float(_safe_float(old_micros.get("fiber_g"), 0.0) or 0.0),
+        "sodium_mg": float(_safe_float(new_micros.get("sodium_mg"), 0.0) or 0.0)
+        - float(_safe_float(old_micros.get("sodium_mg"), 0.0) or 0.0),
+        "vitamin_d_ug": float(_safe_float(new_micros.get("vitamin_d_ug"), 0.0) or 0.0)
+        - float(_safe_float(old_micros.get("vitamin_d_ug"), 0.0) or 0.0),
+        "vitamin_b12_ug": float(_safe_float(new_micros.get("vitamin_b12_ug"), 0.0) or 0.0)
+        - float(_safe_float(old_micros.get("vitamin_b12_ug"), 0.0) or 0.0),
+        "iron_mg": float(_safe_float(new_micros.get("iron_mg"), 0.0) or 0.0)
+        - float(_safe_float(old_micros.get("iron_mg"), 0.0) or 0.0),
+        "magnesium_mg": float(_safe_float(new_micros.get("magnesium_mg"), 0.0) or 0.0)
+        - float(_safe_float(old_micros.get("magnesium_mg"), 0.0) or 0.0),
+    }
+
+
+def _coerce_meal_qa_payload(raw: Dict[str, Any], vision: VisionScanV1Model) -> MealQAModel:
+    src = raw if isinstance(raw, dict) else {}
+    issues_in = src.get("issues") if isinstance(src.get("issues"), list) else []
+    fixes_in = src.get("one_tap_fixes") if isinstance(src.get("one_tap_fixes"), list) else []
+
+    issues = []
+    for issue in issues_in[:4]:
+        if not isinstance(issue, dict):
+            continue
+        msg = str(issue.get("message") or "").strip()
+        if not msg:
+            continue
+        sev = str(issue.get("severity") or "medium").strip().lower()
+        if sev not in {"low", "medium", "high"}:
+            sev = "medium"
+        issues.append(
+            {
+                "issue_type": str(issue.get("issue_type") or "quality_check").strip().lower() or "quality_check",
+                "severity": sev,
+                "message": msg,
+            }
+        )
+
+    fixes = []
+    for f in fixes_in[:4]:
+        if not isinstance(f, dict):
+            continue
+        label = str(f.get("label") or "").strip()
+        if not label:
+            continue
+        patch = f.get("patch") if isinstance(f.get("patch"), dict) else {}
+        fixes.append({"label": label, "patch": patch})
+
+    qa_score = max(0.0, min(100.0, float(_safe_float(src.get("qa_score"), 0.0) or 0.0)))
+    ask_to_confirm = str(src.get("ask_to_confirm") or "").strip() or None
+
+    if not issues:
+        if _clamp01(vision.vision_confidence, 0.65) < 0.72:
+            issues.append(
+                {
+                    "issue_type": "low_visual_confidence",
+                    "severity": "medium",
+                    "message": "Low visual confidence - confirm portion/cooking/oil to improve accuracy.",
+                }
+            )
+        else:
+            issues.append(
+                {
+                    "issue_type": "quality_check",
+                    "severity": "low",
+                    "message": "Scan quality is acceptable.",
+                }
+            )
+
+    if not fixes:
+        fixes = [
+            {"label": "Portion +20%", "patch": {"portion_multiplier": 1.2}},
+            {"label": "Portion -20%", "patch": {"portion_multiplier": 0.8}},
+            {"label": "Add oil 1 tsp", "patch": {"set_oil_added_tsp": {"item_id": "i1", "tsp": 1.0}}},
+        ]
+
+    if qa_score <= 0:
+        qa_score = round(_clamp01(vision.vision_confidence, 0.65) * 100.0, 1)
+    return _model_validate(
+        MealQAModel,
+        {"qa_score": qa_score, "issues": issues, "one_tap_fixes": fixes, "ask_to_confirm": ask_to_confirm},
+    )
+
+
+def gemini_meal_qa_v1(image_bytes: bytes, vision: VisionScanV1Model, nutrition_summary: Dict[str, Any]) -> MealQAModel:
+    _require_gemini_key()
+    model = genai.GenerativeModel(SCAN_LLM_MODEL)
+    prompt = (
+        "You are Meal QA for a nutrition app. "
+        "Given the image and parsed meal summary, detect inconsistencies and provide one-tap correction patches. "
+        "Return ONLY strict JSON in this shape: "
+        '{"qa_score": 0, "issues":[{"issue_type":"string","severity":"low|medium|high","message":"string"}],'
+        '"one_tap_fixes":[{"label":"string","patch":{"portion_multiplier":1.2}}],"ask_to_confirm":"string or null"}. '
+        "Use only these patch keys: portion_multiplier, set_cooking_method, set_oil_added_tsp, swap_item, clarifying_answer."
+    )
+    img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+    compact = {
+        "vision_confidence": vision.vision_confidence,
+        "top_candidates": [_model_dump(x) for x in vision.top_candidates[:3]],
+        "clarifying_question": _model_dump(vision.clarifying_question) if vision.clarifying_question else None,
+        "items": [_model_dump(x) for x in vision.items],
+        "nutrition_summary": nutrition_summary,
+    }
+    last_err = ""
+    for attempt in range(3):
+        try:
+            resp = model.generate_content([prompt, json.dumps(compact, ensure_ascii=True), img])
+            text = str((resp.text or "")).strip()
+            parsed = coach_logic.extract_json_object(text)
+            if not isinstance(parsed, dict):
+                raise ValueError("No JSON object returned by model.")
+            return _coerce_meal_qa_payload(parsed, vision)
+        except Exception as e:
+            last_err = str(e)
+            time.sleep(0.7 * (attempt + 1))
+    logger.info(f"meal QA LLM fallback: {last_err}")
+    return _coerce_meal_qa_payload({}, vision)
+
+
+def gemini_meal_qa_rerun_v1(vision: VisionScanV1Model, nutrition_summary: Dict[str, Any]) -> MealQAModel:
+    """
+    Rerun path without re-uploading image. Uses stored scan context + edited nutrition summary.
+    """
+    _require_gemini_key()
+    model = genai.GenerativeModel(SCAN_LLM_MODEL)
+    prompt = (
+        "You are Meal QA for a nutrition app. "
+        "Given scan context and edited meal summary, detect likely inconsistencies and suggest one-tap fixes. "
+        "Return ONLY strict JSON in this shape: "
+        '{"qa_score": 0, "issues":[{"issue_type":"string","severity":"low|medium|high","message":"string"}],'
+        '"one_tap_fixes":[{"label":"string","patch":{"portion_multiplier":1.2}}],"ask_to_confirm":"string or null"}. '
+        "Use only these patch keys: portion_multiplier, set_cooking_method, set_oil_added_tsp, swap_item, clarifying_answer."
+    )
+    compact = {
+        "vision_confidence": vision.vision_confidence,
+        "top_candidates": [_model_dump(x) for x in vision.top_candidates[:3]],
+        "clarifying_question": _model_dump(vision.clarifying_question) if vision.clarifying_question else None,
+        "items": [_model_dump(x) for x in vision.items],
+        "nutrition_summary": nutrition_summary,
+    }
+    last_err = ""
+    for attempt in range(3):
+        try:
+            resp = model.generate_content([prompt, json.dumps(compact, ensure_ascii=True)])
+            text = str((resp.text or "")).strip()
+            parsed = coach_logic.extract_json_object(text)
+            if not isinstance(parsed, dict):
+                raise ValueError("No JSON object returned by model.")
+            return _coerce_meal_qa_payload(parsed, vision)
+        except Exception as e:
+            last_err = str(e)
+            time.sleep(0.7 * (attempt + 1))
+    logger.info(f"meal QA rerun LLM fallback: {last_err}")
+    return _coerce_meal_qa_payload({}, vision)
 
 
 # -------------------- BARCODE: OpenFoodFacts -> Supabase Cache --------------------
@@ -4116,6 +7049,205 @@ def build_coaching_payload(total_kcal: float, protein_g: float, carbs_g: float, 
     }
 
 
+def _scan_confidence_band(conf: float) -> str:
+    c = _clamp01(conf, 0.0)
+    if c >= 0.82:
+        return "high"
+    if c >= 0.72:
+        return "medium"
+    return "low"
+
+
+_FRIED_METHOD_HINTS = {
+    "fried",
+    "deep fried",
+    "deep-fried",
+    "deep_fried",
+    "pan fried",
+    "pan-fried",
+    "pan_fried",
+    "stir fried",
+    "stir-fried",
+    "stir_fried",
+    "air fried",
+    "air-fried",
+    "air_fried",
+    "saute",
+    "sauteed",
+    "tempura",
+    "crispy",
+}
+_FRIED_NAME_HINTS = {
+    "fried",
+    "fries",
+    "tempura",
+    "pakora",
+    "bhaji",
+    "cutlet",
+    "fritter",
+    "crispy",
+}
+_FRIED_CLARIFY_QUESTION = {
+    "ask": "How was this cooked for oil estimate?",
+    "options": [
+        "Not fried / no added oil",
+        "Air-fried (little/no oil)",
+        "Pan/Shallow fried (~1 tsp oil)",
+        "Deep fried (~2+ tsp oil)",
+    ],
+}
+_LOW_CONF_CLARIFY_QUESTION = {
+    "ask": "Is there visible added oil, sauce, or dressing?",
+    "options": ["No", "Yes - light", "Yes - normal", "Yes - heavy"],
+}
+
+
+def _norm_phrase(text: Any) -> str:
+    return str(text or "").strip().lower().replace("_", " ").replace("-", " ")
+
+
+def _contains_hint(text: Any, hints: set) -> bool:
+    phrase = _norm_phrase(text)
+    if not phrase:
+        return False
+    return any(h in phrase for h in hints)
+
+
+def _needs_fried_oil_question(items: List[Dict[str, Any]]) -> bool:
+    for it in items or []:
+        if not isinstance(it, dict):
+            continue
+        oil_tsp = max(0.0, float(_safe_float(it.get("oil_added_tsp"), 0.0) or 0.0))
+        if oil_tsp > 0:
+            continue
+        method = it.get("cooking_method")
+        name = it.get("name")
+        if _contains_hint(method, _FRIED_METHOD_HINTS) or _contains_hint(name, _FRIED_NAME_HINTS):
+            return True
+    return False
+
+
+def _build_scan_data_quality(vision: VisionScanV1Model) -> Dict[str, Any]:
+    conf = _clamp01(vision.vision_confidence, 0.65)
+    band = _scan_confidence_band(conf)
+    reason = ""
+    if band == "low":
+        reason = "Low image confidence; confirm portion/cooking/oil for more reliable totals."
+    return {
+        "confidence_band": band,
+        "vision_confidence": round(conf, 3),
+        "missing_data_reason": reason,
+    }
+
+
+def _apply_rerun_edits(base_items: List[Dict[str, Any]], edits: AnalyzeRerunEditsModel) -> List[Dict[str, Any]]:
+    out: List[Dict[str, Any]] = [dict(x or {}) for x in (base_items or [])]
+    if not out:
+        return out
+
+    mul = _safe_float(edits.portion_multiplier, None)
+    if mul is not None:
+        mul = max(0.3, min(3.0, float(mul)))
+        for it in out:
+            grams = max(0.0, float(_safe_float(it.get("grams"), 0.0) or 0.0))
+            it["grams"] = round(grams * mul, 1)
+
+    if edits.set_cooking_method:
+        target = str(edits.set_cooking_method.item_id or "").strip()
+        if target:
+            for it in out:
+                if str(it.get("item_id") or "") == target:
+                    it["cooking_method"] = str(edits.set_cooking_method.method or "unknown").strip().lower() or "unknown"
+                    break
+
+    if edits.set_oil_added_tsp:
+        target = str(edits.set_oil_added_tsp.item_id or "").strip()
+        tsp = max(0.0, float(_safe_float(edits.set_oil_added_tsp.tsp, 0.0) or 0.0))
+        if target:
+            for it in out:
+                if str(it.get("item_id") or "") == target:
+                    it["oil_added_tsp"] = round(tsp, 2)
+                    break
+
+    if edits.swap_item:
+        target = str(edits.swap_item.item_id or "").strip()
+        new_name = str(edits.swap_item.new_name or "").strip()
+        if target and new_name:
+            for it in out:
+                if str(it.get("item_id") or "") == target:
+                    it["name"] = new_name
+                    break
+
+    answer = str(edits.clarifying_answer or "").strip().lower()
+    if answer:
+        if "deep" in answer:
+            out[0]["oil_added_tsp"] = 2.5
+        elif "pan" in answer or "shallow" in answer:
+            out[0]["oil_added_tsp"] = 1.0
+        elif "air" in answer and "fried" in answer:
+            out[0]["oil_added_tsp"] = 0.5
+        elif "heavy" in answer:
+            out[0]["oil_added_tsp"] = 2.0
+        elif "normal" in answer:
+            out[0]["oil_added_tsp"] = 1.0
+        elif "light" in answer:
+            out[0]["oil_added_tsp"] = 0.5
+        elif answer in {"no", "none", "no oil", "no added oil", "not fried / no added oil", "looks right"}:
+            out[0]["oil_added_tsp"] = 0.0
+    return out
+
+
+def _build_scan_response(
+    *,
+    source: str,
+    analysis_id: str,
+    usage_row: Dict[str, Any],
+    vision: VisionScanV1Model,
+    results: List[Dict[str, Any]],
+    totals: Dict[str, float],
+    micros_payload: Dict[str, Any],
+    meal_qa: MealQAModel,
+    plan: str,
+    coaching: Dict[str, Any],
+    item_warnings: List[Dict[str, Any]],
+    data_quality: Dict[str, Any],
+) -> Dict[str, Any]:
+    response: Dict[str, Any] = {
+        "analysis_id": analysis_id,
+        "source": source,
+        "total_kcal": round(float(_safe_float(totals.get("kcal"), 0.0) or 0.0), 1),
+        "totals": {
+            "kcal": round(float(_safe_float(totals.get("kcal"), 0.0) or 0.0), 1),
+            "total_kcal": round(float(_safe_float(totals.get("kcal"), 0.0) or 0.0), 1),
+            "protein_g": round(float(_safe_float(totals.get("protein_g"), 0.0) or 0.0), 1),
+            "carbs_g": round(float(_safe_float(totals.get("carbs_g"), 0.0) or 0.0), 1),
+            "fat_g": round(float(_safe_float(totals.get("fat_g"), 0.0) or 0.0), 1),
+            "micros": micros_payload,
+        },
+        "micros": micros_payload,
+        "micronutrients": micros_payload,
+        "items": results,
+        "vision_confidence": round(_clamp01(vision.vision_confidence, 0.65), 3),
+        "top_candidates": [_model_dump(x) for x in (vision.top_candidates or [])[:5]],
+        "clarifying_question": _model_dump(vision.clarifying_question) if vision.clarifying_question else None,
+        "editable_context": {"items": [_model_dump(x) for x in (vision.items or [])]},
+        "meal_qa": _model_dump(meal_qa),
+        "data_quality": data_quality,
+        "usage": {
+            "plan": usage_row.get("plan"),
+            "remaining_day": int(usage_row.get("remaining_day") or 0),
+            "remaining_month": int(usage_row.get("remaining_month") or 0),
+        },
+    }
+    if item_warnings:
+        response["warnings"] = item_warnings[:8]
+    if plan_at_least(plan, "pro"):
+        response["coaching"] = coaching
+    else:
+        response["locked"] = {"feature": "coaching", "required_plan": "pro"}
+    return response
+
+
 # -------------------- ANALYZE (PHOTO) --------------------
 @app.post("/analyze")
 async def analyze(
@@ -4129,7 +7261,6 @@ async def analyze(
     today_local = _today_date(tz=tz, tz_offset_min=tz_offset_min)
     day_local_iso = today_local.isoformat()
 
-    # consume scan first (so failures still count? You can change this later.)
     usage_row = consume_one_scan(uid, today=today_local)
 
     contents = await file.read()
@@ -4141,162 +7272,35 @@ async def analyze(
     except Exception:
         raise HTTPException(status_code=400, detail="Uploaded file is not a valid image")
 
-    detected_items = gemini_detect_foods(contents)
+    priors_context = _build_user_priors_context_for_candidates(uid, candidate_food_keys=[], limit=14)
+    vision_scan = gemini_vision_scan_v1(contents, personalization_context=priors_context)
+    detected_items = [_model_dump(x) for x in (vision_scan.items or [])]
+    detected_items, personalization_used = _apply_scan_user_priors(
+        uid,
+        detected_items,
+        priors_context.get("always_ask_oil_for_methods") if isinstance(priors_context, dict) else [],
+    )
+    if detected_items:
+        vision_payload = _model_dump(vision_scan)
+        vision_payload["items"] = detected_items
+        if personalization_used.get("asked_clarifying_question") and not vision_payload.get("clarifying_question"):
+            vision_payload["clarifying_question"] = dict(_FRIED_CLARIFY_QUESTION)
+        vision_scan = _coerce_vision_scan_payload(vision_payload)
+    if vision_scan.clarifying_question and not personalization_used.get("asked_clarifying_question"):
+        personalization_used["asked_clarifying_question"] = True
+    if personalization_used.get("asked_clarifying_question") and not str(
+        personalization_used.get("asked_clarifying_question_reason") or ""
+    ).strip():
+        if float(_safe_float(vision_scan.vision_confidence, 0.65) or 0.65) < 0.72:
+            personalization_used["asked_clarifying_question_reason"] = "low_confidence"
     logger.info(f"Detected items: {detected_items}")
 
-    results = []
-    total_kcal = 0.0
-    total_p = total_c = total_f = 0.0
-
-    # Micronutrient totals (same keys as extract_micros_per_100g, without _units)
-    total_micros = {
-        "vitamin_d_ug": 0.0,
-        "vitamin_b12_ug": 0.0,
-        "iron_mg": 0.0,
-        "magnesium_mg": 0.0,
-        "calcium_mg": 0.0,
-        "potassium_mg": 0.0,
-        "sodium_mg": 0.0,
-        "fiber_g": 0.0,
-    }
-    item_warnings: List[Dict[str, Any]] = []
-
-    for d in detected_items:
-        name = d["name"]
-        grams = float(d["grams"])
-        conf = float(d.get("confidence", 0))
-
-        candidates = usda_search_candidates(name)
-        details = None
-        macros100 = None
-        micros100 = None
-        fdc_id = None
-        last_item_err = None
-        for cand in candidates[:6]:
-            try:
-                fdc_id = int(cand["fdcId"])
-                maybe_details = usda_food_details(fdc_id)
-                maybe_macros = extract_macros_per_100g(maybe_details)
-                maybe_micros = extract_micros_per_100g(maybe_details)
-                details = maybe_details
-                macros100 = maybe_macros
-                micros100 = maybe_micros
-                break
-            except Exception as e:
-                last_item_err = str(getattr(e, "detail", e))
-                continue
-
-        if not details or not macros100:
-            item_warnings.append(
-                {
-                    "name": name,
-                    "warning": "nutrition_lookup_failed",
-                    "detail": (last_item_err or "No usable USDA match found")[:220],
-                }
-            )
-            results.append(
-                {
-                    "name": name,
-                    "grams": round(grams, 1),
-                    "confidence": round(conf, 2),
-                    "kcal": 0.0,
-                    "macros": {"protein_g": 0.0, "carbs_g": 0.0, "fat_g": 0.0},
-                    "micros": {},
-                    "micros_units": None,
-                    "unverified": True,
-                }
-            )
-            continue
-
-        factor = grams / 100.0
-        kcal = macros100["kcal_per_100g"] * factor
-        p = macros100["protein_g_per_100g"] * factor
-        c = macros100["carbs_g_per_100g"] * factor
-        f = macros100["fat_g_per_100g"] * factor
-
-        micros = {}
-        for k, v in (micros100 or {}).items():
-            if k == "_units":
-                continue
-            micros[k] = round(float(v) * factor, 3)
-
-        results.append({
-            "name": name,
-            "grams": round(grams, 1),
-            "confidence": round(conf, 2),
-            "kcal": round(kcal, 1),
-            "macros": {
-                "protein_g": round(p, 1),
-                "carbs_g": round(c, 1),
-                "fat_g": round(f, 1),
-            },
-            "micros": micros,
-            "micros_units": micros100.get("_units"),
-
-            "usda": {
-                "fdcId": fdc_id,
-                "description": (details or {}).get("description"),
-                "dataType": (details or {}).get("dataType"),
-            }
-        })
-
-        total_kcal += kcal
-        total_p += p
-        total_c += c
-        total_f += f
-
-        for mk, mv in micros.items():
-            if mk in total_micros:
-                total_micros[mk] += float(mv)
-
-
-    # 🔒 coaching is pro+ (we don't block analyze; we just hide coaching fields)
-    plan = (usage_row.get("plan") or DEFAULT_PLAN).lower()
-    coaching_enabled = plan_at_least(plan, "pro")
-
-    micros_payload = {
-        "vitamin_d_ug": round(total_micros["vitamin_d_ug"], 3),
-        "vitamin_b12_ug": round(total_micros["vitamin_b12_ug"], 3),
-        "iron_mg": round(total_micros["iron_mg"], 3),
-        "magnesium_mg": round(total_micros["magnesium_mg"], 3),
-        "calcium_mg": round(total_micros["calcium_mg"], 3),
-        "potassium_mg": round(total_micros["potassium_mg"], 3),
-        "sodium_mg": round(total_micros["sodium_mg"], 3),
-        "fiber_g": round(total_micros["fiber_g"], 3),
-        "_units": {
-            "vitamin_d_ug": "µg",
-            "vitamin_b12_ug": "µg",
-            "iron_mg": "mg",
-            "magnesium_mg": "mg",
-            "calcium_mg": "mg",
-            "potassium_mg": "mg",
-            "sodium_mg": "mg",
-            "fiber_g": "g",
-        },
-    }
-
-    response = {
-        "source": "photo",
-        "total_kcal": round(total_kcal, 1),
-        "totals": {
-            "kcal": round(total_kcal, 1),
-            "total_kcal": round(total_kcal, 1),
-            "protein_g": round(total_p, 1),
-            "carbs_g": round(total_c, 1),
-            "fat_g": round(total_f, 1),
-            "micros": micros_payload,
-        },
-        "micros": micros_payload,
-        "micronutrients": micros_payload,
-        "items": results,
-        "usage": {
-            "plan": usage_row.get("plan"),
-            "remaining_day": int(usage_row.get("remaining_day") or 0),
-            "remaining_month": int(usage_row.get("remaining_month") or 0),
-        },
-    }
-    if item_warnings:
-        response["warnings"] = item_warnings[:8]
+    results, totals, total_micros, item_warnings = _compute_scan_nutrition(detected_items)
+    micros_payload = _build_micros_payload(total_micros)
+    total_kcal = float(_safe_float(totals.get("kcal"), 0.0) or 0.0)
+    total_p = float(_safe_float(totals.get("protein_g"), 0.0) or 0.0)
+    total_c = float(_safe_float(totals.get("carbs_g"), 0.0) or 0.0)
+    total_f = float(_safe_float(totals.get("fat_g"), 0.0) or 0.0)
 
     scan_coaching = build_coaching_payload(
         total_kcal=total_kcal,
@@ -4305,15 +7309,85 @@ async def analyze(
         fat_g=total_f,
         mps_threshold_g=2.5,
     )
+    meal_qa = gemini_meal_qa_v1(
+        contents,
+        vision_scan,
+        {
+            "totals": totals,
+            "micros": micros_payload,
+            "items": results,
+        },
+    )
+    data_quality = _build_scan_data_quality(vision_scan)
+    analysis_id = str(uuid.uuid4())
+    image_hash = _sha256_bytes(contents)
+    plan = str(usage_row.get("plan") or DEFAULT_PLAN).lower()
 
-    if coaching_enabled:
-        # Pro/Infinite get full coaching insights
-        response["coaching"] = scan_coaching
-    else:
-        # Free/Elite/Advanced see a lock hint
-        response["locked"] = {"feature": "coaching", "required_plan": "pro"}
+    response = _build_scan_response(
+        source="photo",
+        analysis_id=analysis_id,
+        usage_row=usage_row,
+        vision=vision_scan,
+        results=results,
+        totals=totals,
+        micros_payload=micros_payload,
+        meal_qa=meal_qa,
+        plan=plan,
+        coaching=scan_coaching,
+        item_warnings=item_warnings,
+        data_quality=data_quality,
+    )
+    response["personalization_used"] = personalization_used
+    response["learning_applied"] = bool(
+        personalization_used.get("portion_prior_used")
+        or personalization_used.get("oil_prior_used")
+        or personalization_used.get("asked_clarifying_question")
+    )
 
-    # ---- PHASE 3.1: meal_events (non-blocking) ----
+    analysis_row = {
+        "analysis_id": analysis_id,
+        "user_id": uid,
+        "day": day_local_iso,
+        "created_at": dt.datetime.utcnow().isoformat(),
+        "updated_at": dt.datetime.utcnow().isoformat(),
+        "image_hash": image_hash,
+        "vision_confidence": round(_clamp01(vision_scan.vision_confidence, 0.65), 3),
+        "top_candidates_json": [_model_dump(x) for x in (vision_scan.top_candidates or [])],
+        "items_json": [_model_dump(x) for x in (vision_scan.items or [])],
+        "nutrition_totals_json": {"totals": totals, "micros": micros_payload},
+        "llm_outputs_json": {
+            "vision": _model_dump(vision_scan),
+            "meal_qa": _model_dump(meal_qa),
+            "clarifying_question": _model_dump(vision_scan.clarifying_question) if vision_scan.clarifying_question else None,
+        },
+        "qa_json": _model_dump(meal_qa),
+        "data_quality_json": data_quality,
+        "tz_used": _timezone_label(tz=tz, tz_offset_min=tz_offset_min),
+    }
+    _store_meal_analysis(analysis_row)
+    _store_analysis_memory(
+        {
+            "analysis_id": analysis_id,
+            "user_id": uid,
+            "created_at": analysis_row.get("created_at") or dt.datetime.utcnow().isoformat(),
+            "image_hash": image_hash,
+            "items_json": [_model_dump(x) for x in (vision_scan.items or [])],
+            "top_candidates": [_model_dump(x) for x in (vision_scan.top_candidates or [])],
+            "vision_confidence": round(_clamp01(vision_scan.vision_confidence, 0.65), 3),
+            "payload_hash": hashlib.sha256(
+                json.dumps(
+                    {
+                        "items": [_model_dump(x) for x in (vision_scan.items or [])],
+                        "top_candidates": [_model_dump(x) for x in (vision_scan.top_candidates or [])],
+                    },
+                    sort_keys=True,
+                    separators=(",", ":"),
+                    ensure_ascii=True,
+                ).encode("utf-8")
+            ).hexdigest(),
+        }
+    )
+
     try:
         upsert_meal_event(
             uid,
@@ -4326,18 +7400,22 @@ async def analyze(
             items=results,
             tz=tz,
             tz_offset_min=tz_offset_min,
-            extra={"plan": plan, "warnings": item_warnings[:8]},
+            extra={
+                "plan": plan,
+                "analysis_id": analysis_id,
+                "warnings": item_warnings[:8],
+                "vision_confidence": response.get("vision_confidence"),
+            },
         )
     except Exception as e:
         logger.warning(f"Meal events write skipped: {e}")
 
-    # ---- DAILY TOTALS (non-blocking) ----
     try:
         inc = {
-            "total_kcal": float(total_kcal or 0.0),
-            "protein_g": float(total_p or 0.0),
-            "carbs_g": float(total_c or 0.0),
-            "fat_g": float(total_f or 0.0),
+            "total_kcal": total_kcal,
+            "protein_g": total_p,
+            "carbs_g": total_c,
+            "fat_g": total_f,
             "fiber_g": float(total_micros.get("fiber_g") or 0.0),
             "sodium_mg": float(total_micros.get("sodium_mg") or 0.0),
             "vitamin_d_ug": float(total_micros.get("vitamin_d_ug") or 0.0),
@@ -4350,14 +7428,273 @@ async def analyze(
     except Exception as e:
         logger.warning(f"Daily totals update skipped: {e}")
 
-    # ---- PHASE 3.2: behavior memory + weekly prediction engine (non-blocking) ----
     try:
+        weekly_predictive_internal = None
         memory = recompute_behavior_memory(uid, day_iso=day_local_iso, tz=tz, tz_offset_min=tz_offset_min)
         if isinstance(memory, dict):
+            weekly_predictive_internal = memory.get("weekly_metrics")
             response["weekly_insights"] = memory.get("weekly_insights")
-            response["weekly_metrics"] = _public_predictive_signals(memory.get("weekly_metrics"), memory.get("week_start") or _week_start_monday(day_local_iso))
+            response["weekly_metrics"] = _public_predictive_signals(
+                memory.get("weekly_metrics"),
+                memory.get("week_start") or _week_start_monday(day_local_iso),
+            )
     except Exception as e:
+        weekly_predictive_internal = None
         logger.warning(f"Behavior memory recompute skipped: {e}")
 
+    scan_ts = dt.datetime.utcnow().isoformat()
+    response["scan_id"] = analysis_id
+    response["latest_scan_id"] = analysis_id
+    response["latest_scan_ts"] = scan_ts
+    try:
+        coach_payload = _build_server_daily_coach_payload(uid, day_local_iso, tz=tz, tz_offset_min=tz_offset_min)
+        state_obj = coach_payload.get("_state") if isinstance(coach_payload.get("_state"), dict) else {}
+        daily_signals = dict(coach_payload.get("signals", {}) if isinstance(coach_payload.get("signals"), dict) else {})
+        daily_signals["scan_count"] = int(_safe_float(state_obj.get("scan_count"), 0) or 0)
+        response["today_totals"] = coach_payload.get("consumed", {})
+        response["daily_signals"] = daily_signals
+        response["state_signature"] = str(coach_payload.get("_state_signature") or "")
+        quick_fli = _build_quick_fli_response(
+            coach_payload,
+            weekly_predictive=weekly_predictive_internal,
+            latest_scan_id=analysis_id,
+            latest_scan_ts=scan_ts,
+        )
+        response["fat_loss_intelligence"] = quick_fli
+        response["fat_loss_intelligence_status"] = "pending" if GEMINI_API_KEY else "ready"
+        response["fat_loss_intelligence_updated_at"] = quick_fli.get("updatedAt")
+        if GEMINI_API_KEY:
+            _warm_daily_coach_async(
+                uid,
+                day_local_iso,
+                latest_scan_id=analysis_id,
+                latest_scan_ts=scan_ts,
+                tz=tz,
+                tz_offset_min=tz_offset_min,
+            )
+    except Exception as e:
+        logger.warning(f"Analyze FLI payload build skipped: {e}")
+
+    totals_hash = hashlib.sha256(
+        json.dumps(
+            {
+                "kcal": round(float(_safe_float(totals.get("kcal"), 0.0) or 0.0), 1),
+                "protein": round(float(_safe_float(totals.get("protein_g"), 0.0) or 0.0), 1),
+                "carbs": round(float(_safe_float(totals.get("carbs_g"), 0.0) or 0.0), 1),
+                "fat": round(float(_safe_float(totals.get("fat_g"), 0.0) or 0.0), 1),
+                "fiber": round(float(_safe_float(micros_payload.get("fiber_g"), 0.0) or 0.0), 1),
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).hexdigest()
+    logger.info(
+        f"analyze_success user={uid} scan_id={analysis_id} "
+        f"scan_count={int(_safe_float((response.get('daily_signals') or {}).get('scan_count'), 0) or 0)} "
+        f"totals_hash={totals_hash}"
+    )
+
+    return response
+
+
+@app.post("/analyze/rerun")
+def analyze_rerun(
+    payload: Dict[str, Any] = Body(...),
+    user_id: Optional[str] = None,
+    tz: Optional[str] = None,
+    tz_offset_min: Optional[int] = None,
+    x_user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
+):
+    uid = require_user_id(x_user_id, user_id)
+    try:
+        req = _model_validate(AnalyzeRerunRequestModel, payload or {})
+    except Exception as e:
+        raise HTTPException(status_code=400, detail={"error": "invalid_rerun_payload", "raw": str(e)[:240]})
+
+    existing = _get_meal_analysis(uid, req.analysis_id)
+    if not existing:
+        raise HTTPException(status_code=404, detail={"error": "analysis_not_found", "analysis_id": req.analysis_id})
+
+    day_iso = _day_iso(existing.get("day"), tz=tz, tz_offset_min=tz_offset_min)
+    items_raw = _parse_jsonish(existing.get("items_json"), [])
+    if not isinstance(items_raw, list) or not items_raw:
+        llm_raw = _parse_jsonish(existing.get("llm_outputs_json"), {})
+        if isinstance(llm_raw, dict):
+            vision_raw = llm_raw.get("vision") if isinstance(llm_raw.get("vision"), dict) else {}
+            items_raw = vision_raw.get("items") if isinstance(vision_raw.get("items"), list) else []
+    if not isinstance(items_raw, list) or not items_raw:
+        raise HTTPException(status_code=400, detail={"error": "analysis_has_no_editable_items"})
+
+    edited_items = _apply_rerun_edits(items_raw, req.edits)
+    edited_items, personalization_used = _apply_user_priors_to_items(uid, edited_items, req.edits)
+    top_candidates = _parse_jsonish(existing.get("top_candidates_json"), [])
+    clarifying_q = None
+    llm_raw = _parse_jsonish(existing.get("llm_outputs_json"), {})
+    if isinstance(llm_raw, dict):
+        clarifying_q = llm_raw.get("clarifying_question")
+
+    base_conf = _clamp01(existing.get("vision_confidence"), 0.65)
+    if str(req.edits.clarifying_answer or "").strip():
+        base_conf = min(1.0, base_conf + 0.07)
+        clarifying_q = None
+
+    vision_scan = _coerce_vision_scan_payload(
+        {
+            "vision_confidence": base_conf,
+            "top_candidates": top_candidates,
+            "clarifying_question": clarifying_q,
+            "items": edited_items,
+        }
+    )
+    if vision_scan.clarifying_question and not personalization_used.get("asked_clarifying_question"):
+        personalization_used["asked_clarifying_question"] = True
+    if personalization_used.get("asked_clarifying_question") and not str(
+        personalization_used.get("asked_clarifying_question_reason") or ""
+    ).strip():
+        if float(_safe_float(vision_scan.vision_confidence, 0.65) or 0.65) < 0.72:
+            personalization_used["asked_clarifying_question_reason"] = "low_confidence"
+
+    results, totals, total_micros, item_warnings = _compute_scan_nutrition([_model_dump(x) for x in vision_scan.items])
+    micros_payload = _build_micros_payload(total_micros)
+    total_kcal = float(_safe_float(totals.get("kcal"), 0.0) or 0.0)
+    total_p = float(_safe_float(totals.get("protein_g"), 0.0) or 0.0)
+    total_c = float(_safe_float(totals.get("carbs_g"), 0.0) or 0.0)
+    total_f = float(_safe_float(totals.get("fat_g"), 0.0) or 0.0)
+
+    scan_coaching = build_coaching_payload(
+        total_kcal=total_kcal,
+        protein_g=total_p,
+        carbs_g=total_c,
+        fat_g=total_f,
+        mps_threshold_g=2.5,
+    )
+    meal_qa = gemini_meal_qa_rerun_v1(
+        vision_scan,
+        {
+            "totals": totals,
+            "micros": micros_payload,
+            "items": results,
+        },
+    )
+    data_quality = _build_scan_data_quality(vision_scan)
+
+    usage_row = get_or_init_usage(uid, today=_today_date(tz=tz, tz_offset_min=tz_offset_min))
+    usage_row = normalize_resets(usage_row, today=_today_date(tz=tz, tz_offset_min=tz_offset_min))
+    plan = str(usage_row.get("plan") or DEFAULT_PLAN).lower()
+
+    response = _build_scan_response(
+        source="photo_rerun",
+        analysis_id=req.analysis_id,
+        usage_row=usage_row,
+        vision=vision_scan,
+        results=results,
+        totals=totals,
+        micros_payload=micros_payload,
+        meal_qa=meal_qa,
+        plan=plan,
+        coaching=scan_coaching,
+        item_warnings=item_warnings,
+        data_quality=data_quality,
+    )
+    response["rerun"] = {"ok": True, "analysis_id": req.analysis_id}
+    response["personalization_used"] = personalization_used
+    response["learning_applied"] = bool(
+        personalization_used.get("portion_prior_used")
+        or personalization_used.get("oil_prior_used")
+        or personalization_used.get("asked_clarifying_question")
+    )
+
+    # Adjust daily totals by delta so rerun updates current day instead of double-counting.
+    old_nt = _parse_jsonish(existing.get("nutrition_totals_json"), {})
+    old_totals = old_nt.get("totals") if isinstance(old_nt.get("totals"), dict) else old_nt
+    old_micros = old_nt.get("micros") if isinstance(old_nt.get("micros"), dict) else {}
+    delta = _build_rerun_daily_delta(old_totals, old_micros, totals, micros_payload)
+    try:
+        _ = add_to_daily_totals(uid, delta, day=day_iso)
+        response["daily"] = build_daily_summary(uid, day=day_iso)
+    except Exception as e:
+        logger.warning(f"Daily totals rerun delta update skipped: {e}")
+
+    rerun_scan_ts = dt.datetime.utcnow().isoformat()
+    response["scan_id"] = str(req.analysis_id)
+    response["latest_scan_id"] = str(req.analysis_id)
+    response["latest_scan_ts"] = rerun_scan_ts
+    try:
+        coach_payload = _build_server_daily_coach_payload(uid, day_iso, tz=tz, tz_offset_min=tz_offset_min)
+        state_obj = coach_payload.get("_state") if isinstance(coach_payload.get("_state"), dict) else {}
+        daily_signals = dict(coach_payload.get("signals", {}) if isinstance(coach_payload.get("signals"), dict) else {})
+        daily_signals["scan_count"] = int(_safe_float(state_obj.get("scan_count"), 0) or 0)
+        response["today_totals"] = coach_payload.get("consumed", {})
+        response["daily_signals"] = daily_signals
+        response["state_signature"] = str(coach_payload.get("_state_signature") or "")
+        quick_fli = _build_quick_fli_response(
+            coach_payload,
+            latest_scan_id=str(req.analysis_id),
+            latest_scan_ts=rerun_scan_ts,
+        )
+        response["fat_loss_intelligence"] = quick_fli
+        response["fat_loss_intelligence_status"] = "pending" if GEMINI_API_KEY else "ready"
+        response["fat_loss_intelligence_updated_at"] = quick_fli.get("updatedAt")
+        if GEMINI_API_KEY:
+            _warm_daily_coach_async(
+                uid,
+                day_iso,
+                latest_scan_id=str(req.analysis_id),
+                latest_scan_ts=rerun_scan_ts,
+                tz=tz,
+                tz_offset_min=tz_offset_min,
+            )
+    except Exception as e:
+        logger.warning(f"Rerun FLI payload build skipped: {e}")
+
+    _patch_meal_analysis(
+        req.analysis_id,
+        uid,
+        {
+            "updated_at": dt.datetime.utcnow().isoformat(),
+            "vision_confidence": response.get("vision_confidence"),
+            "items_json": [_model_dump(x) for x in (vision_scan.items or [])],
+            "nutrition_totals_json": {"totals": totals, "micros": micros_payload},
+            "qa_json": _model_dump(meal_qa),
+            "data_quality_json": data_quality,
+            "llm_outputs_json": {
+                "vision": _model_dump(vision_scan),
+                "meal_qa": _model_dump(meal_qa),
+                "clarifying_question": _model_dump(vision_scan.clarifying_question) if vision_scan.clarifying_question else None,
+            },
+        },
+    )
+    _store_analysis_memory(
+        {
+            "analysis_id": str(req.analysis_id),
+            "user_id": uid,
+            "created_at": existing.get("created_at") or dt.datetime.utcnow().isoformat(),
+            "image_hash": str(existing.get("image_hash") or ""),
+            "items_json": [_model_dump(x) for x in (vision_scan.items or [])],
+            "top_candidates": [_model_dump(x) for x in (vision_scan.top_candidates or [])],
+            "vision_confidence": round(_clamp01(vision_scan.vision_confidence, 0.65), 3),
+            "payload_hash": hashlib.sha256(
+                json.dumps(
+                    {
+                        "items": [_model_dump(x) for x in (vision_scan.items or [])],
+                        "top_candidates": [_model_dump(x) for x in (vision_scan.top_candidates or [])],
+                    },
+                    sort_keys=True,
+                    separators=(",", ":"),
+                    ensure_ascii=True,
+                ).encode("utf-8")
+            ).hexdigest(),
+        }
+    )
+
+    _store_meal_edit(
+        {
+            "edit_id": str(uuid.uuid4()),
+            "analysis_id": req.analysis_id,
+            "user_id": uid,
+            "created_at": dt.datetime.utcnow().isoformat(),
+            "edit_patch_json": _model_dump(req.edits),
+        }
+    )
     return response
 
