@@ -95,10 +95,6 @@ def normalize_daily_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
     timing_src = _obj(src.get("meal_timing"))
     constraints_src = _obj(src.get("constraints"))
     profile_src = _obj(src.get("profile"))
-    athlete_src = _obj(profile_src.get("athlete_mode"))
-
-    show_date_raw = str(athlete_src.get("show_date") or "").strip()
-    show_date_iso = show_date_raw[:10] if re.match(r"^\d{4}-\d{2}-\d{2}", show_date_raw) else ""
 
     goals = {
         k: _safe_float(goals_src.get(k), _DEFAULT_GOALS[k]) for k in _METRIC_KEYS
@@ -133,12 +129,6 @@ def normalize_daily_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
         "diet_style": str(profile_src.get("diet_style") or constraints["diet"]).strip().lower(),
         "training_days_per_week": max(0, int(_safe_float(profile_src.get("training_days_per_week"), 0.0))),
         "training_time": str(profile_src.get("training_time") or "").strip().lower(),
-        "athlete_mode": {
-            "enabled": bool(athlete_src.get("enabled")),
-            "show_date": show_date_iso,
-            "weight_class_kg": max(0.0, _safe_float(athlete_src.get("weight_class_kg"), 0.0)),
-            "target_look": str(athlete_src.get("target_look") or "balanced").strip().lower(),
-        },
     }
 
     date_raw = str(src.get("date") or "").strip()
@@ -422,8 +412,8 @@ def validate_llm_response_shape(obj: Dict[str, Any]) -> Tuple[bool, str]:
         return False, "tomorrow_focus must be a non-empty array"
     if not isinstance(actions, list) or not actions:
         return False, "actions must be a non-empty array"
-    if len(actions) > 2:
-        return False, "actions must be <= 2"
+    if len(actions) > 3:
+        return False, "actions must be <= 3"
 
     if not isinstance(summary, str) or not summary.strip():
         return False, "one_sentence_summary is required"
@@ -439,7 +429,7 @@ def validate_llm_response_shape(obj: Dict[str, Any]) -> Tuple[bool, str]:
     for line in diagnosis[:4]:
         if not isinstance(line, str) or not line.strip():
             return False, "diagnosis lines must be non-empty strings"
-    for line in focus[:2]:
+    for line in focus[:4]:
         if not isinstance(line, str) or not line.strip():
             return False, "focus lines must be non-empty strings"
 
@@ -566,7 +556,7 @@ def build_fallback_coach_response(norm_payload: Dict[str, Any], fat_loss_score: 
         tomorrow_focus.append(f"Shift calories earlier; late calories are currently {int(round(late_pct))}%.")
     if l_target > 0 and l_hit < l_target:
         tomorrow_focus.append(f"Hit at least {l_target} leucine triggers (today {l_hit}).")
-    tomorrow_focus = tomorrow_focus[:2]
+    tomorrow_focus = tomorrow_focus[:3]
 
     diet = str(constraints.get("diet") or "non-veg").lower()
     if diet == "vegan":
@@ -593,23 +583,42 @@ def build_fallback_coach_response(norm_payload: Dict[str, Any], fat_loss_score: 
             "how": "Reduce refined carbs at dinner and pair carbs with protein + vegetables.",
         },
     ]
-    actions = actions[:2]
+    actions = actions[:3]
 
-    largest_gap = "protein"
-    largest_gap_ratio = p_ratio
-    if f_ratio < largest_gap_ratio:
-        largest_gap = "fiber"
-        largest_gap_ratio = f_ratio
+    bottlenecks: List[Tuple[str, float]] = []
+    bottlenecks.append(("protein", clamp(1.0 - p_ratio, 0.0, 1.0)))
+    bottlenecks.append(("fiber", clamp(1.0 - f_ratio, 0.0, 1.0)))
+    bottlenecks.append(("glycemic", clamp((gl - 15.0) / 20.0, 0.0, 1.0)))
+    bottlenecks.append(("upf", clamp((upf - 4.0) / 4.0, 0.0, 1.0)))
+    bottlenecks.append(("timing", clamp((late_pct - 35.0) / 35.0, 0.0, 1.0)))
+    bottlenecks.sort(key=lambda x: x[1], reverse=True)
+    top_key = bottlenecks[0][0] if bottlenecks else "protein"
+    second_key = bottlenecks[1][0] if len(bottlenecks) > 1 else ""
 
-    if largest_gap == "protein":
+    if top_key == "protein":
         risk_lever = {
             "title": "Protein distribution is the top bottleneck",
             "reason": f"Only {int(round(p_ratio * 100))}% of protein target is hit, which can raise evening hunger and reduce recovery quality.",
         }
-    else:
+    elif top_key == "fiber":
         risk_lever = {
             "title": "Fiber gap is driving appetite instability",
             "reason": f"Only {int(round(f_ratio * 100))}% of fiber target is hit, making satiety and calorie control harder.",
+        }
+    elif top_key == "glycemic":
+        risk_lever = {
+            "title": "Glycemic load pattern is too spiky",
+            "reason": f"Average glycemic load is {round1(gl)}, which can increase appetite swings later in the day.",
+        }
+    elif top_key == "upf":
+        risk_lever = {
+            "title": "Ultra-processed load is limiting satiety quality",
+            "reason": f"Ultra-processed score is {round1(upf)}/10, which can reduce fullness and increase cravings.",
+        }
+    else:
+        risk_lever = {
+            "title": "Late calorie distribution is the top risk",
+            "reason": f"Late calories are {int(round(late_pct))}%, which can make appetite control less stable the next day.",
         }
 
     if late_pct >= 55:
@@ -632,7 +641,20 @@ def build_fallback_coach_response(norm_payload: Dict[str, Any], fat_loss_score: 
         "if_unchanged": "If this pattern repeats for 7 days, evening hunger and adherence risk will likely stay high.",
         "if_improved": "If protein/fiber are front-loaded for 7 days, satiety and score stability should improve noticeably.",
     }
-    one_sentence_summary = "Protein and fiber consistency are the key levers for your 7-day direction."
+    if top_key == "protein" and second_key == "fiber":
+        one_sentence_summary = (
+            f"Protein gap {round1(p_left)}g and fiber gap {round1(f_left)}g are the biggest levers today."
+        )
+    elif top_key == "protein":
+        one_sentence_summary = f"Protein is short by {round1(p_left)}g today, your main limiter for satiety and recovery."
+    elif top_key == "fiber":
+        one_sentence_summary = f"Fiber is short by {round1(f_left)}g today, which is hurting appetite stability."
+    elif top_key == "glycemic":
+        one_sentence_summary = f"Glycemic load is elevated ({round1(gl)}), so carb quality is the key lever today."
+    elif top_key == "upf":
+        one_sentence_summary = f"Ultra-processed load ({round1(upf)}/10) is the main lever to improve appetite control."
+    else:
+        one_sentence_summary = f"Late calories are high ({int(round(late_pct))}%), so shifting intake earlier is the key lever."
     projection_explained = "Current 7-day direction has medium confidence based on available weekly data."
     if_you_do_one_thing = highest_roi_change["how"]
 
@@ -645,7 +667,7 @@ def build_fallback_coach_response(norm_payload: Dict[str, Any], fat_loss_score: 
         "if_you_do_one_thing": if_you_do_one_thing,
         "projection_7d": projection,
         "diagnosis": diagnosis[:4],
-        "tomorrow_focus": tomorrow_focus[:2],
+        "tomorrow_focus": tomorrow_focus[:3],
         "actions": actions,
         "risk_alerts": merge_risk_alerts(rule_alerts, []),
         "disclaimer": COACH_DISCLAIMER,

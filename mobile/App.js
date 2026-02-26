@@ -101,7 +101,7 @@ const ENTITLEMENTS = (process.env.EXPO_PUBLIC_RC_ENTITLEMENTS || "elite,advanced
 // OPTIONAL: If you have a custom deep link redirect (recommended for Google OAuth),
 // set EXPO_PUBLIC_OAUTH_REDIRECT_TO to your app scheme URL.
 // Example: "calorieclickai://auth-callback"
-const OAUTH_REDIRECT_TO = process.env.EXPO_PUBLIC_OAUTH_REDIRECT_TO || "";
+const OAUTH_REDIRECT_TO = process.env.EXPO_PUBLIC_OAUTH_REDIRECT_TO?.trim() || "calorieclickai://auth-callback";
 
 // barcode scan cooldown (avoid duplicate reads)
 const BARCODE_COOLDOWN_MS = 1400;
@@ -182,7 +182,14 @@ function normalizeCoachProfile(raw) {
   const goalType = String(src.goal_type || DEFAULT_COACH_PROFILE.goal_type).toLowerCase();
   const dietStyle = String(src.diet_style || DEFAULT_COACH_PROFILE.diet_style).toLowerCase();
   const trainingTime = String(src.training_time || DEFAULT_COACH_PROFILE.training_time).toLowerCase();
-  const tonePreference = String(src.tone_preference || DEFAULT_COACH_PROFILE.tone_preference).toLowerCase();
+  const rawTone = String(src.tone_preference || DEFAULT_COACH_PROFILE.tone_preference).toLowerCase();
+  const toneAlias = {
+    firm: "strict",
+    fun: "funny",
+    indian: "indian_coach",
+    neutral: "supportive",
+  };
+  const tonePreference = toneAlias[rawTone] || rawTone;
   const out = {
     goal_type: ["fat_loss", "recomposition", "lean_gain"].includes(goalType) ? goalType : DEFAULT_COACH_PROFILE.goal_type,
     diet_style: ["veg", "non-veg", "vegan"].includes(dietStyle) ? dietStyle : DEFAULT_COACH_PROFILE.diet_style,
@@ -190,7 +197,7 @@ function normalizeCoachProfile(raw) {
     training_time: ["morning", "afternoon", "evening", "night", "variable"].includes(trainingTime)
       ? trainingTime
       : DEFAULT_COACH_PROFILE.training_time,
-    tone_preference: ["supportive", "firm", "fun", "neutral"].includes(tonePreference)
+    tone_preference: ["supportive", "strict", "funny", "indian_coach"].includes(tonePreference)
       ? tonePreference
       : DEFAULT_COACH_PROFILE.tone_preference,
   };
@@ -439,6 +446,74 @@ function normalizeMealQA(raw) {
     ask_to_confirm: String(src.ask_to_confirm || "").trim() || null,
   };
 }
+function normalizeRerunPatch(patch, editableItems = []) {
+  const src = patch && typeof patch === "object" ? patch : {};
+  const out = { ...src };
+  const firstItemId = String(editableItems?.[0]?.item_id || "").trim();
+  const methodRaw = src?.set_cooking_method;
+  const methodFromObj =
+    methodRaw && typeof methodRaw === "object"
+      ? String(methodRaw?.method || "").trim().toLowerCase()
+      : "";
+  const methodFromString =
+    typeof methodRaw === "string" ? String(methodRaw || "").trim().toLowerCase() : "";
+  const methodValue = methodFromObj || methodFromString;
+  const methodItemId =
+    methodRaw && typeof methodRaw === "object" ? String(methodRaw?.item_id || "").trim() : "";
+  const fallbackItemId = methodItemId || firstItemId;
+
+  if (methodValue) {
+    out.set_cooking_method = fallbackItemId
+      ? { item_id: fallbackItemId, method: methodValue }
+      : { method: methodValue };
+  }
+
+  const oilRaw = src?.set_oil_added_tsp;
+
+  if (oilRaw != null) {
+    if (typeof oilRaw === "number" || typeof oilRaw === "string") {
+      const tsp = Math.max(0, num(oilRaw));
+      out.set_oil_added_tsp = fallbackItemId ? { item_id: fallbackItemId, tsp } : { tsp };
+    } else if (oilRaw && typeof oilRaw === "object") {
+      const tsp = Math.max(0, num(oilRaw?.tsp));
+      const itemId = String(oilRaw?.item_id || fallbackItemId || "").trim();
+      out.set_oil_added_tsp = itemId ? { item_id: itemId, tsp } : { tsp };
+    }
+  }
+
+  const swapRaw = src?.swap_item;
+  if (swapRaw != null) {
+    if (typeof swapRaw === "string") {
+      const newName = String(swapRaw || "").trim();
+      if (newName) {
+        out.swap_item = fallbackItemId ? { item_id: fallbackItemId, new_name: newName } : { new_name: newName };
+      }
+    } else if (swapRaw && typeof swapRaw === "object") {
+      const newName = String(swapRaw?.new_name || "").trim();
+      if (newName) {
+        const itemId = String(swapRaw?.item_id || fallbackItemId || "").trim();
+        out.swap_item = itemId ? { item_id: itemId, new_name: newName } : { new_name: newName };
+      }
+    }
+  }
+
+  const portionRaw = src?.portion_multiplier;
+  if (portionRaw != null) {
+    if (typeof portionRaw === "number" || typeof portionRaw === "string") {
+      const multiplier = Math.max(0.3, Math.min(3, num(portionRaw)));
+      out.portion_multiplier = fallbackItemId
+        ? { item_id: fallbackItemId, multiplier }
+        : { multiplier };
+    } else if (portionRaw && typeof portionRaw === "object") {
+      const multiplier = Math.max(0.3, Math.min(3, num(portionRaw?.multiplier)));
+      const itemId = String(portionRaw?.item_id || fallbackItemId || "").trim();
+      out.portion_multiplier = itemId
+        ? { item_id: itemId, multiplier }
+        : { multiplier };
+    }
+  }
+  return out;
+}
 function normalizeAnalyzeResult(data) {
   const src = data && typeof data === "object" ? data : {};
   return {
@@ -472,6 +547,13 @@ function normalizeAnalyzeResult(data) {
 }
 function normalizeCoachDaily(raw, dayFallback = localDayISO()) {
   const data = raw && typeof raw === "object" ? raw : {};
+  const sourceRaw = String(data?.fli_source || data?.reasoning_source || "").trim().toLowerCase();
+  const source =
+    sourceRaw === "llm" || sourceRaw === "cached_llm" || sourceRaw === "rules"
+      ? sourceRaw
+      : sourceRaw === "heuristic" || sourceRaw === "fallback"
+      ? "rules"
+      : "rules";
   return {
     date: String(data?.date || dayFallback),
     fat_loss_score: Math.round(num(data?.fat_loss_score)),
@@ -517,13 +599,32 @@ function normalizeCoachDaily(raw, dayFallback = localDayISO()) {
     actions: Array.isArray(data?.actions) ? data.actions.slice(0, 2) : [],
     risk_alerts: Array.isArray(data?.risk_alerts) ? data.risk_alerts : [],
     disclaimer: String(data?.disclaimer || "Informational only."),
-    reasoning_source: String(data?.reasoning_source || ""),
+    reasoning_source: String(data?.reasoning_source || source),
+    fli_source: source,
+    fli_status: String(data?.fli_status || "ready").toLowerCase(),
+    fli_reason_code: String(data?.fli_reason_code || ""),
+    fli_stale_seconds: Math.max(0, Math.round(num(data?.fli_stale_seconds))),
+    source_display: String(data?.source_display || "Coach"),
     last_processed_scan_id: String(data?.last_processed_scan_id || data?.latest_scan_id || "").trim(),
     last_processed_scan_ts: String(data?.last_processed_scan_ts || data?.latest_scan_ts || "").trim(),
     updatedAt: String(data?.updatedAt || data?.updated_at || ""),
     coach_generated_ts: String(data?.coach_generated_ts || data?.updatedAt || data?.updated_at || ""),
     payload_hash_used: String(data?.payload_hash_used || ""),
+    daily_totals_version: normalizeVersionToken(data?.daily_totals_version || data?.state_signature || ""),
     meals_count_today: Math.max(0, Math.round(num(data?.meals_count_today))),
+    tone_requested: String(data?.tone_requested || "").trim().toLowerCase(),
+    tone_used: String(data?.tone_used || "").trim().toLowerCase(),
+    tone_tag: String(data?.tone_tag || "").trim().toLowerCase(),
+    tone_rewrite_source: String(data?.tone_rewrite_source || "").trim().toLowerCase(),
+    tone_rewrite_freshness: String(data?.tone_rewrite_freshness || "").trim().toLowerCase(),
+    microcopy:
+      data?.microcopy && typeof data.microcopy === "object"
+        ? {
+            updating_text: String(data.microcopy?.updating_text || "").trim(),
+            updated_text: String(data.microcopy?.updated_text || "").trim(),
+          }
+        : null,
+    copy_checks: data?.copy_checks && typeof data.copy_checks === "object" ? data.copy_checks : null,
   };
 }
 function normalizeCoachVoice(raw) {
@@ -605,6 +706,7 @@ function buildCoachStateSignature(payload) {
       goal_type: String(profile.goal_type || ""),
       training_days_per_week: Math.round(num(profile.training_days_per_week)),
       training_time: String(profile.training_time || ""),
+      tone_preference: String(profile.tone_preference || p.tone_preference || ""),
     },
   };
   return hashString(JSON.stringify(seed));
@@ -618,6 +720,41 @@ function logFliEvent(name, payload) {
   } catch {
     console.log(`[fli] ${String(name || "event")}`);
   }
+}
+function fliUpdatedLabel(coachPayload, pending = false) {
+  const updatingText = String(coachPayload?.microcopy?.updating_text || "").trim() || "Updating insights…";
+  const updatedText = String(coachPayload?.microcopy?.updated_text || "").trim() || "Updated just now";
+  if (pending) return updatingText;
+  const rawTs = String(coachPayload?.updatedAt || coachPayload?.coach_generated_ts || "").trim();
+  if (!rawTs) return updatedText;
+  const d = new Date(rawTs);
+  if (!Number.isFinite(d.getTime())) return updatedText;
+  const sec = Math.max(0, Math.round((Date.now() - d.getTime()) / 1000));
+  if (sec < 5) return updatedText;
+  if (sec < 60) return `Updated ${sec}s ago`;
+  const min = Math.round(sec / 60);
+  if (min < 60) return `Updated ${min}m ago`;
+  const hr = Math.round(min / 60);
+  return `Updated ${hr}h ago`;
+}
+function normalizeVersionToken(raw) {
+  const s = String(raw ?? "").trim();
+  if (!s) return "";
+  const n = Number(s);
+  if (Number.isFinite(n) && n >= 0) return String(Math.round(n));
+  return s;
+}
+function coalesceVersionToken(a, b) {
+  const aa = normalizeVersionToken(a);
+  const bb = normalizeVersionToken(b);
+  const na = Number(aa);
+  const nb = Number(bb);
+  const aNum = Number.isFinite(na) && na >= 0;
+  const bNum = Number.isFinite(nb) && nb >= 0;
+  if (aNum && bNum) return String(Math.max(Math.round(na), Math.round(nb)));
+  if (bNum) return String(Math.round(nb));
+  if (aNum) return String(Math.round(na));
+  return bb || aa;
 }
 function errorToMessage(detail, fallbackStatus) {
   if (detail == null) return `HTTP ${fallbackStatus}`;
@@ -741,7 +878,9 @@ function Meter({ label, value, max = 100, help, locked, lockedText }) {
 export default function App() {
   // ===== Auth (Supabase) =====
   const [session, setSession] = useState(null);
-  const redirectUri = AuthSession.makeRedirectUri({ scheme: "calorieclickai", path: "auth-callback" });
+  const redirectUri =
+    OAUTH_REDIRECT_TO ||
+    AuthSession.makeRedirectUri({ scheme: "calorieclickai", path: "auth-callback" });
   const [authEmail, setAuthEmail] = useState("");
   const [authPass, setAuthPass] = useState("");
   const [authBusy, setAuthBusy] = useState(false);
@@ -778,6 +917,8 @@ export default function App() {
   const [fliPending, setFliPending] = useState(false);
   const [coachErr, setCoachErr] = useState("");
   const [showCoachDebug, setShowCoachDebug] = useState(false);
+  const [confidenceCalibration, setConfidenceCalibration] = useState(null);
+  const [confidenceCalibrationBusy, setConfidenceCalibrationBusy] = useState(false);
   const [latestScanMeta, setLatestScanMeta] = useState({ id: "", ts: "" });
   const [showCoachDetails, setShowCoachDetails] = useState(false);
   const [coachProfile, setCoachProfile] = useState(DEFAULT_COACH_PROFILE);
@@ -786,7 +927,9 @@ export default function App() {
   const [coachProfileModal, setCoachProfileModal] = useState(false);
   const coachReqRef = useRef(false);
   const coachRefreshTimerRef = useRef(null);
+  const coachQueuedRefreshRef = useRef(null);
   const coachTitleTapRef = useRef({ count: 0, lastTs: 0 });
+  const rerunReqSeqRef = useRef(0);
 
   // ===== Camera Modal =====
   const [camOpen, setCamOpen] = useState(false);
@@ -936,6 +1079,8 @@ export default function App() {
     setFliPending(false);
     setCoachErr("");
     setShowCoachDebug(false);
+    setConfidenceCalibration(null);
+    setConfidenceCalibrationBusy(false);
     setLatestScanMeta({ id: "", ts: "" });
     setCoachProfile(DEFAULT_COACH_PROFILE);
     setCoachProfileDraft(DEFAULT_COACH_PROFILE);
@@ -964,6 +1109,12 @@ export default function App() {
     loadHistory();
     void flushCoachFeedbackQueue(userId);
   }, [userId]);
+
+  useEffect(() => {
+    if (!showCoachDebug) return;
+    if (!userId) return;
+    void fetchConfidenceCalibrationReport();
+  }, [showCoachDebug, userId]);
 
   async function refreshUsage() {
     if (!userId) return;
@@ -1053,6 +1204,18 @@ export default function App() {
       const raw = await AsyncStorage.getItem(key);
       const existing = raw ? JSON.parse(raw) : [];
       const arr = Array.isArray(existing) ? existing : [];
+      const incomingAnalysisId = String(entry?.analysis_id || "").trim();
+      if (incomingAnalysisId) {
+        const idx = arr.findIndex((it) => String(it?.analysis_id || "").trim() === incomingAnalysisId);
+        if (idx >= 0) {
+          const merged = { ...(arr[idx] || {}), ...(entry || {}) };
+          const next = [...arr];
+          next[idx] = merged;
+          setHistory(next);
+          await AsyncStorage.setItem(key, JSON.stringify(next.slice(0, MAX_HISTORY)));
+          return;
+        }
+      }
       const isDupPhoto =
         (entry?.kind || "") === "photo" &&
         Boolean(entry?.photo_uri) &&
@@ -1276,7 +1439,9 @@ export default function App() {
         diet_style: coachProfile?.diet_style || "non-veg",
         training_days_per_week: num(coachProfile?.training_days_per_week),
         training_time: coachProfile?.training_time || "evening",
+        tone_preference: coachProfile?.tone_preference || "supportive",
       },
+      tone_preference: coachProfile?.tone_preference || "supportive",
     };
   }
 
@@ -1499,6 +1664,29 @@ export default function App() {
     }
   }
 
+  async function fetchConfidenceCalibrationReport() {
+    const uid = userId || session?.user?.id;
+    if (!uid) return;
+    setConfidenceCalibrationBusy(true);
+    try {
+      const types = ["portion", "oil", "vision"];
+      const out = {};
+      for (const t of types) {
+        const url = withTimezoneQuery(
+          `${API_BASE}/confidence/calibration/report?user_id=${encodeURIComponent(uid)}&prediction_type=${encodeURIComponent(t)}`
+        );
+        const res = await fetch(url, { method: "GET", headers: { accept: "application/json" } });
+        out[t] = await safeJson(res);
+      }
+      setConfidenceCalibration(out);
+    } catch (e) {
+      console.log("confidence calibration fetch failed", String(e));
+      setConfidenceCalibration(null);
+    } finally {
+      setConfidenceCalibrationBusy(false);
+    }
+  }
+
   async function shareWeeklyReportCard() {
     if (!weeklyReport) return;
     const facts = weeklyReport?.report_card_facts || {};
@@ -1532,6 +1720,10 @@ export default function App() {
     const refreshServer = Boolean(opts?.refreshServer ?? force);
     const fastMode = opts?.fastMode !== false;
     const trigger = String(opts?.trigger || (force ? "manual" : "auto"));
+    const requestedTone = String(coachProfile?.tone_preference || payload?.tone_preference || "supportive")
+      .trim()
+      .toLowerCase();
+    const requestedDailyTotalsVersion = normalizeVersionToken(opts?.dailyTotalsVersion);
 
     if (!payload || num(payload?.consumed?.kcal) <= 0) {
       setFliSyncing(false);
@@ -1557,8 +1749,9 @@ export default function App() {
     }
 
     const cacheKey = dailyCoachKey(uid, day);
-    const payloadHash = hashString(JSON.stringify(payload));
-    const stateSignature = buildCoachStateSignature(payload);
+    const localStateSignature = buildCoachStateSignature(payload);
+    const stateSignature = requestedDailyTotalsVersion || localStateSignature;
+    const payloadHash = hashString(`${JSON.stringify(payload)}|${stateSignature}`);
 
     if (!force) {
       try {
@@ -1590,7 +1783,33 @@ export default function App() {
       } catch {}
     }
 
-    if (coachReqRef.current) return;
+    if (coachReqRef.current) {
+      if (force || pollForLatest) {
+        const queuedNow = {
+          latestScanId: requestedLatestScanId,
+          latestScanTs: requestedLatestScanTs,
+          dailyTotalsVersion: stateSignature,
+          pollForLatest,
+          refreshServer: true,
+          fastMode,
+          trigger: `${trigger}_queued`,
+        };
+        const prevQueued = coachQueuedRefreshRef.current && typeof coachQueuedRefreshRef.current === "object"
+          ? coachQueuedRefreshRef.current
+          : null;
+        coachQueuedRefreshRef.current = {
+          latestScanId: queuedNow.latestScanId || String(prevQueued?.latestScanId || "").trim(),
+          latestScanTs: queuedNow.latestScanTs || String(prevQueued?.latestScanTs || "").trim(),
+          dailyTotalsVersion: coalesceVersionToken(prevQueued?.dailyTotalsVersion, queuedNow.dailyTotalsVersion),
+          pollForLatest: Boolean(queuedNow.pollForLatest || prevQueued?.pollForLatest),
+          refreshServer: Boolean(queuedNow.refreshServer || prevQueued?.refreshServer),
+          fastMode: Boolean((prevQueued?.fastMode !== false) && (queuedNow.fastMode !== false)),
+          trigger: queuedNow.trigger,
+        };
+        setFliPending(true);
+      }
+      return;
+    }
     coachReqRef.current = true;
     setCoachBusy(true);
     if (pollForLatest) setFliSyncing(true);
@@ -1603,6 +1822,7 @@ export default function App() {
       if (requestedLatestScanId) params.push(`latest_scan_id=${encodeURIComponent(requestedLatestScanId)}`);
       if (requestedLatestScanTs) params.push(`latest_scan_ts=${encodeURIComponent(requestedLatestScanTs)}`);
       if (stateSignature) params.push(`state_signature=${encodeURIComponent(stateSignature)}`);
+      if (requestedTone) params.push(`tone_id=${encodeURIComponent(requestedTone)}`);
       const url = withTimezoneQuery(`${API_BASE}/coach/daily?${params.join("&")}`);
       const res = await fetch(url, {
         method: "POST",
@@ -1620,6 +1840,10 @@ export default function App() {
         meals_count_today: cleaned?.meals_count_today ?? null,
         last_processed_scan_id: cleaned?.last_processed_scan_id || "",
       });
+      const toneUsed = String(cleaned?.tone_used || "").trim().toLowerCase();
+      if (toneUsed && requestedTone && toneUsed !== requestedTone) {
+        console.log(`[fli] tone_mismatch requested=${requestedTone} used=${toneUsed}`);
+      }
       return cleaned;
     };
 
@@ -1697,6 +1921,13 @@ export default function App() {
       setCoachBusy(false);
       setFliSyncing(false);
       setFliPending(false);
+      const queued = coachQueuedRefreshRef.current;
+      if (queued) {
+        coachQueuedRefreshRef.current = null;
+        setTimeout(() => {
+          void ensureDailyCoach(true, queued);
+        }, 0);
+      }
     }
   }
 
@@ -1937,6 +2168,7 @@ export default function App() {
       clearTimeout(coachRefreshTimerRef.current);
       coachRefreshTimerRef.current = null;
     }
+    coachQueuedRefreshRef.current = null;
   }
 
   async function signInWithOAuthProvider(provider, failTitle) {
@@ -1954,7 +2186,7 @@ export default function App() {
         throw new Error("Auth browser helper is unavailable.");
       }
 
-      const redirectTo = OAUTH_REDIRECT_TO?.trim() || redirectUri;
+      const redirectTo = OAUTH_REDIRECT_TO || redirectUri;
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider,
         options: {
@@ -1969,7 +2201,19 @@ export default function App() {
       if (result.type !== "success" || !result.url) return;
 
       const callbackUrl = result.url;
-      const codeParam = extractQueryParam(callbackUrl, "code");
+      const oauthError =
+        extractQueryParam(callbackUrl, "error") ||
+        extractHashParam(callbackUrl, "error") ||
+        "";
+      const oauthErrorDesc =
+        extractQueryParam(callbackUrl, "error_description") ||
+        extractHashParam(callbackUrl, "error_description") ||
+        "";
+      if (oauthError) {
+        throw new Error(oauthErrorDesc || oauthError);
+      }
+
+      const codeParam = extractQueryParam(callbackUrl, "code") || extractHashParam(callbackUrl, "code");
       if (codeParam && typeof supabase.auth.exchangeCodeForSession === "function") {
         const { data: sessionData, error: exchErr } = await supabase.auth.exchangeCodeForSession(codeParam);
         if (exchErr) throw exchErr;
@@ -1989,6 +2233,23 @@ export default function App() {
         if (setErr) throw setErr;
         if (!setData?.session) throw new Error("No session returned");
         return;
+      }
+
+      if (typeof supabase.auth.getSessionFromUrl === "function") {
+        const { data: urlData, error: urlErr } = await supabase.auth.getSessionFromUrl({
+          storeSession: true,
+          url: callbackUrl,
+        });
+        if (urlErr) throw urlErr;
+        if (urlData?.session) return;
+      }
+
+      if (typeof supabase.auth.getSession === "function") {
+        for (let i = 0; i < 5; i += 1) {
+          const { data: cur } = await supabase.auth.getSession();
+          if (cur?.session) return;
+          await waitMs(180);
+        }
       }
 
       throw new Error("OAuth callback did not include a valid auth session.");
@@ -2268,17 +2529,6 @@ async function openCamera() {
         scanCount: Math.round(num(data?.daily_signals?.scan_count ?? data?.daily_signals?.meals_count)),
         totalsHash,
       });
-      scheduleDailyCoachRefresh({
-        latestScanId,
-        latestScanTs,
-        pollForLatest: Boolean(latestScanId),
-        refreshServer: false,
-        fastMode: true,
-        trigger: "analyze",
-      });
-      void fetchCoachVoice(normalized, true);
-      void fetchWeeklyReport(true);
-
       await pushHistory({
         ts: nowISO(),
         kind: "photo",
@@ -2292,6 +2542,18 @@ async function openCamera() {
         coaching: data?.coaching || null,
         locked: data?.locked || null,
       });
+      const dailyTotalsVersion = normalizeVersionToken(data?.daily_totals_version || data?.state_signature || "");
+      scheduleDailyCoachRefresh({
+        latestScanId,
+        latestScanTs,
+        dailyTotalsVersion,
+        pollForLatest: Boolean(latestScanId),
+        refreshServer: true,
+        fastMode: true,
+        trigger: "analyze",
+      });
+      void fetchCoachVoice(normalized, true);
+      void fetchWeeklyReport(true);
       await maybeSendScanUpgradeNudge(photoScansAfterThisAnalyze);
     } catch (e) {
       setFliPending(false);
@@ -2309,18 +2571,24 @@ async function openCamera() {
       return;
     }
 
+    const rerunSeq = Number(rerunReqSeqRef.current || 0) + 1;
+    rerunReqSeqRef.current = rerunSeq;
     setRerunBusy(true);
     try {
       const rerunUrl = withTimezoneQuery(`${API_BASE}/analyze/rerun?user_id=${encodeURIComponent(userId)}`);
+      const normalizedPatch = normalizeRerunPatch(editPatch, result?.editable_context?.items || []);
       const res = await fetch(rerunUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json", accept: "application/json" },
         body: JSON.stringify({
           analysis_id: analysisId,
-          edits: editPatch && typeof editPatch === "object" ? editPatch : {},
+          edits: normalizedPatch,
         }),
       });
       const data = await safeJson(res);
+      if (rerunSeq !== Number(rerunReqSeqRef.current || 0)) {
+        return;
+      }
       const normalized = normalizeAnalyzeResult(data);
       setResult(normalized);
       const latestScanId = String(data?.scan_id || data?.latest_scan_id || data?.analysis_id || analysisId || "").trim();
@@ -2345,21 +2613,41 @@ async function openCamera() {
         await fetchDailySummary(userId);
       }
       await refreshUsage();
+      await pushHistory({
+        ts: nowISO(),
+        kind: "photo",
+        photo_uri: photoUri,
+        total_kcal: data?.total_kcal,
+        analysis_id: analysisId,
+        totals: data?.totals,
+        micros: data?.micros || data?.totals?.micros,
+        items: data?.items,
+        vision_confidence: data?.vision_confidence ?? null,
+        coaching: data?.coaching || null,
+        locked: data?.locked || null,
+      });
+      const dailyTotalsVersion = normalizeVersionToken(data?.daily_totals_version || data?.state_signature || "");
       scheduleDailyCoachRefresh({
         latestScanId,
         latestScanTs,
+        dailyTotalsVersion,
         pollForLatest: Boolean(latestScanId),
-        refreshServer: false,
+        refreshServer: true,
         fastMode: true,
         trigger: "rerun",
       });
       void fetchCoachVoice(normalized, true);
       void fetchWeeklyReport(true);
     } catch (e) {
-      setFliPending(false);
-      Alert.alert("Rerun failed", String(e).slice(0, 220));
+      if (rerunSeq === Number(rerunReqSeqRef.current || 0)) {
+        setFliPending(false);
+        console.log("rerun failed", String(e));
+        Alert.alert("Rerun failed", "Couldn't apply edit. Try again.");
+      }
     } finally {
-      setRerunBusy(false);
+      if (rerunSeq === Number(rerunReqSeqRef.current || 0)) {
+        setRerunBusy(false);
+      }
     }
   }
 
@@ -2387,15 +2675,24 @@ async function openCamera() {
   }
 
   async function applyQaFix(fix) {
-    const patch = fix?.patch && typeof fix.patch === "object" ? fix.patch : null;
+    const rawPatch = fix?.patch && typeof fix.patch === "object" ? fix.patch : null;
+    const patch = rawPatch ? normalizeRerunPatch(rawPatch, result?.editable_context?.items || []) : null;
     if (!patch) return;
     setFliPending(true);
     await rerunAnalyzeWithPatch(patch);
     void sendCoachFeedback("overall", {
-      item_id: patch?.set_cooking_method?.item_id || patch?.set_oil_added_tsp?.item_id || patch?.swap_item?.item_id || "",
+      item_id:
+        patch?.set_cooking_method?.item_id ||
+        patch?.set_oil_added_tsp?.item_id ||
+        patch?.swap_item?.item_id ||
+        (patch?.portion_multiplier && typeof patch.portion_multiplier === "object" ? patch?.portion_multiplier?.item_id : "") ||
+        "",
       cooking_method: patch?.set_cooking_method?.method || "",
       oil_added_tsp: patch?.set_oil_added_tsp?.tsp,
-      portion_multiplier: patch?.portion_multiplier,
+      portion_multiplier:
+        patch?.portion_multiplier && typeof patch.portion_multiplier === "object"
+          ? patch?.portion_multiplier?.multiplier
+          : patch?.portion_multiplier,
     });
   }
 
@@ -2583,7 +2880,7 @@ async function openCamera() {
               <Text style={styles.cardTitle}>Fat Loss Intelligence</Text>
             </TouchableOpacity>
             {canCoaching ? (
-              <View style={{ flexDirection: "row", gap: 8 }}>
+              <View style={styles.intelHeaderActions}>
                 <TouchableOpacity
                   style={styles.smallBtn}
                   onPress={() => {
@@ -2742,8 +3039,8 @@ async function openCamera() {
                         />
                       </View>
                       <Text style={styles.tiny}>
-                        Updated {String(coachDaily?.updatedAt || coachDaily?.date || localDayISO())} • source:{" "}
-                        {String(coachDaily?.reasoning_source || "unknown")}
+                        {fliUpdatedLabel(coachDaily, fliPending || fliSyncing)}
+                        {coachDaily?.fli_source === "cached_llm" ? " • Refining…" : ""}
                       </Text>
                       {showCoachDebug ? (
                         <View style={{ marginTop: 6, padding: 8, borderWidth: 1, borderColor: "#26364f", borderRadius: 8 }}>
@@ -2762,6 +3059,27 @@ async function openCamera() {
                           <Text style={styles.tiny}>
                             clarifying_reason: {String(result?.personalization_used?.asked_clarifying_question_reason || "-")}
                           </Text>
+                          {confidenceCalibrationBusy ? (
+                            <Text style={styles.tiny}>calibration: loading…</Text>
+                          ) : (
+                            <>
+                              <Text style={styles.tiny}>
+                                Confidence Calibration
+                              </Text>
+                              <Text style={styles.tiny}>
+                                Portion NACR: {Math.round(num(confidenceCalibration?.portion?.last_7d?.pct_within_range) * 100)}% within range
+                              </Text>
+                              <Text style={styles.tiny}>
+                                Oil NACR: {Math.round(num(confidenceCalibration?.oil?.last_7d?.pct_within_range) * 100)}% within range
+                              </Text>
+                              <Text style={styles.tiny}>
+                                Vision NACR: {Math.round(num(confidenceCalibration?.vision?.last_7d?.pct_within_range) * 100)}% within range
+                              </Text>
+                              <Text style={styles.tiny}>
+                                Portion threshold: {round1(num(confidenceCalibration?.portion?.calibrated_threshold))}
+                              </Text>
+                            </>
+                          )}
                         </View>
                       ) : null}
                     </View>
@@ -3482,7 +3800,7 @@ async function openCamera() {
 
                 <Text style={styles.label}>Coach style</Text>
                 <View style={styles.rowWrap}>
-                  {["supportive", "firm", "fun", "neutral"].map((t) => (
+                  {["supportive", "strict", "funny", "indian_coach"].map((t) => (
                     <TouchableOpacity
                       key={t}
                       style={[styles.chip, coachProfileDraft?.tone_preference === t && styles.chipActive]}
@@ -3660,6 +3978,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     borderRadius: 12,
     alignItems: "center",
+    flexShrink: 1,
   },
   smallBtnText: { color: "#fff", fontWeight: "700" },
 
@@ -3729,7 +4048,22 @@ const styles = StyleSheet.create({
 
   histRow: { paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: "#151515" },
   histTitle: { color: "#fff", fontWeight: "800" },
-  intelHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  intelHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    flexWrap: "wrap",
+    rowGap: 8,
+    columnGap: 8,
+  },
+  intelHeaderActions: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "flex-end",
+    columnGap: 8,
+    rowGap: 8,
+    maxWidth: "100%",
+  },
   intelSubline: { fontSize: 12, color: "#8ea0bf", marginTop: 4, lineHeight: 17 },
   fliUpdateBanner: {
     marginTop: 10,
