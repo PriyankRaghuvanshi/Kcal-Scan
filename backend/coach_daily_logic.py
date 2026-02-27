@@ -274,9 +274,48 @@ def build_rule_risk_alerts(norm_payload: Dict[str, Any]) -> List[Dict[str, str]]
     return alerts
 
 
+def normalize_diet_style(raw: Any) -> str:
+    v = str(raw or "non-veg").strip().lower()
+    aliases = {
+        "nonveg": "non_veg",
+        "non-veg": "non_veg",
+        "non_veg": "non_veg",
+        "omnivore": "non_veg",
+        "veg": "veg",
+        "vegetarian": "veg",
+        "eggetarian": "eggetarian",
+        "egg_veg": "eggetarian",
+        "vegan": "vegan",
+    }
+    return aliases.get(v, "non_veg")
+
+
+def allowed_protein_sources(diet_style: Any) -> List[str]:
+    diet = normalize_diet_style(diet_style)
+    if diet == "vegan":
+        return ["tofu", "tempeh", "soy chunks", "lentils", "chickpeas", "beans", "pea protein"]
+    if diet == "veg":
+        return ["paneer", "curd/Greek yogurt", "milk", "tofu", "soy chunks", "lentils", "chickpeas", "beans"]
+    if diet == "eggetarian":
+        return ["eggs", "paneer", "curd/Greek yogurt", "milk", "tofu", "soy chunks", "lentils", "beans"]
+    return ["eggs", "chicken", "fish", "paneer", "curd/Greek yogurt", "milk", "tofu", "lentils", "beans"]
+
+
+def _human_join(items: List[str]) -> str:
+    vals = [str(x or "").strip() for x in (items or []) if str(x or "").strip()]
+    if not vals:
+        return "high-quality protein sources"
+    if len(vals) == 1:
+        return vals[0]
+    if len(vals) == 2:
+        return f"{vals[0]} and {vals[1]}"
+    return f"{', '.join(vals[:-1])}, and {vals[-1]}"
+
+
 def allowed_suggestion_palette(norm_payload: Dict[str, Any]) -> List[str]:
     constraints = _obj(norm_payload.get("constraints"))
-    diet = str(constraints.get("diet") or "non-veg").lower()
+    diet = normalize_diet_style(constraints.get("diet") or "non-veg")
+    protein_text = _human_join(allowed_protein_sources(diet)[:6])
 
     base = [
         "Swap refined carbs for higher-fiber choices",
@@ -287,17 +326,22 @@ def allowed_suggestion_palette(norm_payload: Dict[str, Any]) -> List[str]:
 
     if diet == "vegan":
         base.extend([
-            "Use tofu, tempeh, edamame, soy yogurt, lentils, and beans for protein",
+            f"Use {protein_text} for protein",
             "Pair legumes + grains for better amino acid coverage",
         ])
     elif diet == "veg":
         base.extend([
-            "Use paneer, curd, milk, eggs (if allowed), lentils, and soy for protein",
+            f"Use {protein_text} for protein",
             "Add a high-protein breakfast anchor",
+        ])
+    elif diet == "eggetarian":
+        base.extend([
+            f"Use {protein_text} for protein",
+            "Build each main meal around an egg or dairy + legume protein anchor",
         ])
     else:
         base.extend([
-            "Use eggs, chicken, fish, Greek yogurt, milk, lentils, and paneer for protein",
+            f"Use {protein_text} for protein",
             "Build each main meal around a lean protein anchor",
         ])
 
@@ -558,13 +602,9 @@ def build_fallback_coach_response(norm_payload: Dict[str, Any], fat_loss_score: 
         tomorrow_focus.append(f"Hit at least {l_target} leucine triggers (today {l_hit}).")
     tomorrow_focus = tomorrow_focus[:3]
 
-    diet = str(constraints.get("diet") or "non-veg").lower()
-    if diet == "vegan":
-        protein_example = "tofu + lentils + soy yogurt"
-    elif diet == "veg":
-        protein_example = "paneer/curd + dal + soy chunks"
-    else:
-        protein_example = "eggs/chicken/fish + yogurt + legumes"
+    diet = normalize_diet_style(constraints.get("diet") or "non-veg")
+    protein_sources = allowed_protein_sources(diet)
+    protein_example = " + ".join(protein_sources[:3]) if protein_sources else "protein-rich whole foods"
 
     actions = [
         {

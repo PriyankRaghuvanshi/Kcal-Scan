@@ -28,6 +28,7 @@ import "react-native-url-polyfill/auto";
 // OAuth helpers (Google)
 import * as AuthSession from "expo-auth-session";
 import * as Notifications from "expo-notifications";
+import * as AppleAuthentication from "expo-apple-authentication";
 
 
 import * as WebBrowser from "expo-web-browser";
@@ -463,9 +464,7 @@ function normalizeRerunPatch(patch, editableItems = []) {
   const fallbackItemId = methodItemId || firstItemId;
 
   if (methodValue) {
-    out.set_cooking_method = fallbackItemId
-      ? { item_id: fallbackItemId, method: methodValue }
-      : { method: methodValue };
+    out.set_cooking_method = { item_id: fallbackItemId || "", method: methodValue };
   }
 
   const oilRaw = src?.set_oil_added_tsp;
@@ -473,11 +472,11 @@ function normalizeRerunPatch(patch, editableItems = []) {
   if (oilRaw != null) {
     if (typeof oilRaw === "number" || typeof oilRaw === "string") {
       const tsp = Math.max(0, num(oilRaw));
-      out.set_oil_added_tsp = fallbackItemId ? { item_id: fallbackItemId, tsp } : { tsp };
+      out.set_oil_added_tsp = { item_id: fallbackItemId || "", tsp };
     } else if (oilRaw && typeof oilRaw === "object") {
       const tsp = Math.max(0, num(oilRaw?.tsp));
       const itemId = String(oilRaw?.item_id || fallbackItemId || "").trim();
-      out.set_oil_added_tsp = itemId ? { item_id: itemId, tsp } : { tsp };
+      out.set_oil_added_tsp = { item_id: itemId || "", tsp };
     }
   }
 
@@ -486,13 +485,13 @@ function normalizeRerunPatch(patch, editableItems = []) {
     if (typeof swapRaw === "string") {
       const newName = String(swapRaw || "").trim();
       if (newName) {
-        out.swap_item = fallbackItemId ? { item_id: fallbackItemId, new_name: newName } : { new_name: newName };
+        out.swap_item = { item_id: fallbackItemId || "", new_name: newName };
       }
     } else if (swapRaw && typeof swapRaw === "object") {
       const newName = String(swapRaw?.new_name || "").trim();
       if (newName) {
         const itemId = String(swapRaw?.item_id || fallbackItemId || "").trim();
-        out.swap_item = itemId ? { item_id: itemId, new_name: newName } : { new_name: newName };
+        out.swap_item = { item_id: itemId || "", new_name: newName };
       }
     }
   }
@@ -501,15 +500,11 @@ function normalizeRerunPatch(patch, editableItems = []) {
   if (portionRaw != null) {
     if (typeof portionRaw === "number" || typeof portionRaw === "string") {
       const multiplier = Math.max(0.3, Math.min(3, num(portionRaw)));
-      out.portion_multiplier = fallbackItemId
-        ? { item_id: fallbackItemId, multiplier }
-        : { multiplier };
+      out.portion_multiplier = { item_id: fallbackItemId || "", multiplier };
     } else if (portionRaw && typeof portionRaw === "object") {
       const multiplier = Math.max(0.3, Math.min(3, num(portionRaw?.multiplier)));
       const itemId = String(portionRaw?.item_id || fallbackItemId || "").trim();
-      out.portion_multiplier = itemId
-        ? { item_id: itemId, multiplier }
-        : { multiplier };
+      out.portion_multiplier = { item_id: itemId || "", multiplier };
     }
   }
   return out;
@@ -557,7 +552,11 @@ function normalizeCoachDaily(raw, dayFallback = localDayISO()) {
   return {
     date: String(data?.date || dayFallback),
     fat_loss_score: Math.round(num(data?.fat_loss_score)),
-    one_sentence_summary: String(data?.one_sentence_summary || ""),
+    one_sentence_summary: String(data?.one_sentence_summary || data?.coach_summary || ""),
+    coach_summary: String(data?.coach_summary || data?.one_sentence_summary || ""),
+    why_it_matters: String(data?.why_it_matters || ""),
+    one_action: String(data?.one_action || data?.if_you_do_one_thing || ""),
+    variation_seed: String(data?.variation_seed || ""),
     pattern_detected: String(data?.pattern_detected || ""),
     projection_explained: String(data?.projection_explained || ""),
     biggest_risk_lever:
@@ -601,10 +600,14 @@ function normalizeCoachDaily(raw, dayFallback = localDayISO()) {
     disclaimer: String(data?.disclaimer || "Informational only."),
     reasoning_source: String(data?.reasoning_source || source),
     fli_source: source,
+    source: String(data?.source || (source === "llm" || source === "cached_llm" ? "llm" : "fallback")).toLowerCase(),
     fli_status: String(data?.fli_status || "ready").toLowerCase(),
     fli_reason_code: String(data?.fli_reason_code || ""),
     fli_stale_seconds: Math.max(0, Math.round(num(data?.fli_stale_seconds))),
     source_display: String(data?.source_display || "Coach"),
+    llm_model_used: String(data?.llm_model_used || ""),
+    llm_error_code: String(data?.llm_error_code || ""),
+    llm_tried_models: Array.isArray(data?.llm_tried_models) ? data.llm_tried_models.map((x) => String(x || "")).filter(Boolean) : [],
     last_processed_scan_id: String(data?.last_processed_scan_id || data?.latest_scan_id || "").trim(),
     last_processed_scan_ts: String(data?.last_processed_scan_ts || data?.latest_scan_ts || "").trim(),
     updatedAt: String(data?.updatedAt || data?.updated_at || ""),
@@ -627,6 +630,105 @@ function normalizeCoachDaily(raw, dayFallback = localDayISO()) {
     copy_checks: data?.copy_checks && typeof data.copy_checks === "object" ? data.copy_checks : null,
   };
 }
+
+function normalizeDietStyle(raw) {
+  const v = String(raw || "").trim().toLowerCase();
+  if (["vegan"].includes(v)) return "vegan";
+  if (["veg", "vegetarian"].includes(v)) return "veg";
+  if (["eggitarian", "eggetarian", "egg_veg"].includes(v)) return "eggitarian";
+  if (["pescatarian", "pesc"].includes(v)) return "pescatarian";
+  return "non_veg";
+}
+
+function disallowedFoodTokensForDiet(dietStyle) {
+  const d = normalizeDietStyle(dietStyle);
+  if (d === "vegan") {
+    return [
+      "egg",
+      "eggs",
+      "chicken",
+      "fish",
+      "beef",
+      "mutton",
+      "pork",
+      "paneer",
+      "curd",
+      "yogurt",
+      "milk",
+      "cheese",
+      "whey",
+    ];
+  }
+  if (d === "veg") {
+    return ["egg", "eggs", "chicken", "fish", "beef", "mutton", "pork", "prawn", "shrimp", "tuna"];
+  }
+  if (d === "eggitarian") {
+    return ["chicken", "fish", "beef", "mutton", "pork", "prawn", "shrimp", "tuna"];
+  }
+  if (d === "pescatarian") {
+    return ["chicken", "beef", "mutton", "pork"];
+  }
+  return [];
+}
+
+function scrubDietDisallowedText(text, dietStyle) {
+  const src = String(text || "");
+  if (!src.trim()) return src;
+  const blocked = disallowedFoodTokensForDiet(dietStyle);
+  if (!blocked.length) return src;
+  let out = src;
+  for (const token of blocked) {
+    const re = new RegExp(`\\b${token.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\\\$&")}\\b`, "gi");
+    out = out.replace(re, "protein source");
+  }
+  out = out.replace(/\bprotein source\/protein source\b/gi, "protein source");
+  out = out.replace(/\s{2,}/g, " ").trim();
+  return out;
+}
+
+function sanitizeCoachPayloadForDiet(payload, dietStyle) {
+  const src = payload && typeof payload === "object" ? payload : null;
+  if (!src) return src;
+  const out = { ...src };
+  out.one_sentence_summary = scrubDietDisallowedText(out.one_sentence_summary, dietStyle);
+  out.coach_summary = scrubDietDisallowedText(out.coach_summary, dietStyle);
+  out.if_you_do_one_thing = scrubDietDisallowedText(out.if_you_do_one_thing, dietStyle);
+  out.one_action = scrubDietDisallowedText(out.one_action, dietStyle);
+  out.why_it_matters = scrubDietDisallowedText(out.why_it_matters, dietStyle);
+  out.pattern_detected = scrubDietDisallowedText(out.pattern_detected, dietStyle);
+  out.projection_explained = scrubDietDisallowedText(out.projection_explained, dietStyle);
+  if (Array.isArray(out.diagnosis)) {
+    out.diagnosis = out.diagnosis.map((x) => scrubDietDisallowedText(x, dietStyle));
+  }
+  if (Array.isArray(out.tomorrow_focus)) {
+    out.tomorrow_focus = out.tomorrow_focus.map((x) => scrubDietDisallowedText(x, dietStyle));
+  }
+  if (Array.isArray(out.actions)) {
+    out.actions = out.actions.map((a) => {
+      const item = a && typeof a === "object" ? { ...a } : {};
+      item.title = scrubDietDisallowedText(item.title, dietStyle);
+      item.why = scrubDietDisallowedText(item.why, dietStyle);
+      item.how = scrubDietDisallowedText(item.how, dietStyle);
+      return item;
+    });
+  }
+  if (out.biggest_risk_lever && typeof out.biggest_risk_lever === "object") {
+    out.biggest_risk_lever = {
+      ...out.biggest_risk_lever,
+      title: scrubDietDisallowedText(out.biggest_risk_lever.title, dietStyle),
+      reason: scrubDietDisallowedText(out.biggest_risk_lever.reason, dietStyle),
+    };
+  }
+  if (out.highest_roi_change && typeof out.highest_roi_change === "object") {
+    out.highest_roi_change = {
+      ...out.highest_roi_change,
+      title: scrubDietDisallowedText(out.highest_roi_change.title, dietStyle),
+      why: scrubDietDisallowedText(out.highest_roi_change.why, dietStyle),
+      how: scrubDietDisallowedText(out.highest_roi_change.how, dietStyle),
+    };
+  }
+  return out;
+}
 function normalizeCoachVoice(raw) {
   const data = raw && typeof raw === "object" ? raw : {};
   const action = data?.one_action && typeof data.one_action === "object" ? data.one_action : {};
@@ -644,6 +746,25 @@ function normalizeCoachVoice(raw) {
     advice_key: String(data?.advice_key || "").trim(),
     safety_disclaimer: String(data?.safety_disclaimer || "Informational only.").trim(),
   };
+}
+function sanitizeCoachVoiceForDiet(payload, dietStyle) {
+  const src = payload && typeof payload === "object" ? payload : null;
+  if (!src) return src;
+  const out = { ...src };
+  out.empathy_line = scrubDietDisallowedText(out.empathy_line, dietStyle);
+  out.insight_line = scrubDietDisallowedText(out.insight_line, dietStyle);
+  out.why_this_action = scrubDietDisallowedText(out.why_this_action, dietStyle);
+  out.safety_disclaimer = scrubDietDisallowedText(out.safety_disclaimer, dietStyle);
+  if (out.one_action && typeof out.one_action === "object") {
+    out.one_action = {
+      ...out.one_action,
+      title: scrubDietDisallowedText(out.one_action.title, dietStyle),
+      steps: Array.isArray(out.one_action.steps)
+        ? out.one_action.steps.map((s) => scrubDietDisallowedText(s, dietStyle))
+        : [],
+    };
+  }
+  return out;
 }
 function normalizeWeeklyReport(raw) {
   const data = raw && typeof raw === "object" ? raw : {};
@@ -951,6 +1072,11 @@ export default function App() {
   // ===== Derived gating =====
   const canBarcode = planAtLeast(plan, "elite");
   const canCoaching = planAtLeast(plan, "pro");
+  const activeDietStyle = normalizeDietStyle(
+    coachProfile?.diet_style || coachProfileDraft?.diet_style || "non_veg"
+  );
+  const sanitizeCoachForDiet = (payload) => sanitizeCoachPayloadForDiet(payload, activeDietStyle);
+  const sanitizeVoiceForDiet = (payload) => sanitizeCoachVoiceForDiet(payload, activeDietStyle);
   const coachPreviewTiles = useMemo(() => (canCoaching ? [] : buildCoachPreviewTiles(plan)), [canCoaching, plan]);
   const previewPhotoUri = useMemo(() => {
     if (photoUri) return photoUri;
@@ -1570,7 +1696,7 @@ export default function App() {
         body: JSON.stringify(requestBody),
       });
       const data = await safeJson(res);
-      const cleaned = normalizeCoachVoice(data);
+      const cleaned = sanitizeVoiceForDiet(normalizeCoachVoice(data));
       setCoachVoice(cleaned);
       await rememberCoachVoiceMessage(uid, day, cleaned);
     } catch (e) {
@@ -1734,7 +1860,7 @@ export default function App() {
           const parsed = JSON.parse(raw);
           const cachedResp = normalizeCoachDaily(parsed?.response || parsed, day);
           if (cachedResp && typeof cachedResp === "object") {
-            setCoachDaily(cachedResp);
+            setCoachDaily(sanitizeCoachForDiet(cachedResp));
             setCoachErr("");
             setFliPending(false);
             await loadCoachTrend(uid);
@@ -1766,7 +1892,7 @@ export default function App() {
             cachedPayloadHash === payloadHash &&
             !isCoachStaleForScan(cachedResp, requestedLatestScanId)
           ) {
-            setCoachDaily(cachedResp);
+            setCoachDaily(sanitizeCoachForDiet(cachedResp));
             setCoachErr("");
             setFliPending(false);
             await loadCoachTrend(uid);
@@ -1830,7 +1956,7 @@ export default function App() {
         body: JSON.stringify(payload),
       });
       const data = await safeJson(res);
-      const cleaned = normalizeCoachDaily(data, day);
+      const cleaned = sanitizeCoachForDiet(normalizeCoachDaily(data, day));
       logFliEvent("fli_fetch", {
         trigger,
         poll_attempt: pollAttempt,
@@ -1911,7 +2037,7 @@ export default function App() {
           const parsed = JSON.parse(raw);
           const cachedResp = normalizeCoachDaily(parsed?.response || parsed, day);
           if (cachedResp && typeof cachedResp === "object") {
-            setCoachDaily(cachedResp);
+            setCoachDaily(sanitizeCoachForDiet(cachedResp));
             await loadCoachTrend(uid);
           }
         }
@@ -2176,6 +2302,10 @@ export default function App() {
       Alert.alert("Missing Supabase env", "Set EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY");
       return;
     }
+    if (String(provider || "").trim().toLowerCase() === "apple") {
+      Alert.alert("Apple login", "Apple Sign-In uses native login only. Please use Continue with Apple.");
+      return;
+    }
 
     setAuthBusy(true);
     try {
@@ -2266,7 +2396,55 @@ export default function App() {
   }
 
   async function signInWithApple() {
-    await signInWithOAuthProvider("apple", "Apple login failed");
+    if (!HAS_SUPABASE) {
+      Alert.alert("Missing Supabase env", "Set EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY");
+      return;
+    }
+
+    setAuthBusy(true);
+    try {
+      if (!AppleAuthentication || typeof AppleAuthentication.signInAsync !== "function") {
+        throw new Error("Apple Sign-In is unavailable in this app build.");
+      }
+
+      if (typeof AppleAuthentication.isAvailableAsync === "function") {
+        const available = await AppleAuthentication.isAvailableAsync();
+        if (!available) {
+          throw new Error("Apple Sign-In is unavailable on this device.");
+        }
+      }
+
+      const credential = await AppleAuthentication.signInAsync({
+        requestedScopes: [
+          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+          AppleAuthentication.AppleAuthenticationScope.EMAIL,
+        ],
+      });
+
+      const identityToken = String(credential?.identityToken || "").trim();
+      if (!identityToken) {
+        throw new Error("No identity token returned");
+      }
+
+      if (typeof supabase?.auth?.signInWithIdToken !== "function") {
+        throw new Error("Supabase Apple ID-token login is unavailable in this app build.");
+      }
+
+      const payload = { provider: "apple", token: identityToken };
+      const nonce = String(credential?.nonce || "").trim();
+      if (nonce) payload.nonce = nonce;
+
+      const { data, error } = await supabase.auth.signInWithIdToken(payload);
+      if (error) throw error;
+      if (!data?.session) {
+        throw new Error("No session returned");
+      }
+    } catch (e) {
+      console.log("apple login error:", e);
+      Alert.alert("Apple login failed", String(e?.message || e));
+    } finally {
+      setAuthBusy(false);
+    }
   }
 
 
@@ -2467,7 +2645,7 @@ async function openCamera() {
         setLatestScanMeta({ id: latestScanId, ts: latestScanTs });
       }
       if (data?.fat_loss_intelligence && typeof data.fat_loss_intelligence === "object") {
-        const quickCoach = normalizeCoachDaily(data.fat_loss_intelligence, localDayISO());
+        const quickCoach = sanitizeCoachForDiet(normalizeCoachDaily(data.fat_loss_intelligence, localDayISO()));
         setCoachDaily(quickCoach);
         setCoachErr("");
       }
@@ -2597,7 +2775,7 @@ async function openCamera() {
         setLatestScanMeta({ id: latestScanId, ts: latestScanTs });
       }
       if (data?.fat_loss_intelligence && typeof data.fat_loss_intelligence === "object") {
-        const quickCoach = normalizeCoachDaily(data.fat_loss_intelligence, localDayISO());
+        const quickCoach = sanitizeCoachForDiet(normalizeCoachDaily(data.fat_loss_intelligence, localDayISO()));
         setCoachDaily(quickCoach);
         setCoachErr("");
       }
@@ -2876,11 +3054,19 @@ async function openCamera() {
 
         <View style={styles.card}>
           <View style={styles.intelHeader}>
-            <TouchableOpacity onPress={onCoachTitleTap} activeOpacity={0.9}>
-              <Text style={styles.cardTitle}>Fat Loss Intelligence</Text>
-            </TouchableOpacity>
+            <View style={styles.intelHeaderTop}>
+              <TouchableOpacity onPress={onCoachTitleTap} activeOpacity={0.9}>
+                <Text style={styles.cardTitle}>Fat Loss Intelligence</Text>
+              </TouchableOpacity>
+              {!canCoaching ? <Text style={styles.lockedTag}>Pro feature</Text> : null}
+            </View>
             {canCoaching ? (
-              <View style={styles.intelHeaderActions}>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={styles.intelHeaderActionsScroll}
+                contentContainerStyle={styles.intelHeaderActions}
+              >
                 <TouchableOpacity
                   style={styles.smallBtn}
                   onPress={() => {
@@ -2904,10 +3090,8 @@ async function openCamera() {
                 >
                   <Text style={styles.smallBtnText}>{weeklyReportBusy ? "…" : "Weekly"}</Text>
                 </TouchableOpacity>
-              </View>
-            ) : (
-              <Text style={styles.lockedTag}>Pro feature</Text>
-            )}
+              </ScrollView>
+            ) : null}
           </View>
 
           <Text style={styles.intelSubline}>
@@ -3045,6 +3229,13 @@ async function openCamera() {
                       {showCoachDebug ? (
                         <View style={{ marginTop: 6, padding: 8, borderWidth: 1, borderColor: "#26364f", borderRadius: 8 }}>
                           <Text style={styles.tiny}>payload_hash_used: {String(coachDaily?.payload_hash_used || "-")}</Text>
+                          <Text style={styles.tiny}>source: {String(coachDaily?.source || "-")}</Text>
+                          <Text style={styles.tiny}>fli_source: {String(coachDaily?.fli_source || "-")}</Text>
+                          <Text style={styles.tiny}>llm_model_used: {String(coachDaily?.llm_model_used || "-")}</Text>
+                          <Text style={styles.tiny}>llm_error_code: {String(coachDaily?.llm_error_code || "-")}</Text>
+                          <Text style={styles.tiny}>
+                            llm_tried_models: {(coachDaily?.llm_tried_models || []).join(", ") || "-"}
+                          </Text>
                           <Text style={styles.tiny}>
                             confidence_band: {String(coachDaily?.predictive_signals?.projection_confidence_band || "-")}
                           </Text>
@@ -4049,20 +4240,26 @@ const styles = StyleSheet.create({
   histRow: { paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: "#151515" },
   histTitle: { color: "#fff", fontWeight: "800" },
   intelHeader: {
+    flexDirection: "column",
+    rowGap: 8,
+  },
+  intelHeaderTop: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "flex-start",
-    flexWrap: "wrap",
-    rowGap: 8,
+    alignItems: "center",
     columnGap: 8,
+  },
+  intelHeaderActionsScroll: {
+    width: "100%",
   },
   intelHeaderActions: {
     flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "flex-end",
+    flexWrap: "nowrap",
+    justifyContent: "flex-start",
     columnGap: 8,
     rowGap: 8,
-    maxWidth: "100%",
+    paddingRight: 4,
+    paddingBottom: 2,
   },
   intelSubline: { fontSize: 12, color: "#8ea0bf", marginTop: 4, lineHeight: 17 },
   fliUpdateBanner: {

@@ -60,6 +60,21 @@ def _env_flag(name: str, default: bool = False) -> bool:
     raw = str(os.getenv(name, "1" if default else "0") or "").strip().lower()
     return raw in {"1", "true", "yes", "on", "y"}
 
+
+def _env_csv_list(name: str, default_csv: str = "") -> List[str]:
+    raw = str(os.getenv(name, default_csv) or "").strip()
+    if not raw:
+        return []
+    out: List[str] = []
+    seen = set()
+    for part in raw.split(","):
+        val = str(part or "").strip()
+        if not val or val in seen:
+            continue
+        seen.add(val)
+        out.append(val)
+    return out
+
 # Table names (Supabase)
 TBL_PLAN_LIMITS = "plan_limits"
 TBL_USER_USAGE = "user_usage"
@@ -87,10 +102,23 @@ TBL_CONFIDENCE_CALIBRATION_SETTINGS = "confidence_calibration_settings"
 # Plans (your requirements)
 DEFAULT_PLAN = "free"
 PLAN_ORDER = ["free", "elite", "advanced", "pro", "infinite"]
-COACH_LLM_MODEL = os.getenv("COACH_LLM_MODEL", "gemini-1.5-flash").strip() or "gemini-1.5-flash"
+COACH_LLM_MODEL = os.getenv("COACH_LLM_MODEL", "gemini-3-flash-preview").strip() or "gemini-3-flash-preview"
 BEHAVIOR_ENGINE_VERSION = "phase_3_2_v1"
 SCAN_LLM_MODEL = os.getenv("SCAN_LLM_MODEL", "gemini-3-flash-preview").strip() or "gemini-3-flash-preview"
 COACH_VOICE_LLM_MODEL = os.getenv("COACH_VOICE_LLM_MODEL", COACH_LLM_MODEL).strip() or COACH_LLM_MODEL
+COACH_LLM_FALLBACK_MODELS = _env_csv_list(
+    "COACH_LLM_FALLBACK_MODELS",
+    "gemini-3-flash-preview,gemini-2.5-flash,gemini-2.5-flash-lite,gemini-2.0-flash-lite",
+)
+COACH_VOICE_FALLBACK_MODELS = _env_csv_list("COACH_VOICE_FALLBACK_MODELS", ",".join(COACH_LLM_FALLBACK_MODELS))
+COACH_TONE_REWRITE_FALLBACK_MODELS = _env_csv_list(
+    "COACH_TONE_REWRITE_FALLBACK_MODELS",
+    ",".join(COACH_LLM_FALLBACK_MODELS),
+)
+COACH_WEEKLY_REPORT_FALLBACK_MODELS = _env_csv_list(
+    "COACH_WEEKLY_REPORT_FALLBACK_MODELS",
+    ",".join(COACH_LLM_FALLBACK_MODELS),
+)
 try:
     COACH_LLM_TIMEOUT_SEC = max(3.0, min(25.0, float(os.getenv("COACH_LLM_TIMEOUT_SEC", "8").strip() or "8")))
 except Exception:
@@ -120,6 +148,9 @@ DEFAULT_CONFIDENCE_CALIBRATION_SETTINGS = {
     "oil": {"confidence_threshold": 0.70, "range_expansion_factor": 1.0},
     "vision": {"confidence_threshold": 0.85, "range_expansion_factor": 1.0},
 }
+
+# Table-level guardrail: when a Supabase table is missing from schema cache, switch that table to memory fallback.
+_DISABLED_SUPABASE_TABLES = set()
 
 
 # -------------------- MIDDLEWARE --------------------
@@ -157,6 +188,68 @@ def _require_gemini_key():
 def _require_supabase():
     if not SUPABASE_URL or not SUPABASE_SERVICE_ROLE_KEY:
         raise HTTPException(status_code=500, detail="SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY not set on server.")
+
+
+def _llm_model_candidates(primary_model: str, fallback_models: Optional[List[str]] = None) -> List[str]:
+    candidates: List[str] = []
+    seen = set()
+
+    def _push(name: Any):
+        model_name = str(name or "").strip()
+        if not model_name or model_name in seen:
+            return
+        seen.add(model_name)
+        candidates.append(model_name)
+
+    _push(primary_model)
+    for m in (fallback_models or []):
+        _push(m)
+    # Always keep scan model as a late fallback because it is already used in production analyze flow.
+    _push(SCAN_LLM_MODEL)
+    return candidates
+
+
+def _generate_with_model_fallback(
+    system_prompt: str,
+    user_prompt: str,
+    *,
+    primary_model: str,
+    fallback_models: Optional[List[str]],
+    timeout_sec: float,
+    primary_attempts: int = 2,
+    fallback_attempts: int = 1,
+    max_models: int = 4,
+) -> Tuple[str, str, List[str]]:
+    candidates = _llm_model_candidates(primary_model, fallback_models)[: max(1, int(max_models or 1))]
+    tried: List[str] = []
+    last_err = ""
+    for idx, model_name in enumerate(candidates):
+        attempts = max(1, int(primary_attempts if idx == 0 else fallback_attempts))
+        for attempt in range(attempts):
+            tried.append(model_name)
+            try:
+                model = genai.GenerativeModel(model_name)
+                resp = model.generate_content(
+                    [system_prompt, user_prompt],
+                    request_options={"timeout": float(timeout_sec)},
+                )
+                text = str((resp.text or "")).strip()
+                if text:
+                    return text, model_name, tried
+                last_err = f"{model_name}: empty response text"
+            except Exception as e:
+                last_err = f"{model_name}: {str(e)}"
+            if attempt < attempts - 1:
+                time.sleep(0.25 * (attempt + 1))
+    raise HTTPException(
+        status_code=502,
+        detail={
+            "error": "coach_llm_failed",
+            "raw": last_err[:300],
+            "tried_models": tried,
+        },
+    )
+
 
 def _safe_float(x, default=None):
     try:
@@ -658,6 +751,39 @@ def _http_exc_raw(e: Exception) -> str:
         detail = e.detail if isinstance(e.detail, dict) else {"raw": str(e.detail)}
         return str(detail.get("raw") or detail.get("error") or detail)
     return str(e)
+
+
+def _table_key(table: Any) -> str:
+    return str(table or "").strip().lower()
+
+
+def _is_missing_table_error(raw: str, table: Any = "") -> bool:
+    text = str(raw or "").lower()
+    if not text:
+        return False
+    if ("pgrst205" not in text) and ("could not find the table" not in text):
+        return False
+    tkey = _table_key(table)
+    if not tkey:
+        return True
+    return (f"'{tkey}'" in text) or (f".{tkey}" in text) or ("could not find the table" in text)
+
+
+def _is_table_disabled(table: Any) -> bool:
+    return _table_key(table) in _DISABLED_SUPABASE_TABLES
+
+
+def _mark_table_unavailable(table: Any, err: Exception) -> bool:
+    tkey = _table_key(table)
+    if not tkey:
+        return False
+    raw = _http_exc_raw(err)
+    if not _is_missing_table_error(raw, tkey):
+        return False
+    if tkey not in _DISABLED_SUPABASE_TABLES:
+        _DISABLED_SUPABASE_TABLES.add(tkey)
+        logger.warning(f"Supabase table '{tkey}' not available; switching to memory fallback for this table.")
+    return True
 
 
 def _extract_unknown_column(raw: str) -> Optional[str]:
@@ -2716,9 +2842,20 @@ def get_user_plan(user_id: str) -> str:
     row = get_or_init_usage(user_id)
     return (row.get("plan") or DEFAULT_PLAN).lower()
 
+def _uid_input_text(val: Any) -> str:
+    if isinstance(val, str):
+        return val.strip()
+    if val is None:
+        return ""
+    mod = str(getattr(type(val), "__module__", "") or "")
+    if mod.startswith("fastapi.params"):
+        return ""
+    return str(val).strip()
+
+
 def require_user_id(x_user_id: Optional[str], user_id: Optional[str]) -> str:
-    h = (x_user_id or "").strip()
-    q = (user_id or "").strip()
+    h = _uid_input_text(x_user_id)
+    q = _uid_input_text(user_id)
     if h and q and h != q:
         raise HTTPException(status_code=401, detail="Conflicting user ids in header and query.")
     uid = h or q
@@ -2890,6 +3027,7 @@ _COACH_MEM_CACHE: Dict[str, Dict[str, Any]] = {}
 _COACH_VOICE_CACHE_MEM: Dict[str, Dict[str, Any]] = {}
 _WEEKLY_REPORT_CACHE_MEM: Dict[str, Dict[str, Any]] = {}
 _DAILY_TOTALS_VERSION_MEM: Dict[str, Dict[str, Any]] = {}
+_USER_COACH_PROFILE_CACHE: Dict[str, Dict[str, Any]] = {}
 
 _COACH_SYSTEM_PROMPT = (
     "You are a nutrition coaching assistant. "
@@ -2965,6 +3103,115 @@ _DAILY_TONE_PACK = {
         "hinglish_min": 1,
         "hinglish_max": 2,
     },
+}
+
+_COACH_SUMMARY_STYLE_BANK = {
+    "supportive": [
+        "Good momentum today. {summary_fact}",
+        "Nice effort so far. {summary_fact}",
+        "You are building consistency. {summary_fact}",
+        "Small win focus: {summary_fact}",
+        "You are on track. Main lever now: {summary_fact}",
+        "Progress looks steady. Key shift: {summary_fact}",
+        "Strong check-in. Highest-impact change: {summary_fact}",
+        "Today’s direction improves if you fix this: {summary_fact}",
+        "Good base today. Priority lever: {summary_fact}",
+        "Simple focus for today: {summary_fact}",
+    ],
+    "strict": [
+        "Current bottleneck: {bottleneck_label}. {summary_fact} Fix this today.",
+        "Non-negotiable lever is {bottleneck_label}. {summary_fact}",
+        "Results are limited by {bottleneck_label}. {summary_fact} Act now.",
+        "{summary_fact} Do this today.",
+        "Main limiter: {bottleneck_label}. {summary_fact} Execute now.",
+        "This must be corrected today: {summary_fact}",
+        "No drift today. {summary_fact}",
+        "Priority is {bottleneck_label}. {summary_fact} Keep it tight.",
+        "Direct fix required: {summary_fact}",
+        "If unchanged, progress slows. {summary_fact}",
+    ],
+    "funny": [
+        "Plot twist: {summary_fact}",
+        "Cheat code moment: {summary_fact}",
+        "Boss move alert: {summary_fact}",
+        "Side quest check: {summary_fact}",
+        "Quick plot update: {summary_fact}",
+        "Today’s cheat code is simple: {summary_fact}",
+        "Boss move for this meal cycle: {summary_fact}",
+        "Tiny side quest, big payoff: {summary_fact}",
+        "Game plan update: {summary_fact}",
+        "Level-up lever today: {summary_fact}",
+    ],
+    "indian_coach": [
+        "Scene simple hai: {summary_fact}",
+        "Boss, aaj ka lever {bottleneck_label} hai. {summary_fact}",
+        "Chalo, seedha point: {summary_fact}",
+        "Yeh day ka main scene: {summary_fact}",
+        "Aaj ka focus clear hai: {summary_fact}",
+        "Seedha bolun: {summary_fact}",
+        "Boss, yahi main fix hai: {summary_fact}",
+        "Chalo practical rakhte hain: {summary_fact}",
+        "Aaj ka ROI move: {summary_fact}",
+        "Simple scene, strong result: {summary_fact}",
+    ],
+}
+
+_COACH_WHY_STYLE_BANK = {
+    "supportive": [
+        "{impact}",
+        "Why this matters: {impact}",
+        "This matters because {impact}",
+    ],
+    "strict": [
+        "{impact}",
+        "Reason: {impact}",
+        "If unchanged, this will keep progress unstable. {impact}",
+    ],
+    "funny": [
+        "{impact}",
+        "Why it matters: {impact}",
+        "Translation: {impact}",
+    ],
+    "indian_coach": [
+        "{impact}",
+        "Why matter karta hai: {impact}",
+        "Simple reason: {impact}",
+    ],
+}
+
+_COACH_ACTION_STYLE_BANK = {
+    "supportive": [
+        "{one_change}",
+        "Next easy step: {one_change}",
+        "Do this next meal: {one_change}",
+        "Highest-ROI step now: {one_change}",
+        "Simple action right now: {one_change}",
+        "One practical move: {one_change}",
+    ],
+    "strict": [
+        "Do this today: {one_change}",
+        "Immediate fix: {one_change}",
+        "Non-negotiable action: {one_change}",
+        "Execute now: {one_change}",
+        "Priority action: {one_change}",
+        "Fix this in your next meal: {one_change}",
+    ],
+    "funny": [
+        "Cheat code: {one_change}",
+        "Boss move: {one_change}",
+        "Quick win: {one_change}",
+        "Level-up move: {one_change}",
+        "Tiny hack, big impact: {one_change}",
+        "Main quest action: {one_change}",
+    ],
+    "indian_coach": [
+        "Chalo, next meal fix: {one_change}",
+        "Bas itna kar: {one_change}",
+        "Boss move: {one_change}",
+        "Aaj ka direct action: {one_change}",
+        "Seedha next step: {one_change}",
+        "Simple fix abhi: {one_change}",
+    ],
 }
 
 _COACH_TONE_REWRITE_SYSTEM_PROMPT = (
@@ -3071,6 +3318,16 @@ def _blank_coach_memory(day_iso: str) -> Dict[str, Any]:
     }
 
 
+def _coach_memory_field(row: Dict[str, Any], key: str, default: Any = None) -> Any:
+    src = row if isinstance(row, dict) else {}
+    if key in src and src.get(key) is not None:
+        return src.get(key)
+    payload = _parse_jsonish(src.get("payload"), {})
+    if isinstance(payload, dict) and payload.get(key) is not None:
+        return payload.get(key)
+    return default
+
+
 def _read_coach_memory_day(user_id: str, day_iso: str) -> Dict[str, Any]:
     key = _coach_day_memory_key(user_id, day_iso)
     cached = _COACH_MEMORY_CACHE.get(key)
@@ -3078,7 +3335,7 @@ def _read_coach_memory_day(user_id: str, day_iso: str) -> Dict[str, Any]:
         return dict(cached)
 
     out = _blank_coach_memory(day_iso)
-    if not (SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY):
+    if (not (SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY)) or _is_table_disabled(TBL_COACH_MEMORY):
         _COACH_MEMORY_CACHE[key] = out
         return out
     try:
@@ -3095,22 +3352,29 @@ def _read_coach_memory_day(user_id: str, day_iso: str) -> Dict[str, Any]:
             out = {
                 "day": _safe_day_iso(row.get("day") or day_iso),
                 "recent_advice_keys": _normalize_semantic_key_list(
-                    row.get("recent_advice_keys") or row.get("advice_keys") or []
+                    _coach_memory_field(row, "recent_advice_keys")
+                    or _coach_memory_field(row, "advice_keys")
+                    or []
                 ),
                 "recent_user_friction": _normalize_short_text_list(
-                    row.get("recent_user_friction") or row.get("user_friction") or [],
+                    _coach_memory_field(row, "recent_user_friction")
+                    or _coach_memory_field(row, "user_friction")
+                    or [],
                     limit=6,
                     max_chars=90,
                 ),
                 "last_3_coach_messages": _normalize_short_text_list(
-                    row.get("last_3_coach_messages") or row.get("last_messages") or [],
+                    _coach_memory_field(row, "last_3_coach_messages")
+                    or _coach_memory_field(row, "last_messages")
+                    or [],
                     limit=3,
                     max_chars=180,
                 ),
                 "updated_at": str(row.get("updated_at") or dt.datetime.utcnow().isoformat()),
             }
     except Exception as e:
-        logger.info(f"coach memory day read skipped: {e}")
+        if not _mark_table_unavailable(TBL_COACH_MEMORY, e):
+            logger.info(f"coach memory day read skipped: {e}")
     _COACH_MEMORY_CACHE[key] = out
     return dict(out)
 
@@ -3124,7 +3388,7 @@ def _read_coach_memory_window(user_id: str, day_iso: str) -> Dict[str, Any]:
         "recent_user_friction": _normalize_short_text_list(day_mem.get("recent_user_friction"), limit=8, max_chars=90),
         "last_3_coach_messages": _normalize_short_text_list(day_mem.get("last_3_coach_messages"), limit=3, max_chars=180),
     }
-    if not (SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY):
+    if (not (SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY)) or _is_table_disabled(TBL_COACH_MEMORY):
         return out
     try:
         start_day = (dt.date.fromisoformat(day_key) - dt.timedelta(days=6)).isoformat()
@@ -3142,14 +3406,18 @@ def _read_coach_memory_window(user_id: str, day_iso: str) -> Dict[str, Any]:
         seen = set(recent_keys)
         last_messages: List[str] = list(out["last_3_coach_messages"])
         for row in (rows or []):
-            for k in _normalize_semantic_key_list(row.get("recent_advice_keys") or [], limit=12):
+            for k in _normalize_semantic_key_list(_coach_memory_field(row, "recent_advice_keys") or [], limit=12):
                 if k in seen:
                     continue
                 seen.add(k)
                 recent_keys.append(k)
                 if len(recent_keys) >= 24:
                     break
-            for msg in _normalize_short_text_list(row.get("last_3_coach_messages") or [], limit=3, max_chars=180):
+            for msg in _normalize_short_text_list(
+                _coach_memory_field(row, "last_3_coach_messages") or [],
+                limit=3,
+                max_chars=180,
+            ):
                 if msg not in last_messages:
                     last_messages.append(msg)
                 if len(last_messages) >= 3:
@@ -3157,22 +3425,29 @@ def _read_coach_memory_window(user_id: str, day_iso: str) -> Dict[str, Any]:
         out["recent_advice_keys"] = recent_keys[:24]
         out["last_3_coach_messages"] = last_messages[:3]
     except Exception as e:
-        logger.info(f"coach memory 7-day read skipped: {e}")
+        if not _mark_table_unavailable(TBL_COACH_MEMORY, e):
+            logger.info(f"coach memory 7-day read skipped: {e}")
     return out
 
 
 def _write_coach_memory_day(user_id: str, day_iso: str, memory: Dict[str, Any]) -> Dict[str, Any]:
     day_key = _safe_day_iso(day_iso)
-    payload = {
-        "user_id": str(user_id or "").strip(),
-        "day": day_key,
+    payload_json = {
         "recent_advice_keys": _normalize_semantic_key_list((memory or {}).get("recent_advice_keys"), limit=24),
         "recent_user_friction": _normalize_short_text_list((memory or {}).get("recent_user_friction"), limit=8, max_chars=90),
         "last_3_coach_messages": _normalize_short_text_list((memory or {}).get("last_3_coach_messages"), limit=3, max_chars=180),
+    }
+    payload = {
+        "user_id": str(user_id or "").strip(),
+        "day": day_key,
+        "recent_advice_keys": payload_json["recent_advice_keys"],
+        "recent_user_friction": payload_json["recent_user_friction"],
+        "last_3_coach_messages": payload_json["last_3_coach_messages"],
+        "payload": payload_json,
         "updated_at": dt.datetime.utcnow().isoformat(),
     }
     _COACH_MEMORY_CACHE[_coach_day_memory_key(user_id, day_key)] = dict(payload)
-    if not (SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY):
+    if (not (SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY)) or _is_table_disabled(TBL_COACH_MEMORY):
         return payload
     try:
         existing = sb_get_one(
@@ -3198,7 +3473,8 @@ def _write_coach_memory_day(user_id: str, day_iso: str, memory: Dict[str, Any]) 
                 locked_cols={"user_id", "day"},
             )
     except Exception as e:
-        logger.info(f"coach memory write skipped: {e}")
+        if not _mark_table_unavailable(TBL_COACH_MEMORY, e):
+            logger.info(f"coach memory write skipped: {e}")
     return payload
 
 
@@ -3235,6 +3511,42 @@ def _context_gap(context: Dict[str, Any], macro_key: str) -> float:
     return max(0.0, round(g - c, 1))
 
 
+def _resolve_diet_style_from_context(context: Dict[str, Any]) -> str:
+    profile = (context or {}).get("profile") if isinstance((context or {}).get("profile"), dict) else {}
+    constraints = (context or {}).get("constraints") if isinstance((context or {}).get("constraints"), dict) else {}
+    raw = str(profile.get("diet_style") or constraints.get("diet") or "non-veg").strip().lower()
+    aliases = {
+        "nonveg": "non_veg",
+        "non-veg": "non_veg",
+        "non_veg": "non_veg",
+        "omnivore": "non_veg",
+        "veg": "veg",
+        "vegetarian": "veg",
+        "eggetarian": "eggetarian",
+        "egg_veg": "eggetarian",
+        "vegan": "vegan",
+    }
+    return aliases.get(raw, "non_veg")
+
+
+def _join_human_list(items: List[str]) -> str:
+    vals = [str(x or "").strip() for x in (items or []) if str(x or "").strip()]
+    if not vals:
+        return "high-quality protein sources"
+    if len(vals) == 1:
+        return vals[0]
+    if len(vals) == 2:
+        return f"{vals[0]} and {vals[1]}"
+    return f"{', '.join(vals[:-1])}, and {vals[-1]}"
+
+
+def _diet_safe_protein_sources_text(context: Dict[str, Any], limit: int = 5) -> str:
+    diet = _resolve_diet_style_from_context(context)
+    sources = coach_logic.allowed_protein_sources(diet)
+    trimmed = sources[: max(1, int(limit or 5))]
+    return _join_human_list(trimmed)
+
+
 def _is_low_confidence_context(context: Dict[str, Any]) -> bool:
     conf = (context or {}).get("confidence") if isinstance((context or {}).get("confidence"), dict) else {}
     vision_conf = float(_safe_float(conf.get("vision_confidence"), 1.0) or 1.0)
@@ -3261,6 +3573,7 @@ def _voice_action_candidates(context: Dict[str, Any]) -> List[Dict[str, str]]:
     }
     signals = (context or {}).get("signals") if isinstance((context or {}).get("signals"), dict) else {}
     conf = (context or {}).get("confidence") if isinstance((context or {}).get("confidence"), dict) else {}
+    protein_sources_text = _diet_safe_protein_sources_text(context, limit=5)
     candidates: List[Dict[str, str]] = []
 
     if _is_low_confidence_context(context):
@@ -3319,7 +3632,7 @@ def _voice_action_candidates(context: Dict[str, Any]) -> List[Dict[str, str]]:
             {
                 "semantic_key": "hit_leucine_trigger",
                 "title": "Hit one leucine trigger",
-                "how": "Add one high-quality protein hit (eggs/chicken/fish/tofu + dairy).",
+                "how": f"Add one high-quality protein hit using {protein_sources_text}.",
             }
         )
     if not candidates:
@@ -3660,6 +3973,31 @@ def _parse_iso_dt_naive(value: Any) -> Optional[dt.datetime]:
         return None
 
 
+def _cache_user_coach_profile(user_id: str, profile: Dict[str, Any], tone_preference: str = "") -> None:
+    uid = str(user_id or "").strip()
+    if not uid:
+        return
+    src = profile if isinstance(profile, dict) else {}
+    diet_style = coach_logic.normalize_diet_style(src.get("diet_style") or src.get("diet") or "non-veg")
+    entry = {
+        "goal_type": str(src.get("goal_type") or "fat_loss").strip().lower() or "fat_loss",
+        "diet_style": diet_style,
+        "training_days_per_week": max(0, int(_safe_float(src.get("training_days_per_week"), 0) or 0)),
+        "training_time": str(src.get("training_time") or "evening").strip().lower() or "evening",
+        "tone_preference": _normalize_daily_tone_id(tone_preference or src.get("tone_preference") or "supportive"),
+        "updated_at": _now_utc_naive().isoformat(),
+    }
+    _USER_COACH_PROFILE_CACHE[uid] = entry
+
+
+def _get_cached_user_coach_profile(user_id: str) -> Dict[str, Any]:
+    uid = str(user_id or "").strip()
+    if not uid:
+        return {}
+    src = _USER_COACH_PROFILE_CACHE.get(uid)
+    return dict(src) if isinstance(src, dict) else {}
+
+
 def _normalize_tone_preference(v: Any) -> str:
     tone = str(v or "supportive").strip().lower()
     aliases = {
@@ -3696,6 +4034,166 @@ def _clip_line(text: Any, max_words: int = 28) -> str:
     if not words:
         return ""
     return " ".join(words[:max_words]).strip()
+
+
+def _normalize_similarity_text(text: Any) -> str:
+    return re.sub(r"[^a-z0-9]+", " ", str(text or "").strip().lower()).strip()
+
+
+def _line_similarity(a: Any, b: Any) -> float:
+    ta = set(_normalize_similarity_text(a).split())
+    tb = set(_normalize_similarity_text(b).split())
+    if not ta or not tb:
+        return 0.0
+    inter = len(ta.intersection(tb))
+    union = len(ta.union(tb))
+    return float(inter / union) if union else 0.0
+
+
+def _is_repetitive_line(candidate: Any, recent_lines: List[str], threshold: float = 0.78) -> bool:
+    c = _normalize_similarity_text(candidate)
+    if not c:
+        return False
+    for line in (recent_lines or []):
+        r = _normalize_similarity_text(line)
+        if not r:
+            continue
+        if c == r:
+            return True
+        if _line_similarity(c, r) >= float(threshold):
+            return True
+    return False
+
+
+def _pick_style_line(
+    templates: List[str],
+    seed: str,
+    fmt: Dict[str, str],
+    recent_lines: List[str],
+    fallback_line: str,
+    *,
+    max_words: int,
+) -> str:
+    bank = [str(t or "").strip() for t in (templates or []) if str(t or "").strip()]
+    if not bank:
+        return _clip_line(fallback_line, max_words=max_words)
+    idx = int(hashlib.sha256(str(seed or "seed").encode("utf-8")).hexdigest(), 16) % len(bank)
+    for step in range(min(len(bank), 4)):
+        tmpl = bank[(idx + step) % len(bank)]
+        try:
+            candidate = tmpl.format(**fmt)
+        except Exception:
+            candidate = tmpl
+        candidate = _clip_line(candidate, max_words=max_words)
+        if not _is_repetitive_line(candidate, recent_lines):
+            return candidate
+    try:
+        fallback_candidate = bank[idx].format(**fmt)
+    except Exception:
+        fallback_candidate = bank[idx]
+    return _clip_line(fallback_candidate or fallback_line, max_words=max_words)
+
+
+def _coach_variation_seed(user_id: str, day_iso: str, scan_id: str, scan_count: int) -> str:
+    uid = str(user_id or "").strip()[-12:] or "anon"
+    sid = str(scan_id or "").strip()
+    sid_tail = sid[-6:] if sid else f"scan{max(0, int(_safe_float(scan_count, 0) or 0))}"
+    return f"{_safe_day_iso(day_iso)}|{uid}|{sid_tail}"
+
+
+def _apply_dynamic_coach_copy(
+    coach_resp: Dict[str, Any],
+    norm_payload: Dict[str, Any],
+    *,
+    user_id: str,
+    day_iso: str,
+    scan_id: str,
+    scan_count: int,
+    recent_messages: List[str],
+) -> Dict[str, Any]:
+    out = dict(coach_resp or {})
+    recent_for_pick = _normalize_short_text_list(recent_messages, limit=6, max_chars=220)
+    prev_summary = str(out.get("one_sentence_summary") or "").strip()
+    prev_one_thing = str(out.get("if_you_do_one_thing") or "").strip()
+    if prev_summary:
+        recent_for_pick.insert(0, prev_summary[:220])
+    if prev_one_thing:
+        recent_for_pick.insert(0, prev_one_thing[:220])
+    recent_for_pick = _normalize_short_text_list(recent_for_pick, limit=8, max_chars=220)
+
+    tone = _normalize_daily_tone_id(
+        out.get("tone_used")
+        or out.get("tone_requested")
+        or (norm_payload.get("tone_preference") if isinstance(norm_payload, dict) else "")
+        or "supportive"
+    )
+    classifier = _classify_coach_bottleneck(norm_payload if isinstance(norm_payload, dict) else {})
+    bottleneck_label = str(classifier.get("bottleneck") or "consistency").replace("_", " ")
+    summary_fact = str(classifier.get("summary") or "").strip() or "Consistency is the top lever for today."
+    impact = str(classifier.get("impact") or "").strip() or "This pattern can slow progress if repeated."
+    one_change = str(classifier.get("one_change") or "").strip() or "Keep the next meal protein + fiber focused."
+
+    seed = _coach_variation_seed(user_id, day_iso, scan_id, scan_count)
+    fmt = {
+        "summary_fact": summary_fact,
+        "impact": impact,
+        "one_change": one_change,
+        "bottleneck_label": bottleneck_label,
+    }
+    summary_line = _pick_style_line(
+        _COACH_SUMMARY_STYLE_BANK.get(tone, _COACH_SUMMARY_STYLE_BANK["supportive"]),
+        f"{seed}:summary:{tone}:{bottleneck_label}",
+        fmt,
+        recent_for_pick,
+        summary_fact,
+        max_words=28,
+    )
+    why_line = _pick_style_line(
+        _COACH_WHY_STYLE_BANK.get(tone, _COACH_WHY_STYLE_BANK["supportive"]),
+        f"{seed}:why:{tone}:{bottleneck_label}",
+        fmt,
+        recent_for_pick,
+        impact,
+        max_words=30,
+    )
+    one_action_line = _pick_style_line(
+        _COACH_ACTION_STYLE_BANK.get(tone, _COACH_ACTION_STYLE_BANK["supportive"]),
+        f"{seed}:action:{tone}:{bottleneck_label}",
+        fmt,
+        recent_for_pick,
+        one_change,
+        max_words=24,
+    )
+    if prev_summary and _is_repetitive_line(summary_line, [prev_summary], threshold=0.86):
+        summary_line = _pick_style_line(
+            _COACH_SUMMARY_STYLE_BANK.get(tone, _COACH_SUMMARY_STYLE_BANK["supportive"]),
+            f"{seed}:summary:reroll:{tone}:{bottleneck_label}",
+            fmt,
+            [prev_summary],
+            summary_fact,
+            max_words=28,
+        )
+    if prev_one_thing and _is_repetitive_line(one_action_line, [prev_one_thing], threshold=0.86):
+        one_action_line = _pick_style_line(
+            _COACH_ACTION_STYLE_BANK.get(tone, _COACH_ACTION_STYLE_BANK["supportive"]),
+            f"{seed}:action:reroll:{tone}:{bottleneck_label}",
+            fmt,
+            [prev_one_thing],
+            one_change,
+            max_words=24,
+        )
+
+    out["one_sentence_summary"] = summary_line
+    out["if_you_do_one_thing"] = one_action_line
+
+    out["coach_summary"] = out["one_sentence_summary"]
+    out["why_it_matters"] = why_line
+    out["one_action"] = out["if_you_do_one_thing"]
+    out["variation_seed"] = seed
+    out["summary_signature"] = hashlib.sha256(
+        f"{str(out.get('coach_summary') or '')}|{seed}|{tone}".encode("utf-8")
+    ).hexdigest()[:20]
+    return out
 
 
 def _apply_daily_coach_tone(resp: Dict[str, Any], tone_preference: str) -> Dict[str, Any]:
@@ -3782,7 +4280,7 @@ def _apply_daily_coach_tone(resp: Dict[str, Any], tone_preference: str) -> Dict[
         if one_thing and "chalo" not in one_thing.lower():
             one_thing = f"Chalo, next meal fix: {one_thing.rstrip('.')}"
         elif not one_thing:
-            one_thing = "Chalo, next meal fix: dal/curd/paneer ya eggs ke saath fiber add karo."
+            one_thing = "Chalo, next meal fix: dal/curd/paneer/tofu ke saath fiber add karo."
         if isinstance(roi, dict):
             title = str(roi.get("title") or "").strip()
             if title and not any(k in title.lower() for k in ("scene", "boss", "anchor")):
@@ -3970,7 +4468,6 @@ def rewrite_coach_tone(
     if (not allow_llm) or (not GEMINI_API_KEY):
         return fallback
 
-    model = genai.GenerativeModel(COACH_LLM_MODEL)
     schema_hint = {
         "tone_id": "supportive|strict|funny|indian_coach",
         "source": "llm_rewrite|rules_fallback_rewrite",
@@ -4004,52 +4501,60 @@ def rewrite_coach_tone(
         "Rewrite content into requested tone. Return ONLY JSON."
     )
     last_err = ""
-    attempts = 2
+    candidates = _llm_model_candidates(COACH_LLM_MODEL, COACH_TONE_REWRITE_FALLBACK_MODELS)[:4]
+    tried_models: List[str] = []
     prior_raw = ""
-    for attempt in range(attempts):
-        try:
-            prompt = user_prompt
-            if attempt == 1:
-                prompt = (
-                    f"{user_prompt}\n\n"
-                    "Previous output did not validate schema/tone rules. "
-                    "Fix strictly and return valid JSON only.\n"
-                    f"Previous output snippet:\n{prior_raw[:800]}"
+    for idx, model_name in enumerate(candidates):
+        attempts = 2 if idx == 0 else 1
+        for attempt in range(attempts):
+            try:
+                prompt = user_prompt
+                if attempt == 1:
+                    prompt = (
+                        f"{user_prompt}\n\n"
+                        "Previous output did not validate schema/tone rules. "
+                        "Fix strictly and return valid JSON only.\n"
+                        f"Previous output snippet:\n{prior_raw[:800]}"
+                    )
+                tried_models.append(model_name)
+                model = genai.GenerativeModel(model_name)
+                resp = model.generate_content(
+                    [_COACH_TONE_REWRITE_SYSTEM_PROMPT, prompt],
+                    request_options={"timeout": min(COACH_LLM_TIMEOUT_SEC, 6.0)},
                 )
-            resp = model.generate_content(
-                [_COACH_TONE_REWRITE_SYSTEM_PROMPT, prompt],
-                request_options={"timeout": min(COACH_LLM_TIMEOUT_SEC, 6.0)},
-            )
-            txt = (resp.text or "").strip()
-            prior_raw = txt
-            parsed = coach_logic.extract_json_object(txt)
-            if not isinstance(parsed, dict):
-                raise ValueError("tone rewrite non-json")
-            parsed["tone_id"] = _normalize_daily_tone_id(parsed.get("tone_id") or tone)
-            parsed["source"] = "llm_rewrite"
-            parsed["freshness"] = str(parsed.get("freshness") or freshness).strip().lower()
-            if parsed["freshness"] not in {"updated_now", "updating", "stale_cache"}:
-                parsed["freshness"] = freshness if freshness in {"updated_now", "updating", "stale_cache"} else "updated_now"
-            if not isinstance(parsed.get("microcopy"), dict):
-                parsed["microcopy"] = fallback["microcopy"]
-            if not isinstance(parsed.get("actions"), list):
-                parsed["actions"] = fallback["actions"]
-            parsed["actions"] = [a for a in parsed.get("actions", []) if isinstance(a, dict)][: max(1, min(5, int(max_actions or 3)))]
-            if not parsed["actions"]:
-                parsed["actions"] = fallback["actions"][:1]
-            parsed["copy_checks"] = _tone_copy_checks(parsed, parsed["tone_id"])
-            obj = _model_validate(CoachToneRewriteV1Model, parsed)
-            out = _model_dump(obj)
-            checks = _tone_copy_checks(out, out.get("tone_id"))
-            out["copy_checks"] = checks
-            if not checks.get("constraints_passed"):
-                raise ValueError(f"tone rewrite constraints failed: {checks.get('notes')}")
-            return out
-        except Exception as e:
-            last_err = str(e)
-            if attempt < attempts - 1:
-                time.sleep(0.25 * (attempt + 1))
-    logger.info(f"tone rewrite fallback used: {last_err[:180]}")
+                txt = (resp.text or "").strip()
+                prior_raw = txt
+                parsed = coach_logic.extract_json_object(txt)
+                if not isinstance(parsed, dict):
+                    raise ValueError("tone rewrite non-json")
+                parsed["tone_id"] = _normalize_daily_tone_id(parsed.get("tone_id") or tone)
+                parsed["source"] = "llm_rewrite"
+                parsed["freshness"] = str(parsed.get("freshness") or freshness).strip().lower()
+                if parsed["freshness"] not in {"updated_now", "updating", "stale_cache"}:
+                    parsed["freshness"] = freshness if freshness in {"updated_now", "updating", "stale_cache"} else "updated_now"
+                if not isinstance(parsed.get("microcopy"), dict):
+                    parsed["microcopy"] = fallback["microcopy"]
+                if not isinstance(parsed.get("actions"), list):
+                    parsed["actions"] = fallback["actions"]
+                parsed["actions"] = [a for a in parsed.get("actions", []) if isinstance(a, dict)][: max(1, min(5, int(max_actions or 3)))]
+                if not parsed["actions"]:
+                    parsed["actions"] = fallback["actions"][:1]
+                parsed["copy_checks"] = _tone_copy_checks(parsed, parsed["tone_id"])
+                obj = _model_validate(CoachToneRewriteV1Model, parsed)
+                out = _model_dump(obj)
+                checks = _tone_copy_checks(out, out.get("tone_id"))
+                out["copy_checks"] = checks
+                if not checks.get("constraints_passed"):
+                    raise ValueError(f"tone rewrite constraints failed: {checks.get('notes')}")
+                out["_llm_model_used"] = model_name
+                return out
+            except Exception as e:
+                last_err = f"{model_name}: {str(e)}"
+                if attempt < attempts - 1:
+                    time.sleep(0.25 * (attempt + 1))
+                else:
+                    time.sleep(0.08)
+    logger.info(f"tone rewrite fallback used: {last_err[:180]} | tried_models={tried_models}")
     return fallback
 
 
@@ -4266,7 +4771,7 @@ def _coach_voice_cache_get(user_id: str, day_iso: str, payload_hash: str, tone_p
         if exp and exp > now and isinstance(mem.get("response"), dict):
             return dict(mem.get("response"))
 
-    if not (SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY):
+    if (not (SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY)) or _is_table_disabled(TBL_COACH_VOICE_CACHE):
         return None
     try:
         row = sb_get_one(
@@ -4282,7 +4787,8 @@ def _coach_voice_cache_get(user_id: str, day_iso: str, payload_hash: str, tone_p
             },
         )
     except Exception as e:
-        logger.info(f"coach voice cache read skipped: {e}")
+        if not _mark_table_unavailable(TBL_COACH_VOICE_CACHE, e):
+            logger.info(f"coach voice cache read skipped: {e}")
         return None
     if not row:
         return None
@@ -4316,7 +4822,7 @@ def _coach_voice_cache_set(
         "response": resp,
     }
 
-    if not (SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY):
+    if (not (SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY)) or _is_table_disabled(TBL_COACH_VOICE_CACHE):
         return
     row = {
         "user_id": str(user_id or "").strip(),
@@ -4360,7 +4866,8 @@ def _coach_voice_cache_set(
                 locked_cols={"user_id", "day", "payload_hash", "tone_preference"},
             )
     except Exception as e:
-        logger.info(f"coach voice cache write skipped: {e}")
+        if not _mark_table_unavailable(TBL_COACH_VOICE_CACHE, e):
+            logger.info(f"coach voice cache write skipped: {e}")
 
 
 def _weekly_report_cache_key(user_id: str, week_start_iso: str, payload_hash: str) -> str:
@@ -5458,6 +5965,22 @@ def _classify_fli_reason_code(raw: str) -> str:
     return "LLM_EXCEPTION"
 
 
+def _extract_llm_failure_debug(err: Exception) -> Tuple[str, List[str], str]:
+    raw = _http_exc_raw(err)
+    reason = _classify_fli_reason_code(raw)
+    tried_models: List[str] = []
+    if isinstance(err, HTTPException) and isinstance(err.detail, dict):
+        arr = err.detail.get("tried_models")
+        if isinstance(arr, list):
+            for m in arr:
+                name = str(m or "").strip()
+                if name and name not in tried_models:
+                    tried_models.append(name)
+        if not raw:
+            raw = str(err.detail.get("raw") or err.detail.get("error") or "")
+    return reason, tried_models[:8], str(raw or "")[:300]
+
+
 def _compute_fli_stale_seconds(ts_iso: Any) -> int:
     parsed = _parse_iso_dt_naive(ts_iso)
     if not parsed:
@@ -5827,7 +6350,6 @@ def _generate_daily_coach_llm(
     tone_preference: str = "supportive",
 ) -> Dict[str, Any]:
     _require_gemini_key()
-    model = genai.GenerativeModel(COACH_LLM_MODEL)
     user_prompt = _coach_user_prompt(
         norm_payload,
         fat_loss_score,
@@ -5837,30 +6359,42 @@ def _generate_daily_coach_llm(
         fast_mode=fast_mode,
         tone_preference=tone_preference,
     )
-    last_err = ""
-    max_attempts = 1 if fast_mode else 2
     timeout_sec = min(COACH_LLM_TIMEOUT_SEC, 5.0) if fast_mode else COACH_LLM_TIMEOUT_SEC
-    for attempt in range(max_attempts):
-        try:
-            resp = model.generate_content(
-                [_COACH_SYSTEM_PROMPT, user_prompt],
-                request_options={"timeout": timeout_sec},
-            )
-            text = (resp.text or "").strip()
-            parsed = coach_logic.extract_json_object(text)
-            if not isinstance(parsed, dict):
-                raise ValueError("LLM did not return valid JSON object.")
+    max_models = 2 if fast_mode else 4
+    last_err = ""
+    tried_models: List[str] = []
+    candidates = _llm_model_candidates(COACH_LLM_MODEL, COACH_LLM_FALLBACK_MODELS)[:max_models]
+    for idx, model_name in enumerate(candidates):
+        attempts = 1 if fast_mode else (2 if idx == 0 else 1)
+        for attempt in range(attempts):
+            tried_models.append(model_name)
+            try:
+                model = genai.GenerativeModel(model_name)
+                resp = model.generate_content(
+                    [_COACH_SYSTEM_PROMPT, user_prompt],
+                    request_options={"timeout": timeout_sec},
+                )
+                text = str((resp.text or "")).strip()
+                if not text:
+                    raise ValueError("LLM returned empty text")
+                parsed = coach_logic.extract_json_object(text)
+                if not isinstance(parsed, dict):
+                    raise ValueError("LLM did not return valid JSON object.")
 
-            cleaned = _coerce_coach_response_shape(parsed, rule_alerts, weekly_predictive=weekly_predictive)
-            ok, reason = coach_logic.validate_llm_response_shape(cleaned)
-            if not ok:
-                raise ValueError(f"LLM JSON failed validation: {reason}")
-            return cleaned
-        except Exception as e:
-            last_err = str(e)
-            if attempt < max_attempts - 1:
-                time.sleep(0.6 * (attempt + 1))
-    raise HTTPException(status_code=502, detail={"error": "coach_llm_failed", "raw": last_err[:300]})
+                cleaned = _coerce_coach_response_shape(parsed, rule_alerts, weekly_predictive=weekly_predictive)
+                ok, reason = coach_logic.validate_llm_response_shape(cleaned)
+                if not ok:
+                    raise ValueError(f"LLM JSON failed validation: {reason}")
+                cleaned["_llm_model_used"] = model_name
+                return cleaned
+            except Exception as e:
+                last_err = f"{model_name}: {str(e)}"
+                if attempt < attempts - 1:
+                    time.sleep(0.25 * (attempt + 1))
+    raise HTTPException(
+        status_code=502,
+        detail={"error": "coach_llm_failed", "raw": last_err[:300], "tried_models": tried_models},
+    )
 
 
 def _public_predictive_signals(weekly_predictive: Optional[Dict[str, Any]], week_start_iso: str) -> Optional[Dict[str, Any]]:
@@ -6005,6 +6539,12 @@ def _build_server_daily_coach_payload(
         )
         or 0
     )
+    profile_hint = _get_cached_user_coach_profile(user_id)
+    hint_diet = coach_logic.normalize_diet_style(profile_hint.get("diet_style") or "non-veg")
+    hint_goal = str(profile_hint.get("goal_type") or "fat_loss").strip().lower() or "fat_loss"
+    hint_training_days = max(0, int(_safe_float(profile_hint.get("training_days_per_week"), 0) or 0))
+    hint_training_time = str(profile_hint.get("training_time") or "evening").strip().lower() or "evening"
+    hint_tone = _normalize_daily_tone_id(profile_hint.get("tone_preference") or "supportive")
 
     payload = {
         "date": day_iso,
@@ -6035,15 +6575,15 @@ def _build_server_daily_coach_payload(
             "late_calories_pct": round(_safe_float(sig.get("late_calories_pct"), 0.0), 1),
             "biggest_meal": str(sig.get("biggest_meal") or "dinner"),
         },
-        "constraints": {"diet": "non-veg", "allergies": [], "region": "US"},
+        "constraints": {"diet": hint_diet, "allergies": [], "region": "US"},
         "profile": {
-            "goal_type": "fat_loss",
-            "diet_style": "non-veg",
-            "training_days_per_week": 0,
-            "training_time": "evening",
-            "tone_preference": "supportive",
+            "goal_type": hint_goal,
+            "diet_style": hint_diet,
+            "training_days_per_week": hint_training_days,
+            "training_time": hint_training_time,
+            "tone_preference": hint_tone,
         },
-        "tone_preference": "supportive",
+        "tone_preference": hint_tone,
         "_state": {
             "scan_count": int(_safe_float(sig.get("meals_count"), 0) or 0),
             "day": day_iso,
@@ -6072,6 +6612,7 @@ def _build_quick_fli_response(
     latest_scan_id: str = "",
     latest_scan_ts: str = "",
     tone_preference: str = "supportive",
+    user_id: str = "",
 ) -> Dict[str, Any]:
     norm = coach_logic.normalize_daily_payload(payload or {})
     tone_pref = _normalize_daily_tone_id(
@@ -6135,6 +6676,19 @@ def _build_quick_fli_response(
         max_actions=2,
         allow_llm=False,
     )
+    recent_msgs: List[str] = []
+    if str(user_id or "").strip():
+        mem_day = _read_coach_memory_day(str(user_id or "").strip(), str(out.get("date") or norm.get("date") or _today_date().isoformat()))
+        recent_msgs = _normalize_short_text_list(mem_day.get("last_3_coach_messages"), limit=3, max_chars=180)
+    out = _apply_dynamic_coach_copy(
+        out,
+        norm,
+        user_id=str(user_id or "").strip(),
+        day_iso=str(out.get("date") or norm.get("date") or _today_date().isoformat()),
+        scan_id=str(latest_scan_id or ""),
+        scan_count=int(_safe_float(((norm.get("signals") or {}).get("meals_count")), 0) or 0),
+        recent_messages=recent_msgs,
+    )
     return out
 
 
@@ -6175,24 +6729,56 @@ def _warm_daily_coach_async(
 def _voice_metrics_from_request(req: CoachVoiceRequestModel) -> Dict[str, Any]:
     goals = req.goals or {}
     consumed = req.consumed or {}
-    meals = list(req.meals or [])
+    meals_raw = list(req.meals or [])
+    meals: List[Dict[str, Any]] = []
+    for m in meals_raw:
+        if isinstance(m, dict):
+            meals.append(dict(m))
+            continue
+        if hasattr(m, "model_dump"):
+            try:
+                meals.append(dict(m.model_dump()))
+                continue
+            except Exception:
+                pass
+        meals.append(
+            {
+                "meal_id": str(getattr(m, "meal_id", "") or ""),
+                "ts": str(getattr(m, "ts", "") or ""),
+                "label": str(getattr(m, "label", "") or ""),
+                "kcal": _safe_float(getattr(m, "kcal", 0.0), 0.0),
+                "protein_g": _safe_float(getattr(m, "protein_g", 0.0), 0.0),
+                "carbs_g": _safe_float(getattr(m, "carbs_g", 0.0), 0.0),
+                "fat_g": _safe_float(getattr(m, "fat_g", 0.0), 0.0),
+                "confidence": _safe_float(getattr(m, "confidence", 0.0), 0.0),
+                "notes": str(getattr(m, "notes", "") or ""),
+            }
+        )
 
     protein_gap = max(0.0, round(_safe_float(goals.get("protein_g"), 0.0) - _safe_float(consumed.get("protein_g"), 0.0), 1))
     fiber_gap = max(0.0, round(_safe_float(goals.get("fiber_g"), 0.0) - _safe_float(consumed.get("fiber_g"), 0.0), 1))
     kcal_delta = round(_safe_float(consumed.get("kcal"), 0.0) - _safe_float(goals.get("kcal"), 0.0), 1)
-    avg_conf = round(_safe_avg([_safe_float((m or {}).get("confidence"), 0.0) for m in meals]), 3)
+    avg_conf = round(
+        _safe_avg(
+            [
+                _safe_float(m.get("confidence"), 0.0)
+                for m in meals
+            ]
+        ),
+        3,
+    )
 
     late_kcal = 0.0
     total_meal_kcal = 0.0
     upf_hints = 0
     for m in meals:
-        kcal = float(_safe_float(m.kcal, 0.0) or 0.0)
+        kcal = float(_safe_float(m.get("kcal"), 0.0) or 0.0)
         total_meal_kcal += kcal
-        ts = _parse_iso_dt_naive(m.ts)
+        ts = _parse_iso_dt_naive(m.get("ts"))
         if ts and (ts.hour >= 19 or ts.hour <= 1):
             late_kcal += kcal
-        notes = str(m.notes or "").lower()
-        label = str(m.label or "").lower()
+        notes = str(m.get("notes") or "").lower()
+        label = str(m.get("label") or "").lower()
         if any(x in notes or x in label for x in ("fried", "packaged", "processed", "sugary", "dessert")):
             upf_hints += 1
     late_calories_pct = round(((late_kcal / total_meal_kcal) * 100.0), 1) if total_meal_kcal > 0 else 0.0
@@ -6448,7 +7034,6 @@ def _generate_human_coach_voice_llm(
     recent_keys: List[str],
 ) -> Dict[str, Any]:
     _require_gemini_key()
-    model = genai.GenerativeModel(COACH_VOICE_LLM_MODEL)
     metrics = _voice_metrics_from_request(req)
     tone_pref = _normalize_tone_preference(req.tone_preference)
     candidate_actions = _voice_action_templates(metrics)
@@ -6485,21 +7070,31 @@ def _generate_human_coach_voice_llm(
         f"Output schema:\n{json.dumps(schema, ensure_ascii=True)}"
     )
     last_err = ""
-    for attempt in range(2):
-        try:
-            resp = model.generate_content(
-                [_COACH_VOICE_SYSTEM_PROMPT, prompt],
-                request_options={"timeout": COACH_VOICE_TIMEOUT_SEC},
-            )
-            parsed = coach_logic.extract_json_object(str((resp.text or "")).strip())
-            if not isinstance(parsed, dict):
-                raise ValueError("Coach voice output is not valid JSON.")
-            return parsed
-        except Exception as e:
-            last_err = str(e)
-            if attempt < 1:
-                time.sleep(0.25)
-    raise HTTPException(status_code=502, detail={"error": "coach_voice_llm_failed", "raw": last_err[:300]})
+    tried_models: List[str] = []
+    candidates = _llm_model_candidates(COACH_VOICE_LLM_MODEL, COACH_VOICE_FALLBACK_MODELS)[:4]
+    for idx, model_name in enumerate(candidates):
+        attempts = 2 if idx == 0 else 1
+        for attempt in range(attempts):
+            tried_models.append(model_name)
+            try:
+                model = genai.GenerativeModel(model_name)
+                resp = model.generate_content(
+                    [_COACH_VOICE_SYSTEM_PROMPT, prompt],
+                    request_options={"timeout": COACH_VOICE_TIMEOUT_SEC},
+                )
+                parsed = coach_logic.extract_json_object(str((resp.text or "")).strip())
+                if not isinstance(parsed, dict):
+                    raise ValueError("Coach voice output is not valid JSON.")
+                parsed["_llm_model_used"] = model_name
+                return parsed
+            except Exception as e:
+                last_err = f"{model_name}: {str(e)}"
+                if attempt < attempts - 1:
+                    time.sleep(0.25 * (attempt + 1))
+    raise HTTPException(
+        status_code=502,
+        detail={"error": "coach_voice_llm_failed", "raw": last_err[:300], "tried_models": tried_models},
+    )
 
 
 @app.post("/coach/voice")
@@ -6516,6 +7111,7 @@ def coach_voice(
     uid = require_user_id(x_user_id, user_id or req.user_id)
     day_iso = _safe_day_iso(req.day)
     tone_pref = _normalize_tone_preference(req.tone_preference)
+    _cache_user_coach_profile(uid, _model_dump(req.user_profile), tone_pref)
     payload_hash = str(req.payload_hash or "").strip()
     if not payload_hash:
         payload_hash = hashlib.sha256(
@@ -6543,15 +7139,28 @@ def coach_voice(
     )
 
     output: Dict[str, Any]
+    voice_source = "fallback"
+    voice_model_used = ""
+    voice_reason_code = ""
+    voice_tried_models: List[str] = []
     if GEMINI_API_KEY:
         try:
             llm_raw = _generate_human_coach_voice_llm(req, recent_keys)
             output = _coerce_voice_output(llm_raw, req, recent_keys)
+            voice_source = "llm"
+            voice_model_used = str((llm_raw or {}).get("_llm_model_used") or "").strip()
         except Exception as e:
+            voice_reason_code, voice_tried_models, _ = _extract_llm_failure_debug(e)
             logger.warning(f"coach voice llm failed, using fallback: {e}")
             output = _voice_fallback_response(req, recent_keys, timeout_mode=True)
     else:
         output = _voice_fallback_response(req, recent_keys, timeout_mode=False)
+        voice_reason_code = "NO_GEMINI_KEY"
+
+    output["source"] = voice_source
+    output["llm_model_used"] = voice_model_used
+    output["llm_error_code"] = voice_reason_code if voice_source != "llm" else ""
+    output["llm_tried_models"] = voice_tried_models if voice_source != "llm" else ([] if not voice_model_used else [voice_model_used])
 
     _append_coach_memory_entry(
         uid,
@@ -6859,7 +7468,6 @@ def _coerce_weekly_report_shape(raw: Dict[str, Any], fallback: Dict[str, Any]) -
 
 def _generate_weekly_report_llm(base_payload: Dict[str, Any], tone_preference: str) -> Dict[str, Any]:
     _require_gemini_key()
-    model = genai.GenerativeModel(COACH_LLM_MODEL)
     schema = {
         "week_start": "YYYY-MM-DD",
         "week_end": "YYYY-MM-DD",
@@ -6881,21 +7489,31 @@ def _generate_weekly_report_llm(base_payload: Dict[str, Any], tone_preference: s
         f"Output schema:\n{json.dumps(schema, ensure_ascii=True)}"
     )
     last_err = ""
-    for attempt in range(2):
-        try:
-            resp = model.generate_content(
-                [_COACH_SYSTEM_PROMPT, prompt],
-                request_options={"timeout": COACH_LLM_TIMEOUT_SEC},
-            )
-            parsed = coach_logic.extract_json_object(str((resp.text or "")).strip())
-            if not isinstance(parsed, dict):
-                raise ValueError("weekly report output invalid JSON")
-            return parsed
-        except Exception as e:
-            last_err = str(e)
-            if attempt < 1:
-                time.sleep(0.35)
-    raise HTTPException(status_code=502, detail={"error": "weekly_report_llm_failed", "raw": last_err[:300]})
+    tried_models: List[str] = []
+    candidates = _llm_model_candidates(COACH_LLM_MODEL, COACH_WEEKLY_REPORT_FALLBACK_MODELS)[:4]
+    for idx, model_name in enumerate(candidates):
+        attempts = 2 if idx == 0 else 1
+        for attempt in range(attempts):
+            tried_models.append(model_name)
+            try:
+                model = genai.GenerativeModel(model_name)
+                resp = model.generate_content(
+                    [_COACH_SYSTEM_PROMPT, prompt],
+                    request_options={"timeout": COACH_LLM_TIMEOUT_SEC},
+                )
+                parsed = coach_logic.extract_json_object(str((resp.text or "")).strip())
+                if not isinstance(parsed, dict):
+                    raise ValueError("weekly report output invalid JSON")
+                parsed["_llm_model_used"] = model_name
+                return parsed
+            except Exception as e:
+                last_err = f"{model_name}: {str(e)}"
+                if attempt < attempts - 1:
+                    time.sleep(0.25 * (attempt + 1))
+    raise HTTPException(
+        status_code=502,
+        detail={"error": "weekly_report_llm_failed", "raw": last_err[:300], "tried_models": tried_models},
+    )
 
 
 @app.post("/coach/weekly_report")
@@ -7112,6 +7730,7 @@ def coach_daily(
     if not isinstance(norm.get("profile"), dict):
         norm["profile"] = {}
     norm["profile"]["tone_preference"] = tone_pref
+    _cache_user_coach_profile(uid, norm.get("profile") if isinstance(norm.get("profile"), dict) else {}, tone_pref)
     if not norm.get("date"):
         norm["date"] = _today_date().isoformat()
 
@@ -7195,6 +7814,8 @@ def coach_daily(
     if processed_scan_id:
         p_hash = hashlib.sha256(f"{p_hash}:{processed_scan_id}".encode("utf-8")).hexdigest()
     daily_totals_version = str(incoming_daily_version or state_signature or p_hash)
+    memory_window = _read_coach_memory_window(uid, day_iso)
+    recent_coach_messages = _normalize_short_text_list(memory_window.get("last_3_coach_messages"), limit=3, max_chars=180)
 
     cached = _coach_cache_get(uid, day_iso, p_hash) if not refresh else None
     if isinstance(cached, dict):
@@ -7229,6 +7850,10 @@ def coach_daily(
         out["fli_stale_seconds"] = int(out.get("fli_stale_seconds") or _compute_fli_stale_seconds(out.get("coach_generated_ts")))
         out["fli_status"] = str(out.get("fli_status") or "ready")
         out["source_display"] = "Coach"
+        out["source"] = "llm" if _normalize_fli_source(out) in {"llm", "cached_llm"} else "fallback"
+        out["llm_model_used"] = str(out.get("llm_model_used") or "")
+        out["llm_error_code"] = str(out.get("llm_error_code") or ("" if out["source"] == "llm" else out.get("fli_reason_code") or ""))
+        out["llm_tried_models"] = list(out.get("llm_tried_models") or [])
         out["daily_totals_version"] = str(out.get("daily_totals_version") or daily_totals_version)
         out = _ensure_coach_voice_defaults(out, weekly_predictive=weekly_predictive)
         needs_rewrite = (str(out.get("tone_used") or "").strip().lower() != tone_pref) or (
@@ -7265,6 +7890,15 @@ def coach_daily(
             out["predictive_signals"] = public_pred
         else:
             out.pop("predictive_signals", None)
+        out = _apply_dynamic_coach_copy(
+            out,
+            norm,
+            user_id=uid,
+            day_iso=day_iso,
+            scan_id=processed_scan_id,
+            scan_count=meals_count_today,
+            recent_messages=recent_coach_messages,
+        )
         logger.info(
             f"fli_fetch source=cache user={uid} updatedAt={out.get('updatedAt')} "
             f"last_processed_scan_id={out.get('last_processed_scan_id')} "
@@ -7276,6 +7910,9 @@ def coach_daily(
     llm_resp: Optional[Dict[str, Any]] = None
     reasoning_source = "rules"
     llm_reason_code = ""
+    llm_model_used = ""
+    llm_tried_models: List[str] = []
+    llm_error_raw = ""
     if GEMINI_API_KEY:
         try:
             llm_resp = _generate_daily_coach_llm(
@@ -7289,8 +7926,9 @@ def coach_daily(
             )
             reasoning_source = "llm"
             llm_reason_code = ""
+            llm_model_used = str((llm_resp or {}).get("_llm_model_used") or "").strip()
         except Exception as e:
-            llm_reason_code = _classify_fli_reason_code(str(e))
+            llm_reason_code, llm_tried_models, llm_error_raw = _extract_llm_failure_debug(e)
             logger.warning(f"Daily coach LLM failed, using fallback: {e}")
 
     if not llm_resp:
@@ -7307,6 +7945,10 @@ def coach_daily(
             final_resp["fli_stale_seconds"] = _compute_fli_stale_seconds(final_resp.get("coach_generated_ts"))
             final_resp["fli_status"] = "ready"
             final_resp["source_display"] = "Coach"
+            final_resp["source"] = "llm"
+            final_resp["llm_model_used"] = str(final_resp.get("llm_model_used") or llm_model_used or "")
+            final_resp["llm_error_code"] = str(final_resp.get("llm_error_code") or llm_reason_code or "")
+            final_resp["llm_tried_models"] = list(final_resp.get("llm_tried_models") or llm_tried_models or [])
             final_resp["payload_hash_used"] = p_hash
             final_resp["insight_signature"] = p_hash
             final_resp["daily_totals_version"] = daily_totals_version
@@ -7332,6 +7974,26 @@ def coach_daily(
             public_pred = _public_predictive_signals(weekly_predictive, week_start_iso)
             if isinstance(public_pred, dict):
                 final_resp["predictive_signals"] = public_pred
+            final_resp = _apply_dynamic_coach_copy(
+                final_resp,
+                norm,
+                user_id=uid,
+                day_iso=day_iso,
+                scan_id=processed_scan_id,
+                scan_count=meals_count_today,
+                recent_messages=recent_coach_messages,
+            )
+            try:
+                roi_cached = final_resp.get("highest_roi_change") if isinstance(final_resp.get("highest_roi_change"), dict) else {}
+                sem_key_cached = _infer_semantic_key_from_action(roi_cached.get("title"), roi_cached.get("how"))
+                _append_coach_memory_entry(
+                    uid,
+                    day_iso,
+                    sem_key_cached,
+                    str(final_resp.get("one_sentence_summary") or final_resp.get("coach_summary") or ""),
+                )
+            except Exception as e:
+                logger.info(f"coach memory append skipped in /coach/daily (cached_llm): {e}")
             _coach_cache_set(uid, day_iso, p_hash, final_resp)
             logger.info(
                 f"fli_fetch source={final_resp.get('reasoning_source')} user={uid} updatedAt={final_resp.get('updatedAt')} "
@@ -7371,6 +8033,11 @@ def coach_daily(
         "fli_stale_seconds": 0,
         "fli_status": "ready",
         "source_display": "Coach",
+        "source": "llm" if reasoning_source == "llm" else "fallback",
+        "llm_model_used": llm_model_used if reasoning_source == "llm" else "",
+        "llm_error_code": llm_reason_code if reasoning_source != "llm" else "",
+        "llm_tried_models": llm_tried_models if reasoning_source != "llm" else ([] if not llm_model_used else [llm_model_used]),
+        "llm_error_raw": llm_error_raw if reasoning_source != "llm" else "",
         "week_start": week_start_iso,
         "last_processed_scan_id": processed_scan_id,
         "last_processed_scan_ts": processed_scan_ts,
@@ -7426,6 +8093,11 @@ def coach_daily(
             "fli_stale_seconds": 0,
             "fli_status": "ready",
             "source_display": "Coach",
+            "source": "fallback",
+            "llm_model_used": "",
+            "llm_error_code": "SAFETY_GATE_FAILED",
+            "llm_tried_models": llm_tried_models,
+            "llm_error_raw": llm_error_raw,
             "week_start": week_start_iso,
             "last_processed_scan_id": processed_scan_id,
             "last_processed_scan_ts": processed_scan_ts,
@@ -7455,6 +8127,26 @@ def coach_daily(
         freshness=_coach_rewrite_freshness_from_payload(final_resp, default="updated_now"),
         max_actions=(2 if fast else 3),
     )
+    final_resp = _apply_dynamic_coach_copy(
+        final_resp,
+        norm,
+        user_id=uid,
+        day_iso=day_iso,
+        scan_id=processed_scan_id,
+        scan_count=meals_count_today,
+        recent_messages=recent_coach_messages,
+    )
+    try:
+        roi_main = final_resp.get("highest_roi_change") if isinstance(final_resp.get("highest_roi_change"), dict) else {}
+        sem_key_main = _infer_semantic_key_from_action(roi_main.get("title"), roi_main.get("how"))
+        _append_coach_memory_entry(
+            uid,
+            day_iso,
+            sem_key_main,
+            str(final_resp.get("one_sentence_summary") or final_resp.get("coach_summary") or ""),
+        )
+    except Exception as e:
+        logger.info(f"coach memory append skipped in /coach/daily: {e}")
     _coach_cache_set(uid, day_iso, p_hash, final_resp)
     logger.info(
         f"fli_fetch source={final_resp.get('reasoning_source')} user={uid} updatedAt={final_resp.get('updatedAt')} "
@@ -8604,16 +9296,16 @@ def leucine_messages(leucine_gap_g: float) -> List[str]:
     if leucine_gap_g <= 0.4:
         return [
             "Add a little more protein to hit the muscle-building threshold.",
-            "Easy add-ons: Greek yogurt, milk, eggs, chicken, or whey."
+            "Easy add-ons: Greek yogurt, milk, paneer, tofu, lentils, or whey."
         ]
     if leucine_gap_g <= 1.0:
         return [
             "You're close — add a moderate protein boost.",
-            "Good options: extra chicken/fish/eggs, tofu/tempeh, Greek yogurt, or a protein shake."
+            "Good options: tofu/tempeh, paneer, Greek yogurt, lentils, or a protein shake."
         ]
     return [
         "You're quite short — this meal needs more protein to trigger muscle-building.",
-        "Add a strong protein portion (e.g., chicken/fish/lean meat/tofu) or a protein shake."
+        "Add a strong protein portion (e.g., tofu/paneer/lentils/Greek yogurt) or a protein shake."
     ]
 
 def estimate_satiety_score(total_kcal: float, protein_g: float, carbs_g: float, fat_g: float) -> float:
@@ -9172,6 +9864,7 @@ async def analyze(
             latest_scan_id=analysis_id,
             latest_scan_ts=scan_ts,
             tone_preference=coach_tone_pref,
+            user_id=uid,
         )
         response["fat_loss_intelligence"] = quick_fli
         response["fat_loss_intelligence_status"] = "pending" if GEMINI_API_KEY else "ready"
@@ -9397,6 +10090,7 @@ def analyze_rerun(
             latest_scan_id=str(req.analysis_id),
             latest_scan_ts=rerun_scan_ts,
             tone_preference=coach_tone_pref,
+            user_id=uid,
         )
         response["fat_loss_intelligence"] = quick_fli
         response["fat_loss_intelligence_status"] = "pending" if GEMINI_API_KEY else "ready"
