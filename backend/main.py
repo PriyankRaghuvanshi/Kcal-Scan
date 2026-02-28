@@ -187,6 +187,7 @@ _TABLE_JSON_FALLBACK_FIELD = {
 }
 _TABLE_MIGRATION_HINTS = {
     "coach_memory": "create_coach_memory.sql",
+    "coach_events": "create_coach_events.sql",
     "confidence_calibration_settings": "create_confidence_calibration_settings.sql",
     "meal_analyses": "create_meal_analyses.sql",
     "meal_edits": "create_meal_edits.sql",
@@ -1105,6 +1106,13 @@ def _extract_unknown_column(raw: str) -> Optional[str]:
         if m:
             return m.group(1)
     return None
+
+
+def _is_duplicate_key_error(raw: Any) -> bool:
+    text = str(raw or "").lower()
+    if not text:
+        return False
+    return ("23505" in text) or ("duplicate key value violates unique constraint" in text)
 
 
 def _json_fallback_field_for_table(table: str) -> str:
@@ -5377,6 +5385,24 @@ def _weekly_report_cache_set(user_id: str, week_start_iso: str, payload_hash: st
                 locked_cols={"user_id", "week_start", "payload_hash"},
             )
     except Exception as e:
+        raw = _http_exc_raw(e)
+        if _is_duplicate_key_error(raw):
+            # Handle race: two concurrent inserts for same PK.
+            try:
+                patch = {k: v for k, v in row.items() if k not in {"user_id", "week_start", "payload_hash"}}
+                _sb_patch_with_column_fallback(
+                    TBL_WEEKLY_REPORTS,
+                    {
+                        "user_id": f"eq.{row['user_id']}",
+                        "week_start": f"eq.{row['week_start']}",
+                        "payload_hash": f"eq.{row['payload_hash']}",
+                    },
+                    patch,
+                )
+                return
+            except Exception as e2:
+                logger.info(f"weekly report cache duplicate insert recovery failed: {e2}")
+                return
         logger.info(f"weekly report cache write skipped: {e}")
 
 
@@ -6339,7 +6365,6 @@ def _coach_cache_set(user_id: str, day_iso: str, payload_hash: str, coach_resp: 
         "user_id": user_id,
         "day": day_iso,
         "payload_hash": payload_hash,
-        "insight_signature": payload_hash,
         "coach_json": coach_resp,
         "updated_at": dt.datetime.utcnow().isoformat(),
     }
@@ -8439,6 +8464,7 @@ def coach_daily(
                 tone_id=tone_pref,
                 freshness=_coach_rewrite_freshness_from_payload(out, default="updated_now"),
                 max_actions=(2 if fast else 3),
+                allow_llm=False,
             )
         else:
             out["tone_requested"] = tone_pref
@@ -8567,6 +8593,7 @@ def coach_daily(
                 tone_id=tone_pref,
                 freshness=_coach_rewrite_freshness_from_payload(final_resp, default="stale_cache"),
                 max_actions=(2 if fast else 3),
+                allow_llm=False,
             )
             if isinstance(weekly_behavior, dict):
                 final_resp["behavior_memory"] = {
@@ -8757,6 +8784,7 @@ def coach_daily(
         tone_id=tone_pref,
         freshness=_coach_rewrite_freshness_from_payload(final_resp, default="updated_now"),
         max_actions=(2 if fast else 3),
+        allow_llm=False,
     )
     final_resp = _apply_dynamic_coach_copy(
         final_resp,
