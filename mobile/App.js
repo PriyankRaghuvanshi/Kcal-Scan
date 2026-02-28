@@ -373,23 +373,17 @@ function extractHashParam(url, key) {
   }
 }
 function normalizeMicros(raw) {
-  if (!raw || typeof raw !== "object") return null;
-  const hasAny =
-    raw.fiber_g != null ||
-    raw.fiber != null ||
-    raw.vitamin_d_ug != null ||
-    raw.vitamin_d_mcg != null ||
-    raw.vitamin_b12_ug != null ||
-    raw.vitamin_b12_mcg != null ||
-    raw.iron_mg != null ||
-    raw.magnesium_mg != null;
-  if (!hasAny) return null;
+  const src = raw && typeof raw === "object" ? raw : {};
   return {
-    fiber_g: num(raw.fiber_g ?? raw.fiber),
-    vitamin_d_ug: num(raw.vitamin_d_ug ?? raw.vitamin_d_mcg),
-    vitamin_b12_ug: num(raw.vitamin_b12_ug ?? raw.vitamin_b12_mcg),
-    iron_mg: num(raw.iron_mg),
-    magnesium_mg: num(raw.magnesium_mg),
+    fiber_g: num(src.fiber_g ?? src.fiber),
+    sugar_g: num(src.sugar_g),
+    sodium_mg: num(src.sodium_mg),
+    vitamin_d_ug: num(src.vitamin_d_ug ?? src.vitamin_d_mcg),
+    vitamin_b12_ug: num(src.vitamin_b12_ug ?? src.vitamin_b12_mcg),
+    iron_mg: num(src.iron_mg),
+    magnesium_mg: num(src.magnesium_mg),
+    calcium_mg: num(src.calcium_mg),
+    potassium_mg: num(src.potassium_mg),
   };
 }
 function normalizeTopCandidates(raw) {
@@ -451,6 +445,14 @@ function normalizeRerunPatch(patch, editableItems = []) {
   const src = patch && typeof patch === "object" ? patch : {};
   const out = { ...src };
   const firstItemId = String(editableItems?.[0]?.item_id || "").trim();
+  const findCandidateName = (itemId, candidateIndex) => {
+    const idx = Number(candidateIndex);
+    if (!Number.isFinite(idx) || idx < 0) return "";
+    const targetId = String(itemId || "").trim();
+    const item = (editableItems || []).find((x) => String(x?.item_id || "").trim() === targetId);
+    if (!item || !Array.isArray(item?.candidate_alternatives)) return "";
+    return String(item.candidate_alternatives[idx] || "").trim();
+  };
   const methodRaw = src?.set_cooking_method;
   const methodFromObj =
     methodRaw && typeof methodRaw === "object"
@@ -496,6 +498,26 @@ function normalizeRerunPatch(patch, editableItems = []) {
     }
   }
 
+  const swapCandidateRaw = src?.swap_candidate;
+  if (swapCandidateRaw && typeof swapCandidateRaw === "object") {
+    const itemId = String(swapCandidateRaw?.item_id || fallbackItemId || "").trim();
+    const candidateNameDirect = String(
+      swapCandidateRaw?.candidate_name || swapCandidateRaw?.new_name || swapCandidateRaw?.to_name || ""
+    ).trim();
+    const candidateNameResolved =
+      candidateNameDirect || findCandidateName(itemId, swapCandidateRaw?.candidate_index);
+    if (candidateNameResolved) {
+      out.swap_item = { item_id: itemId || "", new_name: candidateNameResolved };
+    } else {
+      out.swap_candidate = {
+        item_id: itemId || "",
+        candidate_index: Number.isFinite(Number(swapCandidateRaw?.candidate_index))
+          ? Number(swapCandidateRaw?.candidate_index)
+          : 0,
+      };
+    }
+  }
+
   const portionRaw = src?.portion_multiplier;
   if (portionRaw != null) {
     if (typeof portionRaw === "number" || typeof portionRaw === "string") {
@@ -508,6 +530,58 @@ function normalizeRerunPatch(patch, editableItems = []) {
     }
   }
   return out;
+}
+function rerunPatchToActions(patch) {
+  const src = patch && typeof patch === "object" ? patch : {};
+  const actions = [];
+  if (src?.set_oil_added_tsp && typeof src.set_oil_added_tsp === "object") {
+    actions.push({
+      type: "set_oil_added_tsp",
+      item_id: String(src.set_oil_added_tsp?.item_id || "").trim(),
+      tsp: num(src.set_oil_added_tsp?.tsp),
+    });
+  }
+  if (src?.set_cooking_method && typeof src.set_cooking_method === "object") {
+    actions.push({
+      type: "set_cooking_method",
+      item_id: String(src.set_cooking_method?.item_id || "").trim(),
+      method: String(src.set_cooking_method?.method || "").trim().toLowerCase(),
+    });
+  }
+  if (src?.swap_candidate && typeof src.swap_candidate === "object") {
+    const itemId = String(src.swap_candidate?.item_id || "").trim();
+    if (itemId) {
+      const a = { type: "swap_candidate", item_id: itemId };
+      if (src.swap_candidate?.candidate_index != null && Number.isFinite(Number(src.swap_candidate?.candidate_index))) {
+        a.candidate_index = Number(src.swap_candidate?.candidate_index);
+      }
+      if (String(src.swap_candidate?.candidate_name || "").trim()) {
+        a.candidate_name = String(src.swap_candidate?.candidate_name || "").trim();
+      }
+      actions.push(a);
+    }
+  }
+  if (src?.swap_item && typeof src.swap_item === "object") {
+    actions.push({
+      type: "swap_item",
+      item_id: String(src.swap_item?.item_id || "").trim(),
+      new_name: String(src.swap_item?.new_name || "").trim(),
+    });
+  }
+  if (src?.portion_multiplier && typeof src.portion_multiplier === "object") {
+    actions.push({
+      type: "set_portion_multiplier",
+      item_id: String(src.portion_multiplier?.item_id || "").trim(),
+      multiplier: num(src.portion_multiplier?.multiplier),
+    });
+  }
+  if (String(src?.clarifying_answer || "").trim()) {
+    actions.push({
+      type: "clarifying_answer",
+      value: String(src.clarifying_answer || "").trim(),
+    });
+  }
+  return actions;
 }
 function normalizeAnalyzeResult(data) {
   const src = data && typeof data === "object" ? data : {};
@@ -542,11 +616,21 @@ function normalizeAnalyzeResult(data) {
 }
 function normalizeCoachDaily(raw, dayFallback = localDayISO()) {
   const data = raw && typeof raw === "object" ? raw : {};
-  const sourceRaw = String(data?.fli_source || data?.reasoning_source || "").trim().toLowerCase();
+  const sourceRaw = String(data?.source || data?.fli_source || data?.reasoning_source || "").trim().toLowerCase();
   const source =
-    sourceRaw === "llm" || sourceRaw === "cached_llm" || sourceRaw === "rules"
+    sourceRaw === "llm" || sourceRaw === "cache" || sourceRaw === "rules"
       ? sourceRaw
+      : sourceRaw === "cached_llm"
+      ? "cache"
       : sourceRaw === "heuristic" || sourceRaw === "fallback"
+      ? "rules"
+      : "rules";
+  const fliSource =
+    sourceRaw === "cached_llm" || source === "cache"
+      ? "cached_llm"
+      : sourceRaw === "llm"
+      ? "llm"
+      : sourceRaw === "rules" || sourceRaw === "heuristic" || sourceRaw === "fallback"
       ? "rules"
       : "rules";
   return {
@@ -598,9 +682,9 @@ function normalizeCoachDaily(raw, dayFallback = localDayISO()) {
     actions: Array.isArray(data?.actions) ? data.actions.slice(0, 2) : [],
     risk_alerts: Array.isArray(data?.risk_alerts) ? data.risk_alerts : [],
     disclaimer: String(data?.disclaimer || "Informational only."),
-    reasoning_source: String(data?.reasoning_source || source),
-    fli_source: source,
-    source: String(data?.source || (source === "llm" || source === "cached_llm" ? "llm" : "fallback")).toLowerCase(),
+    reasoning_source: String(data?.reasoning_source || fliSource),
+    fli_source: fliSource,
+    source,
     fli_status: String(data?.fli_status || "ready").toLowerCase(),
     fli_reason_code: String(data?.fli_reason_code || ""),
     fli_stale_seconds: Math.max(0, Math.round(num(data?.fli_stale_seconds))),
@@ -620,6 +704,17 @@ function normalizeCoachDaily(raw, dayFallback = localDayISO()) {
     tone_tag: String(data?.tone_tag || "").trim().toLowerCase(),
     tone_rewrite_source: String(data?.tone_rewrite_source || "").trim().toLowerCase(),
     tone_rewrite_freshness: String(data?.tone_rewrite_freshness || "").trim().toLowerCase(),
+    request_id: String(data?.request_id || "").trim(),
+    input_scan_id: String(data?.input_scan_id || "").trim(),
+    analysis_id: String(data?.analysis_id || "").trim(),
+    meal_id: String(data?.meal_id || "").trim(),
+    model_used: String(data?.model_used || data?.llm_model_used || "").trim(),
+    error_code: String(data?.error_code || data?.llm_error_code || "").trim(),
+    tried_models: Array.isArray(data?.tried_models)
+      ? data.tried_models.map((x) => String(x || "").trim()).filter(Boolean)
+      : Array.isArray(data?.llm_tried_models)
+      ? data.llm_tried_models.map((x) => String(x || "").trim()).filter(Boolean)
+      : [],
     microcopy:
       data?.microcopy && typeof data.microcopy === "object"
         ? {
@@ -733,9 +828,22 @@ function normalizeCoachVoice(raw) {
   const data = raw && typeof raw === "object" ? raw : {};
   const action = data?.one_action && typeof data.one_action === "object" ? data.one_action : {};
   const steps = Array.isArray(action?.steps) ? action.steps.map((x) => String(x || "").trim()).filter(Boolean) : [];
+  const toneRequested = String(data?.tone_requested || data?.tone_id || "").trim().toLowerCase();
+  const toneUsed = String(data?.tone_used || toneRequested || data?.tone_tag || "").trim().toLowerCase();
+  const source = String(data?.source || "").trim().toLowerCase();
+  const toneMode = String(
+    data?.tone_mode || (source === "llm" || source === "cache" ? "llm" : "fallback")
+  )
+    .trim()
+    .toLowerCase();
   return {
     coach_generated_ts: String(data?.coach_generated_ts || ""),
+    tone_requested: toneRequested,
+    tone_used: toneUsed,
+    tone_id: toneRequested || toneUsed || "supportive",
+    tone_mode: toneMode,
     tone_tag: String(data?.tone_tag || "neutral").toLowerCase(),
+    source,
     empathy_line: String(data?.empathy_line || "").trim(),
     insight_line: String(data?.insight_line || "").trim(),
     one_action: {
@@ -1686,6 +1794,7 @@ export default function App() {
         training_time: coachProfile?.training_time || "evening",
       },
       tone_preference: coachProfile?.tone_preference || "supportive",
+      tone_id: coachProfile?.tone_preference || "supportive",
     };
     setCoachVoiceBusy(true);
     try {
@@ -1840,8 +1949,10 @@ export default function App() {
     const payload = buildDailyCoachPayload();
     setCoachLastPayload(payload || null);
     const day = String(payload?.date || localDayISO());
-    const requestedLatestScanId = String(opts?.latestScanId || latestScanMeta?.id || "").trim();
+    const requestedLatestScanId = String(opts?.latestScanId || opts?.analysisId || opts?.mealId || latestScanMeta?.id || "").trim();
     const requestedLatestScanTs = String(opts?.latestScanTs || latestScanMeta?.ts || "").trim();
+    const requestedMealId = String(opts?.mealId || opts?.analysisId || requestedLatestScanId || latestScanMeta?.id || "").trim();
+    const requestedAnalysisId = String(opts?.analysisId || opts?.mealId || requestedLatestScanId || latestScanMeta?.id || "").trim();
     const pollForLatest = Boolean(opts?.pollForLatest && requestedLatestScanId);
     const refreshServer = Boolean(opts?.refreshServer ?? force);
     const fastMode = opts?.fastMode !== false;
@@ -1914,6 +2025,8 @@ export default function App() {
         const queuedNow = {
           latestScanId: requestedLatestScanId,
           latestScanTs: requestedLatestScanTs,
+          mealId: requestedMealId,
+          analysisId: requestedAnalysisId,
           dailyTotalsVersion: stateSignature,
           pollForLatest,
           refreshServer: true,
@@ -1926,6 +2039,8 @@ export default function App() {
         coachQueuedRefreshRef.current = {
           latestScanId: queuedNow.latestScanId || String(prevQueued?.latestScanId || "").trim(),
           latestScanTs: queuedNow.latestScanTs || String(prevQueued?.latestScanTs || "").trim(),
+          mealId: queuedNow.mealId || String(prevQueued?.mealId || "").trim(),
+          analysisId: queuedNow.analysisId || String(prevQueued?.analysisId || "").trim(),
           dailyTotalsVersion: coalesceVersionToken(prevQueued?.dailyTotalsVersion, queuedNow.dailyTotalsVersion),
           pollForLatest: Boolean(queuedNow.pollForLatest || prevQueued?.pollForLatest),
           refreshServer: Boolean(queuedNow.refreshServer || prevQueued?.refreshServer),
@@ -1947,13 +2062,21 @@ export default function App() {
       if (fastMode) params.push("fast=1");
       if (requestedLatestScanId) params.push(`latest_scan_id=${encodeURIComponent(requestedLatestScanId)}`);
       if (requestedLatestScanTs) params.push(`latest_scan_ts=${encodeURIComponent(requestedLatestScanTs)}`);
+      if (requestedMealId) params.push(`meal_id=${encodeURIComponent(requestedMealId)}`);
+      if (requestedAnalysisId) params.push(`analysis_id=${encodeURIComponent(requestedAnalysisId)}`);
       if (stateSignature) params.push(`state_signature=${encodeURIComponent(stateSignature)}`);
       if (requestedTone) params.push(`tone_id=${encodeURIComponent(requestedTone)}`);
       const url = withTimezoneQuery(`${API_BASE}/coach/daily?${params.join("&")}`);
+      const coachBody = {
+        ...(payload || {}),
+        meal_id: requestedMealId || undefined,
+        analysis_id: requestedAnalysisId || undefined,
+        input_scan_id: requestedLatestScanId || requestedAnalysisId || requestedMealId || undefined,
+      };
       const res = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json", accept: "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(coachBody),
       });
       const data = await safeJson(res);
       const cleaned = sanitizeCoachForDiet(normalizeCoachDaily(data, day));
@@ -2724,6 +2847,8 @@ async function openCamera() {
       scheduleDailyCoachRefresh({
         latestScanId,
         latestScanTs,
+        mealId: latestScanId || String(normalized?.analysis_id || "").trim(),
+        analysisId: String(normalized?.analysis_id || latestScanId || "").trim(),
         dailyTotalsVersion,
         pollForLatest: Boolean(latestScanId),
         refreshServer: true,
@@ -2755,15 +2880,22 @@ async function openCamera() {
     try {
       const rerunUrl = withTimezoneQuery(`${API_BASE}/analyze/rerun?user_id=${encodeURIComponent(userId)}`);
       const normalizedPatch = normalizeRerunPatch(editPatch, result?.editable_context?.items || []);
+      const rerunActions = rerunPatchToActions(normalizedPatch);
+      const rerunPayload = {
+        user_id: userId,
+        scan_id: analysisId,
+        analysis_id: analysisId,
+        edits: rerunActions,
+        edit: normalizedPatch,
+      };
       const res = await fetch(rerunUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json", accept: "application/json" },
-        body: JSON.stringify({
-          analysis_id: analysisId,
-          edits: normalizedPatch,
-        }),
+        body: JSON.stringify(rerunPayload),
       });
+      console.log("[rerun] payload", JSON.stringify(rerunPayload));
       const data = await safeJson(res);
+      console.log("[rerun] response", res?.status, JSON.stringify(data || {}));
       if (rerunSeq !== Number(rerunReqSeqRef.current || 0)) {
         return;
       }
@@ -2808,6 +2940,8 @@ async function openCamera() {
       scheduleDailyCoachRefresh({
         latestScanId,
         latestScanTs,
+        mealId: String(analysisId || latestScanId || "").trim(),
+        analysisId: String(analysisId || latestScanId || "").trim(),
         dailyTotalsVersion,
         pollForLatest: Boolean(latestScanId),
         refreshServer: true,
@@ -2820,7 +2954,8 @@ async function openCamera() {
       if (rerunSeq === Number(rerunReqSeqRef.current || 0)) {
         setFliPending(false);
         console.log("rerun failed", String(e));
-        Alert.alert("Rerun failed", "Couldn't apply edit. Try again.");
+        const msg = String((e && e.message) || e || "").replace(/^Error:\s*/i, "").trim();
+        Alert.alert("Rerun failed", msg || "Couldn't apply edit. Try again.");
       }
     } finally {
       if (rerunSeq === Number(rerunReqSeqRef.current || 0)) {
@@ -3004,6 +3139,23 @@ async function openCamera() {
   const coachIndicators = buildCoachIndicators(coachLastPayload || {});
   const latestScanIdForCoach = String(latestScanMeta?.id || "").trim();
   const coachStale = Boolean(canCoaching && latestScanIdForCoach && isCoachStaleForScan(coachDaily, latestScanIdForCoach));
+  const coachSourceRaw = String(coachDaily?.source || coachDaily?.fli_source || "").trim().toLowerCase();
+  const coachIsLive = coachSourceRaw === "llm" || coachSourceRaw === "cached_llm" || coachSourceRaw === "cache";
+  const coachBadgeText = fliPending || fliSyncing ? "Coach: Updating" : coachIsLive ? "Coach: Live" : "Coach: Basic";
+  const coachVoiceTonePrimary = String(
+    coachVoice?.tone_used || coachVoice?.tone_requested || coachVoice?.tone_id || coachProfile?.tone_preference || "supportive"
+  )
+    .trim()
+    .toLowerCase();
+  const coachVoiceModeTag = String(
+    coachVoice?.tone_mode ||
+      ((String(coachVoice?.source || "").trim().toLowerCase() === "llm" ||
+        String(coachVoice?.source || "").trim().toLowerCase() === "cache")
+        ? "llm"
+        : "fallback")
+  )
+    .trim()
+    .toLowerCase();
 
   const subscriptionPriceText = (key) => priceByEntitlement?.[key] || (rcReady ? "Loading…" : "See App Store");
 
@@ -3144,7 +3296,10 @@ async function openCamera() {
               {coachVoice ? (
                 <View style={{ marginTop: 10, padding: 10, borderWidth: 1, borderColor: "#1f2e45", borderRadius: 12, backgroundColor: "#08101e" }}>
                   <Text style={[styles.tiny, { textTransform: "uppercase", letterSpacing: 0.4 }]}>
-                    Coach voice • {String(coachVoice?.tone_tag || "neutral")}
+                    Coach voice • {coachVoiceTonePrimary.replace(/_/g, " ")}
+                    {coachVoiceModeTag && coachVoiceModeTag !== coachVoiceTonePrimary
+                      ? ` • mode ${coachVoiceModeTag}`
+                      : ""}
                   </Text>
                   {!!String(coachVoice?.empathy_line || "").trim() && <Text style={styles.p}>{String(coachVoice?.empathy_line || "")}</Text>}
                   {!!String(coachVoice?.insight_line || "").trim() && <Text style={styles.p}>{String(coachVoice?.insight_line || "")}</Text>}
@@ -3214,6 +3369,14 @@ async function openCamera() {
                         <View style={[styles.intelBadgeDot, { backgroundColor: coachTone.color }]} />
                         <Text style={[styles.intelBadgeText, { color: coachTone.color }]}>{coachTone.label}</Text>
                       </View>
+                      <View
+                        style={[
+                          styles.coachSourceBadge,
+                          coachIsLive ? styles.coachSourceBadgeLive : styles.coachSourceBadgeBasic,
+                        ]}
+                      >
+                        <Text style={styles.coachSourceBadgeText}>{coachBadgeText}</Text>
+                      </View>
                       <View style={styles.intelProgressTrack}>
                         <View
                           style={[
@@ -3224,11 +3387,12 @@ async function openCamera() {
                       </View>
                       <Text style={styles.tiny}>
                         {fliUpdatedLabel(coachDaily, fliPending || fliSyncing)}
-                        {coachDaily?.fli_source === "cached_llm" ? " • Refining…" : ""}
+                        {(coachDaily?.fli_source === "cached_llm" || coachDaily?.source === "cache") ? " • Refining…" : ""}
                       </Text>
                       {showCoachDebug ? (
                         <View style={{ marginTop: 6, padding: 8, borderWidth: 1, borderColor: "#26364f", borderRadius: 8 }}>
                           <Text style={styles.tiny}>payload_hash_used: {String(coachDaily?.payload_hash_used || "-")}</Text>
+                          <Text style={styles.tiny}>request_id: {String(coachDaily?.request_id || "-")}</Text>
                           <Text style={styles.tiny}>source: {String(coachDaily?.source || "-")}</Text>
                           <Text style={styles.tiny}>fli_source: {String(coachDaily?.fli_source || "-")}</Text>
                           <Text style={styles.tiny}>llm_model_used: {String(coachDaily?.llm_model_used || "-")}</Text>
@@ -3241,6 +3405,9 @@ async function openCamera() {
                           </Text>
                           <Text style={styles.tiny}>coach_generated_ts: {String(coachDaily?.coach_generated_ts || "-")}</Text>
                           <Text style={styles.tiny}>meals_count_today: {String(coachDaily?.meals_count_today ?? "-")}</Text>
+                          <Text style={styles.tiny}>input_scan_id: {String(coachDaily?.input_scan_id || "-")}</Text>
+                          <Text style={styles.tiny}>analysis_id: {String(coachDaily?.analysis_id || "-")}</Text>
+                          <Text style={styles.tiny}>meal_id: {String(coachDaily?.meal_id || "-")}</Text>
                           <Text style={styles.tiny}>learning_applied: {result?.learning_applied ? "true" : "false"}</Text>
                           <Text style={styles.tiny}>
                             personalization_used: p={result?.personalization_used?.portion_prior_used ? "1" : "0"} / o=
@@ -4301,6 +4468,23 @@ const styles = StyleSheet.create({
   },
   intelBadgeDot: { width: 7, height: 7, borderRadius: 99 },
   intelBadgeText: { fontSize: 12, fontWeight: "800" },
+  coachSourceBadge: {
+    alignSelf: "flex-start",
+    marginTop: 8,
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  coachSourceBadgeLive: {
+    backgroundColor: "#0f2b1a",
+    borderColor: "#1f8f4d",
+  },
+  coachSourceBadgeBasic: {
+    backgroundColor: "#1d1f24",
+    borderColor: "#3f4553",
+  },
+  coachSourceBadgeText: { color: "#dbe7ff", fontSize: 11, fontWeight: "800" },
   intelProgressTrack: {
     marginTop: 8,
     height: 8,

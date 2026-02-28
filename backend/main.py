@@ -9,6 +9,7 @@ import logging
 import datetime as dt
 import uuid
 import threading
+from collections import deque
 from typing import Any, Dict, Optional, List, Tuple, Union, Literal
 from zoneinfo import ZoneInfo
 
@@ -94,6 +95,7 @@ TBL_COACH_MEMORY = "coach_memory"
 TBL_COACH_FEEDBACK = "coach_feedback"
 TBL_USER_FOOD_PRIORS = "user_food_priors"
 TBL_COACH_VOICE_CACHE = "coach_voice_cache"
+TBL_COACH_EVENTS = "coach_events"
 TBL_WEEKLY_REPORTS = "weekly_reports"
 TBL_PROGRAM_STATUS = "program_status"
 TBL_CONFIDENCE_AUDIT = "confidence_audit"
@@ -108,7 +110,7 @@ SCAN_LLM_MODEL = os.getenv("SCAN_LLM_MODEL", "gemini-3-flash-preview").strip() o
 COACH_VOICE_LLM_MODEL = os.getenv("COACH_VOICE_LLM_MODEL", COACH_LLM_MODEL).strip() or COACH_LLM_MODEL
 COACH_LLM_FALLBACK_MODELS = _env_csv_list(
     "COACH_LLM_FALLBACK_MODELS",
-    "gemini-3-flash-preview,gemini-2.5-flash,gemini-2.5-flash-lite,gemini-2.0-flash-lite",
+    "gemini-2.5-flash,gemini-2.5-flash-lite,gemini-3-flash-preview",
 )
 COACH_VOICE_FALLBACK_MODELS = _env_csv_list("COACH_VOICE_FALLBACK_MODELS", ",".join(COACH_LLM_FALLBACK_MODELS))
 COACH_TONE_REWRITE_FALLBACK_MODELS = _env_csv_list(
@@ -120,13 +122,13 @@ COACH_WEEKLY_REPORT_FALLBACK_MODELS = _env_csv_list(
     ",".join(COACH_LLM_FALLBACK_MODELS),
 )
 try:
-    COACH_LLM_TIMEOUT_SEC = max(3.0, min(25.0, float(os.getenv("COACH_LLM_TIMEOUT_SEC", "8").strip() or "8")))
+    COACH_LLM_TIMEOUT_SEC = max(3.0, min(10.0, float(os.getenv("COACH_LLM_TIMEOUT_SEC", "8").strip() or "8")))
 except Exception:
     COACH_LLM_TIMEOUT_SEC = 8.0
 try:
-    COACH_VOICE_TIMEOUT_SEC = max(2.0, min(20.0, float(os.getenv("COACH_VOICE_TIMEOUT_SEC", "6").strip() or "6")))
+    COACH_VOICE_TIMEOUT_SEC = max(3.0, min(10.0, float(os.getenv("COACH_VOICE_TIMEOUT_SEC", "8").strip() or "8")))
 except Exception:
-    COACH_VOICE_TIMEOUT_SEC = 6.0
+    COACH_VOICE_TIMEOUT_SEC = 8.0
 try:
     COACH_VOICE_CACHE_TTL_MIN = max(10, min(30, int(float(os.getenv("COACH_VOICE_CACHE_TTL_MIN", "20").strip() or "20"))))
 except Exception:
@@ -148,9 +150,55 @@ DEFAULT_CONFIDENCE_CALIBRATION_SETTINGS = {
     "oil": {"confidence_threshold": 0.70, "range_expansion_factor": 1.0},
     "vision": {"confidence_threshold": 0.85, "range_expansion_factor": 1.0},
 }
+SYSTEM_CALIBRATION_USER_ID = "00000000-0000-0000-0000-000000000000"
+DEPRECATED_GEMINI_MODELS = {
+    "gemini-2.0-flash-lite",
+    "models/gemini-2.0-flash-lite",
+    "gemini-1.5-flash",
+    "gemini-1.5-flash-latest",
+    "gemini-1.5-flash-002",
+    "gemini-1.5-pro",
+    "gemini-1.5-pro-latest",
+    "gemini-1.5-pro-002",
+    "models/gemini-1.5-flash",
+    "models/gemini-1.5-flash-latest",
+    "models/gemini-1.5-flash-002",
+    "models/gemini-1.5-pro",
+    "models/gemini-1.5-pro-latest",
+    "models/gemini-1.5-pro-002",
+}
 
 # Table-level guardrail: when a Supabase table is missing from schema cache, switch that table to memory fallback.
 _DISABLED_SUPABASE_TABLES = set()
+_COACH_EVENT_RING: Dict[str, deque] = {}
+_TABLE_UNKNOWN_COLS: Dict[str, set] = {}
+_UNKNOWN_COL_LOGGED: set = set()
+_MISSING_TABLE_LOGGED: set = set()
+_TABLE_JSON_FALLBACK_FIELD = {
+    "daily_totals": "totals_json",
+    "daily_metrics": "metrics_json",
+    "weekly_insights": "insights_json",
+    "user_weekly_metrics": "metrics_json",
+    "meal_analyses": "payload",
+    "meal_edits": "edit",
+    "confidence_calibration_settings": "settings",
+    "coach_memory": "payload",
+    "daily_summary": "coach_json",
+}
+_TABLE_MIGRATION_HINTS = {
+    "coach_memory": "create_coach_memory.sql",
+    "confidence_calibration_settings": "create_confidence_calibration_settings.sql",
+    "meal_analyses": "create_meal_analyses.sql",
+    "meal_edits": "create_meal_edits.sql",
+    "user_food_priors": "migrate_user_food_priors.sql",
+}
+_EXPECTED_SCHEMA_TABLES = {
+    "coach_memory",
+    "confidence_calibration_settings",
+    "meal_analyses",
+    "meal_edits",
+    "user_food_priors",
+}
 
 
 # -------------------- MIDDLEWARE --------------------
@@ -194,9 +242,21 @@ def _llm_model_candidates(primary_model: str, fallback_models: Optional[List[str
     candidates: List[str] = []
     seen = set()
 
+    def _is_supported_model(name: str) -> bool:
+        model_name = str(name or "").strip().lower()
+        if not model_name:
+            return False
+        if is_deprecated_model(model_name):
+            return False
+        return True
+
     def _push(name: Any):
         model_name = str(name or "").strip()
-        if not model_name or model_name in seen:
+        if not model_name:
+            return
+        if not _is_supported_model(model_name):
+            return
+        if model_name in seen:
             return
         seen.add(model_name)
         candidates.append(model_name)
@@ -207,6 +267,36 @@ def _llm_model_candidates(primary_model: str, fallback_models: Optional[List[str
     # Always keep scan model as a late fallback because it is already used in production analyze flow.
     _push(SCAN_LLM_MODEL)
     return candidates
+
+
+def is_deprecated_model(model_name: Any) -> bool:
+    return str(model_name or "").strip().lower() in DEPRECATED_GEMINI_MODELS
+
+
+def _choose_single_llm_model(primary_model: str, fallback_models: Optional[List[str]] = None) -> str:
+    candidates = _llm_model_candidates(primary_model, fallback_models)
+    if candidates:
+        return str(candidates[0]).strip()
+    return str(primary_model or "").strip()
+
+
+def _llm_timeout(limit: float = 10.0, default: float = 8.0) -> float:
+    try:
+        val = float(COACH_LLM_TIMEOUT_SEC)
+    except Exception:
+        val = float(default)
+    return max(3.0, min(float(limit), val))
+
+
+def _tone_mode_from_source(source_value: Any) -> str:
+    src = str(source_value or "").strip().lower()
+    if src in {"llm", "cache", "cached_llm"}:
+        return "llm"
+    return "fallback"
+
+
+def _new_request_id() -> str:
+    return str(uuid.uuid4())
 
 
 def _generate_with_model_fallback(
@@ -220,27 +310,26 @@ def _generate_with_model_fallback(
     fallback_attempts: int = 1,
     max_models: int = 4,
 ) -> Tuple[str, str, List[str]]:
-    candidates = _llm_model_candidates(primary_model, fallback_models)[: max(1, int(max_models or 1))]
+    model_name = _choose_single_llm_model(primary_model, fallback_models)
     tried: List[str] = []
     last_err = ""
-    for idx, model_name in enumerate(candidates):
-        attempts = max(1, int(primary_attempts if idx == 0 else fallback_attempts))
-        for attempt in range(attempts):
-            tried.append(model_name)
-            try:
-                model = genai.GenerativeModel(model_name)
-                resp = model.generate_content(
-                    [system_prompt, user_prompt],
-                    request_options={"timeout": float(timeout_sec)},
-                )
-                text = str((resp.text or "")).strip()
-                if text:
-                    return text, model_name, tried
-                last_err = f"{model_name}: empty response text"
-            except Exception as e:
-                last_err = f"{model_name}: {str(e)}"
-            if attempt < attempts - 1:
-                time.sleep(0.25 * (attempt + 1))
+    attempts = 1 + max(0, min(1, int(max(primary_attempts, fallback_attempts) - 1)))
+    for attempt in range(attempts):
+        _append_tried_model_once(tried, model_name)
+        try:
+            model = genai.GenerativeModel(model_name)
+            resp = model.generate_content(
+                [system_prompt, user_prompt],
+                request_options={"timeout": float(_llm_timeout(limit=10.0, default=float(timeout_sec or 8.0)))},
+            )
+            text = str((resp.text or "")).strip()
+            if text:
+                return text, model_name, tried
+            last_err = f"{model_name}: empty response text"
+        except Exception as e:
+            last_err = f"{model_name}: {str(e)}"
+        if attempt < attempts - 1:
+            time.sleep(0.25 * (attempt + 1))
     raise HTTPException(
         status_code=502,
         detail={
@@ -431,12 +520,16 @@ def _friendly_rerun_validation_error(exc: Exception) -> Dict[str, Any]:
             "set_oil_added_tsp": {"item_id": "string", "tsp": "number"},
             "set_cooking_method": {"item_id": "string", "method": "string"},
             "swap_item": {"item_id": "string", "new_name": "string"},
+            "edits_array_action": {
+                "type": "set_oil_added_tsp|set_cooking_method|swap_candidate|swap_item|set_portion_multiplier",
+                "item_id": "string",
+            },
         },
         "raw": raw,
     }
 
 
-def _default_item_id_from_analysis_row(existing: Optional[Dict[str, Any]]) -> str:
+def _extract_items_from_analysis_row(existing: Optional[Dict[str, Any]]) -> List[Dict[str, Any]]:
     row = existing if isinstance(existing, dict) else {}
     items_raw = _parse_jsonish(row.get("items_json"), [])
     if not isinstance(items_raw, list) or not items_raw:
@@ -444,9 +537,16 @@ def _default_item_id_from_analysis_row(existing: Optional[Dict[str, Any]]) -> st
         if isinstance(llm_raw, dict):
             vision_raw = llm_raw.get("vision") if isinstance(llm_raw.get("vision"), dict) else {}
             items_raw = vision_raw.get("items") if isinstance(vision_raw.get("items"), list) else []
+    out: List[Dict[str, Any]] = []
+    for item in (items_raw or []):
+        if isinstance(item, dict):
+            out.append(dict(item))
+    return out
+
+
+def _default_item_id_from_analysis_row(existing: Optional[Dict[str, Any]]) -> str:
+    items_raw = _extract_items_from_analysis_row(existing)
     for idx, item in enumerate(items_raw or []):
-        if not isinstance(item, dict):
-            continue
         iid = str(item.get("item_id") or "").strip()
         if iid:
             return iid
@@ -456,16 +556,111 @@ def _default_item_id_from_analysis_row(existing: Optional[Dict[str, Any]]) -> st
     return ""
 
 
+def _candidate_name_for_item(existing: Optional[Dict[str, Any]], item_id: str, candidate_index: Any) -> str:
+    iid = str(item_id or "").strip()
+    idx_raw = _safe_float(candidate_index, None)
+    idx = int(idx_raw) if idx_raw is not None else -1
+    if idx < 0:
+        return ""
+    for pos, item in enumerate(_extract_items_from_analysis_row(existing)):
+        current_id = str(item.get("item_id") or "").strip() or f"i{pos + 1}"
+        if iid and current_id != iid:
+            continue
+        arr = item.get("candidate_alternatives")
+        if isinstance(arr, list) and idx < len(arr):
+            return str(arr[idx] or "").strip()
+    return ""
+
+
+def _merge_rerun_edit_action(edits: Dict[str, Any], action: Dict[str, Any], default_item_id: str, existing: Optional[Dict[str, Any]]) -> None:
+    act = action if isinstance(action, dict) else {}
+    action_type = str(act.get("type") or act.get("edit_type") or "").strip().lower()
+    if not action_type:
+        return
+    item_id = str(act.get("item_id") or default_item_id or "").strip()
+    if action_type == "set_oil_added_tsp":
+        tsp = _safe_float(act.get("tsp", act.get("value")), None)
+        if tsp is not None:
+            edits["set_oil_added_tsp"] = {"item_id": item_id, "tsp": max(0.0, float(tsp))}
+        return
+    if action_type == "set_cooking_method":
+        method = str(act.get("method") or act.get("value") or "").strip().lower()
+        if method:
+            edits["set_cooking_method"] = {"item_id": item_id, "method": method}
+        return
+    if action_type in {"swap_candidate", "swap_item"}:
+        new_name = str(act.get("new_name") or act.get("to_name") or act.get("candidate_name") or "").strip()
+        if not new_name:
+            new_name = _candidate_name_for_item(existing, item_id, act.get("candidate_index"))
+        if new_name:
+            edits["swap_item"] = {"item_id": item_id, "new_name": new_name}
+        return
+    if action_type in {"set_portion_g", "set_portion_grams"}:
+        grams = _safe_float(act.get("grams", act.get("value")), None)
+        if grams is not None and grams > 0:
+            edits["portion_multiplier"] = {"item_id": item_id, "multiplier": max(0.3, min(3.0, float(grams) / 100.0))}
+        return
+    if action_type == "set_portion_multiplier":
+        mult = _safe_float(act.get("multiplier", act.get("value")), None)
+        if mult is not None:
+            edits["portion_multiplier"] = {"item_id": item_id, "multiplier": max(0.3, min(3.0, float(mult)))}
+        return
+    if action_type in {"clarifying_answer", "set_clarifying_answer"}:
+        answer = str(act.get("value") or act.get("clarifying_answer") or "").strip()
+        if answer:
+            edits["clarifying_answer"] = answer
+        return
+
+
 def _coerce_rerun_payload(
     payload: Dict[str, Any],
     existing: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     src = payload if isinstance(payload, dict) else {}
     out = dict(src)
+    raw_analysis_id = str(src.get("analysis_id") or src.get("scan_id") or "").strip()
+    if raw_analysis_id:
+        out["analysis_id"] = raw_analysis_id
     edits_raw = src.get("edits")
+    if edits_raw is None:
+        edits_raw = src.get("edit")
     edits = dict(edits_raw) if isinstance(edits_raw, dict) else {}
+    coercion_errors: List[str] = []
 
     default_item_id = _default_item_id_from_analysis_row(existing)
+
+    if isinstance(edits_raw, list):
+        for action in edits_raw:
+            if isinstance(action, dict):
+                if str(action.get("type") or action.get("edit_type") or "").strip().lower() in {"swap_candidate", "swap_item"}:
+                    action_item_id = str(action.get("item_id") or default_item_id or "").strip()
+                    if not action_item_id:
+                        coercion_errors.append("swap_candidate missing item_id")
+                    idx_val = action.get("candidate_index")
+                    if idx_val is not None:
+                        idx_float = _safe_float(idx_val, None)
+                        if idx_float is None:
+                            coercion_errors.append("swap_candidate candidate_index must be a number")
+                        elif idx_float < 0:
+                            coercion_errors.append("swap_candidate candidate_index out of range")
+                _merge_rerun_edit_action(edits, action, default_item_id, existing)
+    if isinstance(src.get("edit"), dict):
+        edit_one = dict(src.get("edit") or {})
+        _merge_rerun_edit_action(edits, edit_one, default_item_id, existing)
+        for k, v in edit_one.items():
+            if k not in edits and k != "type":
+                edits[k] = v
+
+    if isinstance(src.get("edits"), dict):
+        for k, v in src.get("edits").items():
+            if k not in edits:
+                edits[k] = v
+
+    clarifying_raw = src.get("clarifying_answer")
+    if clarifying_raw is not None and not edits.get("clarifying_answer"):
+        clarifying_txt = str(clarifying_raw or "").strip()
+        if clarifying_txt:
+            edits["clarifying_answer"] = clarifying_txt
 
     # Allow legacy shape: set_oil_added_tsp: 0 (or "0.5"), and coerce it into the structured object.
     oil_raw = edits.get("set_oil_added_tsp")
@@ -504,9 +699,36 @@ def _coerce_rerun_payload(
         item_id = default_item_id
         edits["swap_item"] = {"item_id": item_id or "", "new_name": new_name}
     elif isinstance(swap_raw, dict):
-        new_name = str(swap_raw.get("new_name") or "").strip()
+        new_name = str(swap_raw.get("new_name") or swap_raw.get("to_name") or "").strip()
+        if not new_name:
+            new_name = _candidate_name_for_item(existing, str(swap_raw.get("item_id") or default_item_id), swap_raw.get("candidate_index"))
         if new_name:
             item_id = str(swap_raw.get("item_id") or "").strip() or default_item_id
+            edits["swap_item"] = {"item_id": item_id, "new_name": new_name}
+
+    # Accept shorthand key: swap_candidate with candidate_index/candidate_name.
+    swap_candidate_raw = edits.get("swap_candidate")
+    if isinstance(swap_candidate_raw, dict):
+        item_id = str(swap_candidate_raw.get("item_id") or "").strip() or default_item_id
+        if not item_id:
+            coercion_errors.append("swap_candidate missing item_id")
+        new_name = str(
+            swap_candidate_raw.get("candidate_name")
+            or swap_candidate_raw.get("new_name")
+            or swap_candidate_raw.get("to_name")
+            or ""
+        ).strip()
+        idx_raw = swap_candidate_raw.get("candidate_index")
+        if not new_name:
+            idx_float = _safe_float(idx_raw, None)
+            if idx_raw is not None and idx_float is None:
+                coercion_errors.append("swap_candidate candidate_index must be a number")
+            elif idx_float is not None and idx_float < 0:
+                coercion_errors.append("swap_candidate candidate_index out of range")
+            new_name = _candidate_name_for_item(existing, item_id, idx_raw)
+            if (idx_raw is not None) and (not new_name):
+                coercion_errors.append("swap_candidate candidate_index out of range")
+        if new_name:
             edits["swap_item"] = {"item_id": item_id, "new_name": new_name}
 
     # Allow canonical shape: portion_multiplier: {"item_id":"i1","multiplier":0.85}
@@ -528,6 +750,14 @@ def _coerce_rerun_payload(
             }
 
     out["edits"] = edits
+    if coercion_errors:
+        deduped: List[str] = []
+        for msg in coercion_errors:
+            txt = str(msg or "").strip()
+            if txt and txt not in deduped:
+                deduped.append(txt)
+        if deduped:
+            out["_coercion_errors"] = deduped
     return out
 
 
@@ -566,6 +796,7 @@ class CoachVoiceRequestModel(BaseModel):
     recent_messages: List[CoachVoiceRecentMessageModel] = Field(default_factory=list)
     user_profile: CoachVoiceProfileModel = Field(default_factory=CoachVoiceProfileModel)
     tone_preference: str = "supportive"
+    tone_id: str = ""
 
 
 class CoachFeedbackConfirmedItemModel(BaseModel):
@@ -699,7 +930,10 @@ def sb_get_one(table: str, params: Dict[str, str]) -> Optional[Dict[str, Any]]:
     if r.status_code != 200:
         raise HTTPException(status_code=502, detail={"error": "Supabase read failed", "raw": r.text})
     rows = r.json() or []
-    return rows[0] if rows else None
+    if not rows:
+        return None
+    row = rows[0] if isinstance(rows[0], dict) else {}
+    return _expand_row_from_json_fallback(table, row)
 
 
 def sb_get_many(table: str, params: Dict[str, str]) -> List[Dict[str, Any]]:
@@ -708,7 +942,13 @@ def sb_get_many(table: str, params: Dict[str, str]) -> List[Dict[str, Any]]:
     if r.status_code != 200:
         raise HTTPException(status_code=502, detail={"error": "Supabase list read failed", "raw": r.text})
     rows = r.json() or []
-    return rows if isinstance(rows, list) else []
+    if not isinstance(rows, list):
+        return []
+    out: List[Dict[str, Any]] = []
+    for row in rows:
+        if isinstance(row, dict):
+            out.append(_expand_row_from_json_fallback(table, row))
+    return out
 
 def sb_upsert(table: str, row: Dict[str, Any], on_conflict: str) -> Dict[str, Any]:
     url = f"{SUPABASE_URL}/rest/v1/{table}"
@@ -782,8 +1022,73 @@ def _mark_table_unavailable(table: Any, err: Exception) -> bool:
         return False
     if tkey not in _DISABLED_SUPABASE_TABLES:
         _DISABLED_SUPABASE_TABLES.add(tkey)
-        logger.warning(f"Supabase table '{tkey}' not available; switching to memory fallback for this table.")
+    if tkey not in _MISSING_TABLE_LOGGED:
+        _MISSING_TABLE_LOGGED.add(tkey)
+        migration_hint = _TABLE_MIGRATION_HINTS.get(tkey)
+        if migration_hint:
+            logger.warning(
+                f"Supabase table '{tkey}' missing from schema cache; run migration {migration_hint}. "
+                "Service is using graceful fallback for now."
+            )
+        else:
+            logger.warning(f"Supabase table '{tkey}' not available; switching to graceful fallback for this table.")
     return True
+
+
+def _append_tried_model_once(tried_models: List[str], model_name: Any) -> None:
+    val = str(model_name or "").strip()
+    if not val:
+        return
+    if val in tried_models:
+        return
+    tried_models.append(val)
+
+
+def _missing_schema_debug() -> List[Dict[str, str]]:
+    out: List[Dict[str, str]] = []
+    missing = {
+        str(x or "").strip()
+        for x in _DISABLED_SUPABASE_TABLES
+        if str(x or "").strip() and str(x or "").strip() in _EXPECTED_SCHEMA_TABLES
+    }
+    for t in sorted(missing):
+        if not t:
+            continue
+        out.append(
+            {
+                "table": t,
+                "migration": str(_TABLE_MIGRATION_HINTS.get(t) or ""),
+            }
+        )
+    return out
+
+
+def _attach_debug_schema(resp: Dict[str, Any], debug: bool) -> Dict[str, Any]:
+    out = dict(resp or {})
+    if not bool(debug):
+        return out
+    dbg = out.get("debug") if isinstance(out.get("debug"), dict) else {}
+    dbg = dict(dbg)
+    dbg["missing_schema"] = _missing_schema_debug()
+    llm_used = str(out.get("model_used") or out.get("llm_model_used") or "").strip()
+    llm_tried = out.get("tried_models")
+    if not isinstance(llm_tried, list):
+        llm_tried = out.get("llm_tried_models")
+    if not isinstance(llm_tried, list):
+        llm_tried = []
+    tried_list: List[str] = []
+    for m in llm_tried:
+        _append_tried_model_once(tried_list, m)
+    llm_error = str(out.get("error_code") or out.get("llm_error_code") or "").strip()
+    source_val = str(out.get("source") or out.get("fli_source") or out.get("reasoning_source") or "").strip().lower()
+    dbg["llm"] = {
+        "source": source_val or "rules",
+        "used_model": llm_used,
+        "tried_models": tried_list,
+        "error": llm_error,
+    }
+    out["debug"] = dbg
+    return out
 
 
 def _extract_unknown_column(raw: str) -> Optional[str]:
@@ -802,6 +1107,74 @@ def _extract_unknown_column(raw: str) -> Optional[str]:
     return None
 
 
+def _json_fallback_field_for_table(table: str) -> str:
+    return str(_TABLE_JSON_FALLBACK_FIELD.get(_table_key(table)) or "").strip()
+
+
+def _row_as_json_obj(value: Any) -> Dict[str, Any]:
+    parsed = _parse_jsonish(value, {})
+    if isinstance(parsed, dict):
+        return dict(parsed)
+    return {}
+
+
+def _expand_row_from_json_fallback(table: str, row: Dict[str, Any]) -> Dict[str, Any]:
+    out = dict(row or {})
+    json_field = _json_fallback_field_for_table(table)
+    if not json_field:
+        return out
+    nested = _row_as_json_obj(out.get(json_field))
+    for key, value in nested.items():
+        if key not in out:
+            out[key] = value
+
+    tkey = _table_key(table)
+    if tkey == _table_key(TBL_MEAL_ANALYSES):
+        analysis_id = str(out.get("analysis_id") or nested.get("analysis_id") or out.get("scan_id") or "").strip()
+        if analysis_id:
+            out["analysis_id"] = analysis_id
+            out.setdefault("scan_id", analysis_id)
+    elif tkey == _table_key(TBL_MEAL_EDITS):
+        if "edit_patch_json" not in out and isinstance(nested.get("edit_patch_json"), dict):
+            out["edit_patch_json"] = nested.get("edit_patch_json")
+        if "analysis_id" not in out:
+            out["analysis_id"] = str(out.get("scan_id") or nested.get("analysis_id") or "").strip()
+    return out
+
+
+def _merge_unknown_column_into_json_payload(table: str, payload: Dict[str, Any], bad_col: str) -> bool:
+    if not bad_col or bad_col not in payload:
+        return False
+    json_field = _json_fallback_field_for_table(table)
+    if not json_field:
+        return False
+    if bad_col == json_field:
+        return False
+    try:
+        nested = _row_as_json_obj(payload.get(json_field))
+        nested[bad_col] = payload.get(bad_col)
+        payload[json_field] = nested
+        payload.pop(bad_col, None)
+        return True
+    except Exception:
+        return False
+
+
+def _log_unknown_column_once(table: str, op: str, bad_col: str, moved_to_json: bool) -> None:
+    tkey = _table_key(table)
+    if not tkey or not bad_col:
+        return
+    _TABLE_UNKNOWN_COLS.setdefault(tkey, set()).add(bad_col)
+    key = (tkey, op, bad_col, bool(moved_to_json))
+    if key in _UNKNOWN_COL_LOGGED:
+        return
+    _UNKNOWN_COL_LOGGED.add(key)
+    if moved_to_json:
+        logger.warning(f"Unknown column {bad_col} during {op} on {tkey}; moved to JSON payload fallback.")
+    else:
+        logger.warning(f"Dropping unknown column during {op}: {bad_col} ({tkey})")
+
+
 def _sb_insert_with_column_fallback(table: str, row: Dict[str, Any], locked_cols: Optional[set] = None) -> Dict[str, Any]:
     payload = dict(row or {})
     locked = locked_cols or set()
@@ -813,8 +1186,10 @@ def _sb_insert_with_column_fallback(table: str, row: Dict[str, Any], locked_cols
             raw = _http_exc_raw(e)
             bad_col = _extract_unknown_column(raw)
             if bad_col and bad_col in payload and bad_col not in locked:
-                logger.warning(f"Dropping unknown column during insert: {bad_col}")
-                payload.pop(bad_col, None)
+                moved = _merge_unknown_column_into_json_payload(table, payload, bad_col)
+                if not moved:
+                    payload.pop(bad_col, None)
+                _log_unknown_column_once(table, "insert", bad_col, moved)
                 continue
             raise
     return payload
@@ -832,8 +1207,10 @@ def _sb_patch_with_column_fallback(table: str, match: Dict[str, str], patch: Dic
             raw = _http_exc_raw(e)
             bad_col = _extract_unknown_column(raw)
             if bad_col and bad_col in payload and bad_col not in locked:
-                logger.warning(f"Dropping unknown column during patch: {bad_col}")
-                payload.pop(bad_col, None)
+                moved = _merge_unknown_column_into_json_payload(table, payload, bad_col)
+                if not moved:
+                    payload.pop(bad_col, None)
+                _log_unknown_column_once(table, "patch", bad_col, moved)
                 continue
             raise
     return payload
@@ -866,20 +1243,44 @@ def _analysis_cache_get(analysis_id: str) -> Optional[Dict[str, Any]]:
 
 
 def _store_meal_analysis(row: Dict[str, Any]) -> Dict[str, Any]:
-    payload = dict(row or {})
+    raw = dict(row or {})
+    analysis_id = str(raw.get("analysis_id") or raw.get("scan_id") or "").strip()
+    if analysis_id:
+        raw["analysis_id"] = analysis_id
+    scan_id = analysis_id
+    try:
+        if analysis_id:
+            scan_id = str(uuid.UUID(analysis_id))
+    except Exception:
+        scan_id = ""
+    core = {
+        "scan_id": scan_id or str(uuid.uuid4()),
+        "analysis_id": analysis_id or str(raw.get("scan_id") or ""),
+        "user_id": str(raw.get("user_id") or "").strip(),
+        "day": str(raw.get("day") or "").strip() or None,
+        "created_at": raw.get("created_at") or _now_utc_naive().isoformat(),
+        "updated_at": raw.get("updated_at") or _now_utc_naive().isoformat(),
+    }
+    payload_json = dict(raw)
+    for k in ("scan_id", "analysis_id", "user_id", "day", "created_at", "updated_at"):
+        payload_json.pop(k, None)
+    core["payload"] = payload_json
+    payload = _expand_row_from_json_fallback(TBL_MEAL_ANALYSES, core)
     _analysis_cache_set(payload)
     if not (SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY):
         return payload
     try:
         stored = _sb_insert_with_column_fallback(
             TBL_MEAL_ANALYSES,
-            payload,
-            locked_cols={"analysis_id", "user_id"},
+            core,
+            locked_cols={"scan_id", "analysis_id", "user_id"},
         )
-        _analysis_cache_set(stored)
-        return stored
+        expanded = _expand_row_from_json_fallback(TBL_MEAL_ANALYSES, stored)
+        _analysis_cache_set(expanded)
+        return expanded
     except Exception as e:
-        logger.info(f"meal analysis write skipped: {e}")
+        if not _mark_table_unavailable(TBL_MEAL_ANALYSES, e):
+            logger.info(f"meal analysis write skipped: {e}")
         return payload
 
 
@@ -944,7 +1345,8 @@ def _get_meal_analysis(user_id: str, analysis_id: str) -> Optional[Dict[str, Any
             _analysis_cache_set(row)
             return row
     except Exception as e:
-        logger.info(f"meal analysis read skipped: {e}")
+        if not _mark_table_unavailable(TBL_MEAL_ANALYSES, e):
+            logger.info(f"meal analysis read skipped: {e}")
     return mem
 
 
@@ -959,26 +1361,56 @@ def _patch_meal_analysis(analysis_id: str, user_id: str, patch: Dict[str, Any]) 
     if not (SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY):
         return
     try:
+        patch_src = dict(patch or {})
+        core_patch = {
+            "updated_at": patch_src.get("updated_at") or _now_utc_naive().isoformat(),
+        }
+        payload_patch = dict(patch_src)
+        payload_patch.pop("updated_at", None)
+        core_patch["payload"] = payload_patch
         _sb_patch_with_column_fallback(
             TBL_MEAL_ANALYSES,
             {"analysis_id": f"eq.{aid}", "user_id": f"eq.{user_id}"},
-            dict(patch or {}),
+            core_patch,
         )
     except Exception as e:
-        logger.info(f"meal analysis patch skipped: {e}")
+        if not _mark_table_unavailable(TBL_MEAL_ANALYSES, e):
+            logger.info(f"meal analysis patch skipped: {e}")
 
 
 def _store_meal_edit(row: Dict[str, Any]) -> None:
     if not (SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY):
         return
     try:
+        raw = dict(row or {})
+        analysis_id = str(raw.get("analysis_id") or raw.get("scan_id") or "").strip()
+        scan_id = ""
+        try:
+            if analysis_id:
+                scan_id = str(uuid.UUID(analysis_id))
+        except Exception:
+            scan_id = ""
+        edit_payload = raw.get("edit")
+        if not isinstance(edit_payload, dict):
+            edit_payload = raw.get("edit_patch_json")
+        if not isinstance(edit_payload, dict):
+            edit_payload = {k: v for k, v in raw.items() if k not in {"id", "edit_id", "analysis_id", "scan_id", "user_id", "created_at"}}
+        payload = {
+            "id": str(raw.get("id") or raw.get("edit_id") or uuid.uuid4()),
+            "scan_id": scan_id or None,
+            "analysis_id": analysis_id or None,
+            "user_id": str(raw.get("user_id") or "").strip(),
+            "edit": edit_payload,
+            "created_at": raw.get("created_at") or _now_utc_naive().isoformat(),
+        }
         _sb_insert_with_column_fallback(
             TBL_MEAL_EDITS,
-            dict(row or {}),
-            locked_cols={"edit_id", "analysis_id", "user_id"},
+            payload,
+            locked_cols={"id", "scan_id", "analysis_id", "user_id"},
         )
     except Exception as e:
-        logger.info(f"meal edit write skipped: {e}")
+        if not _mark_table_unavailable(TBL_MEAL_EDITS, e):
+            logger.info(f"meal edit write skipped: {e}")
 
 
 
@@ -1101,16 +1533,15 @@ def _sb_upsert_with_column_fallback(table: str, row: Dict[str, Any], on_conflict
     for _ in range(max_attempts):
         try:
             return sb_upsert(table, payload, on_conflict=on_conflict)
-        except HTTPException as e:
-            detail = e.detail if isinstance(e.detail, dict) else {"raw": str(e.detail)}
-            raw = str(detail.get("raw") or "")
-            m = re.search(r'column "([^"]+)"', raw)
-            if m:
-                bad_col = m.group(1)
-                if bad_col in payload and bad_col not in ("user_id",):
-                    logger.warning(f"Dropping unknown column during upsert: {bad_col}")
+        except Exception as e:
+            raw = _http_exc_raw(e)
+            bad_col = _extract_unknown_column(raw)
+            if bad_col and bad_col in payload and bad_col not in {"user_id"}:
+                moved = _merge_unknown_column_into_json_payload(table, payload, bad_col)
+                if not moved:
                     payload.pop(bad_col, None)
-                    continue
+                _log_unknown_column_once(table, "upsert", bad_col, moved)
+                continue
             raise
     return payload
 
@@ -1562,6 +1993,7 @@ def build_daily_summary(
     totals["kcal"] = _safe_float(totals.get("total_kcal"), 0.0) or 0.0
     totals["micros"] = {
         "fiber_g": _safe_float(totals.get("fiber_g"), 0.0) or 0.0,
+        "sugar_g": _safe_float(totals.get("sugar_g"), 0.0) or 0.0,
         "vitamin_d_ug": _safe_float(totals.get("vitamin_d_ug"), 0.0) or 0.0,
         "vitamin_b12_ug": _safe_float(totals.get("vitamin_b12_ug"), 0.0) or 0.0,
         "iron_mg": _safe_float(totals.get("iron_mg"), 0.0) or 0.0,
@@ -4002,12 +4434,13 @@ def _normalize_tone_preference(v: Any) -> str:
     tone = str(v or "supportive").strip().lower()
     aliases = {
         "supportive": "supportive",
-        "firm": "firm",
-        "strict": "firm",
-        "fun": "fun",
-        "funny": "fun",
-        "neutral": "neutral",
-        "indian_coach": "supportive",
+        "strict": "strict",
+        "firm": "strict",
+        "funny": "funny",
+        "fun": "funny",
+        "indian_coach": "indian_coach",
+        "indian": "indian_coach",
+        "neutral": "supportive",
     }
     return aliases.get(tone, "supportive")
 
@@ -4501,59 +4934,57 @@ def rewrite_coach_tone(
         "Rewrite content into requested tone. Return ONLY JSON."
     )
     last_err = ""
-    candidates = _llm_model_candidates(COACH_LLM_MODEL, COACH_TONE_REWRITE_FALLBACK_MODELS)[:4]
+    model_name = _choose_single_llm_model(COACH_LLM_MODEL, COACH_TONE_REWRITE_FALLBACK_MODELS)
     tried_models: List[str] = []
     prior_raw = ""
-    for idx, model_name in enumerate(candidates):
-        attempts = 2 if idx == 0 else 1
-        for attempt in range(attempts):
-            try:
-                prompt = user_prompt
-                if attempt == 1:
-                    prompt = (
-                        f"{user_prompt}\n\n"
-                        "Previous output did not validate schema/tone rules. "
-                        "Fix strictly and return valid JSON only.\n"
-                        f"Previous output snippet:\n{prior_raw[:800]}"
-                    )
-                tried_models.append(model_name)
-                model = genai.GenerativeModel(model_name)
-                resp = model.generate_content(
-                    [_COACH_TONE_REWRITE_SYSTEM_PROMPT, prompt],
-                    request_options={"timeout": min(COACH_LLM_TIMEOUT_SEC, 6.0)},
+    for attempt in range(2):
+        try:
+            prompt = user_prompt
+            if attempt == 1:
+                prompt = (
+                    f"{user_prompt}\n\n"
+                    "Previous output did not validate schema/tone rules. "
+                    "Fix strictly and return valid JSON only.\n"
+                    f"Previous output snippet:\n{prior_raw[:800]}"
                 )
-                txt = (resp.text or "").strip()
-                prior_raw = txt
-                parsed = coach_logic.extract_json_object(txt)
-                if not isinstance(parsed, dict):
-                    raise ValueError("tone rewrite non-json")
-                parsed["tone_id"] = _normalize_daily_tone_id(parsed.get("tone_id") or tone)
-                parsed["source"] = "llm_rewrite"
-                parsed["freshness"] = str(parsed.get("freshness") or freshness).strip().lower()
-                if parsed["freshness"] not in {"updated_now", "updating", "stale_cache"}:
-                    parsed["freshness"] = freshness if freshness in {"updated_now", "updating", "stale_cache"} else "updated_now"
-                if not isinstance(parsed.get("microcopy"), dict):
-                    parsed["microcopy"] = fallback["microcopy"]
-                if not isinstance(parsed.get("actions"), list):
-                    parsed["actions"] = fallback["actions"]
-                parsed["actions"] = [a for a in parsed.get("actions", []) if isinstance(a, dict)][: max(1, min(5, int(max_actions or 3)))]
-                if not parsed["actions"]:
-                    parsed["actions"] = fallback["actions"][:1]
-                parsed["copy_checks"] = _tone_copy_checks(parsed, parsed["tone_id"])
-                obj = _model_validate(CoachToneRewriteV1Model, parsed)
-                out = _model_dump(obj)
-                checks = _tone_copy_checks(out, out.get("tone_id"))
-                out["copy_checks"] = checks
-                if not checks.get("constraints_passed"):
-                    raise ValueError(f"tone rewrite constraints failed: {checks.get('notes')}")
-                out["_llm_model_used"] = model_name
-                return out
-            except Exception as e:
-                last_err = f"{model_name}: {str(e)}"
-                if attempt < attempts - 1:
-                    time.sleep(0.25 * (attempt + 1))
-                else:
-                    time.sleep(0.08)
+            _append_tried_model_once(tried_models, model_name)
+            model = genai.GenerativeModel(model_name)
+            resp = model.generate_content(
+                [_COACH_TONE_REWRITE_SYSTEM_PROMPT, prompt],
+                request_options={"timeout": min(_llm_timeout(limit=10.0), 8.0)},
+            )
+            txt = (resp.text or "").strip()
+            prior_raw = txt
+            parsed = coach_logic.extract_json_object(txt)
+            if not isinstance(parsed, dict):
+                raise ValueError("tone rewrite non-json")
+            parsed["tone_id"] = _normalize_daily_tone_id(parsed.get("tone_id") or tone)
+            parsed["source"] = "llm_rewrite"
+            parsed["freshness"] = str(parsed.get("freshness") or freshness).strip().lower()
+            if parsed["freshness"] not in {"updated_now", "updating", "stale_cache"}:
+                parsed["freshness"] = freshness if freshness in {"updated_now", "updating", "stale_cache"} else "updated_now"
+            if not isinstance(parsed.get("microcopy"), dict):
+                parsed["microcopy"] = fallback["microcopy"]
+            if not isinstance(parsed.get("actions"), list):
+                parsed["actions"] = fallback["actions"]
+            parsed["actions"] = [a for a in parsed.get("actions", []) if isinstance(a, dict)][: max(1, min(5, int(max_actions or 3)))]
+            if not parsed["actions"]:
+                parsed["actions"] = fallback["actions"][:1]
+            parsed["copy_checks"] = _tone_copy_checks(parsed, parsed["tone_id"])
+            obj = _model_validate(CoachToneRewriteV1Model, parsed)
+            out = _model_dump(obj)
+            checks = _tone_copy_checks(out, out.get("tone_id"))
+            out["copy_checks"] = checks
+            if not checks.get("constraints_passed"):
+                raise ValueError(f"tone rewrite constraints failed: {checks.get('notes')}")
+            out["_llm_model_used"] = model_name
+            return out
+        except Exception as e:
+            last_err = f"{model_name}: {str(e)}"
+            if attempt < 1:
+                time.sleep(0.25 * (attempt + 1))
+            else:
+                time.sleep(0.08)
     logger.info(f"tone rewrite fallback used: {last_err[:180]} | tried_models={tried_models}")
     return fallback
 
@@ -5030,21 +5461,13 @@ def _read_user_food_prior(user_id: str, food_token: str) -> Optional[Dict[str, A
     if not token:
         return None
     try:
-        row = sb_get_one(
+        return sb_get_one(
             TBL_USER_FOOD_PRIORS,
             params={"select": "*", "user_id": f"eq.{user_id}", "food_key": f"eq.{token}", "limit": "1"},
         )
-        if row:
-            return row
-    except Exception:
-        pass
-    try:
-        return sb_get_one(
-            TBL_USER_FOOD_PRIORS,
-            params={"select": "*", "user_id": f"eq.{user_id}", "food_token": f"eq.{token}", "limit": "1"},
-        )
     except Exception as e:
-        logger.info(f"user food prior read skipped: {e}")
+        if not _mark_table_unavailable(TBL_USER_FOOD_PRIORS, e):
+            logger.info(f"user food prior read skipped: {e}")
         return None
 
 
@@ -5058,7 +5481,8 @@ def _list_user_food_priors(user_id: str, limit: int = 20) -> List[Dict[str, Any]
         )
         return rows if isinstance(rows, list) else []
     except Exception as e:
-        logger.info(f"user priors list skipped: {e}")
+        if not _mark_table_unavailable(TBL_USER_FOOD_PRIORS, e):
+            logger.info(f"user priors list skipped: {e}")
         return []
 
 
@@ -5143,7 +5567,8 @@ def load_confidence_calibration_settings() -> Dict[str, Dict[str, float]]:
             params={"select": "*", "limit": "32"},
         )
     except Exception as e:
-        logger.info(f"confidence calibration settings read skipped: {e}")
+        if not _mark_table_unavailable(TBL_CONFIDENCE_CALIBRATION_SETTINGS, e):
+            logger.info(f"confidence calibration settings read skipped: {e}")
         return merged
     for row in (rows or []):
         p = str((row or {}).get("prediction_type") or "").strip().lower()
@@ -5193,7 +5618,8 @@ def _upsert_confidence_calibration_setting(prediction_type: str, confidence_thre
                 locked_cols={"prediction_type"},
             )
     except Exception as e:
-        logger.info(f"confidence calibration setting write skipped: {e}")
+        if not _mark_table_unavailable(TBL_CONFIDENCE_CALIBRATION_SETTINGS, e):
+            logger.info(f"confidence calibration setting write skipped: {e}")
 
 
 def _prediction_range(
@@ -5577,7 +6003,6 @@ def _upsert_user_food_prior(
         "id": str(existing.get("id") or uuid.uuid4()),
         "user_id": str(user_id or "").strip(),
         "food_key": token,
-        "food_token": token,
         "feedback_count": feedback_count,
         "avg_rating": round(avg_rating, 3),
         "portion_multiplier_mean": round(portion_avg, 4),
@@ -5598,14 +6023,11 @@ def _upsert_user_food_prior(
         match = {"user_id": f"eq.{row['user_id']}"}
         existing_key = _row_food_key(existing)
         if existing_key:
-            if "food_key" in existing:
-                match["food_key"] = f"eq.{existing_key}"
-            else:
-                match["food_token"] = f"eq.{existing_key}"
+            match["food_key"] = f"eq.{existing_key}"
         else:
             match["food_key"] = f"eq.{row['food_key']}"
         if existing:
-            patch = {k: v for k, v in row.items() if k not in {"user_id", "food_key", "food_token"}}
+            patch = {k: v for k, v in row.items() if k not in {"user_id", "food_key"}}
             _sb_patch_with_column_fallback(
                 TBL_USER_FOOD_PRIORS,
                 match,
@@ -5615,7 +6037,7 @@ def _upsert_user_food_prior(
             _sb_insert_with_column_fallback(
                 TBL_USER_FOOD_PRIORS,
                 row,
-                locked_cols={"user_id", "food_key", "food_token"},
+                locked_cols={"user_id", "food_key"},
             )
     except Exception as e:
         logger.info(f"user food prior write skipped: {e}")
@@ -5973,9 +6395,7 @@ def _extract_llm_failure_debug(err: Exception) -> Tuple[str, List[str], str]:
         arr = err.detail.get("tried_models")
         if isinstance(arr, list):
             for m in arr:
-                name = str(m or "").strip()
-                if name and name not in tried_models:
-                    tried_models.append(name)
+                _append_tried_model_once(tried_models, m)
         if not raw:
             raw = str(err.detail.get("raw") or err.detail.get("error") or "")
     return reason, tried_models[:8], str(raw or "")[:300]
@@ -5993,12 +6413,124 @@ def _normalize_fli_source(resp: Dict[str, Any]) -> str:
     source = str((resp or {}).get("fli_source") or "").strip().lower()
     if source in {"llm", "cached_llm", "rules"}:
         return source
+    if source in {"fallback", "heuristic"}:
+        return "rules"
     rs = str((resp or {}).get("reasoning_source") or "").strip().lower()
     if rs in {"llm", "cached_llm"}:
         return rs
     if rs in {"rules", "heuristic", "fallback"}:
         return "rules"
     return "rules"
+
+
+def _public_source_from_fli(raw_source: Any) -> str:
+    src = str(raw_source or "").strip().lower()
+    if src in {"llm"}:
+        return "llm"
+    if src in {"cached_llm", "cache"}:
+        return "cache"
+    if src in {"rules", "fallback", "heuristic"}:
+        return "rules"
+    return "rules"
+
+
+def _attach_coach_response_debug(
+    resp: Dict[str, Any],
+    *,
+    request_id: str,
+    started_at: float,
+    meal_id: str = "",
+    analysis_id: str = "",
+    input_scan_id: str = "",
+    source_hint: str = "",
+    model_used: str = "",
+    error_code: str = "",
+    tried_models: Optional[List[str]] = None,
+) -> Dict[str, Any]:
+    out = dict(resp or {})
+    internal_source = _normalize_fli_source(out)
+    public_source = _public_source_from_fli(source_hint or internal_source)
+    merged_model = str(model_used or out.get("llm_model_used") or "").strip()
+    merged_error = str(error_code or out.get("llm_error_code") or out.get("fli_reason_code") or "").strip()
+    merged_tried: List[str] = []
+    for name in list(tried_models or []) + list(out.get("llm_tried_models") or []):
+        val = str(name or "").strip()
+        if val and val not in merged_tried:
+            merged_tried.append(val)
+    if not merged_tried and merged_model:
+        merged_tried = [merged_model]
+
+    out["request_id"] = str(request_id or _new_request_id())
+    out["source"] = public_source
+    out["coach_summary_source"] = "llm" if public_source in {"llm", "cache"} else "fallback"
+    out["fli_source_internal"] = str(out.get("fli_source") or out.get("reasoning_source") or internal_source)
+    out["fli_source"] = internal_source
+    out["model_used"] = merged_model
+    out["llm_model_used"] = merged_model
+    out["error_code"] = merged_error if public_source != "llm" else ""
+    out["llm_error_code"] = merged_error if public_source != "llm" else ""
+    out["tried_models"] = merged_tried if public_source != "llm" else ([] if not merged_model else [merged_model])
+    out["llm_tried_models"] = out["tried_models"]
+    tone_requested = _normalize_daily_tone_id(
+        out.get("tone_requested")
+        or out.get("tone_mode")
+        or out.get("tone_used")
+        or ""
+    )
+    tone_used = _normalize_daily_tone_id(
+        out.get("tone_used")
+        or out.get("tone_mode")
+        or tone_requested
+        or "supportive"
+    )
+    if not tone_requested:
+        tone_requested = tone_used or "supportive"
+    if not tone_used:
+        tone_used = tone_requested
+    out["tone_requested"] = tone_requested
+    out["tone_used"] = tone_used
+    out["tone_mode"] = _tone_mode_from_source(public_source)
+    out["latency_ms"] = int(max(0, round((time.time() - float(started_at or time.time())) * 1000)))
+
+    effective_scan = str(
+        input_scan_id
+        or out.get("input_scan_id")
+        or out.get("last_processed_scan_id")
+        or analysis_id
+        or meal_id
+        or ""
+    ).strip()
+    effective_analysis = str(analysis_id or out.get("analysis_id") or effective_scan or "").strip()
+    effective_meal = str(meal_id or out.get("meal_id") or effective_analysis or effective_scan or "").strip()
+    out["input_scan_id"] = effective_scan
+    out["analysis_id"] = effective_analysis
+    out["meal_id"] = effective_meal
+    return out
+
+
+def _record_coach_event(user_id: str, event: Dict[str, Any]) -> None:
+    uid = str(user_id or "").strip()
+    if not uid:
+        return
+    ring = _COACH_EVENT_RING.get(uid)
+    if ring is None:
+        ring = deque(maxlen=20)
+        _COACH_EVENT_RING[uid] = ring
+    ring.appendleft(dict(event or {}))
+
+    if (not (SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY)) or _is_table_disabled(TBL_COACH_EVENTS):
+        return
+    row = {
+        "event_id": str(uuid.uuid4()),
+        "user_id": uid,
+        "event_json": dict(event or {}),
+        "created_at": _now_utc_naive().isoformat(),
+    }
+    try:
+        _sb_insert_with_column_fallback(TBL_COACH_EVENTS, row)
+    except Exception as e:
+        if not _mark_table_unavailable(TBL_COACH_EVENTS, e):
+            logger.info(f"coach event write skipped: {e}")
 
 
 def _best_cached_coach_llm(user_id: str, day_iso: str) -> Optional[Dict[str, Any]]:
@@ -6359,38 +6891,36 @@ def _generate_daily_coach_llm(
         fast_mode=fast_mode,
         tone_preference=tone_preference,
     )
-    timeout_sec = min(COACH_LLM_TIMEOUT_SEC, 5.0) if fast_mode else COACH_LLM_TIMEOUT_SEC
-    max_models = 2 if fast_mode else 4
+    timeout_sec = min(_llm_timeout(limit=10.0), 8.0) if fast_mode else _llm_timeout(limit=10.0)
     last_err = ""
     tried_models: List[str] = []
-    candidates = _llm_model_candidates(COACH_LLM_MODEL, COACH_LLM_FALLBACK_MODELS)[:max_models]
-    for idx, model_name in enumerate(candidates):
-        attempts = 1 if fast_mode else (2 if idx == 0 else 1)
-        for attempt in range(attempts):
-            tried_models.append(model_name)
-            try:
-                model = genai.GenerativeModel(model_name)
-                resp = model.generate_content(
-                    [_COACH_SYSTEM_PROMPT, user_prompt],
-                    request_options={"timeout": timeout_sec},
-                )
-                text = str((resp.text or "")).strip()
-                if not text:
-                    raise ValueError("LLM returned empty text")
-                parsed = coach_logic.extract_json_object(text)
-                if not isinstance(parsed, dict):
-                    raise ValueError("LLM did not return valid JSON object.")
+    model_name = _choose_single_llm_model(COACH_LLM_MODEL, COACH_LLM_FALLBACK_MODELS)
+    attempts = 1 if fast_mode else 2
+    for attempt in range(attempts):
+        _append_tried_model_once(tried_models, model_name)
+        try:
+            model = genai.GenerativeModel(model_name)
+            resp = model.generate_content(
+                [_COACH_SYSTEM_PROMPT, user_prompt],
+                request_options={"timeout": timeout_sec},
+            )
+            text = str((resp.text or "")).strip()
+            if not text:
+                raise ValueError("LLM returned empty text")
+            parsed = coach_logic.extract_json_object(text)
+            if not isinstance(parsed, dict):
+                raise ValueError("LLM did not return valid JSON object.")
 
-                cleaned = _coerce_coach_response_shape(parsed, rule_alerts, weekly_predictive=weekly_predictive)
-                ok, reason = coach_logic.validate_llm_response_shape(cleaned)
-                if not ok:
-                    raise ValueError(f"LLM JSON failed validation: {reason}")
-                cleaned["_llm_model_used"] = model_name
-                return cleaned
-            except Exception as e:
-                last_err = f"{model_name}: {str(e)}"
-                if attempt < attempts - 1:
-                    time.sleep(0.25 * (attempt + 1))
+            cleaned = _coerce_coach_response_shape(parsed, rule_alerts, weekly_predictive=weekly_predictive)
+            ok, reason = coach_logic.validate_llm_response_shape(cleaned)
+            if not ok:
+                raise ValueError(f"LLM JSON failed validation: {reason}")
+            cleaned["_llm_model_used"] = model_name
+            return cleaned
+        except Exception as e:
+            last_err = f"{model_name}: {str(e)}"
+            if attempt < attempts - 1:
+                time.sleep(0.25 * (attempt + 1))
     raise HTTPException(
         status_code=502,
         detail={"error": "coach_llm_failed", "raw": last_err[:300], "tried_models": tried_models},
@@ -6651,6 +7181,7 @@ def _build_quick_fli_response(
         "fli_stale_seconds": 0,
         "fli_status": "ready",
         "source_display": "Coach",
+        "source": "rules",
         "last_processed_scan_id": str(latest_scan_id or ""),
         "last_processed_scan_ts": str(latest_scan_ts or ""),
         "updatedAt": generated_ts,
@@ -6794,6 +7325,11 @@ def _voice_metrics_from_request(req: CoachVoiceRequestModel) -> Dict[str, Any]:
     }
 
 
+def _voice_requested_tone(req: CoachVoiceRequestModel) -> str:
+    raw = str(getattr(req, "tone_id", "") or getattr(req, "tone_preference", "") or "supportive")
+    return _normalize_tone_preference(raw)
+
+
 def _voice_action_templates(metrics: Dict[str, Any]) -> List[Dict[str, Any]]:
     out: List[Dict[str, Any]] = []
     protein_gap = float(_safe_float((metrics or {}).get("protein_gap"), 0.0) or 0.0)
@@ -6926,22 +7462,22 @@ def _voice_fallback_response(
 ) -> Dict[str, Any]:
     metrics = _voice_metrics_from_request(req)
     candidate = _pick_non_repeating_advice_key(_voice_action_templates(metrics), recent_keys)
-    tone_pref = _normalize_tone_preference(req.tone_preference)
+    tone_pref = _voice_requested_tone(req)
     tone_map = {
         "supportive": "supportive",
-        "firm": "firm",
-        "fun": "celebratory",
-        "neutral": "neutral",
+        "strict": "firm",
+        "funny": "celebratory",
+        "indian_coach": "supportive",
     }
     tone_tag = tone_map.get(tone_pref, "neutral")
 
     empathy = "Good job logging this meal. Small changes now will compound."
-    if tone_pref == "firm":
+    if tone_pref == "strict":
         empathy = "Logged. Now execute one correction."
-    elif tone_pref == "fun":
+    elif tone_pref == "funny":
         empathy = "Nice check-in. Let’s win this next meal."
-    elif tone_pref == "neutral":
-        empathy = "Meal logged. Here is the highest-impact next step."
+    elif tone_pref == "indian_coach":
+        empathy = "Boss, meal logged. Chalo ek strong next step set karte hain."
 
     protein_gap = float(_safe_float(metrics.get("protein_gap"), 0.0) or 0.0)
     fiber_gap = float(_safe_float(metrics.get("fiber_gap"), 0.0) or 0.0)
@@ -6984,8 +7520,13 @@ def _coerce_voice_output(
     fallback = _voice_fallback_response(req, recent_keys, timeout_mode=False)
     metrics = _voice_metrics_from_request(req)
 
-    tone_pref = _normalize_tone_preference(req.tone_preference)
-    default_tone = {"supportive": "supportive", "firm": "firm", "fun": "celebratory", "neutral": "neutral"}.get(tone_pref, "neutral")
+    tone_pref = _voice_requested_tone(req)
+    default_tone = {
+        "supportive": "supportive",
+        "strict": "firm",
+        "funny": "celebratory",
+        "indian_coach": "supportive",
+    }.get(tone_pref, "neutral")
     tone_tag = _normalize_tone_tag(raw.get("tone_tag"), fallback=default_tone)
     empathy_line = _limit_text(raw.get("empathy_line"), 120) or fallback["empathy_line"]
     insight_line = _limit_text(raw.get("insight_line"), 200) or fallback["insight_line"]
@@ -7035,7 +7576,7 @@ def _generate_human_coach_voice_llm(
 ) -> Dict[str, Any]:
     _require_gemini_key()
     metrics = _voice_metrics_from_request(req)
-    tone_pref = _normalize_tone_preference(req.tone_preference)
+    tone_pref = _voice_requested_tone(req)
     candidate_actions = _voice_action_templates(metrics)
     allowed_keys = [_normalize_semantic_key(a.get("advice_key")) for a in candidate_actions if _normalize_semantic_key(a.get("advice_key"))]
     recent_norm = _normalize_semantic_key_list(recent_keys, limit=24)
@@ -7071,26 +7612,24 @@ def _generate_human_coach_voice_llm(
     )
     last_err = ""
     tried_models: List[str] = []
-    candidates = _llm_model_candidates(COACH_VOICE_LLM_MODEL, COACH_VOICE_FALLBACK_MODELS)[:4]
-    for idx, model_name in enumerate(candidates):
-        attempts = 2 if idx == 0 else 1
-        for attempt in range(attempts):
-            tried_models.append(model_name)
-            try:
-                model = genai.GenerativeModel(model_name)
-                resp = model.generate_content(
-                    [_COACH_VOICE_SYSTEM_PROMPT, prompt],
-                    request_options={"timeout": COACH_VOICE_TIMEOUT_SEC},
-                )
-                parsed = coach_logic.extract_json_object(str((resp.text or "")).strip())
-                if not isinstance(parsed, dict):
-                    raise ValueError("Coach voice output is not valid JSON.")
-                parsed["_llm_model_used"] = model_name
-                return parsed
-            except Exception as e:
-                last_err = f"{model_name}: {str(e)}"
-                if attempt < attempts - 1:
-                    time.sleep(0.25 * (attempt + 1))
+    model_name = _choose_single_llm_model(COACH_VOICE_LLM_MODEL, COACH_VOICE_FALLBACK_MODELS)
+    for attempt in range(2):
+        _append_tried_model_once(tried_models, model_name)
+        try:
+            model = genai.GenerativeModel(model_name)
+            resp = model.generate_content(
+                [_COACH_VOICE_SYSTEM_PROMPT, prompt],
+                request_options={"timeout": min(float(COACH_VOICE_TIMEOUT_SEC), 10.0)},
+            )
+            parsed = coach_logic.extract_json_object(str((resp.text or "")).strip())
+            if not isinstance(parsed, dict):
+                raise ValueError("Coach voice output is not valid JSON.")
+            parsed["_llm_model_used"] = model_name
+            return parsed
+        except Exception as e:
+            last_err = f"{model_name}: {str(e)}"
+            if attempt < 1:
+                time.sleep(0.25 * (attempt + 1))
     raise HTTPException(
         status_code=502,
         detail={"error": "coach_voice_llm_failed", "raw": last_err[:300], "tried_models": tried_models},
@@ -7101,6 +7640,7 @@ def _generate_human_coach_voice_llm(
 def coach_voice(
     payload: Dict[str, Any] = Body(...),
     user_id: Optional[str] = None,
+    debug: Optional[bool] = False,
     x_user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
 ):
     try:
@@ -7110,7 +7650,7 @@ def coach_voice(
 
     uid = require_user_id(x_user_id, user_id or req.user_id)
     day_iso = _safe_day_iso(req.day)
-    tone_pref = _normalize_tone_preference(req.tone_preference)
+    tone_pref = _voice_requested_tone(req)
     _cache_user_coach_profile(uid, _model_dump(req.user_profile), tone_pref)
     payload_hash = str(req.payload_hash or "").strip()
     if not payload_hash:
@@ -7130,7 +7670,12 @@ def coach_voice(
 
     cached = _coach_voice_cache_get(uid, day_iso, payload_hash, tone_pref)
     if isinstance(cached, dict):
-        return cached
+        cached_out = dict(cached)
+        cached_out["tone_requested"] = _normalize_daily_tone_id(cached_out.get("tone_requested") or tone_pref)
+        cached_out["tone_used"] = cached_out["tone_requested"]
+        cached_out["source"] = "cache"
+        cached_out["tone_mode"] = _tone_mode_from_source(cached_out.get("source"))
+        return _attach_debug_schema(cached_out, bool(debug))
 
     mem_window = _read_coach_memory_window(uid, day_iso)
     recent_keys = _normalize_semantic_key_list(
@@ -7139,7 +7684,7 @@ def coach_voice(
     )
 
     output: Dict[str, Any]
-    voice_source = "fallback"
+    voice_source = "rules"
     voice_model_used = ""
     voice_reason_code = ""
     voice_tried_models: List[str] = []
@@ -7161,6 +7706,9 @@ def coach_voice(
     output["llm_model_used"] = voice_model_used
     output["llm_error_code"] = voice_reason_code if voice_source != "llm" else ""
     output["llm_tried_models"] = voice_tried_models if voice_source != "llm" else ([] if not voice_model_used else [voice_model_used])
+    output["tone_requested"] = tone_pref
+    output["tone_used"] = tone_pref
+    output["tone_mode"] = _tone_mode_from_source(voice_source)
 
     _append_coach_memory_entry(
         uid,
@@ -7169,7 +7717,7 @@ def coach_voice(
         f"{output.get('empathy_line', '')} {output.get('insight_line', '')}".strip(),
     )
     _coach_voice_cache_set(uid, day_iso, payload_hash, tone_pref, output)
-    return output
+    return _attach_debug_schema(output, bool(debug))
 
 
 @app.post("/coach/memory/feedback")
@@ -7490,26 +8038,24 @@ def _generate_weekly_report_llm(base_payload: Dict[str, Any], tone_preference: s
     )
     last_err = ""
     tried_models: List[str] = []
-    candidates = _llm_model_candidates(COACH_LLM_MODEL, COACH_WEEKLY_REPORT_FALLBACK_MODELS)[:4]
-    for idx, model_name in enumerate(candidates):
-        attempts = 2 if idx == 0 else 1
-        for attempt in range(attempts):
-            tried_models.append(model_name)
-            try:
-                model = genai.GenerativeModel(model_name)
-                resp = model.generate_content(
-                    [_COACH_SYSTEM_PROMPT, prompt],
-                    request_options={"timeout": COACH_LLM_TIMEOUT_SEC},
-                )
-                parsed = coach_logic.extract_json_object(str((resp.text or "")).strip())
-                if not isinstance(parsed, dict):
-                    raise ValueError("weekly report output invalid JSON")
-                parsed["_llm_model_used"] = model_name
-                return parsed
-            except Exception as e:
-                last_err = f"{model_name}: {str(e)}"
-                if attempt < attempts - 1:
-                    time.sleep(0.25 * (attempt + 1))
+    model_name = _choose_single_llm_model(COACH_LLM_MODEL, COACH_WEEKLY_REPORT_FALLBACK_MODELS)
+    for attempt in range(2):
+        _append_tried_model_once(tried_models, model_name)
+        try:
+            model = genai.GenerativeModel(model_name)
+            resp = model.generate_content(
+                [_COACH_SYSTEM_PROMPT, prompt],
+                request_options={"timeout": _llm_timeout(limit=10.0)},
+            )
+            parsed = coach_logic.extract_json_object(str((resp.text or "")).strip())
+            if not isinstance(parsed, dict):
+                raise ValueError("weekly report output invalid JSON")
+            parsed["_llm_model_used"] = model_name
+            return parsed
+        except Exception as e:
+            last_err = f"{model_name}: {str(e)}"
+            if attempt < 1:
+                time.sleep(0.25 * (attempt + 1))
     raise HTTPException(
         status_code=502,
         detail={"error": "weekly_report_llm_failed", "raw": last_err[:300], "tried_models": tried_models},
@@ -7702,10 +8248,13 @@ def coach_daily(
     user_id: Optional[str] = None,
     refresh: Optional[bool] = False,
     fast: Optional[bool] = False,
+    debug: Optional[bool] = False,
     tone: Optional[str] = None,
     tone_id: Optional[str] = None,
     latest_scan_id: Optional[str] = None,
     latest_scan_ts: Optional[str] = None,
+    meal_id: Optional[str] = None,
+    analysis_id: Optional[str] = None,
     state_signature: Optional[str] = None,
     tz: Optional[str] = None,
     tz_offset_min: Optional[int] = None,
@@ -7716,6 +8265,7 @@ def coach_daily(
     Numbers are always computed by Python rules; LLM only interprets.
     """
     uid = require_user_id(x_user_id, user_id)
+    request_id = _new_request_id()
     started = time.time()
     norm = coach_logic.normalize_daily_payload(payload or {})
     incoming_profile = payload.get("profile") if isinstance(payload, dict) and isinstance(payload.get("profile"), dict) else {}
@@ -7738,9 +8288,27 @@ def coach_daily(
     rule_alerts = coach_logic.build_rule_risk_alerts(norm)
     p_hash = hashlib.sha256(f"{coach_logic.payload_hash(norm)}:tone:{tone_pref}".encode("utf-8")).hexdigest()
     day_iso = str(norm.get("date") or _today_date().isoformat())
+    requested_meal_id = str(
+        meal_id
+        or (payload.get("meal_id") if isinstance(payload, dict) else "")
+        or ""
+    ).strip()
+    requested_analysis_id = str(
+        analysis_id
+        or (payload.get("analysis_id") if isinstance(payload, dict) else "")
+        or requested_meal_id
+        or ""
+    ).strip()
+    requested_input_scan_id = str(
+        latest_scan_id
+        or (payload.get("input_scan_id") if isinstance(payload, dict) else "")
+        or requested_analysis_id
+        or requested_meal_id
+        or ""
+    ).strip()
     week_start_iso = _week_start_monday(day_iso)
     scan_meta = _latest_scan_meta(uid, day_iso)
-    processed_scan_id = str(latest_scan_id or scan_meta.get("scan_id") or "").strip()
+    processed_scan_id = str(requested_input_scan_id or scan_meta.get("scan_id") or "").strip()
     processed_scan_ts = str(latest_scan_ts or scan_meta.get("scan_ts") or "").strip()
     incoming_state = payload.get("_state") if isinstance(payload, dict) and isinstance(payload.get("_state"), dict) else {}
     meals_count_today = int(_safe_float(incoming_state.get("scan_count"), 0) or 0)
@@ -7811,6 +8379,10 @@ def coach_daily(
         p_hash = hashlib.sha256(f"{p_hash}:{state_signature}".encode("utf-8")).hexdigest()
     elif incoming_daily_version:
         p_hash = hashlib.sha256(f"{p_hash}:{incoming_daily_version}".encode("utf-8")).hexdigest()
+    if requested_meal_id:
+        p_hash = hashlib.sha256(f"{p_hash}:meal:{requested_meal_id}".encode("utf-8")).hexdigest()
+    if requested_analysis_id:
+        p_hash = hashlib.sha256(f"{p_hash}:analysis:{requested_analysis_id}".encode("utf-8")).hexdigest()
     if processed_scan_id:
         p_hash = hashlib.sha256(f"{p_hash}:{processed_scan_id}".encode("utf-8")).hexdigest()
     daily_totals_version = str(incoming_daily_version or state_signature or p_hash)
@@ -7850,7 +8422,8 @@ def coach_daily(
         out["fli_stale_seconds"] = int(out.get("fli_stale_seconds") or _compute_fli_stale_seconds(out.get("coach_generated_ts")))
         out["fli_status"] = str(out.get("fli_status") or "ready")
         out["source_display"] = "Coach"
-        out["source"] = "llm" if _normalize_fli_source(out) in {"llm", "cached_llm"} else "fallback"
+        normalized_src = _normalize_fli_source(out)
+        out["source"] = "cache" if normalized_src == "cached_llm" else ("llm" if normalized_src == "llm" else "rules")
         out["llm_model_used"] = str(out.get("llm_model_used") or "")
         out["llm_error_code"] = str(out.get("llm_error_code") or ("" if out["source"] == "llm" else out.get("fli_reason_code") or ""))
         out["llm_tried_models"] = list(out.get("llm_tried_models") or [])
@@ -7905,7 +8478,38 @@ def coach_daily(
             f"payload_hash_used={out.get('payload_hash_used')} meals_count_today={out.get('meals_count_today')} "
             f"duration_ms={int((time.time()-started)*1000)}"
         )
-        return out
+        out = _attach_coach_response_debug(
+            out,
+            request_id=request_id,
+            started_at=started,
+            meal_id=requested_meal_id,
+            analysis_id=requested_analysis_id,
+            input_scan_id=processed_scan_id,
+            source_hint=(
+                "cache"
+                if _normalize_fli_source(out) == "cached_llm"
+                else ("llm" if _normalize_fli_source(out) == "llm" else "rules")
+            ),
+            model_used=str(out.get("llm_model_used") or ""),
+            error_code=str(out.get("llm_error_code") or out.get("fli_reason_code") or ""),
+            tried_models=list(out.get("llm_tried_models") or []),
+        )
+        _record_coach_event(
+            uid,
+            {
+                "request_id": out.get("request_id"),
+                "type": "coach_daily",
+                "source": out.get("source"),
+                "model_used": out.get("model_used"),
+                "error_code": out.get("error_code"),
+                "latency_ms": out.get("latency_ms"),
+                "meal_id": out.get("meal_id"),
+                "analysis_id": out.get("analysis_id"),
+                "input_scan_id": out.get("input_scan_id"),
+                "day": day_iso,
+            },
+        )
+        return _attach_debug_schema(out, bool(debug))
 
     llm_resp: Optional[Dict[str, Any]] = None
     reasoning_source = "rules"
@@ -7945,7 +8549,7 @@ def coach_daily(
             final_resp["fli_stale_seconds"] = _compute_fli_stale_seconds(final_resp.get("coach_generated_ts"))
             final_resp["fli_status"] = "ready"
             final_resp["source_display"] = "Coach"
-            final_resp["source"] = "llm"
+            final_resp["source"] = "cache"
             final_resp["llm_model_used"] = str(final_resp.get("llm_model_used") or llm_model_used or "")
             final_resp["llm_error_code"] = str(final_resp.get("llm_error_code") or llm_reason_code or "")
             final_resp["llm_tried_models"] = list(final_resp.get("llm_tried_models") or llm_tried_models or [])
@@ -8001,7 +8605,34 @@ def coach_daily(
                 f"payload_hash_used={final_resp.get('payload_hash_used')} meals_count_today={final_resp.get('meals_count_today')} "
                 f"duration_ms={int((time.time()-started)*1000)}"
             )
-            return final_resp
+            final_resp = _attach_coach_response_debug(
+                final_resp,
+                request_id=request_id,
+                started_at=started,
+                meal_id=requested_meal_id,
+                analysis_id=requested_analysis_id,
+                input_scan_id=processed_scan_id,
+                source_hint="cache",
+                model_used=str(final_resp.get("llm_model_used") or llm_model_used or ""),
+                error_code=str(final_resp.get("llm_error_code") or llm_reason_code or ""),
+                tried_models=list(final_resp.get("llm_tried_models") or llm_tried_models or []),
+            )
+            _record_coach_event(
+                uid,
+                {
+                    "request_id": final_resp.get("request_id"),
+                    "type": "coach_daily",
+                    "source": final_resp.get("source"),
+                    "model_used": final_resp.get("model_used"),
+                    "error_code": final_resp.get("error_code"),
+                    "latency_ms": final_resp.get("latency_ms"),
+                    "meal_id": final_resp.get("meal_id"),
+                    "analysis_id": final_resp.get("analysis_id"),
+                    "input_scan_id": final_resp.get("input_scan_id"),
+                    "day": day_iso,
+                },
+            )
+            return _attach_debug_schema(final_resp, bool(debug))
 
         llm_resp = coach_logic.build_fallback_coach_response(norm, fat_loss_score, rule_alerts)
 
@@ -8033,7 +8664,7 @@ def coach_daily(
         "fli_stale_seconds": 0,
         "fli_status": "ready",
         "source_display": "Coach",
-        "source": "llm" if reasoning_source == "llm" else "fallback",
+        "source": "llm" if reasoning_source == "llm" else "rules",
         "llm_model_used": llm_model_used if reasoning_source == "llm" else "",
         "llm_error_code": llm_reason_code if reasoning_source != "llm" else "",
         "llm_tried_models": llm_tried_models if reasoning_source != "llm" else ([] if not llm_model_used else [llm_model_used]),
@@ -8093,7 +8724,7 @@ def coach_daily(
             "fli_stale_seconds": 0,
             "fli_status": "ready",
             "source_display": "Coach",
-            "source": "fallback",
+            "source": "rules",
             "llm_model_used": "",
             "llm_error_code": "SAFETY_GATE_FAILED",
             "llm_tried_models": llm_tried_models,
@@ -8154,7 +8785,34 @@ def coach_daily(
         f"payload_hash_used={final_resp.get('payload_hash_used')} meals_count_today={final_resp.get('meals_count_today')} "
         f"duration_ms={int((time.time()-started)*1000)}"
     )
-    return final_resp
+    final_resp = _attach_coach_response_debug(
+        final_resp,
+        request_id=request_id,
+        started_at=started,
+        meal_id=requested_meal_id,
+        analysis_id=requested_analysis_id,
+        input_scan_id=processed_scan_id,
+        source_hint=("llm" if reasoning_source == "llm" else "rules"),
+        model_used=llm_model_used,
+        error_code=llm_reason_code,
+        tried_models=llm_tried_models,
+    )
+    _record_coach_event(
+        uid,
+        {
+            "request_id": final_resp.get("request_id"),
+            "type": "coach_daily",
+            "source": final_resp.get("source"),
+            "model_used": final_resp.get("model_used"),
+            "error_code": final_resp.get("error_code"),
+            "latency_ms": final_resp.get("latency_ms"),
+            "meal_id": final_resp.get("meal_id"),
+            "analysis_id": final_resp.get("analysis_id"),
+            "input_scan_id": final_resp.get("input_scan_id"),
+            "day": day_iso,
+        },
+    )
+    return _attach_debug_schema(final_resp, bool(debug))
 
 
 # -------------------- HTTP RETRY HELPERS --------------------
@@ -8657,6 +9315,7 @@ def _compute_scan_nutrition(detected_items: List[Dict[str, Any]]) -> Tuple[List[
         "potassium_mg": 0.0,
         "sodium_mg": 0.0,
         "fiber_g": 0.0,
+        "sugar_g": 0.0,
     }
     item_warnings: List[Dict[str, Any]] = []
 
@@ -8794,6 +9453,7 @@ def _build_micros_payload(total_micros: Dict[str, float]) -> Dict[str, Any]:
         "potassium_mg": round(float(_safe_float(tm.get("potassium_mg"), 0.0) or 0.0), 3),
         "sodium_mg": round(float(_safe_float(tm.get("sodium_mg"), 0.0) or 0.0), 3),
         "fiber_g": round(float(_safe_float(tm.get("fiber_g"), 0.0) or 0.0), 3),
+        "sugar_g": round(float(_safe_float(tm.get("sugar_g"), 0.0) or 0.0), 3),
         "_units": {
             "vitamin_d_ug": "µg",
             "vitamin_b12_ug": "µg",
@@ -8803,6 +9463,7 @@ def _build_micros_payload(total_micros: Dict[str, float]) -> Dict[str, Any]:
             "potassium_mg": "mg",
             "sodium_mg": "mg",
             "fiber_g": "g",
+            "sugar_g": "g",
         },
     }
 
@@ -8828,6 +9489,8 @@ def _build_rerun_daily_delta(
         - float(_safe_float(old_totals.get("fat_g"), 0.0) or 0.0),
         "fiber_g": float(_safe_float(new_micros.get("fiber_g"), 0.0) or 0.0)
         - float(_safe_float(old_micros.get("fiber_g"), 0.0) or 0.0),
+        "sugar_g": float(_safe_float(new_micros.get("sugar_g"), 0.0) or 0.0)
+        - float(_safe_float(old_micros.get("sugar_g"), 0.0) or 0.0),
         "sodium_mg": float(_safe_float(new_micros.get("sodium_mg"), 0.0) or 0.0)
         - float(_safe_float(old_micros.get("sodium_mg"), 0.0) or 0.0),
         "vitamin_d_ug": float(_safe_float(new_micros.get("vitamin_d_ug"), 0.0) or 0.0)
@@ -9638,9 +10301,12 @@ async def analyze(
     user_id: Optional[str] = None,
     tz: Optional[str] = None,
     tz_offset_min: Optional[int] = None,
+    debug: Optional[bool] = False,
     x_user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
 ):
     uid = require_user_id(x_user_id, user_id)
+    request_id = _new_request_id()
+    started = time.time()
     calibration_settings = load_confidence_calibration_settings()
     vision_threshold = _calibration_setting_value(calibration_settings, "vision", "confidence_threshold", 0.72)
     portion_threshold = _calibration_setting_value(calibration_settings, "portion", "confidence_threshold", 0.75)
@@ -9736,6 +10402,16 @@ async def analyze(
         or personalization_used.get("oil_prior_used")
         or personalization_used.get("asked_clarifying_question")
     )
+    response["request_id"] = request_id
+    response["input_scan_id"] = analysis_id
+    response["analysis_id"] = analysis_id
+    response["meal_id"] = analysis_id
+    response["coach_summary_source"] = "fallback"
+    response["fli_source"] = "rules"
+    response["source"] = "rules"
+    response["model_used"] = ""
+    response["error_code"] = ""
+    response["tried_models"] = []
 
     analysis_row = {
         "analysis_id": analysis_id,
@@ -9869,6 +10545,11 @@ async def analyze(
         response["fat_loss_intelligence"] = quick_fli
         response["fat_loss_intelligence_status"] = "pending" if GEMINI_API_KEY else "ready"
         response["fat_loss_intelligence_updated_at"] = quick_fli.get("updatedAt")
+        response["coach_summary_source"] = str(quick_fli.get("source") or "fallback")
+        response["fli_source"] = str(quick_fli.get("source") or "fallback")
+        response["model_used"] = str(quick_fli.get("model_used") or quick_fli.get("llm_model_used") or "")
+        response["error_code"] = str(quick_fli.get("error_code") or quick_fli.get("llm_error_code") or "")
+        response["tried_models"] = list(quick_fli.get("tried_models") or quick_fli.get("llm_tried_models") or [])
         if GEMINI_API_KEY:
             _warm_daily_coach_async(
                 uid,
@@ -9900,8 +10581,9 @@ async def analyze(
         f"scan_count={int(_safe_float((response.get('daily_signals') or {}).get('scan_count'), 0) or 0)} "
         f"totals_hash={totals_hash}"
     )
+    response["latency_ms"] = int(max(0, round((time.time() - started) * 1000)))
 
-    return response
+    return _attach_debug_schema(response, bool(debug))
 
 
 @app.post("/analyze/rerun")
@@ -9910,31 +10592,59 @@ def analyze_rerun(
     user_id: Optional[str] = None,
     tz: Optional[str] = None,
     tz_offset_min: Optional[int] = None,
+    debug: Optional[bool] = False,
     x_user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
 ):
     uid = require_user_id(x_user_id, user_id)
+    request_id = _new_request_id()
+    started = time.time()
     calibration_settings = load_confidence_calibration_settings()
     vision_threshold = _calibration_setting_value(calibration_settings, "vision", "confidence_threshold", 0.72)
     portion_threshold = _calibration_setting_value(calibration_settings, "portion", "confidence_threshold", 0.75)
     oil_threshold = _calibration_setting_value(calibration_settings, "oil", "confidence_threshold", 0.70)
     raw_payload = payload if isinstance(payload, dict) else {}
-    raw_analysis_id = str(raw_payload.get("analysis_id") or "").strip()
+    try:
+        logger.info(
+            "analyze_rerun incoming request_id=%s user=%s payload=%s",
+            request_id,
+            uid,
+            json.dumps(raw_payload, ensure_ascii=True)[:1800],
+        )
+    except Exception:
+        logger.info("analyze_rerun incoming request_id=%s user=%s payload_unserializable=1", request_id, uid)
+    raw_analysis_id = str(raw_payload.get("analysis_id") or raw_payload.get("scan_id") or "").strip()
     if not raw_analysis_id:
         raise HTTPException(
             status_code=400,
             detail={
                 "error_code": "invalid_rerun_payload",
-                "message": "Missing analysis_id.",
+                "message": "Missing analysis_id or scan_id.",
                 "field": "analysis_id",
-                "expected_schema": {"analysis_id": "string", "edits": "object"},
+                "expected_schema": {"analysis_id": "string (or scan_id)", "edits": "object|array", "edit": "object"},
             },
         )
+    raw_payload = dict(raw_payload)
+    raw_payload["analysis_id"] = raw_analysis_id
 
     existing = _get_meal_analysis(uid, raw_analysis_id)
     if not existing:
         raise HTTPException(status_code=404, detail={"error": "analysis_not_found", "analysis_id": raw_analysis_id})
 
     coerced_payload = _coerce_rerun_payload(raw_payload, existing)
+    coercion_errors = coerced_payload.pop("_coercion_errors", None)
+    if isinstance(coercion_errors, list) and coercion_errors:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error_code": "invalid_rerun_payload",
+                "message": str(coercion_errors[0]),
+                "field": "edits.swap_candidate",
+                "expected_schema": {
+                    "swap_candidate": {"item_id": "string", "candidate_index": "number >= 0"},
+                    "swap_item": {"item_id": "string", "new_name": "string"},
+                },
+            },
+        )
     try:
         req = _model_validate(AnalyzeRerunRequestModel, coerced_payload)
     except Exception as e:
@@ -10030,6 +10740,16 @@ def analyze_rerun(
         data_quality=data_quality,
     )
     response["rerun"] = {"ok": True, "analysis_id": req.analysis_id}
+    response["request_id"] = request_id
+    response["input_scan_id"] = str(req.analysis_id)
+    response["analysis_id"] = str(req.analysis_id)
+    response["meal_id"] = str(req.analysis_id)
+    response["coach_summary_source"] = "fallback"
+    response["fli_source"] = "rules"
+    response["source"] = "rules"
+    response["model_used"] = ""
+    response["error_code"] = ""
+    response["tried_models"] = []
     response["personalization_used"] = personalization_used
     response["learning_applied"] = bool(
         personalization_used.get("portion_prior_used")
@@ -10095,6 +10815,11 @@ def analyze_rerun(
         response["fat_loss_intelligence"] = quick_fli
         response["fat_loss_intelligence_status"] = "pending" if GEMINI_API_KEY else "ready"
         response["fat_loss_intelligence_updated_at"] = quick_fli.get("updatedAt")
+        response["coach_summary_source"] = str(quick_fli.get("source") or "fallback")
+        response["fli_source"] = str(quick_fli.get("source") or "fallback")
+        response["model_used"] = str(quick_fli.get("model_used") or quick_fli.get("llm_model_used") or "")
+        response["error_code"] = str(quick_fli.get("error_code") or quick_fli.get("llm_error_code") or "")
+        response["tried_models"] = list(quick_fli.get("tried_models") or quick_fli.get("llm_tried_models") or [])
         if GEMINI_API_KEY:
             _warm_daily_coach_async(
                 uid,
@@ -10157,5 +10882,6 @@ def analyze_rerun(
             "edit_patch_json": _model_dump(req.edits),
         }
     )
-    return response
+    response["latency_ms"] = int(max(0, round((time.time() - started) * 1000)))
+    return _attach_debug_schema(response, bool(debug))
 
