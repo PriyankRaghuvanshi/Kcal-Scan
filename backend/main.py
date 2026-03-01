@@ -9,8 +9,10 @@ import logging
 import datetime as dt
 import uuid
 import threading
+import queue
+import random
 from collections import deque
-from typing import Any, Dict, Optional, List, Tuple, Union, Literal
+from typing import Any, Dict, Optional, List, Tuple, Union, Literal, Callable
 from zoneinfo import ZoneInfo
 
 import requests
@@ -18,7 +20,7 @@ from PIL import Image
 
 from fastapi import FastAPI, File, UploadFile, Request, HTTPException, Header, Body
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import PlainTextResponse
+from fastapi.responses import PlainTextResponse, JSONResponse
 from pydantic import BaseModel, Field
 
 import google.generativeai as genai
@@ -88,6 +90,7 @@ TBL_DAILY_METRICS = "daily_metrics"
 TBL_WEEKLY_INSIGHTS = "weekly_insights"
 TBL_USER_WEEKLY_METRICS = "user_weekly_metrics"
 TBL_MEAL_ANALYSES = "meal_analyses"
+TBL_ANALYSIS_JOBS = "analysis_jobs"
 TBL_ANALYSIS_MEMORY = "analysis_memory"
 TBL_MEAL_EDITS = "meal_edits"
 TBL_USER_CALIBRATION = "user_calibration"
@@ -104,13 +107,13 @@ TBL_CONFIDENCE_CALIBRATION_SETTINGS = "confidence_calibration_settings"
 # Plans (your requirements)
 DEFAULT_PLAN = "free"
 PLAN_ORDER = ["free", "elite", "advanced", "pro", "infinite"]
-COACH_LLM_MODEL = os.getenv("COACH_LLM_MODEL", "gemini-3-flash-preview").strip() or "gemini-3-flash-preview"
+COACH_LLM_MODEL = os.getenv("COACH_LLM_MODEL", "gemini-2.5-flash").strip() or "gemini-2.5-flash"
 BEHAVIOR_ENGINE_VERSION = "phase_3_2_v1"
-SCAN_LLM_MODEL = os.getenv("SCAN_LLM_MODEL", "gemini-3-flash-preview").strip() or "gemini-3-flash-preview"
+SCAN_LLM_MODEL = os.getenv("SCAN_LLM_MODEL", "gemini-2.5-flash").strip() or "gemini-2.5-flash"
 COACH_VOICE_LLM_MODEL = os.getenv("COACH_VOICE_LLM_MODEL", COACH_LLM_MODEL).strip() or COACH_LLM_MODEL
 COACH_LLM_FALLBACK_MODELS = _env_csv_list(
     "COACH_LLM_FALLBACK_MODELS",
-    "gemini-2.5-flash,gemini-2.5-flash-lite,gemini-3-flash-preview",
+    "gemini-2.5-flash-lite",
 )
 COACH_VOICE_FALLBACK_MODELS = _env_csv_list("COACH_VOICE_FALLBACK_MODELS", ",".join(COACH_LLM_FALLBACK_MODELS))
 COACH_TONE_REWRITE_FALLBACK_MODELS = _env_csv_list(
@@ -135,6 +138,47 @@ except Exception:
     COACH_VOICE_CACHE_TTL_MIN = 20
 ENABLE_CONFIDENCE_AUDIT_LOGGING = _env_flag("ENABLE_CONFIDENCE_AUDIT_LOGGING", True)
 ENABLE_DYNAMIC_CONFIDENCE_THRESHOLDS = _env_flag("ENABLE_DYNAMIC_CONFIDENCE_THRESHOLDS", True)
+ANALYZE_JOB_DIR = os.getenv("ANALYZE_JOB_DIR", "/tmp/kcal-analyze-jobs").strip() or "/tmp/kcal-analyze-jobs"
+try:
+    ANALYZE_JOB_POLL_TIMEOUT_SEC = max(30, min(600, int(float(os.getenv("ANALYZE_JOB_POLL_TIMEOUT_SEC", "180")))))
+except Exception:
+    ANALYZE_JOB_POLL_TIMEOUT_SEC = 180
+try:
+    ANALYZE_JOB_MAX_RUNTIME_SEC = max(30, min(180, int(float(os.getenv("ANALYZE_JOB_MAX_RUNTIME_SEC", "60")))))
+except Exception:
+    ANALYZE_JOB_MAX_RUNTIME_SEC = 60
+try:
+    SCAN_LLM_TIMEOUT_SEC = max(8.0, min(25.0, float(os.getenv("SCAN_LLM_TIMEOUT_SEC", "12").strip() or "12")))
+except Exception:
+    SCAN_LLM_TIMEOUT_SEC = 12.0
+try:
+    SCAN_LLM_MAX_ATTEMPTS = max(1, min(3, int(float(os.getenv("SCAN_LLM_MAX_ATTEMPTS", "3").strip() or "3"))))
+except Exception:
+    SCAN_LLM_MAX_ATTEMPTS = 3
+try:
+    SCAN_LLM_BACKOFF_BASE_SEC = max(0.25, min(5.0, float(os.getenv("SCAN_LLM_BACKOFF_BASE_SEC", "0.8").strip() or "0.8")))
+except Exception:
+    SCAN_LLM_BACKOFF_BASE_SEC = 0.8
+try:
+    SCAN_LLM_CIRCUIT_FAIL_THRESHOLD = max(2, min(20, int(float(os.getenv("SCAN_LLM_CIRCUIT_FAIL_THRESHOLD", "6").strip() or "6"))))
+except Exception:
+    SCAN_LLM_CIRCUIT_FAIL_THRESHOLD = 6
+try:
+    SCAN_LLM_CIRCUIT_OPEN_SEC = max(15, min(600, int(float(os.getenv("SCAN_LLM_CIRCUIT_OPEN_SEC", "90").strip() or "90"))))
+except Exception:
+    SCAN_LLM_CIRCUIT_OPEN_SEC = 90
+try:
+    EXT_HTTP_CONNECT_TIMEOUT_SEC = max(0.5, min(5.0, float(os.getenv("EXT_HTTP_CONNECT_TIMEOUT_SEC", "2").strip() or "2")))
+except Exception:
+    EXT_HTTP_CONNECT_TIMEOUT_SEC = 2.0
+try:
+    EXT_HTTP_READ_TIMEOUT_SEC = max(1.0, min(10.0, float(os.getenv("EXT_HTTP_READ_TIMEOUT_SEC", "6").strip() or "6")))
+except Exception:
+    EXT_HTTP_READ_TIMEOUT_SEC = 6.0
+try:
+    EXT_HTTP_MAX_RETRIES = max(0, min(2, int(float(os.getenv("EXT_HTTP_MAX_RETRIES", "2").strip() or "2"))))
+except Exception:
+    EXT_HTTP_MAX_RETRIES = 2
 
 # Goal defaults used when an older schema is missing one or more goal columns.
 DEFAULT_DAILY_GOALS = {
@@ -181,6 +225,7 @@ _TABLE_JSON_FALLBACK_FIELD = {
     "user_weekly_metrics": "metrics_json",
     "meal_analyses": "payload",
     "meal_edits": "edit",
+    "analysis_jobs": "result_json",
     "confidence_calibration_settings": "settings",
     "coach_memory": "payload",
     "daily_summary": "coach_json",
@@ -191,6 +236,7 @@ _TABLE_MIGRATION_HINTS = {
     "confidence_calibration_settings": "create_confidence_calibration_settings.sql",
     "meal_analyses": "create_meal_analyses.sql",
     "meal_edits": "create_meal_edits.sql",
+    "analysis_jobs": "create_analysis_jobs.sql",
     "user_food_priors": "migrate_user_food_priors.sql",
 }
 _EXPECTED_SCHEMA_TABLES = {
@@ -198,16 +244,35 @@ _EXPECTED_SCHEMA_TABLES = {
     "confidence_calibration_settings",
     "meal_analyses",
     "meal_edits",
+    "analysis_jobs",
     "user_food_priors",
 }
+
+_ANALYSIS_JOBS_CACHE: Dict[str, Dict[str, Any]] = {}
+_ANALYSIS_JOB_QUEUE: "queue.Queue[Dict[str, Any]]" = queue.Queue(maxsize=2048)
+_ANALYSIS_JOB_WORKER_STARTED = False
+_ANALYSIS_JOB_WORKER_LOCK = threading.Lock()
+_SCAN_LLM_CIRCUIT = {
+    "state": "closed",
+    "fail_count": 0,
+    "opened_until": 0.0,
+    "last_error": "",
+}
+_SCAN_LLM_CIRCUIT_LOCK = threading.Lock()
 
 
 # -------------------- MIDDLEWARE --------------------
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
-    logger.info(f"INCOMING {request.method} {request.url.path}")
+    req_id = str(request.headers.get("X-Request-Id") or "").strip() or _new_request_id()
+    request.state.request_id = req_id
+    logger.info(f"INCOMING {request.method} {request.url.path} request_id={req_id}")
     resp = await call_next(request)
-    logger.info(f"RESPONSE {request.method} {request.url.path} -> {resp.status_code}")
+    try:
+        resp.headers["X-Request-Id"] = req_id
+    except Exception:
+        pass
+    logger.info(f"RESPONSE {request.method} {request.url.path} -> {resp.status_code} request_id={req_id}")
     return resp
 
 
@@ -223,6 +288,12 @@ def health():
 @app.options("/analyze")
 def analyze_options():
     return PlainTextResponse("ok", status_code=200)
+
+
+@app.on_event("startup")
+def _startup_analysis_worker():
+    _assert_supported_gemini_models()
+    _ensure_analysis_worker_started()
 
 
 # -------------------- VALIDATION HELPERS --------------------
@@ -270,8 +341,41 @@ def _llm_model_candidates(primary_model: str, fallback_models: Optional[List[str
     return candidates
 
 
+def _is_disallowed_gemini_model_name(model_name: Any) -> bool:
+    m = str(model_name or "").strip().lower()
+    if not m:
+        return False
+    if "gemini-3" in m or "gemini 3" in m or "3.0" in m:
+        return True
+    return False
+
+
 def is_deprecated_model(model_name: Any) -> bool:
-    return str(model_name or "").strip().lower() in DEPRECATED_GEMINI_MODELS
+    m = str(model_name or "").strip().lower()
+    if not m:
+        return False
+    if _is_disallowed_gemini_model_name(m):
+        return True
+    return m in DEPRECATED_GEMINI_MODELS
+
+
+def _assert_supported_gemini_models() -> None:
+    legacy_model = str(os.getenv("GEMINI_MODEL", "") or "").strip()
+    candidates = [
+        COACH_LLM_MODEL,
+        SCAN_LLM_MODEL,
+        COACH_VOICE_LLM_MODEL,
+        legacy_model,
+    ] + list(COACH_LLM_FALLBACK_MODELS or []) + list(COACH_VOICE_FALLBACK_MODELS or []) + list(
+        COACH_TONE_REWRITE_FALLBACK_MODELS or []
+    ) + list(COACH_WEEKLY_REPORT_FALLBACK_MODELS or [])
+    bad = [str(m).strip() for m in candidates if _is_disallowed_gemini_model_name(m)]
+    if bad:
+        raise RuntimeError(
+            "Disallowed Gemini model configured. "
+            "Only Gemini 2.5 family is allowed. Invalid models: "
+            + ", ".join(sorted(set(bad)))
+        )
 
 
 def _choose_single_llm_model(primary_model: str, fallback_models: Optional[List[str]] = None) -> str:
@@ -287,6 +391,224 @@ def _llm_timeout(limit: float = 10.0, default: float = 8.0) -> float:
     except Exception:
         val = float(default)
     return max(3.0, min(float(limit), val))
+
+
+def _http_request_with_retry(
+    method: str,
+    url: str,
+    *,
+    service: str,
+    headers: Optional[Dict[str, str]] = None,
+    params: Optional[Dict[str, Any]] = None,
+    json_body: Optional[Any] = None,
+    data: Optional[Any] = None,
+    timeout_connect: Optional[float] = None,
+    timeout_read: Optional[float] = None,
+    max_retries: Optional[int] = None,
+    retry_statuses: Tuple[int, ...] = (429, 500, 502, 503, 504),
+) -> requests.Response:
+    connect_timeout = float(timeout_connect if timeout_connect is not None else EXT_HTTP_CONNECT_TIMEOUT_SEC)
+    read_timeout = float(timeout_read if timeout_read is not None else EXT_HTTP_READ_TIMEOUT_SEC)
+    retries = int(max_retries if max_retries is not None else EXT_HTTP_MAX_RETRIES)
+    retries = max(0, min(2, retries))
+    attempts = 1 + retries
+    last_err = ""
+    for attempt in range(1, attempts + 1):
+        started = time.time()
+        try:
+            resp = requests.request(
+                method,
+                url,
+                headers=headers,
+                params=params,
+                json=json_body,
+                data=data,
+                timeout=(connect_timeout, read_timeout),
+            )
+            latency_ms = int(max(0, round((time.time() - started) * 1000)))
+            if (resp.status_code in retry_statuses) and (attempt < attempts):
+                sleep_s = min(2.0, 0.5 * (2 ** (attempt - 1)) + random.uniform(0.0, 0.2))
+                logger.warning(
+                    "http_retry service=%s method=%s attempt=%s/%s status=%s latency_ms=%s sleep_s=%.2f",
+                    service,
+                    method,
+                    attempt,
+                    attempts,
+                    resp.status_code,
+                    latency_ms,
+                    sleep_s,
+                )
+                time.sleep(sleep_s)
+                continue
+            logger.info(
+                "http_call service=%s method=%s status=%s attempt=%s/%s latency_ms=%s",
+                service,
+                method,
+                resp.status_code,
+                attempt,
+                attempts,
+                latency_ms,
+            )
+            return resp
+        except requests.exceptions.RequestException as e:
+            last_err = str(e)
+            if attempt >= attempts:
+                break
+            sleep_s = min(2.0, 0.5 * (2 ** (attempt - 1)) + random.uniform(0.0, 0.2))
+            logger.warning(
+                "http_retry service=%s method=%s attempt=%s/%s err=%s sleep_s=%.2f",
+                service,
+                method,
+                attempt,
+                attempts,
+                last_err[:180],
+                sleep_s,
+            )
+            time.sleep(sleep_s)
+    raise HTTPException(
+        status_code=502,
+        detail={
+            "error": f"{service}_timeout",
+            "message": f"{service} request failed after retries.",
+            "raw": last_err[:260],
+        },
+    )
+
+
+def _scan_llm_timeout() -> float:
+    try:
+        val = float(SCAN_LLM_TIMEOUT_SEC)
+    except Exception:
+        val = 90.0
+    return max(30.0, min(120.0, val))
+
+
+def _is_retryable_scan_llm_error(err: Any) -> bool:
+    text = str(err or "").lower()
+    if not text:
+        return False
+    retry_markers = (
+        "429",
+        "500",
+        "502",
+        "503",
+        "504",
+        "timeout",
+        "timed out",
+        "deadline",
+        "resource exhausted",
+        "unavailable",
+        "internal error",
+    )
+    return any(mark in text for mark in retry_markers)
+
+
+def _scan_circuit_allow() -> Tuple[bool, str]:
+    now_ts = time.time()
+    with _SCAN_LLM_CIRCUIT_LOCK:
+        state = str(_SCAN_LLM_CIRCUIT.get("state") or "closed")
+        opened_until = float(_safe_float(_SCAN_LLM_CIRCUIT.get("opened_until"), 0.0) or 0.0)
+        if state == "open" and now_ts < opened_until:
+            return False, str(_SCAN_LLM_CIRCUIT.get("last_error") or "scan_llm_circuit_open")
+        if state == "open" and now_ts >= opened_until:
+            _SCAN_LLM_CIRCUIT["state"] = "closed"
+            _SCAN_LLM_CIRCUIT["fail_count"] = 0
+            _SCAN_LLM_CIRCUIT["opened_until"] = 0.0
+            _SCAN_LLM_CIRCUIT["last_error"] = ""
+    return True, ""
+
+
+def _scan_circuit_record_success() -> None:
+    with _SCAN_LLM_CIRCUIT_LOCK:
+        _SCAN_LLM_CIRCUIT["state"] = "closed"
+        _SCAN_LLM_CIRCUIT["fail_count"] = 0
+        _SCAN_LLM_CIRCUIT["opened_until"] = 0.0
+        _SCAN_LLM_CIRCUIT["last_error"] = ""
+
+
+def _scan_circuit_record_failure(err_text: str) -> None:
+    with _SCAN_LLM_CIRCUIT_LOCK:
+        fails = int(_safe_float(_SCAN_LLM_CIRCUIT.get("fail_count"), 0) or 0) + 1
+        _SCAN_LLM_CIRCUIT["fail_count"] = fails
+        _SCAN_LLM_CIRCUIT["last_error"] = str(err_text or "")[:220]
+        if fails >= int(SCAN_LLM_CIRCUIT_FAIL_THRESHOLD):
+            _SCAN_LLM_CIRCUIT["state"] = "open"
+            _SCAN_LLM_CIRCUIT["opened_until"] = time.time() + float(SCAN_LLM_CIRCUIT_OPEN_SEC)
+
+
+def _generate_scan_content(
+    parts: List[Any],
+    *,
+    purpose: str,
+    request_id: str = "",
+    job_id: str = "",
+) -> str:
+    _require_gemini_key()
+    allow, reason = _scan_circuit_allow()
+    if not allow:
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "error": "scan_llm_circuit_open",
+                "message": "Scan model is temporarily throttled. Please retry shortly.",
+                "raw": str(reason or "")[:220],
+            },
+        )
+    attempts = max(1, int(SCAN_LLM_MAX_ATTEMPTS))
+    last_err = ""
+    for attempt in range(1, attempts + 1):
+        started = time.time()
+        try:
+            model = genai.GenerativeModel(SCAN_LLM_MODEL)
+            resp = model.generate_content(
+                parts,
+                request_options={"timeout": float(_scan_llm_timeout())},
+            )
+            text = str((resp.text or "")).strip()
+            if not text:
+                raise ValueError("empty response text")
+            _scan_circuit_record_success()
+            logger.info(
+                "scan_llm success purpose=%s request_id=%s job_id=%s model=%s attempt=%s latency_ms=%s",
+                purpose,
+                request_id,
+                job_id,
+                SCAN_LLM_MODEL,
+                attempt,
+                int(max(0, round((time.time() - started) * 1000))),
+            )
+            return text
+        except Exception as e:
+            last_err = str(e)
+            _scan_circuit_record_failure(last_err)
+            retryable = _is_retryable_scan_llm_error(last_err)
+            logger.warning(
+                "scan_llm retry purpose=%s request_id=%s job_id=%s model=%s attempt=%s/%s retryable=%s err=%s",
+                purpose,
+                request_id,
+                job_id,
+                SCAN_LLM_MODEL,
+                attempt,
+                attempts,
+                retryable,
+                last_err[:220],
+            )
+            if attempt >= attempts or not retryable:
+                break
+            jitter = random.uniform(0.0, 0.25)
+            sleep_s = min(8.0, float(SCAN_LLM_BACKOFF_BASE_SEC) * (2 ** (attempt - 1)) + jitter)
+            time.sleep(sleep_s)
+
+    raise HTTPException(
+        status_code=502,
+        detail={
+            "error": "scan_llm_failed",
+            "message": "Image analysis could not complete after retries.",
+            "model_used": SCAN_LLM_MODEL,
+            "attempts": attempts,
+            "raw": str(last_err or "")[:320],
+        },
+    )
 
 
 def _tone_mode_from_source(source_value: Any) -> str:
@@ -927,7 +1249,14 @@ def supabase_headers() -> Dict[str, str]:
 
 def sb_get_one(table: str, params: Dict[str, str]) -> Optional[Dict[str, Any]]:
     url = f"{SUPABASE_URL}/rest/v1/{table}"
-    r = requests.get(url, headers=supabase_headers(), params=params, timeout=20)
+    r = _http_request_with_retry(
+        "GET",
+        url,
+        service="supabase",
+        headers=supabase_headers(),
+        params=params,
+        max_retries=1,
+    )
     if r.status_code != 200:
         raise HTTPException(status_code=502, detail={"error": "Supabase read failed", "raw": r.text})
     rows = r.json() or []
@@ -939,7 +1268,14 @@ def sb_get_one(table: str, params: Dict[str, str]) -> Optional[Dict[str, Any]]:
 
 def sb_get_many(table: str, params: Dict[str, str]) -> List[Dict[str, Any]]:
     url = f"{SUPABASE_URL}/rest/v1/{table}"
-    r = requests.get(url, headers=supabase_headers(), params=params, timeout=20)
+    r = _http_request_with_retry(
+        "GET",
+        url,
+        service="supabase",
+        headers=supabase_headers(),
+        params=params,
+        max_retries=1,
+    )
     if r.status_code != 200:
         raise HTTPException(status_code=502, detail={"error": "Supabase list read failed", "raw": r.text})
     rows = r.json() or []
@@ -957,7 +1293,15 @@ def sb_upsert(table: str, row: Dict[str, Any], on_conflict: str) -> Dict[str, An
     headers["Prefer"] = "resolution=merge-duplicates,return=representation"
     params = {"on_conflict": on_conflict}
 
-    r = requests.post(url, headers=headers, params=params, data=json.dumps(row), timeout=20)
+    r = _http_request_with_retry(
+        "POST",
+        url,
+        service="supabase",
+        headers=headers,
+        params=params,
+        data=json.dumps(row),
+        max_retries=1,
+    )
     if r.status_code not in (200, 201):
         raise HTTPException(status_code=502, detail={"error": "Supabase upsert failed", "raw": r.text})
 
@@ -968,7 +1312,14 @@ def sb_insert(table: str, row: Dict[str, Any]) -> Dict[str, Any]:
     url = f"{SUPABASE_URL}/rest/v1/{table}"
     headers = supabase_headers()
     headers["Prefer"] = "return=representation"
-    r = requests.post(url, headers=headers, data=json.dumps(row), timeout=20)
+    r = _http_request_with_retry(
+        "POST",
+        url,
+        service="supabase",
+        headers=headers,
+        data=json.dumps(row),
+        max_retries=1,
+    )
     if r.status_code not in (200, 201):
         raise HTTPException(status_code=502, detail={"error": "Supabase insert failed", "raw": r.text})
     rows = r.json() or []
@@ -982,7 +1333,15 @@ def sb_patch(table: str, match: Dict[str, str], patch: Dict[str, Any]) -> None:
     headers = supabase_headers()
     headers["Prefer"] = "return=minimal"
 
-    r = requests.patch(url, headers=headers, params=params, data=json.dumps(patch), timeout=20)
+    r = _http_request_with_retry(
+        "PATCH",
+        url,
+        service="supabase",
+        headers=headers,
+        params=params,
+        data=json.dumps(patch),
+        max_retries=1,
+    )
     if r.status_code not in (200, 204):
         raise HTTPException(status_code=502, detail={"error": "Supabase update failed", "raw": r.text})
 
@@ -1239,6 +1598,13 @@ def _sha256_bytes(payload: bytes) -> str:
     return hashlib.sha256(payload or b"").hexdigest()
 
 
+def _ensure_dir(path: str) -> None:
+    try:
+        os.makedirs(str(path or "").strip(), exist_ok=True)
+    except Exception:
+        pass
+
+
 def _analysis_cache_set(row: Dict[str, Any]) -> None:
     aid = str(row.get("analysis_id") or "").strip()
     if not aid:
@@ -1248,6 +1614,367 @@ def _analysis_cache_set(row: Dict[str, Any]) -> None:
 
 def _analysis_cache_get(analysis_id: str) -> Optional[Dict[str, Any]]:
     return _MEAL_ANALYSIS_CACHE.get(str(analysis_id or "").strip())
+
+
+def _analysis_jobs_cache_set(row: Dict[str, Any]) -> None:
+    rid = str((row or {}).get("id") or (row or {}).get("job_id") or "").strip()
+    if not rid:
+        return
+    out = dict(row or {})
+    out["id"] = rid
+    out["job_id"] = rid
+    _ANALYSIS_JOBS_CACHE[rid] = out
+
+
+def _analysis_jobs_cache_get(job_id: str) -> Optional[Dict[str, Any]]:
+    return _ANALYSIS_JOBS_CACHE.get(str(job_id or "").strip())
+
+
+def _analysis_job_file_path(job_id: str) -> str:
+    safe_id = str(job_id or "").strip() or str(uuid.uuid4())
+    _ensure_dir(ANALYZE_JOB_DIR)
+    return os.path.join(ANALYZE_JOB_DIR, f"{safe_id}.img")
+
+
+def _analysis_job_progress(status: str) -> int:
+    s = str(status or "").strip().lower()
+    if s == "queued":
+        return 5
+    if s == "running":
+        return 50
+    if s == "done":
+        return 100
+    if s == "failed":
+        return 100
+    return 0
+
+
+def _analysis_job_stage(status: str) -> str:
+    s = str(status or "").strip().lower()
+    if s == "queued":
+        return "queued"
+    if s == "running":
+        return "running"
+    if s == "done":
+        return "done"
+    if s == "failed":
+        return "failed"
+    return "queued"
+
+
+def _store_analysis_job(row: Dict[str, Any]) -> Dict[str, Any]:
+    payload = dict(row or {})
+    rid = str(payload.get("id") or payload.get("job_id") or "").strip()
+    if not rid:
+        rid = str(uuid.uuid4())
+    payload["id"] = rid
+    payload["job_id"] = rid
+    payload["updated_at"] = payload.get("updated_at") or _now_utc_naive().isoformat()
+    payload["created_at"] = payload.get("created_at") or payload["updated_at"]
+    payload["stage"] = str(payload.get("stage") or _analysis_job_stage(payload.get("status") or "queued"))
+    payload["progress_pct"] = int(_safe_float(payload.get("progress_pct"), _analysis_job_progress(payload.get("status") or "queued")) or 0)
+    _analysis_jobs_cache_set(payload)
+    if not (SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY) or _is_table_disabled(TBL_ANALYSIS_JOBS):
+        return payload
+    try:
+        stored = _sb_insert_with_column_fallback(
+            TBL_ANALYSIS_JOBS,
+            {
+                "id": rid,
+                "user_id": str(payload.get("user_id") or "").strip(),
+                "status": str(payload.get("status") or "queued").strip().lower() or "queued",
+                "stage": str(payload.get("stage") or _analysis_job_stage(payload.get("status") or "queued")).strip().lower() or "queued",
+                "progress_pct": int(_safe_float(payload.get("progress_pct"), _analysis_job_progress(payload.get("status") or "queued")) or 0),
+                "created_at": payload["created_at"],
+                "updated_at": payload["updated_at"],
+                "input_path": str(payload.get("input_path") or "").strip() or None,
+                "result_json": payload.get("result_json"),
+                "error": str(payload.get("error") or "").strip() or None,
+                "request_id": str(payload.get("request_id") or "").strip() or None,
+            },
+            locked_cols={"id", "user_id"},
+        )
+        merged = dict(payload)
+        merged.update(dict(stored or {}))
+        _analysis_jobs_cache_set(merged)
+        return merged
+    except Exception as e:
+        if not _mark_table_unavailable(TBL_ANALYSIS_JOBS, e):
+            logger.info(f"analysis job write skipped: {e}")
+        return payload
+
+
+def _patch_analysis_job(job_id: str, patch: Dict[str, Any]) -> Dict[str, Any]:
+    rid = str(job_id or "").strip()
+    if not rid:
+        return {}
+    existing = dict(_analysis_jobs_cache_get(rid) or {})
+    updated = dict(existing)
+    updated.update(dict(patch or {}))
+    updated["id"] = rid
+    updated["job_id"] = rid
+    updated["stage"] = str(updated.get("stage") or _analysis_job_stage(updated.get("status") or "queued")).strip().lower() or "queued"
+    updated["progress_pct"] = int(_safe_float(updated.get("progress_pct"), _analysis_job_progress(updated.get("status") or "queued")) or 0)
+    updated["updated_at"] = _now_utc_naive().isoformat()
+    _analysis_jobs_cache_set(updated)
+
+    if not (SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY) or _is_table_disabled(TBL_ANALYSIS_JOBS):
+        return updated
+    try:
+        patch_payload = {
+            "status": str(updated.get("status") or "").strip().lower() or None,
+            "stage": str(updated.get("stage") or "").strip().lower() or None,
+            "progress_pct": int(_safe_float(updated.get("progress_pct"), 0) or 0),
+            "updated_at": updated.get("updated_at"),
+            "result_json": updated.get("result_json"),
+            "error": str(updated.get("error") or "").strip() or None,
+            "input_path": str(updated.get("input_path") or "").strip() or None,
+            "request_id": str(updated.get("request_id") or "").strip() or None,
+        }
+        _sb_patch_with_column_fallback(TBL_ANALYSIS_JOBS, {"id": f"eq.{rid}"}, patch_payload)
+    except Exception as e:
+        if not _mark_table_unavailable(TBL_ANALYSIS_JOBS, e):
+            logger.info(f"analysis job patch skipped: {e}")
+    return updated
+
+
+def _get_analysis_job(job_id: str) -> Optional[Dict[str, Any]]:
+    rid = str(job_id or "").strip()
+    if not rid:
+        return None
+    mem = _analysis_jobs_cache_get(rid)
+    if isinstance(mem, dict):
+        return dict(mem)
+    if not (SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY) or _is_table_disabled(TBL_ANALYSIS_JOBS):
+        return None
+    try:
+        row = sb_get_one(TBL_ANALYSIS_JOBS, params={"select": "*", "id": f"eq.{rid}", "limit": "1"})
+        if isinstance(row, dict):
+            _analysis_jobs_cache_set(row)
+            return dict(row)
+    except Exception as e:
+        if not _mark_table_unavailable(TBL_ANALYSIS_JOBS, e):
+            logger.info(f"analysis job read skipped: {e}")
+    return None
+
+
+def _store_analysis_job_async_best_effort(row: Dict[str, Any]) -> Dict[str, Any]:
+    payload = dict(row or {})
+    rid = str(payload.get("id") or payload.get("job_id") or "").strip() or str(uuid.uuid4())
+    payload["id"] = rid
+    payload["job_id"] = rid
+    payload["created_at"] = payload.get("created_at") or _now_utc_naive().isoformat()
+    payload["updated_at"] = payload.get("updated_at") or payload["created_at"]
+    payload["status"] = str(payload.get("status") or "queued").strip().lower() or "queued"
+    payload["stage"] = str(payload.get("stage") or "queued").strip().lower() or "queued"
+    payload["progress_pct"] = int(_safe_float(payload.get("progress_pct"), 5) or 5)
+    _analysis_jobs_cache_set(payload)
+
+    def _persist():
+        try:
+            _store_analysis_job(payload)
+        except Exception as e:
+            logger.warning("analysis job async persist skipped job_id=%s err=%s", rid, str(e)[:220])
+
+    try:
+        threading.Thread(target=_persist, daemon=True, name=f"analysis-job-persist-{rid[:6]}").start()
+    except Exception:
+        # If thread start fails, try synchronous persist once.
+        _store_analysis_job(payload)
+    return payload
+
+
+def _build_analyze_timeout_fallback_result(
+    *,
+    user_id: str,
+    job_id: str,
+    request_id: str,
+    error_code: str,
+    error_message: str,
+) -> Dict[str, Any]:
+    now_iso = _now_utc_naive().isoformat()
+    fallback_coach = {
+        "one_sentence_summary": "Scan saved. We used a fast fallback while cloud services were slow.",
+        "micro_insights": [
+            "Nutrition confidence is reduced for this scan.",
+            "Re-scan or use edit mode for higher accuracy.",
+        ],
+        "one_action": "Edit one item portion/cooking method to tighten estimates.",
+        "follow_up_question": "Do you want a quick high-protein swap list for this meal?",
+        "tone": "supportive",
+        "coach_theme": "portion_control",
+        "llm_used": False,
+    }
+    return {
+        "job_id": job_id,
+        "request_id": request_id,
+        "analysis_id": "",
+        "scan_id": "",
+        "latest_scan_id": "",
+        "latest_scan_ts": now_iso,
+        "status": "partial_fallback",
+        "source": "rules",
+        "llm_used": False,
+        "error_code": str(error_code or "analyze_timeout"),
+        "error_message": str(error_message or "Analyze fallback used due to upstream timeout."),
+        "totals": {"kcal": 0.0, "protein_g": 0.0, "carbs_g": 0.0, "fat_g": 0.0, "micros": _build_micros_payload({})},
+        "micros": _build_micros_payload({}),
+        "micronutrients": _build_micros_payload({}),
+        "items": [],
+        "warnings": [{"warning": "fallback_used", "detail": str(error_message or "Upstream timeout")}],
+        "fat_loss_intelligence": fallback_coach,
+        "fat_loss_intelligence_status": "ready",
+        "coach_summary_source": "fallback",
+        "fli_source": "rules",
+        "model_used": "",
+        "tried_models": [],
+    }
+
+
+def _job_error_text(err: Exception) -> str:
+    if isinstance(err, HTTPException):
+        detail = err.detail
+        if isinstance(detail, dict):
+            msg = detail.get("message") or detail.get("error") or detail.get("raw") or detail
+            return str(msg)[:360]
+        return str(detail)[:360]
+    return str(err)[:360]
+
+
+def _process_analysis_job(job: Dict[str, Any]) -> None:
+    info = dict(job or {})
+    job_id = str(info.get("job_id") or info.get("id") or "").strip()
+    if not job_id:
+        return
+    user_id = str(info.get("user_id") or "").strip()
+    input_path = str(info.get("input_path") or "").strip()
+    tz = info.get("tz")
+    tz_offset_min = info.get("tz_offset_min")
+    request_id = str(info.get("request_id") or _new_request_id())
+    started = time.time()
+    logger.info("analysis_job start job_id=%s user=%s request_id=%s", job_id, user_id, request_id)
+    _patch_analysis_job(job_id, {"status": "running", "stage": "starting", "progress_pct": 6, "error": ""})
+
+    def _stage(stage: str, pct: int) -> None:
+        _patch_analysis_job(
+            job_id,
+            {
+                "status": "running",
+                "stage": str(stage or "running"),
+                "progress_pct": int(max(0, min(99, pct))),
+                "error": "",
+            },
+        )
+
+    try:
+        if not input_path or not os.path.exists(input_path):
+            raise HTTPException(status_code=404, detail={"error": "input_not_found", "message": "Job input image not found."})
+        _stage("reading_image", 10)
+        with open(input_path, "rb") as f:
+            contents = f.read()
+        result = _run_analyze_pipeline(
+            user_id=user_id,
+            image_bytes=contents,
+            tz=tz,
+            tz_offset_min=tz_offset_min,
+            debug=False,
+            request_id=request_id,
+            job_id=job_id,
+            progress_hook=_stage,
+        )
+        elapsed_s = float(time.time() - started)
+        if elapsed_s > float(ANALYZE_JOB_MAX_RUNTIME_SEC):
+            result = _build_analyze_timeout_fallback_result(
+                user_id=user_id,
+                job_id=job_id,
+                request_id=request_id,
+                error_code="timeout_worker",
+                error_message="Analysis exceeded worker time budget. Returned fallback result.",
+            )
+        _patch_analysis_job(
+            job_id,
+            {
+                "status": "done",
+                "stage": "done",
+                "progress_pct": 100,
+                "result_json": result,
+                "error": "",
+            },
+        )
+        logger.info(
+            "analysis_job done job_id=%s user=%s request_id=%s latency_ms=%s",
+            job_id,
+            user_id,
+            request_id,
+            int(max(0, round((time.time() - started) * 1000))),
+        )
+    except Exception as e:
+        err_text = _job_error_text(e)
+        logger.error("analysis_job failed job_id=%s user=%s request_id=%s err=%s", job_id, user_id, request_id, err_text)
+        if "input_not_found" in err_text.lower():
+            _patch_analysis_job(
+                job_id,
+                {
+                    "status": "failed",
+                    "stage": "failed",
+                    "progress_pct": 100,
+                    "error": err_text,
+                },
+            )
+        else:
+            fallback_result = _build_analyze_timeout_fallback_result(
+                user_id=user_id,
+                job_id=job_id,
+                request_id=request_id,
+                error_code="upstream_failure",
+                error_message=err_text or "Upstream timeout; fallback result returned.",
+            )
+            _patch_analysis_job(
+                job_id,
+                {
+                    "status": "done",
+                    "stage": "fallback_done",
+                    "progress_pct": 100,
+                    "result_json": fallback_result,
+                    "error": err_text,
+                },
+            )
+    finally:
+        try:
+            if input_path and os.path.exists(input_path):
+                os.remove(input_path)
+        except Exception:
+            pass
+
+
+def _analysis_job_worker_loop() -> None:
+    while True:
+        job = _ANALYSIS_JOB_QUEUE.get()
+        try:
+            _process_analysis_job(job if isinstance(job, dict) else {})
+        except Exception as e:
+            logger.error("analysis_job worker loop error: %s", str(e)[:240])
+        finally:
+            _ANALYSIS_JOB_QUEUE.task_done()
+
+
+def _ensure_analysis_worker_started() -> None:
+    global _ANALYSIS_JOB_WORKER_STARTED
+    if _ANALYSIS_JOB_WORKER_STARTED:
+        return
+    with _ANALYSIS_JOB_WORKER_LOCK:
+        if _ANALYSIS_JOB_WORKER_STARTED:
+            return
+        _ensure_dir(ANALYZE_JOB_DIR)
+        t = threading.Thread(target=_analysis_job_worker_loop, daemon=True, name="analysis-job-worker")
+        t.start()
+        _ANALYSIS_JOB_WORKER_STARTED = True
+        logger.info("analysis job worker started dir=%s", ANALYZE_JOB_DIR)
+
+
+def _enqueue_analysis_job(job: Dict[str, Any]) -> None:
+    _ensure_analysis_worker_started()
+    _ANALYSIS_JOB_QUEUE.put(dict(job or {}), timeout=2.0)
 
 
 def _store_meal_analysis(row: Dict[str, Any]) -> Dict[str, Any]:
@@ -3654,6 +4381,21 @@ _COACH_ACTION_STYLE_BANK = {
     ],
 }
 
+_COACH_THEME_LABELS = {
+    "macro_focus": "macro balance",
+    "portion_control": "portion control",
+    "protein_push": "protein distribution",
+    "hydration": "hydration rhythm",
+    "sleep_recovery": "recovery timing",
+    "mindset_motivation": "consistency momentum",
+    "cooking_swap_suggestions": "cooking quality swaps",
+    "fiber_micronutrients": "fiber + micronutrient density",
+    "budget_simple_indian_tips": "simple desi structure",
+    "weekly_trend_feedback": "weekly trend stability",
+}
+
+_COACH_THEME_IDS = set(_COACH_THEME_LABELS.keys())
+
 _COACH_TONE_REWRITE_SYSTEM_PROMPT = (
     "You are a coaching tone rewriter. "
     "Rewrite coaching content into the requested tone while preserving factual meaning and numbers. "
@@ -3734,6 +4476,45 @@ def _normalize_short_text_list(values: Any, limit: int = 3, max_chars: int = 180
     return out
 
 
+def _normalize_theme_id(value: Any) -> str:
+    raw = str(value or "").strip().lower()
+    aliases = {
+        "macro": "macro_focus",
+        "macro_balance": "macro_focus",
+        "portion": "portion_control",
+        "protein": "protein_push",
+        "hydration": "hydration",
+        "sleep": "sleep_recovery",
+        "recovery": "sleep_recovery",
+        "mindset": "mindset_motivation",
+        "motivation": "mindset_motivation",
+        "cooking": "cooking_swap_suggestions",
+        "swap": "cooking_swap_suggestions",
+        "fiber": "fiber_micronutrients",
+        "micronutrients": "fiber_micronutrients",
+        "budget": "budget_simple_indian_tips",
+        "indian": "budget_simple_indian_tips",
+        "weekly": "weekly_trend_feedback",
+        "trend": "weekly_trend_feedback",
+    }
+    out = aliases.get(raw, raw)
+    return out if out in _COACH_THEME_IDS else ""
+
+
+def _normalize_theme_list(values: Any, limit: int = 6) -> List[str]:
+    out: List[str] = []
+    seen = set()
+    for value in (values or []):
+        theme = _normalize_theme_id(value)
+        if not theme or theme in seen:
+            continue
+        seen.add(theme)
+        out.append(theme)
+        if len(out) >= max(1, int(limit or 6)):
+            break
+    return out
+
+
 def _safe_day_iso(day_iso: Any) -> str:
     raw = str(day_iso or "").strip()
     if not raw:
@@ -3752,6 +4533,7 @@ def _blank_coach_memory(day_iso: str) -> Dict[str, Any]:
     return {
         "day": _safe_day_iso(day_iso),
         "recent_advice_keys": [],
+        "recent_themes": [],
         "recent_user_friction": [],
         "last_3_coach_messages": [],
         "updated_at": dt.datetime.utcnow().isoformat(),
@@ -3796,6 +4578,11 @@ def _read_coach_memory_day(user_id: str, day_iso: str) -> Dict[str, Any]:
                     or _coach_memory_field(row, "advice_keys")
                     or []
                 ),
+                "recent_themes": _normalize_theme_list(
+                    _coach_memory_field(row, "recent_themes")
+                    or _coach_memory_field(row, "theme_history")
+                    or []
+                ),
                 "recent_user_friction": _normalize_short_text_list(
                     _coach_memory_field(row, "recent_user_friction")
                     or _coach_memory_field(row, "user_friction")
@@ -3807,7 +4594,7 @@ def _read_coach_memory_day(user_id: str, day_iso: str) -> Dict[str, Any]:
                     _coach_memory_field(row, "last_3_coach_messages")
                     or _coach_memory_field(row, "last_messages")
                     or [],
-                    limit=3,
+                    limit=5,
                     max_chars=180,
                 ),
                 "updated_at": str(row.get("updated_at") or dt.datetime.utcnow().isoformat()),
@@ -3825,8 +4612,9 @@ def _read_coach_memory_window(user_id: str, day_iso: str) -> Dict[str, Any]:
     out = {
         "day": day_key,
         "recent_advice_keys": _normalize_semantic_key_list(day_mem.get("recent_advice_keys"), limit=24),
+        "recent_themes": _normalize_theme_list(day_mem.get("recent_themes"), limit=5),
         "recent_user_friction": _normalize_short_text_list(day_mem.get("recent_user_friction"), limit=8, max_chars=90),
-        "last_3_coach_messages": _normalize_short_text_list(day_mem.get("last_3_coach_messages"), limit=3, max_chars=180),
+        "last_3_coach_messages": _normalize_short_text_list(day_mem.get("last_3_coach_messages"), limit=5, max_chars=180),
     }
     if (not (SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY)) or _is_table_disabled(TBL_COACH_MEMORY):
         return out
@@ -3844,6 +4632,8 @@ def _read_coach_memory_window(user_id: str, day_iso: str) -> Dict[str, Any]:
         )
         recent_keys: List[str] = list(out["recent_advice_keys"])
         seen = set(recent_keys)
+        recent_themes: List[str] = list(out["recent_themes"])
+        seen_themes = set(recent_themes)
         last_messages: List[str] = list(out["last_3_coach_messages"])
         for row in (rows or []):
             for k in _normalize_semantic_key_list(_coach_memory_field(row, "recent_advice_keys") or [], limit=12):
@@ -3853,17 +4643,25 @@ def _read_coach_memory_window(user_id: str, day_iso: str) -> Dict[str, Any]:
                 recent_keys.append(k)
                 if len(recent_keys) >= 24:
                     break
+            for theme in _normalize_theme_list(_coach_memory_field(row, "recent_themes") or [], limit=5):
+                if theme in seen_themes:
+                    continue
+                seen_themes.add(theme)
+                recent_themes.append(theme)
+                if len(recent_themes) >= 5:
+                    break
             for msg in _normalize_short_text_list(
                 _coach_memory_field(row, "last_3_coach_messages") or [],
-                limit=3,
+                limit=5,
                 max_chars=180,
             ):
                 if msg not in last_messages:
                     last_messages.append(msg)
-                if len(last_messages) >= 3:
+                if len(last_messages) >= 5:
                     break
         out["recent_advice_keys"] = recent_keys[:24]
-        out["last_3_coach_messages"] = last_messages[:3]
+        out["recent_themes"] = recent_themes[:5]
+        out["last_3_coach_messages"] = last_messages[:5]
     except Exception as e:
         if not _mark_table_unavailable(TBL_COACH_MEMORY, e):
             logger.info(f"coach memory 7-day read skipped: {e}")
@@ -3874,13 +4672,15 @@ def _write_coach_memory_day(user_id: str, day_iso: str, memory: Dict[str, Any]) 
     day_key = _safe_day_iso(day_iso)
     payload_json = {
         "recent_advice_keys": _normalize_semantic_key_list((memory or {}).get("recent_advice_keys"), limit=24),
+        "recent_themes": _normalize_theme_list((memory or {}).get("recent_themes"), limit=5),
         "recent_user_friction": _normalize_short_text_list((memory or {}).get("recent_user_friction"), limit=8, max_chars=90),
-        "last_3_coach_messages": _normalize_short_text_list((memory or {}).get("last_3_coach_messages"), limit=3, max_chars=180),
+        "last_3_coach_messages": _normalize_short_text_list((memory or {}).get("last_3_coach_messages"), limit=5, max_chars=180),
     }
     payload = {
         "user_id": str(user_id or "").strip(),
         "day": day_key,
         "recent_advice_keys": payload_json["recent_advice_keys"],
+        "recent_themes": payload_json["recent_themes"],
         "recent_user_friction": payload_json["recent_user_friction"],
         "last_3_coach_messages": payload_json["last_3_coach_messages"],
         "payload": payload_json,
@@ -4300,18 +5100,23 @@ def _merge_memory_payload(
 ) -> Dict[str, Any]:
     out = {
         "recent_advice_keys": _normalize_semantic_key_list((persisted or {}).get("recent_advice_keys"), limit=24),
+        "recent_themes": _normalize_theme_list((persisted or {}).get("recent_themes"), limit=5),
         "recent_user_friction": _normalize_short_text_list((persisted or {}).get("recent_user_friction"), limit=8, max_chars=90),
-        "last_3_coach_messages": _normalize_short_text_list((persisted or {}).get("last_3_coach_messages"), limit=3, max_chars=180),
+        "last_3_coach_messages": _normalize_short_text_list((persisted or {}).get("last_3_coach_messages"), limit=5, max_chars=180),
     }
     in_mem = incoming if isinstance(incoming, dict) else {}
     for k in _normalize_semantic_key_list(in_mem.get("recent_advice_keys"), limit=12):
         if k not in out["recent_advice_keys"]:
             out["recent_advice_keys"].append(k)
     out["recent_advice_keys"] = out["recent_advice_keys"][:24]
-    for msg in _normalize_short_text_list(in_mem.get("last_3_coach_messages"), limit=3, max_chars=180):
+    for theme in _normalize_theme_list(in_mem.get("recent_themes"), limit=5):
+        if theme not in out["recent_themes"]:
+            out["recent_themes"].insert(0, theme)
+    out["recent_themes"] = _normalize_theme_list(out["recent_themes"], limit=5)
+    for msg in _normalize_short_text_list(in_mem.get("last_3_coach_messages"), limit=5, max_chars=180):
         if msg not in out["last_3_coach_messages"]:
             out["last_3_coach_messages"].insert(0, msg)
-    out["last_3_coach_messages"] = out["last_3_coach_messages"][:3]
+    out["last_3_coach_messages"] = out["last_3_coach_messages"][:5]
     for fx in _normalize_short_text_list(in_mem.get("recent_user_friction"), limit=6, max_chars=90):
         if fx not in out["recent_user_friction"]:
             out["recent_user_friction"].append(fx)
@@ -4379,17 +5184,20 @@ def _append_coach_memory_entry(
     day_iso: str,
     semantic_key: str,
     coach_line: str,
+    theme: str = "",
     friction: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
     cur = _read_coach_memory_day(user_id, day_iso)
     keys = _normalize_semantic_key_list([semantic_key] + list(cur.get("recent_advice_keys") or []), limit=24)
-    msgs = _normalize_short_text_list([coach_line] + list(cur.get("last_3_coach_messages") or []), limit=3, max_chars=180)
+    themes = _normalize_theme_list([theme] + list(cur.get("recent_themes") or []), limit=5)
+    msgs = _normalize_short_text_list([coach_line] + list(cur.get("last_3_coach_messages") or []), limit=5, max_chars=180)
     fx = _normalize_short_text_list(list(cur.get("recent_user_friction") or []) + list(friction or []), limit=8, max_chars=90)
     return _write_coach_memory_day(
         user_id,
         day_iso,
         {
             "recent_advice_keys": keys,
+            "recent_themes": themes,
             "last_3_coach_messages": msgs,
             "recent_user_friction": fx,
         },
@@ -4542,6 +5350,194 @@ def _coach_variation_seed(user_id: str, day_iso: str, scan_id: str, scan_count: 
     return f"{_safe_day_iso(day_iso)}|{uid}|{sid_tail}"
 
 
+def _coach_theme_candidates(
+    norm_payload: Dict[str, Any],
+    classifier: Dict[str, str],
+    tone: str,
+    coach_resp: Dict[str, Any],
+) -> Dict[str, float]:
+    goals = (norm_payload.get("goals") or {}) if isinstance(norm_payload.get("goals"), dict) else {}
+    consumed = (norm_payload.get("consumed") or {}) if isinstance(norm_payload.get("consumed"), dict) else {}
+    signals = (norm_payload.get("signals") or {}) if isinstance(norm_payload.get("signals"), dict) else {}
+    timing = (norm_payload.get("meal_timing") or {}) if isinstance(norm_payload.get("meal_timing"), dict) else {}
+    profile = (norm_payload.get("profile") or {}) if isinstance(norm_payload.get("profile"), dict) else {}
+    predictive = (coach_resp.get("predictive_signals") or {}) if isinstance(coach_resp.get("predictive_signals"), dict) else {}
+
+    protein_goal = max(0.0, _safe_float(goals.get("protein_g"), 0.0))
+    fiber_goal = max(0.0, _safe_float(goals.get("fiber_g"), 0.0))
+    protein_gap = max(0.0, protein_goal - _safe_float(consumed.get("protein_g"), 0.0))
+    fiber_gap = max(0.0, fiber_goal - _safe_float(consumed.get("fiber_g"), 0.0))
+    gl = max(0.0, _safe_float(signals.get("avg_glycemic_load"), 0.0))
+    upf = max(0.0, _safe_float(signals.get("ultra_processed_avg"), 0.0))
+    satiety = max(0.0, _safe_float(signals.get("avg_satiety"), 0.0))
+    late = max(0.0, _safe_float(timing.get("late_calories_pct"), 0.0))
+    kcal_delta = abs(_safe_float(consumed.get("kcal"), 0.0) - _safe_float(goals.get("kcal"), 0.0))
+
+    band = str(predictive.get("projection_confidence_band") or "").strip().lower()
+    days_with_data = int(_safe_float(predictive.get("days_with_data_7d"), 0) or 0)
+
+    scores: Dict[str, float] = {
+        "macro_focus": 0.72 + (0.06 if classifier.get("bottleneck") in {"protein", "fiber"} else 0.0),
+        "mindset_motivation": 0.56,
+        "weekly_trend_feedback": 0.35 + (0.18 if band in {"medium", "high"} else 0.0) + (0.08 if days_with_data >= 4 else 0.0),
+        "budget_simple_indian_tips": 0.32 + (0.24 if tone == "indian_coach" else 0.0),
+    }
+
+    if protein_gap >= 18:
+        scores["protein_push"] = 0.95 + min(0.55, protein_gap / 120.0)
+    if fiber_gap >= 7:
+        scores["fiber_micronutrients"] = 0.88 + min(0.45, fiber_gap / 60.0)
+    if late >= 50 or kcal_delta >= 260:
+        scores["portion_control"] = 0.86 + (0.2 if late >= 65 else 0.0)
+        scores["sleep_recovery"] = 0.74 + (0.24 if late >= 65 else 0.0)
+    if upf >= 6.0 or gl >= 26:
+        scores["cooking_swap_suggestions"] = 0.82 + (0.16 if upf >= 7.0 else 0.0) + (0.1 if gl >= 30 else 0.0)
+    if satiety <= 52:
+        scores["hydration"] = 0.74 + (0.12 if satiety <= 45 else 0.0)
+    if classifier.get("bottleneck") == "glycemic_load":
+        scores["cooking_swap_suggestions"] = max(scores.get("cooking_swap_suggestions", 0.0), 0.9)
+    return scores
+
+
+def _select_coach_theme(
+    seed: str,
+    candidates: Dict[str, float],
+    recent_themes: List[str],
+) -> str:
+    ranked = sorted(
+        [(theme, float(score)) for theme, score in (candidates or {}).items() if theme in _COACH_THEME_IDS],
+        key=lambda pair: pair[1],
+        reverse=True,
+    )
+    if not ranked:
+        return "macro_focus"
+    pool = [theme for theme, _ in ranked[:4]]
+    recent = set(_normalize_theme_list(recent_themes, limit=5))
+    filtered = [theme for theme in pool if theme not in recent]
+    pick_from = filtered or pool
+    idx = int(hashlib.sha256(f"{seed}:theme".encode("utf-8")).hexdigest(), 16) % len(pick_from)
+    return pick_from[idx]
+
+
+def _theme_copy_components(
+    theme: str,
+    classifier: Dict[str, str],
+    norm_payload: Dict[str, Any],
+    coach_resp: Dict[str, Any],
+) -> Dict[str, str]:
+    goals = (norm_payload.get("goals") or {}) if isinstance(norm_payload.get("goals"), dict) else {}
+    consumed = (norm_payload.get("consumed") or {}) if isinstance(norm_payload.get("consumed"), dict) else {}
+    signals = (norm_payload.get("signals") or {}) if isinstance(norm_payload.get("signals"), dict) else {}
+    timing = (norm_payload.get("meal_timing") or {}) if isinstance(norm_payload.get("meal_timing"), dict) else {}
+    predictive = (coach_resp.get("predictive_signals") or {}) if isinstance(coach_resp.get("predictive_signals"), dict) else {}
+    profile = (norm_payload.get("profile") or {}) if isinstance(norm_payload.get("profile"), dict) else {}
+
+    protein_gap = max(0.0, _safe_float(goals.get("protein_g"), 0.0) - _safe_float(consumed.get("protein_g"), 0.0))
+    fiber_gap = max(0.0, _safe_float(goals.get("fiber_g"), 0.0) - _safe_float(consumed.get("fiber_g"), 0.0))
+    gl = max(0.0, _safe_float(signals.get("avg_glycemic_load"), 0.0))
+    upf = max(0.0, _safe_float(signals.get("ultra_processed_avg"), 0.0))
+    satiety = max(0.0, _safe_float(signals.get("avg_satiety"), 0.0))
+    late = max(0.0, _safe_float(timing.get("late_calories_pct"), 0.0))
+    kcal_delta = _safe_float(consumed.get("kcal"), 0.0) - _safe_float(goals.get("kcal"), 0.0)
+    training_time = str(profile.get("training_time") or "evening").strip().lower()
+    band = str(predictive.get("projection_confidence_band") or "medium").strip().lower()
+    if band not in {"low", "medium", "high"}:
+        band = "medium"
+    protein_sources = _diet_safe_protein_sources_text(
+        {
+            "profile": profile,
+            "constraints": (norm_payload.get("constraints") if isinstance(norm_payload.get("constraints"), dict) else {}),
+        },
+        limit=4,
+    )
+
+    # Default to classifier facts, then override by theme.
+    summary = str(classifier.get("summary") or "").strip() or "Consistency is the top lever for today."
+    impact = str(classifier.get("impact") or "").strip() or "This pattern can slow progress if repeated."
+    one_change = str(classifier.get("one_change") or "").strip() or "Keep the next meal protein + fiber focused."
+    bottleneck_label = str(classifier.get("bottleneck") or "consistency").replace("_", " ")
+
+    if theme == "macro_focus":
+        protein_hit = 0 if _safe_float(goals.get("protein_g"), 0.0) <= 0 else int(round((_safe_float(consumed.get("protein_g"), 0.0) / max(_safe_float(goals.get("protein_g"), 1.0), 1.0)) * 100))
+        fiber_hit = 0 if _safe_float(goals.get("fiber_g"), 0.0) <= 0 else int(round((_safe_float(consumed.get("fiber_g"), 0.0) / max(_safe_float(goals.get("fiber_g"), 1.0), 1.0)) * 100))
+        summary = f"Macro balance is off: protein hit {protein_hit}% and fiber hit {fiber_hit}%."
+        impact = "Macro imbalance can drive appetite swings and weaker recovery through the day."
+        one_change = "Build the next meal protein-first, then add one fiber side before extra carbs."
+        bottleneck_label = _COACH_THEME_LABELS[theme]
+    elif theme == "portion_control":
+        summary = f"Energy distribution is back-loaded ({round(late, 1)}% late calories, kcal delta {round(kcal_delta, 1)})."
+        impact = "Back-loaded intake can make next-morning appetite and adherence less stable."
+        one_change = "Trim one energy-dense add-on and move 200-300 kcal earlier with protein + veg."
+        bottleneck_label = _COACH_THEME_LABELS[theme]
+    elif theme == "protein_push":
+        summary = f"Protein timing is still behind by about {round(protein_gap, 1)}g."
+        impact = "Low protein distribution can reduce satiety and recovery quality later in the day."
+        one_change = f"Add 30-40g protein in the next meal using {protein_sources}."
+        bottleneck_label = _COACH_THEME_LABELS[theme]
+    elif theme == "hydration":
+        summary = f"Satiety is soft (avg {round(satiety, 1)}), and hydration rhythm may be contributing."
+        impact = "When hydration and fiber are low together, cravings usually rise in the evening."
+        one_change = "Add 500-700 ml water over the next 2 hours and pair it with protein + fiber."
+        bottleneck_label = _COACH_THEME_LABELS[theme]
+    elif theme == "sleep_recovery":
+        summary = f"Late intake is high at {round(late, 1)}%, which can blunt recovery rhythm."
+        impact = "Heavier late calories can reduce appetite control and next-day training readiness."
+        one_change = "Keep dinner lighter and shift one protein snack earlier in the day."
+        bottleneck_label = _COACH_THEME_LABELS[theme]
+    elif theme == "mindset_motivation":
+        summary = "You logged meals today, and that consistency is your strongest momentum lever."
+        impact = "Momentum improves when one repeatable meal action is executed before evening hunger."
+        one_change = "Pick one anchor move and repeat it for the next two meals."
+        bottleneck_label = _COACH_THEME_LABELS[theme]
+    elif theme == "cooking_swap_suggestions":
+        summary = f"Quality drift is mostly from meal composition (UPF {round(upf, 1)}/10, GL {round(gl, 1)})."
+        impact = "Small cooking swaps can lower rebound hunger without changing your whole plan."
+        one_change = "Swap one fried/refined component for grilled or boiled plus a vegetable side."
+        bottleneck_label = _COACH_THEME_LABELS[theme]
+    elif theme == "fiber_micronutrients":
+        summary = f"Fiber and micronutrient density are still low (fiber gap ~{round(fiber_gap, 1)}g)."
+        impact = "Low fiber days usually reduce satiety quality and can trigger later snacking."
+        one_change = "Add one veg bowl plus one legume/fruit booster in your next meal."
+        bottleneck_label = _COACH_THEME_LABELS[theme]
+    elif theme == "budget_simple_indian_tips":
+        summary = "Simple desi staples can close today’s gaps without expensive foods."
+        impact = "Structured staple combos improve satiety and adherence while keeping meals practical."
+        one_change = "Use dal/chana + dahi/paneer + sabzi in the next meal for a balanced plate."
+        bottleneck_label = _COACH_THEME_LABELS[theme]
+    elif theme == "weekly_trend_feedback":
+        summary = f"Your 7-day direction is a {band} confidence read; consistency is the deciding lever."
+        impact = "Weekly trend improves when one high-ROI habit is repeated across consecutive meals."
+        one_change = "Repeat one anchor habit for the next 3 meals to improve weekly direction."
+        bottleneck_label = _COACH_THEME_LABELS[theme]
+
+    if training_time == "evening" and theme in {"protein_push", "sleep_recovery"}:
+        one_change = f"{one_change.rstrip('.')} Keep the pre-dinner meal protein-forward."
+
+    return {
+        "theme": theme,
+        "summary_fact": summary,
+        "impact": impact,
+        "one_change": one_change,
+        "bottleneck_label": bottleneck_label,
+    }
+
+
+def _follow_up_question_for_theme(theme: str) -> str:
+    prompts = {
+        "macro_focus": "Want me to suggest one macro-balanced version of this meal?",
+        "portion_control": "Should I give you a 2-step portion fix for the next meal?",
+        "protein_push": "Do you want a higher-protein swap list for this meal style?",
+        "hydration": "Want a simple hydration + satiety plan for the next 3 hours?",
+        "sleep_recovery": "Was this close to bedtime? I can tune a lighter evening version.",
+        "mindset_motivation": "Want a tiny repeatable habit target for your next two meals?",
+        "cooking_swap_suggestions": "Do you want 3 lower-oil cooking swaps for this dish?",
+        "fiber_micronutrients": "Want a quick fiber booster add-on list for this meal?",
+        "budget_simple_indian_tips": "Want a budget desi high-protein plate suggestion?",
+        "weekly_trend_feedback": "Do you want a 7-day consistency target from this pattern?",
+    }
+    return prompts.get(theme, "Want a quick better-swap list for this meal?")
+
+
 def _apply_dynamic_coach_copy(
     coach_resp: Dict[str, Any],
     norm_payload: Dict[str, Any],
@@ -4551,6 +5547,7 @@ def _apply_dynamic_coach_copy(
     scan_id: str,
     scan_count: int,
     recent_messages: List[str],
+    recent_themes: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
     out = dict(coach_resp or {})
     recent_for_pick = _normalize_short_text_list(recent_messages, limit=6, max_chars=220)
@@ -4569,21 +5566,32 @@ def _apply_dynamic_coach_copy(
         or "supportive"
     )
     classifier = _classify_coach_bottleneck(norm_payload if isinstance(norm_payload, dict) else {})
-    bottleneck_label = str(classifier.get("bottleneck") or "consistency").replace("_", " ")
-    summary_fact = str(classifier.get("summary") or "").strip() or "Consistency is the top lever for today."
-    impact = str(classifier.get("impact") or "").strip() or "This pattern can slow progress if repeated."
-    one_change = str(classifier.get("one_change") or "").strip() or "Keep the next meal protein + fiber focused."
 
     seed = _coach_variation_seed(user_id, day_iso, scan_id, scan_count)
+    selected_theme = _select_coach_theme(
+        seed,
+        _coach_theme_candidates(norm_payload if isinstance(norm_payload, dict) else {}, classifier, tone, out),
+        list(recent_themes or []),
+    )
+    themed = _theme_copy_components(
+        selected_theme,
+        classifier,
+        norm_payload if isinstance(norm_payload, dict) else {},
+        out,
+    )
     fmt = {
-        "summary_fact": summary_fact,
-        "impact": impact,
-        "one_change": one_change,
-        "bottleneck_label": bottleneck_label,
+        "summary_fact": str(themed.get("summary_fact") or ""),
+        "impact": str(themed.get("impact") or ""),
+        "one_change": str(themed.get("one_change") or ""),
+        "bottleneck_label": str(themed.get("bottleneck_label") or "consistency"),
     }
+    bottleneck_label = str(fmt.get("bottleneck_label") or "consistency")
+    summary_fact = str(fmt.get("summary_fact") or "")
+    impact = str(fmt.get("impact") or "")
+    one_change = str(fmt.get("one_change") or "")
     summary_line = _pick_style_line(
         _COACH_SUMMARY_STYLE_BANK.get(tone, _COACH_SUMMARY_STYLE_BANK["supportive"]),
-        f"{seed}:summary:{tone}:{bottleneck_label}",
+        f"{seed}:summary:{tone}:{bottleneck_label}:{selected_theme}",
         fmt,
         recent_for_pick,
         summary_fact,
@@ -4591,7 +5599,7 @@ def _apply_dynamic_coach_copy(
     )
     why_line = _pick_style_line(
         _COACH_WHY_STYLE_BANK.get(tone, _COACH_WHY_STYLE_BANK["supportive"]),
-        f"{seed}:why:{tone}:{bottleneck_label}",
+        f"{seed}:why:{tone}:{bottleneck_label}:{selected_theme}",
         fmt,
         recent_for_pick,
         impact,
@@ -4599,7 +5607,7 @@ def _apply_dynamic_coach_copy(
     )
     one_action_line = _pick_style_line(
         _COACH_ACTION_STYLE_BANK.get(tone, _COACH_ACTION_STYLE_BANK["supportive"]),
-        f"{seed}:action:{tone}:{bottleneck_label}",
+        f"{seed}:action:{tone}:{bottleneck_label}:{selected_theme}",
         fmt,
         recent_for_pick,
         one_change,
@@ -4608,7 +5616,7 @@ def _apply_dynamic_coach_copy(
     if prev_summary and _is_repetitive_line(summary_line, [prev_summary], threshold=0.86):
         summary_line = _pick_style_line(
             _COACH_SUMMARY_STYLE_BANK.get(tone, _COACH_SUMMARY_STYLE_BANK["supportive"]),
-            f"{seed}:summary:reroll:{tone}:{bottleneck_label}",
+            f"{seed}:summary:reroll:{tone}:{bottleneck_label}:{selected_theme}",
             fmt,
             [prev_summary],
             summary_fact,
@@ -4617,7 +5625,7 @@ def _apply_dynamic_coach_copy(
     if prev_one_thing and _is_repetitive_line(one_action_line, [prev_one_thing], threshold=0.86):
         one_action_line = _pick_style_line(
             _COACH_ACTION_STYLE_BANK.get(tone, _COACH_ACTION_STYLE_BANK["supportive"]),
-            f"{seed}:action:reroll:{tone}:{bottleneck_label}",
+            f"{seed}:action:reroll:{tone}:{bottleneck_label}:{selected_theme}",
             fmt,
             [prev_one_thing],
             one_change,
@@ -4630,9 +5638,13 @@ def _apply_dynamic_coach_copy(
     out["coach_summary"] = out["one_sentence_summary"]
     out["why_it_matters"] = why_line
     out["one_action"] = out["if_you_do_one_thing"]
+    out["coach_theme"] = selected_theme
+    out["micro_insights"] = [why_line, str(one_change or "").strip()]
+    out["micro_insights"] = [x for x in out["micro_insights"] if str(x or "").strip()][:2]
+    out["follow_up_question"] = _follow_up_question_for_theme(selected_theme)
     out["variation_seed"] = seed
     out["summary_signature"] = hashlib.sha256(
-        f"{str(out.get('coach_summary') or '')}|{seed}|{tone}".encode("utf-8")
+        f"{str(out.get('coach_summary') or '')}|{seed}|{tone}|{selected_theme}".encode("utf-8")
     ).hexdigest()[:20]
     return out
 
@@ -5009,10 +6021,11 @@ def _classify_coach_bottleneck(norm_payload: Dict[str, Any]) -> Dict[str, str]:
     upf = max(0.0, _safe_float(signals.get("ultra_processed_avg"), 0.0))
     late = max(0.0, _safe_float(timing.get("late_calories_pct"), 0.0))
 
+    glycemic_boost = 1.0 if gl >= 26 else 0.72 if gl >= 20 else 0.42
     scores = [
         ("protein", pg / max(1.0, _safe_float(goals.get("protein_g"), 1.0))),
         ("fiber", fg / max(1.0, _safe_float(goals.get("fiber_g"), 1.0))),
-        ("glycemic", gl / 35.0),
+        ("glycemic", (gl / 42.0) * glycemic_boost),
         ("upf", upf / 10.0),
         ("timing", late / 100.0),
     ]
@@ -6759,8 +7772,8 @@ def _coach_user_prompt(
         "- projection_7d must include if_unchanged and if_improved in plain language.\n"
         "- Keep it practical and behavior-focused.\n"
         "- No medical advice, disease claims, supplements, dosages, or treatment language.\n"
-        "- Every action must clearly reference at least one metric keyword from this set: "
-        "protein, fiber, glycemic load, ultra-processed, leucine, late calories, kcal, carbs, fat.\n"
+        "- Every action must clearly reference at least one relevant metric from this payload.\n"
+        "- Mention glycemic load only when it is clearly moderate/high for this day.\n"
         "- Max 3 actions.\n"
         "- Keep language concise.\n\n"
         f"Allowed suggestion palette:\n{json.dumps(allowed_palette, ensure_ascii=True)}\n\n"
@@ -6832,7 +7845,7 @@ def _coerce_coach_response_shape(
         }
 
     if highest_roi["why"] and not coach_logic.action_references_metrics(highest_roi):
-        highest_roi["why"] = f"{highest_roi['why']} This change targets protein/fiber/glycemic load behavior."
+        highest_roi["why"] = f"{highest_roi['why']} This change targets the highest-impact daily bottleneck."
     if not highest_roi["title"] or not highest_roi["why"] or not highest_roi["how"]:
         highest_roi = {
             "title": "Front-load protein and fiber before dinner",
@@ -6887,7 +7900,7 @@ def _coerce_coach_response_shape(
             "how": str(a.get("how") or "").strip(),
         }
         if item["why"] and not coach_logic.action_references_metrics(item):
-            item["why"] = f"{item['why']} Targets protein/fiber/glycemic load trends."
+            item["why"] = f"{item['why']} Targets your highest-impact nutrition trend."
         if item["title"] and item["why"] and item["how"]:
             cleaned["actions"].append(item)
 
@@ -7233,9 +8246,11 @@ def _build_quick_fli_response(
         allow_llm=False,
     )
     recent_msgs: List[str] = []
+    recent_themes: List[str] = []
     if str(user_id or "").strip():
         mem_day = _read_coach_memory_day(str(user_id or "").strip(), str(out.get("date") or norm.get("date") or _today_date().isoformat()))
-        recent_msgs = _normalize_short_text_list(mem_day.get("last_3_coach_messages"), limit=3, max_chars=180)
+        recent_msgs = _normalize_short_text_list(mem_day.get("last_3_coach_messages"), limit=5, max_chars=180)
+        recent_themes = _normalize_theme_list(mem_day.get("recent_themes"), limit=5)
     out = _apply_dynamic_coach_copy(
         out,
         norm,
@@ -7244,6 +8259,7 @@ def _build_quick_fli_response(
         scan_id=str(latest_scan_id or ""),
         scan_count=int(_safe_float(((norm.get("signals") or {}).get("meals_count")), 0) or 0),
         recent_messages=recent_msgs,
+        recent_themes=recent_themes,
     )
     return out
 
@@ -8412,7 +9428,8 @@ def coach_daily(
         p_hash = hashlib.sha256(f"{p_hash}:{processed_scan_id}".encode("utf-8")).hexdigest()
     daily_totals_version = str(incoming_daily_version or state_signature or p_hash)
     memory_window = _read_coach_memory_window(uid, day_iso)
-    recent_coach_messages = _normalize_short_text_list(memory_window.get("last_3_coach_messages"), limit=3, max_chars=180)
+    recent_coach_messages = _normalize_short_text_list(memory_window.get("last_3_coach_messages"), limit=5, max_chars=180)
+    recent_themes = _normalize_theme_list(memory_window.get("recent_themes"), limit=5)
 
     cached = _coach_cache_get(uid, day_iso, p_hash) if not refresh else None
     if isinstance(cached, dict):
@@ -8497,6 +9514,7 @@ def coach_daily(
             scan_id=processed_scan_id,
             scan_count=meals_count_today,
             recent_messages=recent_coach_messages,
+            recent_themes=recent_themes,
         )
         logger.info(
             f"fli_fetch source=cache user={uid} updatedAt={out.get('updatedAt')} "
@@ -8613,6 +9631,7 @@ def coach_daily(
                 scan_id=processed_scan_id,
                 scan_count=meals_count_today,
                 recent_messages=recent_coach_messages,
+                recent_themes=recent_themes,
             )
             try:
                 roi_cached = final_resp.get("highest_roi_change") if isinstance(final_resp.get("highest_roi_change"), dict) else {}
@@ -8622,6 +9641,7 @@ def coach_daily(
                     day_iso,
                     sem_key_cached,
                     str(final_resp.get("one_sentence_summary") or final_resp.get("coach_summary") or ""),
+                    theme=str(final_resp.get("coach_theme") or ""),
                 )
             except Exception as e:
                 logger.info(f"coach memory append skipped in /coach/daily (cached_llm): {e}")
@@ -8794,6 +9814,7 @@ def coach_daily(
         scan_id=processed_scan_id,
         scan_count=meals_count_today,
         recent_messages=recent_coach_messages,
+        recent_themes=recent_themes,
     )
     try:
         roi_main = final_resp.get("highest_roi_change") if isinstance(final_resp.get("highest_roi_change"), dict) else {}
@@ -8803,6 +9824,7 @@ def coach_daily(
             day_iso,
             sem_key_main,
             str(final_resp.get("one_sentence_summary") or final_resp.get("coach_summary") or ""),
+            theme=str(final_resp.get("coach_theme") or ""),
         )
     except Exception as e:
         logger.info(f"coach memory append skipped in /coach/daily: {e}")
@@ -8844,25 +9866,24 @@ def coach_daily(
 
 
 # -------------------- HTTP RETRY HELPERS --------------------
-def _request_with_retries(method: str, url: str, *, retries: int = 3, timeout: int = 40, retry_statuses=(429, 500, 502, 503, 504), **kwargs):
-    """Basic retry wrapper for flaky upstreams (USDA). Always raises JSON-friendly HTTPException."""
-    last_err = None
-    for attempt in range(retries):
-        try:
-            r = requests.request(method, url, timeout=timeout, **kwargs)
-            if r.status_code in retry_statuses and attempt < retries - 1:
-                time.sleep(0.6 * (attempt + 1))
-                continue
-            return r
-        except requests.exceptions.RequestException as e:
-            last_err = str(e)
-            if attempt < retries - 1:
-                time.sleep(0.6 * (attempt + 1))
-                continue
-            raise HTTPException(
-                status_code=503,
-                detail={"error": "upstream_timeout", "service": "usda", "message": last_err},
-            )
+def _request_with_retries(
+    method: str,
+    url: str,
+    *,
+    retries: int = 2,
+    retry_statuses=(429, 500, 502, 503, 504),
+    service: str = "usda",
+    **kwargs,
+):
+    """Retry wrapper with strict connect/read timeouts for upstream services."""
+    return _http_request_with_retry(
+        method,
+        url,
+        service=service,
+        max_retries=max(0, min(2, int(retries))),
+        retry_statuses=tuple(retry_statuses or (429, 500, 502, 503, 504)),
+        **kwargs,
+    )
 
 def _is_html(text: str) -> bool:
     t = (text or "").lstrip().lower()
@@ -8883,7 +9904,7 @@ def usda_search_candidates(query: str) -> List[Dict[str, Any]]:
         f"{USDA_BASE}/foods/search",
         params={"api_key": USDA_API_KEY},
         json=payload,
-        timeout=40,
+        service="usda",
     )
     if r.status_code != 200:
         raw = r.text
@@ -8908,7 +9929,7 @@ def usda_food_details(fdc_id: int) -> Dict[str, Any]:
         "GET",
         f"{USDA_BASE}/food/{fdc_id}",
         params={"api_key": USDA_API_KEY},
-        timeout=40,
+        service="usda",
     )
     if r.status_code != 200:
         raw = r.text
@@ -9235,9 +10256,10 @@ def gemini_vision_scan_v1(
     image_bytes: bytes,
     personalization_context: Optional[Dict[str, Any]] = None,
     vision_threshold: float = 0.72,
+    request_id: str = "",
+    job_id: str = "",
 ) -> VisionScanV1Model:
     _require_gemini_key()
-    model = genai.GenerativeModel(SCAN_LLM_MODEL)
     priors_ctx = personalization_context if isinstance(personalization_context, dict) else {}
     priors_json = json.dumps(
         {
@@ -9296,19 +10318,16 @@ Rules:
 - Personalization context JSON:
 """ + priors_json
     img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
-    last_err = ""
-    for attempt in range(4):
-        try:
-            resp = model.generate_content([prompt, img])
-            text = str((resp.text or "")).strip()
-            parsed = coach_logic.extract_json_object(text)
-            if not isinstance(parsed, dict):
-                raise ValueError("No JSON object returned by model.")
-            return _coerce_vision_scan_payload(parsed, vision_threshold=v_threshold)
-        except Exception as e:
-            last_err = str(e)
-            time.sleep(0.7 * (attempt + 1))
-    raise HTTPException(status_code=502, detail={"error": "vision_scan_failed", "raw": last_err[:320]})
+    text = _generate_scan_content(
+        [prompt, img],
+        purpose="vision_scan",
+        request_id=request_id,
+        job_id=job_id,
+    )
+    parsed = coach_logic.extract_json_object(text)
+    if not isinstance(parsed, dict):
+        raise HTTPException(status_code=502, detail={"error": "vision_scan_failed", "raw": "No JSON object returned by model."})
+    return _coerce_vision_scan_payload(parsed, vision_threshold=v_threshold)
 
 
 def gemini_detect_foods(image_bytes: bytes) -> List[Dict[str, Any]]:
@@ -9328,6 +10347,58 @@ def gemini_detect_foods(image_bytes: bytes) -> List[Dict[str, Any]]:
         }
         for it in (scan.items or [])
     ]
+
+
+_ESTIMATE_NUTRITION_100G = [
+    (("chicken", "fish", "egg", "prawn", "turkey"), {"kcal": 165.0, "protein": 23.0, "carbs": 2.0, "fat": 6.0, "fiber": 0.0, "sugar": 0.0, "sodium": 220.0}),
+    (("paneer", "tofu", "tempeh"), {"kcal": 180.0, "protein": 14.0, "carbs": 4.0, "fat": 12.0, "fiber": 1.0, "sugar": 1.0, "sodium": 180.0}),
+    (("rice", "biryani", "pulao"), {"kcal": 150.0, "protein": 3.2, "carbs": 29.0, "fat": 1.5, "fiber": 0.8, "sugar": 0.2, "sodium": 120.0}),
+    (("roti", "chapati", "bread", "naan"), {"kcal": 260.0, "protein": 8.5, "carbs": 47.0, "fat": 4.5, "fiber": 5.0, "sugar": 2.0, "sodium": 320.0}),
+    (("dal", "lentil", "chana", "bean", "rajma"), {"kcal": 135.0, "protein": 8.2, "carbs": 18.0, "fat": 3.5, "fiber": 6.0, "sugar": 2.1, "sodium": 210.0}),
+    (("salad", "vegetable", "veggie"), {"kcal": 55.0, "protein": 2.0, "carbs": 9.0, "fat": 1.2, "fiber": 3.6, "sugar": 3.2, "sodium": 80.0}),
+    (("yogurt", "curd", "dahi", "smoothie"), {"kcal": 95.0, "protein": 5.2, "carbs": 10.0, "fat": 3.1, "fiber": 0.6, "sugar": 6.0, "sodium": 95.0}),
+]
+
+
+def _best_effort_nutrition_per_100g(name: str) -> Dict[str, float]:
+    text = str(name or "").strip().lower()
+    for keys, row in _ESTIMATE_NUTRITION_100G:
+        if any(k in text for k in keys):
+            return dict(row)
+    return {"kcal": 140.0, "protein": 6.0, "carbs": 16.0, "fat": 5.0, "fiber": 2.5, "sugar": 2.0, "sodium": 160.0}
+
+
+def _estimate_item_nutrition(name: str, grams: float, oil_added_tsp: float) -> Tuple[Dict[str, float], Dict[str, float]]:
+    base = _best_effort_nutrition_per_100g(name)
+    factor = max(0.0, float(_safe_float(grams, 0.0) or 0.0)) / 100.0
+    kcal = float(base["kcal"]) * factor
+    protein = float(base["protein"]) * factor
+    carbs = float(base["carbs"]) * factor
+    fat = float(base["fat"]) * factor
+    fiber = float(base["fiber"]) * factor
+    sugar = float(base["sugar"]) * factor
+    sodium = float(base["sodium"]) * factor
+    if oil_added_tsp > 0:
+        kcal += oil_added_tsp * 40.5
+        fat += oil_added_tsp * 4.5
+    macros = {
+        "kcal": round(kcal, 1),
+        "protein_g": round(protein, 1),
+        "carbs_g": round(carbs, 1),
+        "fat_g": round(fat, 1),
+    }
+    micros = {
+        "fiber_g": round(fiber, 3),
+        "sugar_g": round(sugar, 3),
+        "sodium_mg": round(sodium, 3),
+        "vitamin_d_ug": 0.0,
+        "vitamin_b12_ug": 0.0,
+        "iron_mg": 0.0,
+        "magnesium_mg": 0.0,
+        "calcium_mg": 0.0,
+        "potassium_mg": 0.0,
+    }
+    return macros, micros
 
 
 def _compute_scan_nutrition(detected_items: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], Dict[str, float], Dict[str, float], List[Dict[str, Any]]]:
@@ -9364,12 +10435,17 @@ def _compute_scan_nutrition(detected_items: List[Dict[str, Any]]) -> Tuple[List[
             str(x).strip() for x in ((d or {}).get("candidate_alternatives") or []) if str(x).strip()
         ][:4]
 
-        candidates = usda_search_candidates(name)
+        last_item_err = None
+        candidates: List[Dict[str, Any]] = []
+        try:
+            candidates = usda_search_candidates(name)
+        except Exception as e:
+            last_item_err = _job_error_text(e)
+            candidates = []
         details = None
         macros100 = None
         micros100 = None
         fdc_id = None
-        last_item_err = None
         for cand in candidates[:6]:
             try:
                 fdc_id = int(cand["fdcId"])
@@ -9385,14 +10461,22 @@ def _compute_scan_nutrition(detected_items: List[Dict[str, Any]]) -> Tuple[List[
                 continue
 
         if not details or not macros100:
+            est_macros, est_micros = _estimate_item_nutrition(name, grams, oil_added_tsp)
             item_warnings.append(
                 {
                     "item_id": item_id,
                     "name": name,
-                    "warning": "nutrition_lookup_failed",
-                    "detail": (last_item_err or "No usable USDA match found")[:220],
+                    "warning": "nutrition_lookup_fallback_estimate",
+                    "detail": (last_item_err or "USDA unavailable, used best-effort estimate")[:220],
                 }
             )
+            total_kcal += float(est_macros.get("kcal", 0.0) or 0.0)
+            total_p += float(est_macros.get("protein_g", 0.0) or 0.0)
+            total_c += float(est_macros.get("carbs_g", 0.0) or 0.0)
+            total_f += float(est_macros.get("fat_g", 0.0) or 0.0)
+            for mk, mv in est_micros.items():
+                if mk in total_micros:
+                    total_micros[mk] += float(_safe_float(mv, 0.0) or 0.0)
             results.append(
                 {
                     "item_id": item_id,
@@ -9402,11 +10486,17 @@ def _compute_scan_nutrition(detected_items: List[Dict[str, Any]]) -> Tuple[List[
                     "cooking_method": cooking_method,
                     "oil_added_tsp": round(oil_added_tsp, 2),
                     "candidate_alternatives": candidate_alternatives,
-                    "kcal": 0.0,
-                    "macros": {"protein_g": 0.0, "carbs_g": 0.0, "fat_g": 0.0},
-                    "micros": {},
+                    "kcal": float(est_macros.get("kcal", 0.0) or 0.0),
+                    "macros": {
+                        "protein_g": float(est_macros.get("protein_g", 0.0) or 0.0),
+                        "carbs_g": float(est_macros.get("carbs_g", 0.0) or 0.0),
+                        "fat_g": float(est_macros.get("fat_g", 0.0) or 0.0),
+                    },
+                    "micros": est_micros,
                     "micros_units": None,
                     "unverified": True,
+                    "estimated": True,
+                    "estimate_reason": "usda_timeout_or_unavailable",
                 }
             )
             continue
@@ -9601,9 +10691,14 @@ def _coerce_meal_qa_payload(raw: Dict[str, Any], vision: VisionScanV1Model) -> M
     )
 
 
-def gemini_meal_qa_v1(image_bytes: bytes, vision: VisionScanV1Model, nutrition_summary: Dict[str, Any]) -> MealQAModel:
+def gemini_meal_qa_v1(
+    image_bytes: bytes,
+    vision: VisionScanV1Model,
+    nutrition_summary: Dict[str, Any],
+    request_id: str = "",
+    job_id: str = "",
+) -> MealQAModel:
     _require_gemini_key()
-    model = genai.GenerativeModel(SCAN_LLM_MODEL)
     prompt = (
         "You are Meal QA for a nutrition app. "
         "Given the image and parsed meal summary, detect inconsistencies and provide one-tap correction patches. "
@@ -9620,28 +10715,32 @@ def gemini_meal_qa_v1(image_bytes: bytes, vision: VisionScanV1Model, nutrition_s
         "items": [_model_dump(x) for x in vision.items],
         "nutrition_summary": nutrition_summary,
     }
-    last_err = ""
-    for attempt in range(3):
-        try:
-            resp = model.generate_content([prompt, json.dumps(compact, ensure_ascii=True), img])
-            text = str((resp.text or "")).strip()
-            parsed = coach_logic.extract_json_object(text)
-            if not isinstance(parsed, dict):
-                raise ValueError("No JSON object returned by model.")
+    try:
+        text = _generate_scan_content(
+            [prompt, json.dumps(compact, ensure_ascii=True, separators=(",", ":")), img],
+            purpose="meal_qa",
+            request_id=request_id,
+            job_id=job_id,
+        )
+        parsed = coach_logic.extract_json_object(text)
+        if isinstance(parsed, dict):
             return _coerce_meal_qa_payload(parsed, vision)
-        except Exception as e:
-            last_err = str(e)
-            time.sleep(0.7 * (attempt + 1))
-    logger.info(f"meal QA LLM fallback: {last_err}")
+        raise ValueError("No JSON object returned by model.")
+    except Exception as e:
+        logger.info(f"meal QA LLM fallback: {str(e)[:220]}")
     return _coerce_meal_qa_payload({}, vision)
 
 
-def gemini_meal_qa_rerun_v1(vision: VisionScanV1Model, nutrition_summary: Dict[str, Any]) -> MealQAModel:
+def gemini_meal_qa_rerun_v1(
+    vision: VisionScanV1Model,
+    nutrition_summary: Dict[str, Any],
+    request_id: str = "",
+    job_id: str = "",
+) -> MealQAModel:
     """
     Rerun path without re-uploading image. Uses stored scan context + edited nutrition summary.
     """
     _require_gemini_key()
-    model = genai.GenerativeModel(SCAN_LLM_MODEL)
     prompt = (
         "You are Meal QA for a nutrition app. "
         "Given scan context and edited meal summary, detect likely inconsistencies and suggest one-tap fixes. "
@@ -9657,26 +10756,26 @@ def gemini_meal_qa_rerun_v1(vision: VisionScanV1Model, nutrition_summary: Dict[s
         "items": [_model_dump(x) for x in vision.items],
         "nutrition_summary": nutrition_summary,
     }
-    last_err = ""
-    for attempt in range(3):
-        try:
-            resp = model.generate_content([prompt, json.dumps(compact, ensure_ascii=True)])
-            text = str((resp.text or "")).strip()
-            parsed = coach_logic.extract_json_object(text)
-            if not isinstance(parsed, dict):
-                raise ValueError("No JSON object returned by model.")
+    try:
+        text = _generate_scan_content(
+            [prompt, json.dumps(compact, ensure_ascii=True, separators=(",", ":"))],
+            purpose="meal_qa_rerun",
+            request_id=request_id,
+            job_id=job_id,
+        )
+        parsed = coach_logic.extract_json_object(text)
+        if isinstance(parsed, dict):
             return _coerce_meal_qa_payload(parsed, vision)
-        except Exception as e:
-            last_err = str(e)
-            time.sleep(0.7 * (attempt + 1))
-    logger.info(f"meal QA rerun LLM fallback: {last_err}")
+        raise ValueError("No JSON object returned by model.")
+    except Exception as e:
+        logger.info(f"meal QA rerun LLM fallback: {str(e)[:220]}")
     return _coerce_meal_qa_payload({}, vision)
 
 
 # -------------------- BARCODE: OpenFoodFacts -> Supabase Cache --------------------
 def openfoodfacts_lookup(barcode: str) -> Dict[str, Any]:
     url = f"{OPENFOODFACTS_BASE}/product/{barcode}.json"
-    r = requests.get(url, timeout=20)
+    r = _http_request_with_retry("GET", url, service="openfoodfacts", max_retries=1)
     if r.status_code != 200:
         raise HTTPException(status_code=502, detail=f"OpenFoodFacts failed: {r.text}")
 
@@ -10323,18 +11422,29 @@ def _build_scan_response(
 
 
 # -------------------- ANALYZE (PHOTO) --------------------
-@app.post("/analyze")
-async def analyze(
-    file: UploadFile = File(...),
-    user_id: Optional[str] = None,
+def _run_analyze_pipeline(
+    *,
+    user_id: str,
+    image_bytes: bytes,
     tz: Optional[str] = None,
     tz_offset_min: Optional[int] = None,
-    debug: Optional[bool] = False,
-    x_user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
-):
-    uid = require_user_id(x_user_id, user_id)
-    request_id = _new_request_id()
+    debug: bool = False,
+    request_id: str = "",
+    job_id: str = "",
+    progress_hook: Optional[Callable[[str, int], None]] = None,
+) -> Dict[str, Any]:
+    def _report(stage: str, pct: int) -> None:
+        if callable(progress_hook):
+            try:
+                progress_hook(str(stage or "running"), int(max(0, min(100, pct))))
+            except Exception:
+                pass
+
+    uid = str(user_id or "").strip()
+    if not uid:
+        raise HTTPException(status_code=400, detail="Missing user_id")
     started = time.time()
+    _report("init", 8)
     calibration_settings = load_confidence_calibration_settings()
     vision_threshold = _calibration_setting_value(calibration_settings, "vision", "confidence_threshold", 0.72)
     portion_threshold = _calibration_setting_value(calibration_settings, "portion", "confidence_threshold", 0.75)
@@ -10343,8 +11453,7 @@ async def analyze(
     day_local_iso = today_local.isoformat()
 
     usage_row = consume_one_scan(uid, today=today_local)
-
-    contents = await file.read()
+    contents = image_bytes or b""
     if not contents:
         raise HTTPException(status_code=400, detail="Empty file")
 
@@ -10354,11 +11463,63 @@ async def analyze(
         raise HTTPException(status_code=400, detail="Uploaded file is not a valid image")
 
     priors_context = _build_user_priors_context_for_candidates(uid, candidate_food_keys=[], limit=14)
-    vision_scan = gemini_vision_scan_v1(
-        contents,
-        personalization_context=priors_context,
-        vision_threshold=vision_threshold,
-    )
+    _report("vision_scan", 18)
+    scan_llm_used = True
+    try:
+        vision_scan = gemini_vision_scan_v1(
+            contents,
+            personalization_context=priors_context,
+            vision_threshold=vision_threshold,
+            request_id=request_id,
+            job_id=job_id,
+        )
+    except Exception as e:
+        scan_llm_used = False
+        logger.warning("vision scan fallback used request_id=%s job_id=%s err=%s", request_id, job_id, str(e)[:220])
+        vision_scan = _model_validate(
+            VisionScanV1Model,
+            {
+                "vision_confidence": 0.28,
+                "top_candidates": [
+                    {
+                        "candidate_id": "c1",
+                        "label": "mixed meal (needs confirmation)",
+                        "confidence": 0.28,
+                        "evidence": [],
+                        "assumptions": ["Vision model timeout; estimate from fallback profile."],
+                        "portion_guess_g": 280.0,
+                    }
+                ],
+                "clarifying_question": {
+                    "ask": "Quick confirm: was this meal fried and how oily was it?",
+                    "options": ["Not fried / low oil", "Air-fried", "Pan-fried (~1 tsp)", "Deep-fried (~2+ tsp)"],
+                },
+                "editable_context": {
+                    "items": [
+                        {
+                            "item_id": "i1",
+                            "name": "mixed meal (estimate)",
+                            "grams": 280.0,
+                            "cooking_method": "unknown",
+                            "oil_added_tsp": 0.0,
+                            "confidence": 0.28,
+                            "candidate_alternatives": ["rice + curry", "wrap + filling", "stir-fry bowl"],
+                        }
+                    ]
+                },
+                "items": [
+                    {
+                        "item_id": "i1",
+                        "name": "mixed meal (estimate)",
+                        "grams": 280.0,
+                        "cooking_method": "unknown",
+                        "oil_added_tsp": 0.0,
+                        "confidence": 0.28,
+                        "candidate_alternatives": ["rice + curry", "wrap + filling", "stir-fry bowl"],
+                    }
+                ],
+            },
+        )
     detected_items = [_model_dump(x) for x in (vision_scan.items or [])]
     detected_items, personalization_used = _apply_scan_user_priors(
         uid,
@@ -10380,8 +11541,9 @@ async def analyze(
     ).strip():
         if float(_safe_float(vision_scan.vision_confidence, 0.65) or 0.65) < vision_threshold:
             personalization_used["asked_clarifying_question_reason"] = "low_confidence"
-    logger.info(f"Detected items: {detected_items}")
+    logger.info("Detected items: %s job_id=%s request_id=%s", detected_items, job_id, request_id)
 
+    _report("nutrition_lookup", 42)
     results, totals, total_micros, item_warnings = _compute_scan_nutrition(detected_items)
     micros_payload = _build_micros_payload(total_micros)
     total_kcal = float(_safe_float(totals.get("kcal"), 0.0) or 0.0)
@@ -10396,6 +11558,7 @@ async def analyze(
         fat_g=total_f,
         mps_threshold_g=2.5,
     )
+    _report("meal_qa", 62)
     meal_qa = gemini_meal_qa_v1(
         contents,
         vision_scan,
@@ -10404,6 +11567,8 @@ async def analyze(
             "micros": micros_payload,
             "items": results,
         },
+        request_id=request_id,
+        job_id=job_id,
     )
     data_quality = _build_scan_data_quality(vision_scan, vision_threshold=vision_threshold)
     analysis_id = str(uuid.uuid4())
@@ -10431,15 +11596,17 @@ async def analyze(
         or personalization_used.get("asked_clarifying_question")
     )
     response["request_id"] = request_id
+    response["job_id"] = job_id
     response["input_scan_id"] = analysis_id
     response["analysis_id"] = analysis_id
     response["meal_id"] = analysis_id
     response["coach_summary_source"] = "fallback"
     response["fli_source"] = "rules"
-    response["source"] = "rules"
-    response["model_used"] = ""
+    response["source"] = "llm" if scan_llm_used else "rules"
+    response["model_used"] = SCAN_LLM_MODEL
     response["error_code"] = ""
-    response["tried_models"] = []
+    response["tried_models"] = [SCAN_LLM_MODEL]
+    response["llm_used"] = bool(scan_llm_used)
 
     analysis_row = {
         "analysis_id": analysis_id,
@@ -10461,6 +11628,7 @@ async def analyze(
         "data_quality_json": data_quality,
         "tz_used": _timezone_label(tz=tz, tz_offset_min=tz_offset_min),
     }
+    _report("persist_analysis", 72)
     _store_meal_analysis(analysis_row)
     _store_analysis_memory(
         {
@@ -10502,12 +11670,14 @@ async def analyze(
                 "analysis_id": analysis_id,
                 "warnings": item_warnings[:8],
                 "vision_confidence": response.get("vision_confidence"),
+                "job_id": job_id,
             },
         )
     except Exception as e:
         logger.warning(f"Meal events write skipped: {e}")
 
     try:
+        _report("daily_totals", 84)
         inc = {
             "total_kcal": total_kcal,
             "protein_g": total_p,
@@ -10527,6 +11697,7 @@ async def analyze(
         logger.warning(f"Daily totals update skipped: {e}")
 
     try:
+        _report("weekly_metrics", 90)
         weekly_predictive_internal = None
         memory = recompute_behavior_memory(uid, day_iso=day_local_iso, tz=tz, tz_offset_min=tz_offset_min)
         if isinstance(memory, dict):
@@ -10545,6 +11716,7 @@ async def analyze(
     response["latest_scan_id"] = analysis_id
     response["latest_scan_ts"] = scan_ts
     try:
+        _report("coach_preview", 95)
         coach_payload = _build_server_daily_coach_payload(uid, day_local_iso, tz=tz, tz_offset_min=tz_offset_min)
         state_obj = coach_payload.get("_state") if isinstance(coach_payload.get("_state"), dict) else {}
         daily_signals = dict(coach_payload.get("signals", {}) if isinstance(coach_payload.get("signals"), dict) else {})
@@ -10573,11 +11745,26 @@ async def analyze(
         response["fat_loss_intelligence"] = quick_fli
         response["fat_loss_intelligence_status"] = "pending" if GEMINI_API_KEY else "ready"
         response["fat_loss_intelligence_updated_at"] = quick_fli.get("updatedAt")
+        response["one_sentence_summary"] = str(quick_fli.get("one_sentence_summary") or "")
+        response["tone"] = str(quick_fli.get("tone_used") or quick_fli.get("tone_requested") or "supportive")
+        response["coach_theme"] = str(quick_fli.get("coach_theme") or "")
+        response["micro_insights"] = [
+            str(quick_fli.get("pattern_detected") or "").strip(),
+            str((quick_fli.get("highest_roi_change") or {}).get("why") or "").strip(),
+        ]
+        response["micro_insights"] = [x for x in response["micro_insights"] if x][:2]
+        if not response["micro_insights"]:
+            response["micro_insights"] = [
+                "Nutrition estimate is ready.",
+                "You can refine this scan using quick edit chips.",
+            ]
+        response["one_action"] = str(quick_fli.get("if_you_do_one_thing") or "")
+        response["follow_up_question"] = "Want a higher-protein version of this meal next time?"
         response["coach_summary_source"] = str(quick_fli.get("source") or "fallback")
         response["fli_source"] = str(quick_fli.get("source") or "fallback")
-        response["model_used"] = str(quick_fli.get("model_used") or quick_fli.get("llm_model_used") or "")
+        response["model_used"] = str(quick_fli.get("model_used") or quick_fli.get("llm_model_used") or SCAN_LLM_MODEL)
         response["error_code"] = str(quick_fli.get("error_code") or quick_fli.get("llm_error_code") or "")
-        response["tried_models"] = list(quick_fli.get("tried_models") or quick_fli.get("llm_tried_models") or [])
+        response["tried_models"] = list(quick_fli.get("tried_models") or quick_fli.get("llm_tried_models") or [SCAN_LLM_MODEL])
         if GEMINI_API_KEY:
             _warm_daily_coach_async(
                 uid,
@@ -10590,6 +11777,15 @@ async def analyze(
             )
     except Exception as e:
         logger.warning(f"Analyze FLI payload build skipped: {e}")
+        response["one_sentence_summary"] = "Scan saved. We’ll keep refining your coaching as more data comes in."
+        response["micro_insights"] = [
+            "Nutrition estimate is available, but coaching confidence is reduced right now.",
+            "Use quick edit chips to improve meal accuracy and next recommendations.",
+        ]
+        response["one_action"] = "Confirm cooking method and oil for one item to improve accuracy."
+        response["follow_up_question"] = "Want a quick better-swap list for this meal?"
+        response["tone"] = "supportive"
+        response["coach_theme"] = "portion_control"
 
     totals_hash = hashlib.sha256(
         json.dumps(
@@ -10605,13 +11801,183 @@ async def analyze(
         ).encode("utf-8")
     ).hexdigest()
     logger.info(
-        f"analyze_success user={uid} scan_id={analysis_id} "
-        f"scan_count={int(_safe_float((response.get('daily_signals') or {}).get('scan_count'), 0) or 0)} "
-        f"totals_hash={totals_hash}"
+        "analyze_success user=%s scan_id=%s job_id=%s scan_count=%s totals_hash=%s",
+        uid,
+        analysis_id,
+        job_id,
+        int(_safe_float((response.get("daily_signals") or {}).get("scan_count"), 0) or 0),
+        totals_hash,
     )
     response["latency_ms"] = int(max(0, round((time.time() - started) * 1000)))
-
+    _report("done", 100)
     return _attach_debug_schema(response, bool(debug))
+
+
+@app.post("/analyze")
+async def analyze(
+    file: UploadFile = File(...),
+    user_id: Optional[str] = None,
+    tz: Optional[str] = None,
+    tz_offset_min: Optional[int] = None,
+    debug: Optional[bool] = False,
+    x_user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
+):
+    uid = require_user_id(x_user_id, user_id)
+    request_id = _new_request_id()
+    contents = await file.read()
+    if not contents:
+        raise HTTPException(status_code=400, detail="Empty file")
+    try:
+        _ = Image.open(io.BytesIO(contents)).convert("RGB")
+    except Exception:
+        raise HTTPException(status_code=400, detail="Uploaded file is not a valid image")
+
+    job_id = str(uuid.uuid4())
+    input_path = _analysis_job_file_path(job_id)
+    with open(input_path, "wb") as f:
+        f.write(contents)
+
+    row = _store_analysis_job_async_best_effort(
+        {
+            "id": job_id,
+            "user_id": uid,
+            "status": "queued",
+            "stage": "queued",
+            "progress_pct": 5,
+            "created_at": _now_utc_naive().isoformat(),
+            "updated_at": _now_utc_naive().isoformat(),
+            "input_path": input_path,
+            "result_json": None,
+            "error": "",
+            "request_id": request_id,
+        }
+    )
+    try:
+        _enqueue_analysis_job(
+            {
+                "job_id": job_id,
+                "id": job_id,
+                "user_id": uid,
+                "input_path": input_path,
+                "tz": tz,
+                "tz_offset_min": tz_offset_min,
+                "request_id": request_id,
+            }
+        )
+    except Exception as e:
+        logger.warning("analysis_job enqueue fallback job_id=%s request_id=%s err=%s", job_id, request_id, str(e)[:220])
+        try:
+            threading.Thread(
+                target=_process_analysis_job,
+                args=(
+                    {
+                        "job_id": job_id,
+                        "id": job_id,
+                        "user_id": uid,
+                        "input_path": input_path,
+                        "tz": tz,
+                        "tz_offset_min": tz_offset_min,
+                        "request_id": request_id,
+                    },
+                ),
+                daemon=True,
+                name=f"analysis-job-inline-{job_id[:6]}",
+            ).start()
+        except Exception as e2:
+            _patch_analysis_job(
+                job_id,
+                {"status": "failed", "stage": "failed", "progress_pct": 100, "error": f"job_enqueue_failed: {str(e2)[:220]}"},
+            )
+
+    logger.info("analysis_job queued job_id=%s user=%s request_id=%s", job_id, uid, request_id)
+    out = {
+        "job_id": job_id,
+        "status": str(row.get("status") or "queued"),
+        "stage": str(row.get("stage") or "queued"),
+        "progress_pct": int(_safe_float(row.get("progress_pct"), 5) or 5),
+        "request_id": request_id,
+        "created_at": row.get("created_at"),
+        "updated_at": row.get("updated_at"),
+        "poll_url": f"/jobs/{job_id}",
+        "status_url": f"/jobs/{job_id}",
+    }
+    out = _attach_debug_schema(out, bool(debug))
+    return JSONResponse(status_code=202, content=out)
+
+
+@app.get("/jobs/{job_id}")
+def get_analysis_job(
+    job_id: str,
+    user_id: Optional[str] = None,
+    debug: Optional[bool] = False,
+    x_user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
+):
+    uid = require_user_id(x_user_id, user_id)
+    row = _get_analysis_job(job_id)
+    if not isinstance(row, dict):
+        raise HTTPException(status_code=404, detail={"error": "job_not_found", "job_id": job_id})
+    owner = str(row.get("user_id") or "").strip()
+    if owner and owner != uid:
+        raise HTTPException(status_code=403, detail="Job does not belong to this user.")
+    status = str(row.get("status") or "queued").strip().lower() or "queued"
+    stage = str(row.get("stage") or _analysis_job_stage(status)).strip().lower() or _analysis_job_stage(status)
+    progress_pct = int(_safe_float(row.get("progress_pct"), _analysis_job_progress(status)) or _analysis_job_progress(status))
+    out = {
+        "job_id": str(row.get("id") or job_id),
+        "status": status,
+        "stage": stage,
+        "progress_pct": max(0, min(100, progress_pct)),
+        "progress": max(0, min(100, progress_pct)),
+        "request_id": str(row.get("request_id") or ""),
+        "created_at": row.get("created_at"),
+        "updated_at": row.get("updated_at"),
+        "error": str(row.get("error") or "") if status in {"failed", "done"} else "",
+        "status_url": f"/jobs/{str(row.get('id') or job_id)}",
+    }
+    if status == "done":
+        result_obj = row.get("result_json")
+        if isinstance(result_obj, str):
+            result_obj = _parse_jsonish(result_obj, {})
+        out["result"] = result_obj if isinstance(result_obj, dict) else {}
+    return _attach_debug_schema(out, bool(debug))
+
+
+@app.get("/analyze/status")
+def analyze_status(
+    job_id: str,
+    user_id: Optional[str] = None,
+    debug: Optional[bool] = False,
+    x_user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
+):
+    return get_analysis_job(job_id=job_id, user_id=user_id, debug=debug, x_user_id=x_user_id)
+
+
+@app.get("/jobs/{job_id}/result")
+def get_analysis_job_result(
+    job_id: str,
+    user_id: Optional[str] = None,
+    debug: Optional[bool] = False,
+    x_user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
+):
+    uid = require_user_id(x_user_id, user_id)
+    row = _get_analysis_job(job_id)
+    if not isinstance(row, dict):
+        raise HTTPException(status_code=404, detail={"error": "job_not_found", "job_id": job_id})
+    owner = str(row.get("user_id") or "").strip()
+    if owner and owner != uid:
+        raise HTTPException(status_code=403, detail="Job does not belong to this user.")
+    status = str(row.get("status") or "queued").strip().lower() or "queued"
+    if status == "failed":
+        raise HTTPException(status_code=409, detail={"error": "job_failed", "message": str(row.get("error") or "Analyze job failed")})
+    if status != "done":
+        raise HTTPException(status_code=409, detail={"error": "job_not_ready", "status": status})
+    result_obj = row.get("result_json")
+    if isinstance(result_obj, str):
+        result_obj = _parse_jsonish(result_obj, {})
+    out = result_obj if isinstance(result_obj, dict) else {}
+    out.setdefault("job_id", str(row.get("id") or job_id))
+    out.setdefault("request_id", str(row.get("request_id") or ""))
+    return _attach_debug_schema(out, bool(debug))
 
 
 @app.post("/analyze/rerun")

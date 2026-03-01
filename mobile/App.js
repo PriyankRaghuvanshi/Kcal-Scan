@@ -1,4 +1,4 @@
-// build: 2026-02-28
+// build: 2026-02-04
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
@@ -440,6 +440,10 @@ function normalizeMealQA(raw) {
       .filter((x) => x.label),
     ask_to_confirm: String(src.ask_to_confirm || "").trim() || null,
   };
+}
+
+function sleepMs(ms) {
+  return new Promise((resolve) => setTimeout(resolve, Math.max(0, Number(ms) || 0)));
 }
 function normalizeRerunPatch(patch, editableItems = []) {
   const src = patch && typeof patch === "object" ? patch : {};
@@ -1159,6 +1163,7 @@ export default function App() {
   const coachQueuedRefreshRef = useRef(null);
   const coachTitleTapRef = useRef({ count: 0, lastTs: 0 });
   const rerunReqSeqRef = useRef(0);
+  const analyzeCancelRef = useRef(false);
 
   // ===== Camera Modal =====
   const [camOpen, setCamOpen] = useState(false);
@@ -2741,6 +2746,7 @@ async function openCamera() {
     }
     const photoScansAfterThisAnalyze =
       (history || []).filter((h) => (h?.kind || "") === "photo").length + 1;
+    analyzeCancelRef.current = false;
     setBusy(true);
     setResult(null);
 
@@ -2759,7 +2765,53 @@ async function openCamera() {
         body: form,
       });
 
-      const data = await safeJson(res);
+      let data = await safeJson(res);
+      const queuedStatus = String(data?.status || "").trim().toLowerCase();
+      if (res.status === 202 || queuedStatus === "queued" || queuedStatus === "running") {
+        const jobId = String(data?.job_id || "").trim();
+        if (!jobId) {
+          throw new Error("Analyze job was queued without a job_id.");
+        }
+        const startedAt = Date.now();
+        let pollDelay = 1200;
+        let finalPayload = null;
+        while (Date.now() - startedAt < 180000) {
+          if (analyzeCancelRef.current) {
+            throw new Error("Analyze cancelled.");
+          }
+          const jobUrl = withTimezoneQuery(
+            `${API_BASE}/jobs/${encodeURIComponent(jobId)}?user_id=${encodeURIComponent(userId)}`
+          );
+          const pollRes = await fetch(jobUrl, { method: "GET", headers: { accept: "application/json" } });
+          const pollData = await safeJson(pollRes);
+          const status = String(pollData?.status || "").trim().toLowerCase();
+          if (status === "done") {
+            finalPayload =
+              pollData?.result && typeof pollData.result === "object"
+                ? pollData.result
+                : pollData?.result_json && typeof pollData.result_json === "object"
+                ? pollData.result_json
+                : null;
+            if (!finalPayload) {
+              throw new Error("Analyze job completed but no result payload was returned.");
+            }
+            break;
+          }
+          if (status === "failed") {
+            const errMsg = errorToMessage(
+              pollData?.error || pollData?.message || "Analyze failed while processing image.",
+              0
+            );
+            throw new Error(errMsg || "Analyze failed while processing image.");
+          }
+          await sleepMs(pollDelay);
+          pollDelay = Math.min(5000, Math.round(pollDelay * 1.35));
+        }
+        if (!finalPayload) {
+          throw new Error("Analyze timed out. Please try again.");
+        }
+        data = finalPayload;
+      }
       const normalized = normalizeAnalyzeResult(data);
       setResult(normalized);
       const latestScanId = String(data?.scan_id || data?.latest_scan_id || data?.analysis_id || normalized?.analysis_id || "").trim();
@@ -2860,10 +2912,21 @@ async function openCamera() {
       await maybeSendScanUpgradeNudge(photoScansAfterThisAnalyze);
     } catch (e) {
       setFliPending(false);
-      Alert.alert("Analyze failed", String(e).slice(0, 220));
+      const msg = String((e && e.message) || e || "").trim();
+      if (!/analyze cancelled/i.test(msg)) {
+        Alert.alert("Analyze failed", msg.slice(0, 220));
+      }
     } finally {
       setBusy(false);
+      analyzeCancelRef.current = false;
     }
+  }
+
+  function cancelAnalyzeJob() {
+    analyzeCancelRef.current = true;
+    setBusy(false);
+    setFliPending(false);
+    setFliSyncing(false);
   }
 
   async function rerunAnalyzeWithPatch(editPatch) {
@@ -3656,6 +3719,14 @@ async function openCamera() {
               {busy ? <ActivityIndicator /> : <Text style={styles.btnText}>Analyze</Text>}
             </TouchableOpacity>
           </View>
+
+          {busy ? (
+            <View style={styles.row}>
+              <TouchableOpacity style={styles.secondaryBtn} onPress={cancelAnalyzeJob}>
+                <Text style={styles.btnText}>Cancel analyze</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
 
           <View style={styles.row}>
             <TouchableOpacity style={styles.secondaryBtn} onPress={clearCurrentScan} disabled={!photoUri && !result}>
