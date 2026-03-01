@@ -2959,6 +2959,20 @@ async function openCamera() {
       console.log("[rerun] payload", JSON.stringify(rerunPayload));
       const data = await safeJson(res);
       console.log("[rerun] response", res?.status, JSON.stringify(data || {}));
+      if (!res?.ok) {
+        const detail = data?.detail;
+        const backendMsg = errorToMessage(
+          data?.message ||
+            data?.error ||
+            data?.error_code ||
+            detail?.message ||
+            detail?.error ||
+            detail ||
+            `Rerun request failed (${res?.status || 400}).`,
+          0
+        );
+        throw new Error(backendMsg || `Rerun request failed (${res?.status || 400}).`);
+      }
       if (rerunSeq !== Number(rerunReqSeqRef.current || 0)) {
         return;
       }
