@@ -354,6 +354,14 @@ def _is_retryable_llm_error(err: Any) -> bool:
     return any(m in msg for m in markers)
 
 
+def _is_timeout_error(err: Any) -> bool:
+    msg = str(err or "").lower()
+    if not msg:
+        return False
+    markers = ("timeout", "timed out", "deadline", "504")
+    return any(m in msg for m in markers)
+
+
 def _call_llm_with_timeout(
     prompt: List[Any],
     *,
@@ -364,6 +372,11 @@ def _call_llm_with_timeout(
     request_id: str = "",
 ) -> Tuple[str, str, List[str]]:
     selected_model = _choose_single_llm_model(model_name or COACH_LLM_MODEL, None)
+    purpose_key = str(purpose or "").strip().lower()
+    if purpose_key.startswith("scan:vision_scan"):
+        effective_timeout = 25.0
+    else:
+        effective_timeout = 8.0
     attempts = max(1, min(2, int(retries or 1) + 1))
     tried_models: List[str] = []
     last_err = ""
@@ -374,7 +387,7 @@ def _call_llm_with_timeout(
             model = genai.GenerativeModel(selected_model)
             resp = model.generate_content(
                 prompt,
-                request_options={"timeout": max(3.0, min(8.0, float(timeout_sec or 8.0)))},
+                request_options={"timeout": float(effective_timeout)},
             )
             text = str((resp.text or "")).strip()
             if not text:
@@ -405,11 +418,20 @@ def _call_llm_with_timeout(
 
     raise HTTPException(
         status_code=502,
-        detail={
-            "error": "coach_llm_failed",
-            "raw": str(last_err or "")[:320],
-            "tried_models": tried_models,
-        },
+        detail=(
+            {
+                "error": "vision_timeout",
+                "message": "Image analysis exceeded time limit",
+                "raw": str(last_err or "")[:320],
+                "tried_models": tried_models,
+            }
+            if purpose_key.startswith("scan:vision_scan") and _is_timeout_error(last_err)
+            else {
+                "error": "coach_llm_failed",
+                "raw": str(last_err or "")[:320],
+                "tried_models": tried_models,
+            }
+        ),
     )
 
 
@@ -496,6 +518,9 @@ def _generate_scan_content(
         _scan_circuit_record_success()
         return text
     except Exception as e:
+        if isinstance(e, HTTPException) and isinstance(e.detail, dict):
+            if str(e.detail.get("error") or "").strip().lower() == "vision_timeout":
+                raise e
         err_text = _http_exc_raw(e)
         _scan_circuit_record_failure(err_text)
         raise HTTPException(
@@ -1674,6 +1699,12 @@ def _process_analysis_job(job: Dict[str, Any]) -> None:
         err_text = _job_error_text(e)
         logger.error("analysis_job failed job_id=%s user=%s request_id=%s err=%s", job_id, user_id, request_id, err_text)
         fallback_result = _minimal_analysis_fallback_result(job_id, request_id, err_text)
+        if isinstance(e, HTTPException) and isinstance(e.detail, dict):
+            if str(e.detail.get("error") or "").strip().lower() == "vision_timeout":
+                fallback_result = {
+                    "error": "vision_timeout",
+                    "message": "Image analysis exceeded time limit",
+                }
         _patch_analysis_job(
             job_id,
             {
