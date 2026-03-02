@@ -103,6 +103,7 @@ TBL_WEEKLY_REPORTS = "weekly_reports"
 TBL_PROGRAM_STATUS = "program_status"
 TBL_CONFIDENCE_AUDIT = "confidence_audit"
 TBL_CONFIDENCE_CALIBRATION_SETTINGS = "confidence_calibration_settings"
+TBL_USER_AI_CONSENT = "user_ai_consent"
 
 # Plans (your requirements)
 DEFAULT_PLAN = "free"
@@ -220,6 +221,7 @@ _TABLE_MIGRATION_HINTS = {
     "meal_edits": "create_meal_edits.sql",
     "analysis_jobs": "create_analysis_jobs.sql",
     "user_food_priors": "migrate_user_food_priors.sql",
+    "user_ai_consent": "create_user_ai_consent.sql",
 }
 _EXPECTED_SCHEMA_TABLES = {
     "coach_memory",
@@ -228,12 +230,14 @@ _EXPECTED_SCHEMA_TABLES = {
     "meal_edits",
     "analysis_jobs",
     "user_food_priors",
+    "user_ai_consent",
 }
 
 _ANALYSIS_JOBS_CACHE: Dict[str, Dict[str, Any]] = {}
 _ANALYSIS_JOB_QUEUE: "queue.Queue[Dict[str, Any]]" = queue.Queue(maxsize=2048)
 _ANALYSIS_JOB_WORKER_STARTED = False
 _ANALYSIS_JOB_WORKER_LOCK = threading.Lock()
+_AI_CONSENT_CACHE: Dict[str, Dict[str, Any]] = {}
 _SCAN_LLM_CIRCUIT = {
     "state": "closed",
     "fail_count": 0,
@@ -1211,6 +1215,19 @@ def sb_patch(table: str, match: Dict[str, str], patch: Dict[str, Any]) -> None:
     r = requests.patch(url, headers=headers, params=params, data=json.dumps(patch), timeout=20)
     if r.status_code not in (200, 204):
         raise HTTPException(status_code=502, detail={"error": "Supabase update failed", "raw": r.text})
+
+
+def sb_delete(table: str, match: Dict[str, str]) -> None:
+    url = f"{SUPABASE_URL}/rest/v1/{table}"
+    params = {"select": "user_id"}
+    params.update(match or {})
+
+    headers = supabase_headers()
+    headers["Prefer"] = "return=minimal"
+
+    r = requests.delete(url, headers=headers, params=params, timeout=20)
+    if r.status_code not in (200, 204):
+        raise HTTPException(status_code=502, detail={"error": "Supabase delete failed", "raw": r.text})
 
 
 def _http_exc_raw(e: Exception) -> str:
@@ -3803,6 +3820,238 @@ def require_user_id(x_user_id: Optional[str], user_id: Optional[str]) -> str:
     if not uid:
         raise HTTPException(status_code=401, detail="Missing user id. Pass X-User-Id header or ?user_id=...")
     return uid
+
+
+def _to_bool_flag(value: Any, default: bool = False) -> bool:
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return bool(default)
+    if isinstance(value, (int, float)):
+        return float(value) != 0.0
+    text = str(value or "").strip().lower()
+    if not text:
+        return bool(default)
+    if text in {"1", "true", "yes", "y", "on"}:
+        return True
+    if text in {"0", "false", "no", "n", "off"}:
+        return False
+    return bool(default)
+
+
+def _read_ai_consent_row(user_id: str) -> Optional[Dict[str, Any]]:
+    uid = str(user_id or "").strip()
+    if not uid:
+        return None
+    if (not (SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY)) or _is_table_disabled(TBL_USER_AI_CONSENT):
+        return None
+    try:
+        return sb_get_one(
+            TBL_USER_AI_CONSENT,
+            params={"select": "*", "user_id": f"eq.{uid}", "limit": "1"},
+        )
+    except Exception as e:
+        if not _mark_table_unavailable(TBL_USER_AI_CONSENT, e):
+            logger.info(f"ai consent read skipped: {e}")
+        return None
+
+
+def has_ai_consent(user_id: str) -> bool:
+    uid = str(user_id or "").strip()
+    if not uid:
+        return False
+    now_ts = time.time()
+    cached = _AI_CONSENT_CACHE.get(uid)
+    if isinstance(cached, dict):
+        cached_at = float(cached.get("cached_at") or 0.0)
+        if (now_ts - cached_at) <= 60.0:
+            return bool(cached.get("consent_given"))
+    row = _read_ai_consent_row(uid)
+    consent = bool(row and _to_bool_flag(row.get("consent_given"), False))
+    _AI_CONSENT_CACHE[uid] = {"consent_given": consent, "cached_at": now_ts}
+    return consent
+
+
+def require_ai_consent(user_id: str) -> None:
+    if not has_ai_consent(user_id):
+        raise HTTPException(
+            status_code=403,
+            detail="AI processing consent required before analysis.",
+        )
+
+
+def _set_ai_consent(user_id: str, consent_given: bool) -> Dict[str, Any]:
+    uid = str(user_id or "").strip()
+    now_iso = _now_utc_naive().isoformat()
+    row = {
+        "user_id": uid,
+        "consent_given": bool(consent_given),
+        "consent_timestamp": now_iso if bool(consent_given) else None,
+        "updated_at": now_iso,
+    }
+    if (not (SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY)) or _is_table_disabled(TBL_USER_AI_CONSENT):
+        _AI_CONSENT_CACHE[uid] = {"consent_given": bool(consent_given), "cached_at": time.time()}
+        return row
+    try:
+        stored = sb_upsert(TBL_USER_AI_CONSENT, row, on_conflict="user_id")
+        out = dict(stored or row)
+    except Exception as e:
+        if _mark_table_unavailable(TBL_USER_AI_CONSENT, e):
+            out = dict(row)
+        else:
+            raise
+    _AI_CONSENT_CACHE[uid] = {"consent_given": bool(out.get("consent_given")), "cached_at": time.time()}
+    return out
+
+
+@app.get("/ai/consent")
+def get_ai_consent(
+    user_id: Optional[str] = None,
+    x_user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
+):
+    uid = require_user_id(x_user_id, user_id)
+    row = _read_ai_consent_row(uid)
+    consent_given = bool(row and _to_bool_flag(row.get("consent_given"), False))
+    _AI_CONSENT_CACHE[uid] = {"consent_given": consent_given, "cached_at": time.time()}
+    return {
+        "user_id": uid,
+        "consent_given": consent_given,
+        "consent_timestamp": (row or {}).get("consent_timestamp") if isinstance(row, dict) else None,
+        "updated_at": (row or {}).get("updated_at") if isinstance(row, dict) else None,
+        "record_exists": bool(row),
+    }
+
+
+@app.post("/ai/consent")
+def upsert_ai_consent(
+    payload: Dict[str, Any] = Body(...),
+    user_id: Optional[str] = None,
+    x_user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
+):
+    body = payload if isinstance(payload, dict) else {}
+    uid = require_user_id(x_user_id, user_id or body.get("user_id"))
+    consent_given = _to_bool_flag(body.get("consent_given", body.get("consent")), False)
+    stored = _set_ai_consent(uid, consent_given)
+    return {
+        "ok": True,
+        "user_id": uid,
+        "consent_given": bool(stored.get("consent_given")),
+        "consent_timestamp": stored.get("consent_timestamp"),
+        "updated_at": stored.get("updated_at"),
+    }
+
+
+def _delete_supabase_auth_user(user_id: str) -> bool:
+    uid = str(user_id or "").strip()
+    if not uid:
+        return False
+    if not (SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY):
+        return False
+    url = f"{SUPABASE_URL}/auth/v1/admin/users/{uid}"
+    headers = {
+        "apikey": SUPABASE_SERVICE_ROLE_KEY,
+        "Authorization": f"Bearer {SUPABASE_SERVICE_ROLE_KEY}",
+        "Content-Type": "application/json",
+    }
+    r = requests.delete(url, headers=headers, timeout=20)
+    if r.status_code in (200, 204, 404):
+        return True
+    raise HTTPException(
+        status_code=502,
+        detail={"error": "supabase_auth_delete_failed", "raw": str(r.text or "")[:320]},
+    )
+
+
+@app.delete("/account/delete")
+def delete_account(
+    user_id: Optional[str] = None,
+    debug: Optional[bool] = False,
+    x_user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
+):
+    uid = require_user_id(x_user_id, user_id)
+    tables = [
+        TBL_ANALYSIS_MEMORY,
+        TBL_MEAL_ANALYSES,
+        TBL_MEAL_EDITS,
+        TBL_COACH_MEMORY,
+        TBL_COACH_FEEDBACK,
+        TBL_COACH_VOICE_CACHE,
+        TBL_COACH_EVENTS,
+        TBL_DAILY_METRICS,
+        TBL_DAILY_SUMMARY,
+        TBL_DAILY_TOTALS,
+        TBL_MEAL_EVENTS,
+        TBL_USER_WEEKLY_METRICS,
+        TBL_WEEKLY_INSIGHTS,
+        TBL_WEEKLY_REPORTS,
+        TBL_PROGRAM_STATUS,
+        TBL_USER_CALIBRATION,
+        TBL_CONFIDENCE_AUDIT,
+        TBL_CONFIDENCE_CALIBRATION_SETTINGS,
+        TBL_USER_FOOD_PRIORS,
+        TBL_USER_GOALS,
+        TBL_USER_USAGE,
+        TBL_ANALYSIS_JOBS,
+        TBL_USER_AI_CONSENT,
+    ]
+    deleted_tables: List[str] = []
+    skipped_tables: List[str] = []
+    failed_tables: List[Dict[str, str]] = []
+
+    for table in tables:
+        tkey = _table_key(table)
+        if not tkey:
+            continue
+        if _is_table_disabled(tkey):
+            skipped_tables.append(tkey)
+            continue
+        if not (SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY):
+            skipped_tables.append(tkey)
+            continue
+        try:
+            sb_delete(tkey, {"user_id": f"eq.{uid}"})
+            deleted_tables.append(tkey)
+        except Exception as e:
+            if _mark_table_unavailable(tkey, e):
+                skipped_tables.append(tkey)
+                continue
+            failed_tables.append({"table": tkey, "error": str(_http_exc_raw(e))[:220]})
+
+    auth_deleted = False
+    auth_error = ""
+    try:
+        auth_deleted = _delete_supabase_auth_user(uid)
+    except Exception as e:
+        auth_error = str(_http_exc_raw(e))[:220]
+        logger.warning(f"auth delete failed for user={uid}: {auth_error}")
+
+    _AI_CONSENT_CACHE.pop(uid, None)
+    _COACH_EVENT_RING.pop(uid, None)
+    for key in list(_COACH_MEM_CACHE.keys()):
+        if str(key).startswith(f"{uid}:"):
+            _COACH_MEM_CACHE.pop(key, None)
+
+    if failed_tables:
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": "account_delete_partial_failure",
+                "failed_tables": failed_tables,
+                "auth_deleted": auth_deleted,
+                "auth_error": auth_error,
+            },
+        )
+
+    resp = {
+        "status": "deleted",
+        "user_id": uid,
+        "deleted_tables": deleted_tables,
+        "skipped_tables": skipped_tables,
+        "auth_deleted": auth_deleted,
+    }
+    if auth_error:
+        resp["auth_error"] = auth_error
+    return _attach_debug_schema(resp, bool(debug))
 
 
 @app.get("/usage")
@@ -8157,6 +8406,7 @@ def coach_voice(
         raise HTTPException(status_code=400, detail={"error": "invalid_coach_voice_payload", "raw": str(e)[:300]})
 
     uid = require_user_id(x_user_id, user_id or req.user_id)
+    require_ai_consent(uid)
     day_iso = _safe_day_iso(req.day)
     tone_pref = _voice_requested_tone(req)
     _cache_user_coach_profile(uid, _model_dump(req.user_profile), tone_pref)
@@ -8573,6 +8823,7 @@ def coach_weekly_report(
         raise HTTPException(status_code=400, detail={"error": "invalid_weekly_report_payload", "raw": str(e)[:280]})
 
     uid = require_user_id(x_user_id, user_id or req.user_id)
+    require_ai_consent(uid)
     anchor_day = _safe_day_iso(req.week_start or _today_date(tz=req.tz or None, tz_offset_min=req.tz_offset_min).isoformat())
     week_start_iso = _week_start_monday(anchor_day)
 
@@ -8764,6 +9015,7 @@ def coach_daily(
     Numbers are always computed by Python rules; LLM only interprets.
     """
     uid = require_user_id(x_user_id, user_id)
+    require_ai_consent(uid)
     request_id = _new_request_id()
     started = time.time()
     norm = coach_logic.normalize_daily_payload(payload or {})
@@ -11115,6 +11367,7 @@ async def analyze(
     x_user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
 ):
     uid = require_user_id(x_user_id, user_id)
+    require_ai_consent(uid)
     request_id = _new_request_id()
     contents = await file.read()
     if not contents:

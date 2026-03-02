@@ -1117,6 +1117,10 @@ export default function App() {
   const [authEmail, setAuthEmail] = useState("");
   const [authPass, setAuthPass] = useState("");
   const [authBusy, setAuthBusy] = useState(false);
+  const [aiConsentGiven, setAiConsentGiven] = useState(false);
+  const [aiConsentLoading, setAiConsentLoading] = useState(false);
+  const [aiConsentModalVisible, setAiConsentModalVisible] = useState(false);
+  const [deleteAccountBusy, setDeleteAccountBusy] = useState(false);
 
   // ===== NEW: Google + Phone OTP login =====
 
@@ -1329,6 +1333,10 @@ export default function App() {
     setBarcodeOpen(false);
     setCamOpen(false);
     setRerunBusy(false);
+    setAiConsentGiven(false);
+    setAiConsentModalVisible(false);
+    setAiConsentLoading(false);
+    setDeleteAccountBusy(false);
     if (coachRefreshTimerRef.current) {
       clearTimeout(coachRefreshTimerRef.current);
       coachRefreshTimerRef.current = null;
@@ -1337,6 +1345,10 @@ export default function App() {
       setGoals(null);
       setGoalsDraft(DEFAULT_GOALS);
       setUsage(null);
+      setAiConsentGiven(false);
+      setAiConsentModalVisible(false);
+      setAiConsentLoading(false);
+      setDeleteAccountBusy(false);
     }
   }, [userId]);
 
@@ -1346,6 +1358,7 @@ export default function App() {
     ensureGoals();
     fetchDailySummary();
     loadHistory();
+    void fetchAiConsent(userId);
     void flushCoachFeedbackQueue(userId);
   }, [userId]);
 
@@ -1770,6 +1783,7 @@ export default function App() {
   async function fetchCoachVoice(latestResult = null, force = false) {
     const uid = userId || session?.user?.id;
     if (!uid || !canCoaching) return;
+    if (!aiConsentGiven) return;
     const base = buildDailyCoachPayload();
     const day = String(base?.date || localDayISO());
     const payloadHash = hashString(
@@ -1881,6 +1895,7 @@ export default function App() {
   async function fetchWeeklyReport(force = false) {
     const uid = userId || session?.user?.id;
     if (!uid || !canCoaching) return;
+    if (!aiConsentGiven) return;
     if (weeklyReport && !force) return;
     setWeeklyReportBusy(true);
     try {
@@ -1950,6 +1965,12 @@ export default function App() {
   async function ensureDailyCoach(force = false, opts = {}) {
     const uid = userId || session?.user?.id;
     if (!uid || !coachProfileReady) return;
+    if (!aiConsentGiven) {
+      setCoachDaily(null);
+      setCoachErr("AI processing consent required.");
+      setFliPending(false);
+      return;
+    }
 
     const payload = buildDailyCoachPayload();
     setCoachLastPayload(payload || null);
@@ -2225,10 +2246,19 @@ export default function App() {
       setCoachErr("");
       return;
     }
+    if (!aiConsentGiven) {
+      setCoachDaily(null);
+      setCoachVoice(null);
+      setWeeklyReport(null);
+      setFliSyncing(false);
+      setFliPending(false);
+      setCoachErr("AI processing consent required.");
+      return;
+    }
     void ensureDailyCoach(false);
     void fetchCoachVoice(null, false);
     void fetchWeeklyReport(false);
-  }, [userId, coachProfileReady, goals, dailySummary, history, coachProfile, canCoaching]);
+  }, [userId, coachProfileReady, goals, dailySummary, history, coachProfile, canCoaching, aiConsentGiven]);
 
   async function applyCoachProfile() {
     const uid = userId || session?.user?.id;
@@ -2425,6 +2455,102 @@ export default function App() {
     coachQueuedRefreshRef.current = null;
   }
 
+  async function fetchAiConsent(forceUserId) {
+    const uid = forceUserId || userId || session?.user?.id;
+    if (!uid) return false;
+    setAiConsentLoading(true);
+    try {
+      const url = withTimezoneQuery(`${API_BASE}/ai/consent?user_id=${encodeURIComponent(uid)}`);
+      const res = await fetch(url, { method: "GET", headers: { accept: "application/json" } });
+      const data = await safeJson(res);
+      const consent = Boolean(data?.consent_given);
+      setAiConsentGiven(consent);
+      setAiConsentModalVisible(!consent);
+      return consent;
+    } catch (e) {
+      console.log("fetchAiConsent failed", String(e));
+      setAiConsentGiven(false);
+      setAiConsentModalVisible(true);
+      return false;
+    } finally {
+      setAiConsentLoading(false);
+    }
+  }
+
+  async function updateAiConsent(nextConsent) {
+    const uid = userId || session?.user?.id;
+    if (!uid) return false;
+    setAiConsentLoading(true);
+    try {
+      const url = withTimezoneQuery(`${API_BASE}/ai/consent?user_id=${encodeURIComponent(uid)}`);
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", accept: "application/json" },
+        body: JSON.stringify({ user_id: uid, consent: Boolean(nextConsent) }),
+      });
+      const data = await safeJson(res);
+      const consent = Boolean(data?.consent_given);
+      setAiConsentGiven(consent);
+      setAiConsentModalVisible(!consent);
+      if (!consent) {
+        Alert.alert("AI processing disabled", "Scanning and AI coaching are now blocked until you enable consent.");
+      }
+      return consent;
+    } catch (e) {
+      Alert.alert("Consent update failed", String(e?.message || e || "").slice(0, 200));
+      return aiConsentGiven;
+    } finally {
+      setAiConsentLoading(false);
+    }
+  }
+
+  function ensureAiConsentOrAlert() {
+    if (aiConsentGiven) return true;
+    if (aiConsentLoading) {
+      Alert.alert("AI consent", "Checking consent status. Please wait a moment.");
+      return false;
+    }
+    setAiConsentModalVisible(true);
+    Alert.alert("AI consent required", "Enable AI Processing in Privacy settings to analyze photos and generate coaching.");
+    return false;
+  }
+
+  async function deleteAccountPermanently() {
+    const uid = userId || session?.user?.id;
+    if (!uid) return;
+    setDeleteAccountBusy(true);
+    try {
+      const url = withTimezoneQuery(`${API_BASE}/account/delete?user_id=${encodeURIComponent(uid)}`);
+      const res = await fetch(url, { method: "DELETE", headers: { accept: "application/json" } });
+      await safeJson(res);
+      await AsyncStorage.clear();
+      await signOut();
+      Alert.alert("Account deleted", "Your account and related data were permanently deleted.");
+    } catch (e) {
+      Alert.alert("Delete failed", String(e?.message || e || "").slice(0, 220));
+    } finally {
+      setDeleteAccountBusy(false);
+    }
+  }
+
+  function confirmDeleteAccount() {
+    if (deleteAccountBusy) return;
+    Alert.alert(
+      "Delete account permanently?",
+      "This will permanently delete scan history, coach data, goals, AI consent, and your login. This action cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete Permanently",
+          style: "destructive",
+          onPress: () => {
+            void deleteAccountPermanently();
+          },
+        },
+      ]
+    );
+  }
+
   async function signInWithOAuthProvider(provider, failTitle) {
     if (!HAS_SUPABASE) {
       Alert.alert("Missing Supabase env", "Set EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY");
@@ -2577,6 +2703,7 @@ export default function App() {
 
 
 async function openCamera() {
+    if (!ensureAiConsentOrAlert()) return;
     const { granted } = permission || {};
     if (!granted) {
       const r = await requestPermission();
@@ -2730,6 +2857,7 @@ async function openCamera() {
 
   async function analyzePhoto() {
     if (!userId) return;
+    if (!ensureAiConsentOrAlert()) return;
     if (!photoUri) {
       Alert.alert("No photo", "Take a photo first.");
       return;
@@ -3088,6 +3216,7 @@ async function openCamera() {
 
   // ===================== BARCODE =====================
   async function openBarcodeScanner() {
+    if (!ensureAiConsentOrAlert()) return;
     if (!canBarcode) {
       Alert.alert("Locked 🔒", "Barcode scanning is Elite+.");
       return;
@@ -3106,6 +3235,7 @@ async function openCamera() {
 
   async function barcodeLookup(code) {
     if (!userId) return;
+    if (!ensureAiConsentOrAlert()) return;
     if (!code) return;
 
     setBarcodeBusy(true);
@@ -4077,6 +4207,47 @@ async function openCamera() {
           </View>
         </View>
 
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Privacy & Account</Text>
+          <Text style={[styles.p, { marginTop: 6 }]}>
+            AI processing consent controls whether meal images and coaching metadata are sent to trusted AI providers.
+          </Text>
+
+          <View style={{ marginTop: 10, flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.itemName}>Allow AI Processing</Text>
+              <Text style={styles.tiny}>{aiConsentGiven ? "Enabled" : "Disabled"}</Text>
+            </View>
+            <TouchableOpacity
+              style={[styles.smallBtn, aiConsentGiven ? styles.consentOnBtn : styles.consentOffBtn]}
+              disabled={aiConsentLoading || !userId}
+              onPress={() => {
+                void updateAiConsent(!aiConsentGiven);
+              }}
+            >
+              <Text style={styles.smallBtnText}>{aiConsentLoading ? "…" : aiConsentGiven ? "On" : "Off"}</Text>
+            </TouchableOpacity>
+          </View>
+
+          <Text style={[styles.tiny, { marginTop: 8 }]}>
+            If disabled, scan and AI coaching features are blocked until you re-enable consent.
+          </Text>
+
+          <View style={{ marginTop: 14 }}>
+            <Text style={styles.itemName}>Delete Account</Text>
+            <Text style={styles.tiny}>
+              This permanently deletes scan history, coach data, goals, AI consent, and account login. This action cannot be undone.
+            </Text>
+            <TouchableOpacity
+              style={[styles.secondaryBtn, styles.dangerBtn, { marginTop: 10 }]}
+              onPress={confirmDeleteAccount}
+              disabled={deleteAccountBusy || !userId}
+            >
+              <Text style={styles.btnText}>{deleteAccountBusy ? "Deleting…" : "Delete Permanently"}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
 
 
         <View style={styles.card}>
@@ -4270,6 +4441,48 @@ async function openCamera() {
           </View>
         </Modal>
 
+        <Modal visible={aiConsentModalVisible && Boolean(session)} transparent animationType="fade">
+          <View style={styles.modalBackdrop}>
+            <View style={styles.modalCard}>
+              <Text style={styles.cardTitle}>AI Processing Consent</Text>
+              <Text style={[styles.p, { marginTop: 8 }]}>
+                To analyze your food photos and generate nutrition insights, CalorieClick securely sends:
+              </Text>
+              <Text style={styles.tiny}>• Food images</Text>
+              <Text style={styles.tiny}>• Nutrition metadata</Text>
+              <Text style={styles.tiny}>• Your selected goals</Text>
+              <Text style={styles.tiny}>• Coaching preferences</Text>
+              <Text style={[styles.p, { marginTop: 8 }]}>
+                to trusted AI providers (Google Gemini API or equivalent). No advertising identifiers are shared. No data is sold.
+              </Text>
+              <Text style={[styles.tiny, { marginTop: 6 }]}>
+                AI providers are contractually required to provide equal or stronger data protection standards.
+              </Text>
+
+              <View style={{ flexDirection: "row", gap: 10, marginTop: 14 }}>
+                <TouchableOpacity
+                  style={[styles.btn, { flex: 1, backgroundColor: "#2c2c2c" }]}
+                  onPress={() => {
+                    void updateAiConsent(false);
+                  }}
+                  disabled={aiConsentLoading}
+                >
+                  <Text style={styles.btnText}>{aiConsentLoading ? "…" : "Decline"}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.btn, { flex: 1 }]}
+                  onPress={() => {
+                    void updateAiConsent(true);
+                  }}
+                  disabled={aiConsentLoading}
+                >
+                  <Text style={styles.btnText}>{aiConsentLoading ? "…" : "Accept"}</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+
 </ScrollView>
 
       {/* CAMERA MODAL */}
@@ -4422,6 +4635,21 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: "center",
     flexShrink: 1,
+  },
+  consentOnBtn: {
+    backgroundColor: "#15432c",
+    borderWidth: 1,
+    borderColor: "#1f8f4d",
+  },
+  consentOffBtn: {
+    backgroundColor: "#2a1a1a",
+    borderWidth: 1,
+    borderColor: "#7f1d1d",
+  },
+  dangerBtn: {
+    backgroundColor: "#3a1010",
+    borderWidth: 1,
+    borderColor: "#8a1d1d",
   },
   smallBtnText: { color: "#fff", fontWeight: "700" },
 
