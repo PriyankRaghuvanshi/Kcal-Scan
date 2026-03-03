@@ -17,6 +17,7 @@ import {
   Modal,
   Linking,
   Share,
+  ToastAndroid,
 } from "react-native";
 
 import { CameraView, useCameraPermissions } from "expo-camera";
@@ -120,6 +121,21 @@ const DEFAULT_COACH_PROFILE = {
   training_time: "evening",
   tone_preference: "supportive",
 };
+const SUPPLEMENT_TOTAL_STEPS = 4;
+const SUPPLEMENT_PROCESSING_CHECKS = [
+  "Checking barcode registry",
+  "Validating batch structure",
+  "Analyzing nutrition panel consistency",
+  "Comparing ingredient patterns",
+];
+const SUPPLEMENT_LEGAL_NOTE =
+  "This authenticity confidence score is based on structural and pattern analysis. It is not a definitive determination of product genuineness. For confirmation, contact the manufacturer.";
+const SUPPLEMENT_REPORT_REASONS = [
+  { key: "packaging_differs", label: "Packaging looks different" },
+  { key: "taste_texture_unusual", label: "Taste/texture unusual" },
+  { key: "batch_not_recognized", label: "Batch not recognized" },
+  { key: "other", label: "Other" },
+];
 
 // ===================== HELPERS =====================
 function num(x) {
@@ -246,6 +262,50 @@ function riskLevelTone(level) {
   if (l === "high") return { color: "#ef4444", bg: "#2c1111" };
   if (l === "medium") return { color: "#f59e0b", bg: "#2a210f" };
   return { color: "#22c55e", bg: "#11271a" };
+}
+function supplementScoreTone(score) {
+  const s = Math.round(num(score));
+  if (s >= 80) return { label: "High Confidence", color: "#22c55e", bg: "#0f2617" };
+  if (s >= 60) return { label: "Moderate", color: "#f59e0b", bg: "#2d210b" };
+  if (s >= 40) return { label: "Low Confidence", color: "#fb923c", bg: "#2f1a0d" };
+  return { label: "High Risk", color: "#ef4444", bg: "#2b1212" };
+}
+function supplementRiskTone(level) {
+  const tag = String(level || "").toLowerCase();
+  if (tag === "ok") return { icon: "✔", color: "#22c55e" };
+  if (tag === "warn") return { icon: "⚠", color: "#f59e0b" };
+  return { icon: "✖", color: "#ef4444" };
+}
+function buildSupplementBreakdown(result) {
+  const riskFlags = Array.isArray(result?.risk_flags)
+    ? result.risk_flags.map((x) => String(x || "").trim().toLowerCase())
+    : [];
+  const flags = new Set(riskFlags);
+  const hasBatch = Boolean(String(result?.batch_number || "").trim());
+  const communityCount = Number(result?.scan_count ?? result?.community_scan_count);
+  const communityKnown = Number.isFinite(communityCount);
+  const communityHeavy = communityKnown && communityCount > 3;
+
+  return [
+    flags.has("barcode_not_found") || flags.has("brand_barcode_mismatch")
+      ? { key: "barcode", level: "bad", text: "Barcode structure does not match known brand patterns." }
+      : { key: "barcode", level: "ok", text: "Barcode matches known brand pattern checks." },
+    flags.has("batch_format_mismatch")
+      ? { key: "batch", level: "bad", text: "Batch format differs from expected structure." }
+      : hasBatch
+      ? { key: "batch", level: "ok", text: "Batch format appears structurally valid." }
+      : { key: "batch", level: "warn", text: "Batch code not provided; structural validation is limited." },
+    flags.has("community_flagged_batch")
+      ? { key: "community", level: "warn", text: "Community scans suggest this batch needs additional review." }
+      : communityHeavy
+      ? { key: "community", level: "ok", text: "Community pattern is stable for this batch in recent scans." }
+      : communityKnown
+      ? { key: "community", level: "warn", text: "Limited historical batch data in your region." }
+      : { key: "community", level: "warn", text: "Community history not yet sufficient for strong pattern matching." },
+    flags.has("possible_protein_spiking")
+      ? { key: "nutrition", level: "bad", text: "Nutrition panel consistency needs manual verification." }
+      : { key: "nutrition", level: "ok", text: "Nutrition panel appears structurally consistent." },
+  ];
 }
 function shortDayLabel(dayIso) {
   try {
@@ -1139,6 +1199,21 @@ export default function App() {
   const [goalsBusy, setGoalsBusy] = useState(false);
   const [busy, setBusy] = useState(false);
   const [rerunBusy, setRerunBusy] = useState(false);
+  const [supplementFrontUri, setSupplementFrontUri] = useState(null);
+  const [supplementBackUri, setSupplementBackUri] = useState(null);
+  const [supplementBarcode, setSupplementBarcode] = useState("");
+  const [supplementBatchNumber, setSupplementBatchNumber] = useState("");
+  const [supplementStep, setSupplementStep] = useState(1);
+  const [supplementBusy, setSupplementBusy] = useState(false);
+  const [supplementResult, setSupplementResult] = useState(null);
+  const [supplementReportBusy, setSupplementReportBusy] = useState(false);
+  const [supplementBreakdownOpen, setSupplementBreakdownOpen] = useState(false);
+  const [supplementProcessingVisible, setSupplementProcessingVisible] = useState(false);
+  const [supplementProcessingIndex, setSupplementProcessingIndex] = useState(0);
+  const [supplementReportModal, setSupplementReportModal] = useState(false);
+  const [supplementReportReason, setSupplementReportReason] = useState(SUPPLEMENT_REPORT_REASONS[0].key);
+  const [supplementReportOther, setSupplementReportOther] = useState("");
+  const [cameraMode, setCameraMode] = useState("meal");
 
   // ===== History (isolated by user id) =====
   const [history, setHistory] = useState([]);
@@ -1176,6 +1251,7 @@ export default function App() {
 
   // ===== Barcode Modal =====
   const [barcodeOpen, setBarcodeOpen] = useState(false);
+  const [barcodeMode, setBarcodeMode] = useState("lookup");
   const [barcodeManual, setBarcodeManual] = useState("");
   const [barcodeBusy, setBarcodeBusy] = useState(false);
   const lastBarcodeAt = useRef(0);
@@ -1331,7 +1407,23 @@ export default function App() {
     setCoachProfileModal(false);
     setBarcodeManual("");
     setBarcodeOpen(false);
+    setBarcodeMode("lookup");
     setCamOpen(false);
+    setCameraMode("meal");
+    setSupplementFrontUri(null);
+    setSupplementBackUri(null);
+    setSupplementBarcode("");
+    setSupplementBatchNumber("");
+    setSupplementStep(1);
+    setSupplementResult(null);
+    setSupplementBusy(false);
+    setSupplementReportBusy(false);
+    setSupplementBreakdownOpen(false);
+    setSupplementProcessingVisible(false);
+    setSupplementProcessingIndex(0);
+    setSupplementReportModal(false);
+    setSupplementReportReason(SUPPLEMENT_REPORT_REASONS[0].key);
+    setSupplementReportOther("");
     setRerunBusy(false);
     setAiConsentGiven(false);
     setAiConsentModalVisible(false);
@@ -1345,6 +1437,22 @@ export default function App() {
       setGoals(null);
       setGoalsDraft(DEFAULT_GOALS);
       setUsage(null);
+      setSupplementFrontUri(null);
+      setSupplementBackUri(null);
+      setSupplementBarcode("");
+      setSupplementBatchNumber("");
+      setSupplementStep(1);
+      setSupplementResult(null);
+      setSupplementBusy(false);
+      setSupplementReportBusy(false);
+      setSupplementBreakdownOpen(false);
+      setSupplementProcessingVisible(false);
+      setSupplementProcessingIndex(0);
+      setSupplementReportModal(false);
+      setSupplementReportReason(SUPPLEMENT_REPORT_REASONS[0].key);
+      setSupplementReportOther("");
+      setCameraMode("meal");
+      setBarcodeMode("lookup");
       setAiConsentGiven(false);
       setAiConsentModalVisible(false);
       setAiConsentLoading(false);
@@ -1361,6 +1469,28 @@ export default function App() {
     void fetchAiConsent(userId);
     void flushCoachFeedbackQueue(userId);
   }, [userId]);
+
+  useEffect(() => {
+    if (!supplementProcessingVisible) {
+      setSupplementProcessingIndex(0);
+      return;
+    }
+    let active = true;
+    const startedAt = Date.now();
+    const timer = setInterval(() => {
+      if (!active) return;
+      setSupplementProcessingIndex((prev) =>
+        Math.min(SUPPLEMENT_PROCESSING_CHECKS.length, Number(prev || 0) + 1)
+      );
+      if (Date.now() - startedAt > 1800) {
+        clearInterval(timer);
+      }
+    }, 350);
+    return () => {
+      active = false;
+      clearInterval(timer);
+    };
+  }, [supplementProcessingVisible]);
 
   useEffect(() => {
     if (!showCoachDebug) return;
@@ -2273,6 +2403,19 @@ export default function App() {
     setResult(null);
   }
 
+  function clearSupplementScan() {
+    setSupplementFrontUri(null);
+    setSupplementBackUri(null);
+    setSupplementBarcode("");
+    setSupplementBatchNumber("");
+    setSupplementStep(1);
+    setSupplementResult(null);
+    setSupplementBreakdownOpen(false);
+    setSupplementReportModal(false);
+    setSupplementReportReason(SUPPLEMENT_REPORT_REASONS[0].key);
+    setSupplementReportOther("");
+  }
+
   // ===================== RevenueCat =====================
   useEffect(() => {
     (async () => {
@@ -2446,7 +2589,23 @@ export default function App() {
     setGoalsModal(false);
     setBarcodeManual("");
     setBarcodeOpen(false);
+    setBarcodeMode("lookup");
     setCamOpen(false);
+    setCameraMode("meal");
+    setSupplementFrontUri(null);
+    setSupplementBackUri(null);
+    setSupplementBarcode("");
+    setSupplementBatchNumber("");
+    setSupplementStep(1);
+    setSupplementResult(null);
+    setSupplementBusy(false);
+    setSupplementReportBusy(false);
+    setSupplementBreakdownOpen(false);
+    setSupplementProcessingVisible(false);
+    setSupplementProcessingIndex(0);
+    setSupplementReportModal(false);
+    setSupplementReportReason(SUPPLEMENT_REPORT_REASONS[0].key);
+    setSupplementReportOther("");
     setRerunBusy(false);
     if (coachRefreshTimerRef.current) {
       clearTimeout(coachRefreshTimerRef.current);
@@ -2702,7 +2861,7 @@ export default function App() {
   }
 
 
-async function openCamera() {
+async function openCamera(mode = "meal") {
     if (!ensureAiConsentOrAlert()) return;
     const { granted } = permission || {};
     if (!granted) {
@@ -2712,6 +2871,7 @@ async function openCamera() {
         return;
       }
     }
+    setCameraMode(String(mode || "meal"));
     setCamOpen(true);
   }
 
@@ -2720,8 +2880,18 @@ async function openCamera() {
       if (!camRef.current) return;
       const photo = await camRef.current.takePictureAsync({ quality: 0.85, skipProcessing: true });
       if (!photo?.uri) return;
-      setPhotoUri(photo.uri);
+      const mode = String(cameraMode || "meal").trim().toLowerCase();
+      if (mode === "supp_front") {
+        setSupplementFrontUri(photo.uri);
+        setSupplementStep((s) => Math.max(2, Math.round(num(s))));
+      } else if (mode === "supp_back") {
+        setSupplementBackUri(photo.uri);
+        setSupplementStep((s) => Math.max(3, Math.round(num(s))));
+      } else {
+        setPhotoUri(photo.uri);
+      }
       setCamOpen(false);
+      setCameraMode("meal");
     } catch (e) {
       Alert.alert("Camera error", String(e).slice(0, 180));
     }
@@ -3057,6 +3227,135 @@ async function openCamera() {
     setFliSyncing(false);
   }
 
+  function nextSupplementStep() {
+    if (supplementStep === 1 && !supplementFrontUri) {
+      Alert.alert("Front label required", "Capture the front label to continue.");
+      return;
+    }
+    setSupplementStep((s) => Math.min(SUPPLEMENT_TOTAL_STEPS, Math.round(num(s)) + 1));
+  }
+
+  function prevSupplementStep() {
+    setSupplementStep((s) => Math.max(1, Math.round(num(s)) - 1));
+  }
+
+  function skipSupplementStep() {
+    if (supplementStep <= 1) return;
+    setSupplementStep((s) => Math.min(SUPPLEMENT_TOTAL_STEPS, Math.round(num(s)) + 1));
+  }
+
+  async function scanSupplement() {
+    if (!userId) return;
+    if (!ensureAiConsentOrAlert()) return;
+    const barcodeText = String(supplementBarcode || "").trim();
+    const batchText = String(supplementBatchNumber || "").trim();
+    if (!supplementFrontUri || (!barcodeText && !batchText)) {
+      Alert.alert(
+        "Details required",
+        "Capture the front label and provide either barcode or batch code before verification."
+      );
+      return;
+    }
+    const backUriToUse = supplementBackUri || supplementFrontUri;
+    setSupplementBusy(true);
+    setSupplementProcessingVisible(true);
+    try {
+      const form = new FormData();
+      form.append("front_image", {
+        uri: supplementFrontUri,
+        name: "supp-front.jpg",
+        type: "image/jpeg",
+      });
+      form.append("back_image", {
+        uri: backUriToUse,
+        name: "supp-back.jpg",
+        type: "image/jpeg",
+      });
+      form.append("product_type", "whey_protein");
+      if (barcodeText) form.append("barcode", barcodeText);
+      if (batchText) form.append("batch_number", batchText);
+      form.append("region", regionFromLocale());
+
+      const url = withTimezoneQuery(
+        `${API_BASE}/supplement/scan?user_id=${encodeURIComponent(userId)}`
+      );
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { accept: "application/json" },
+        body: form,
+      });
+      const data = await safeJson(res);
+      setSupplementResult(data && typeof data === "object" ? data : null);
+      setSupplementBreakdownOpen(false);
+      setSupplementStep(SUPPLEMENT_TOTAL_STEPS);
+      if (String(data?.barcode || "").trim()) setSupplementBarcode(String(data?.barcode || "").trim());
+      if (String(data?.batch_number || "").trim()) setSupplementBatchNumber(String(data?.batch_number || "").trim());
+    } catch (e) {
+      Alert.alert(
+        "Verification unavailable",
+        "We couldn’t complete structural verification right now. Please try again in a moment."
+      );
+    } finally {
+      setSupplementBusy(false);
+      setSupplementProcessingVisible(false);
+    }
+  }
+
+  async function reportSupplementIssue(reasonKey, notes) {
+    if (!userId) return;
+    const scanId = String(supplementResult?.scan_id || "").trim();
+    if (!scanId) {
+      Alert.alert("No scan result", "Scan a supplement first.");
+      return;
+    }
+    const reason = String(reasonKey || SUPPLEMENT_REPORT_REASONS[0].key).trim();
+    const freeText = String(notes || "").trim();
+    setSupplementReportBusy(true);
+    try {
+      const payload = {
+        user_id: userId,
+        scan_id: scanId,
+        issue_type: reason || "review_requested",
+        description:
+          freeText ||
+          SUPPLEMENT_REPORT_REASONS.find((x) => x.key === reason)?.label ||
+          "User requested additional verification review.",
+      };
+      const url = withTimezoneQuery(
+        `${API_BASE}/supplement/report_issue?user_id=${encodeURIComponent(userId)}`
+      );
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", accept: "application/json" },
+        body: JSON.stringify(payload),
+      });
+      await safeJson(res);
+      setSupplementReportModal(false);
+      setSupplementReportOther("");
+      if (Platform.OS === "android") {
+        ToastAndroid.show("Report submitted for review", ToastAndroid.SHORT);
+      } else {
+        Alert.alert("Reported", "Report submitted for review.");
+      }
+    } catch (e) {
+      Alert.alert("Report failed", String((e && e.message) || e || "").slice(0, 220));
+    } finally {
+      setSupplementReportBusy(false);
+    }
+  }
+
+  async function shareSupplementResult() {
+    if (!supplementResult) return;
+    const score = Math.max(0, Math.min(100, Math.round(num(supplementResult?.authenticity_score))));
+    const level = String(supplementResult?.confidence_level || supplementScoreTone(score).label);
+    const text = `🛡 ${score}% Authenticity Confidence\n${level}\nCalorieClick.ai Supplement Scanner`;
+    try {
+      await Share.share({ message: text });
+    } catch (e) {
+      Alert.alert("Share failed", String((e && e.message) || e || "").slice(0, 180));
+    }
+  }
+
   async function rerunAnalyzeWithPatch(editPatch) {
     if (!userId) return;
     const analysisId = String(result?.analysis_id || "").trim();
@@ -3215,9 +3514,10 @@ async function openCamera() {
   }
 
   // ===================== BARCODE =====================
-  async function openBarcodeScanner() {
+  async function openBarcodeScanner(mode = "lookup") {
     if (!ensureAiConsentOrAlert()) return;
-    if (!canBarcode) {
+    const scannerMode = String(mode || "lookup").trim().toLowerCase() === "supplement" ? "supplement" : "lookup";
+    if (scannerMode === "lookup" && !canBarcode) {
       Alert.alert("Locked 🔒", "Barcode scanning is Elite+.");
       return;
     }
@@ -3230,6 +3530,7 @@ async function openCamera() {
       }
     }
     setBarcodeManual("");
+    setBarcodeMode(scannerMode);
     setBarcodeOpen(true);
   }
 
@@ -3271,6 +3572,13 @@ async function openCamera() {
     const code = String(data || "").trim();
     if (!code) return;
     setBarcodeOpen(false);
+    if (barcodeMode === "supplement") {
+      setSupplementBarcode(code);
+      setSupplementStep((s) => Math.max(4, num(s)));
+      setBarcodeMode("lookup");
+      return;
+    }
+    setBarcodeMode("lookup");
     await barcodeLookup(code);
   }
 
@@ -3363,6 +3671,22 @@ async function openCamera() {
   )
     .trim()
     .toLowerCase();
+  const supplementTone = supplementScoreTone(supplementResult?.authenticity_score);
+  const supplementFlags = Array.isArray(supplementResult?.risk_flags) ? supplementResult.risk_flags : [];
+  const supplementBreakdown = buildSupplementBreakdown(supplementResult);
+  const supplementScore = Math.max(0, Math.min(100, Math.round(num(supplementResult?.authenticity_score))));
+  const supplementCanSubmit = Boolean(
+    supplementFrontUri &&
+      (String(supplementBarcode || "").trim() || String(supplementBatchNumber || "").trim())
+  );
+  const supplementCommunityScanCount = Number(supplementResult?.scan_count ?? supplementResult?.community_scan_count);
+  const cameraTitle =
+    cameraMode === "supp_front"
+      ? "Capture front label"
+      : cameraMode === "supp_back"
+      ? "Capture nutrition panel"
+      : "Take a photo";
+  const barcodeModalTitle = barcodeMode === "supplement" ? "Scan supplement barcode" : "Scan barcode";
 
   const subscriptionPriceText = (key) => priceByEntitlement?.[key] || (rcReady ? "Loading…" : "See App Store");
 
@@ -3856,7 +4180,7 @@ async function openCamera() {
           )}
 
           <View style={styles.row}>
-            <TouchableOpacity style={styles.primaryBtn} onPress={openCamera}>
+            <TouchableOpacity style={styles.primaryBtn} onPress={() => openCamera("meal")}>
               <Text style={styles.btnText}>Open Camera</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.primaryBtn} onPress={analyzePhoto} disabled={busy || rerunBusy || !photoUri}>
@@ -4104,12 +4428,208 @@ async function openCamera() {
           ) : null}
         </View>
 
+        <View style={[styles.card, styles.suppAuthorityCard]}>
+          <View style={styles.suppHeaderRow}>
+            <Text style={styles.cardTitle}>🛡 Supplement Scanner</Text>
+            <View style={styles.suppAuthorityBadge}>
+              <Text style={styles.suppAuthorityBadgeText}>FREE</Text>
+            </View>
+          </View>
+          <Text style={styles.p}>Verify Whey Protein Authenticity</Text>
+
+          <View style={styles.progressContainer}>
+            <View
+              style={[
+                styles.progressFill,
+                { width: `${(Math.max(1, supplementStep) / SUPPLEMENT_TOTAL_STEPS) * 100}%` },
+              ]}
+            />
+          </View>
+          <Text style={styles.tiny}>Step {supplementStep} of {SUPPLEMENT_TOTAL_STEPS}</Text>
+
+          {supplementStep === 1 ? (
+            <View style={{ marginTop: 8 }}>
+              <Text style={styles.label}>Step 1 • Front Label</Text>
+              <Text style={styles.tiny}>Capture a clear front label image (brand + variant visible).</Text>
+              {supplementFrontUri ? (
+                <Image source={{ uri: supplementFrontUri }} style={styles.suppPreviewSingle} />
+              ) : (
+                <View style={styles.suppPreviewEmptySingle}>
+                  <Text style={styles.previewText}>Front label not captured</Text>
+                </View>
+              )}
+              <TouchableOpacity style={[styles.secondaryBtn, { marginTop: 8 }]} onPress={() => openCamera("supp_front")}>
+                <Text style={styles.btnText}>{supplementFrontUri ? "Retake Front Label" : "Capture Front Label"}</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
+
+          {supplementStep === 2 ? (
+            <View style={{ marginTop: 8 }}>
+              <Text style={styles.label}>Step 2 • Nutrition Panel</Text>
+              <Text style={styles.tiny}>Capture the nutrition panel/back label for stronger structural checks.</Text>
+              {supplementBackUri ? (
+                <Image source={{ uri: supplementBackUri }} style={styles.suppPreviewSingle} />
+              ) : (
+                <View style={styles.suppPreviewEmptySingle}>
+                  <Text style={styles.previewText}>Nutrition panel not captured</Text>
+                </View>
+              )}
+              <TouchableOpacity style={[styles.secondaryBtn, { marginTop: 8 }]} onPress={() => openCamera("supp_back")}>
+                <Text style={styles.btnText}>{supplementBackUri ? "Retake Nutrition Panel" : "Capture Nutrition Panel"}</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
+
+          {supplementStep === 3 ? (
+            <View style={{ marginTop: 8 }}>
+              <Text style={styles.label}>Step 3 • Barcode</Text>
+              <Text style={styles.tiny}>Scan or enter barcode manually for registry matching.</Text>
+              <TextInput
+                value={supplementBarcode}
+                onChangeText={setSupplementBarcode}
+                style={styles.input}
+                placeholder="Barcode"
+                placeholderTextColor="#777"
+                keyboardType="number-pad"
+              />
+              <TouchableOpacity style={styles.secondaryBtn} onPress={() => openBarcodeScanner("supplement")}>
+                <Text style={styles.btnText}>Scan Barcode</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
+
+          {supplementStep === 4 ? (
+            <View style={{ marginTop: 8 }}>
+              <Text style={styles.label}>Step 4 • Batch Code</Text>
+              <Text style={styles.tiny}>Enter batch code from the container (optional but recommended).</Text>
+              <TextInput
+                value={supplementBatchNumber}
+                onChangeText={setSupplementBatchNumber}
+                style={styles.input}
+                placeholder="Batch code"
+                placeholderTextColor="#777"
+                autoCapitalize="characters"
+              />
+              {!supplementCanSubmit ? (
+                <Text style={[styles.tiny, { marginTop: 8, color: "#fca5a5" }]}>
+                  Front label and either barcode or batch code are required to submit.
+                </Text>
+              ) : null}
+            </View>
+          ) : null}
+
+          <View style={styles.suppNavRow}>
+            {supplementStep > 1 ? (
+              <TouchableOpacity style={styles.secondaryBtn} onPress={prevSupplementStep} disabled={supplementBusy}>
+                <Text style={styles.btnText}>Back</Text>
+              </TouchableOpacity>
+            ) : null}
+
+            {supplementStep < SUPPLEMENT_TOTAL_STEPS ? (
+              <>
+                {supplementStep > 1 ? (
+                  <TouchableOpacity style={styles.secondaryBtn} onPress={skipSupplementStep} disabled={supplementBusy}>
+                    <Text style={styles.btnText}>Skip</Text>
+                  </TouchableOpacity>
+                ) : null}
+                <TouchableOpacity style={styles.primaryBtn} onPress={nextSupplementStep} disabled={supplementBusy}>
+                  <Text style={styles.btnText}>Next</Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <>
+                <TouchableOpacity
+                  style={styles.primaryBtn}
+                  onPress={scanSupplement}
+                  disabled={supplementBusy || !supplementCanSubmit}
+                >
+                  {supplementBusy ? <ActivityIndicator /> : <Text style={styles.btnText}>Start Verification</Text>}
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.secondaryBtn} onPress={clearSupplementScan} disabled={supplementBusy}>
+                  <Text style={styles.btnText}>Reset</Text>
+                </TouchableOpacity>
+              </>
+            )}
+          </View>
+
+          {supplementResult ? (
+            <View style={styles.suppResultPanel}>
+              <View style={styles.suppGaugeWrap}>
+                <View style={[styles.suppGaugeRing, { borderColor: supplementTone.color }]}>
+                  <Text style={[styles.suppGaugeValue, { color: supplementTone.color }]}>{supplementScore}%</Text>
+                  <Text style={styles.suppGaugeLabel}>Authenticity Confidence</Text>
+                </View>
+              </View>
+
+              <Text style={[styles.suppHeadline, { color: supplementTone.color }]}>
+                {String(supplementResult?.confidence_level || supplementTone.label)}
+              </Text>
+
+              {!!String(supplementResult?.explanation || "").trim() ? (
+                <Text style={[styles.p, { marginTop: 6 }]}>{String(supplementResult?.explanation || "")}</Text>
+              ) : null}
+
+              {Number.isFinite(supplementCommunityScanCount) ? (
+                <Text style={[styles.tiny, { marginTop: 6 }]}>
+                  {supplementCommunityScanCount <= 1
+                    ? "First scan recorded for this batch in your region."
+                    : `Scanned ${Math.round(supplementCommunityScanCount)} times in your region.`}
+                </Text>
+              ) : null}
+
+              <TouchableOpacity
+                style={styles.suppBreakdownToggle}
+                onPress={() => setSupplementBreakdownOpen((v) => !v)}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.itemName}>Verification Breakdown</Text>
+                <Text style={styles.smallBtnText}>{supplementBreakdownOpen ? "Hide" : "Show"}</Text>
+              </TouchableOpacity>
+
+              {supplementBreakdownOpen ? (
+                <View style={{ marginTop: 8 }}>
+                  {!supplementFlags.length ? (
+                    <Text style={[styles.tiny, { marginBottom: 8 }]}>No structural inconsistencies detected.</Text>
+                  ) : null}
+                  {supplementBreakdown.map((row) => {
+                    const tone = supplementRiskTone(row.level);
+                    return (
+                      <View key={row.key} style={styles.suppBreakdownRow}>
+                        <Text style={[styles.suppBreakdownIcon, { color: tone.color }]}>{tone.icon}</Text>
+                        <Text style={styles.tiny}>{row.text}</Text>
+                      </View>
+                    );
+                  })}
+                </View>
+              ) : null}
+
+              <Text style={styles.suppLegalText}>
+                {String(supplementResult?.legal_note || SUPPLEMENT_LEGAL_NOTE)}
+              </Text>
+
+              <View style={styles.row}>
+                <TouchableOpacity
+                  style={styles.secondaryBtn}
+                  onPress={() => setSupplementReportModal(true)}
+                  disabled={supplementReportBusy}
+                >
+                  <Text style={styles.btnText}>⚠ Report Suspicious Product</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.secondaryBtn} onPress={shareSupplementResult}>
+                  <Text style={styles.btnText}>Share Confidence Result</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ) : null}
+        </View>
+
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Barcode</Text>
           <Text style={styles.p}>Elite+ can scan barcodes to fetch macros (OpenFoodFacts).</Text>
 
           <View style={styles.row}>
-            <TouchableOpacity style={styles.primaryBtn} onPress={openBarcodeScanner} disabled={!canBarcode}>
+            <TouchableOpacity style={styles.primaryBtn} onPress={() => openBarcodeScanner("lookup")} disabled={!canBarcode}>
               <Text style={styles.btnText}>{canBarcode ? "Scan barcode" : "Locked 🔒"}</Text>
             </TouchableOpacity>
           </View>
@@ -4483,6 +5003,88 @@ async function openCamera() {
           </View>
         </Modal>
 
+        <Modal visible={supplementProcessingVisible} transparent animationType="fade">
+          <View style={styles.suppProcessingOverlay}>
+            <View style={styles.suppProcessingCard}>
+              <Text style={styles.suppProcessingTitle}>🛡 Verifying Product Authenticity...</Text>
+              {SUPPLEMENT_PROCESSING_CHECKS.map((line, idx) => {
+                const visible = supplementProcessingIndex > idx;
+                return (
+                  <Text
+                    key={line}
+                    style={[
+                      styles.suppProcessingLine,
+                      { opacity: visible ? 1 : 0.24 },
+                    ]}
+                  >
+                    {visible ? "✔" : "•"} {line}
+                  </Text>
+                );
+              })}
+            </View>
+          </View>
+        </Modal>
+
+        <Modal
+          visible={supplementReportModal}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setSupplementReportModal(false)}
+        >
+          <View style={styles.modalBackdrop}>
+            <View style={styles.modalCard}>
+              <Text style={styles.cardTitle}>Report Suspicious Product</Text>
+              <Text style={styles.tiny}>Select the closest reason for additional verification review.</Text>
+
+              <View style={{ marginTop: 10 }}>
+                {SUPPLEMENT_REPORT_REASONS.map((reason) => (
+                  <TouchableOpacity
+                    key={reason.key}
+                    style={[
+                      styles.chip,
+                      supplementReportReason === reason.key && styles.chipActive,
+                      { marginBottom: 8, alignSelf: "flex-start" },
+                    ]}
+                    onPress={() => setSupplementReportReason(reason.key)}
+                  >
+                    <Text style={styles.chipText}>{reason.label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {supplementReportReason === "other" ? (
+                <TextInput
+                  style={styles.input}
+                  value={supplementReportOther}
+                  onChangeText={setSupplementReportOther}
+                  placeholder="Describe the issue"
+                  placeholderTextColor="#777"
+                  multiline
+                />
+              ) : null}
+
+              <View style={{ flexDirection: "row", gap: 10, marginTop: 14 }}>
+                <TouchableOpacity
+                  style={[styles.btn, { flex: 1, backgroundColor: "#2c2c2c" }]}
+                  onPress={() => setSupplementReportModal(false)}
+                  disabled={supplementReportBusy}
+                >
+                  <Text style={styles.btnText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.btn, { flex: 1 }]}
+                  onPress={() => {
+                    void reportSupplementIssue(supplementReportReason, supplementReportOther);
+                  }}
+                  disabled={supplementReportBusy}
+                >
+                  <Text style={styles.btnText}>{supplementReportBusy ? "…" : "Submit Report"}</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+
 </ScrollView>
 
       {/* CAMERA MODAL */}
@@ -4492,7 +5094,7 @@ async function openCamera() {
             <TouchableOpacity style={styles.smallBtn} onPress={() => setCamOpen(false)}>
               <Text style={styles.smallBtnText}>Close</Text>
             </TouchableOpacity>
-            <Text style={styles.modalTitle}>Take a photo</Text>
+            <Text style={styles.modalTitle}>{cameraTitle}</Text>
             <View style={{ width: 70 }} />
           </View>
 
@@ -4510,10 +5112,16 @@ async function openCamera() {
       <Modal visible={barcodeOpen} animationType="slide">
         <SafeAreaView style={styles.modalSafe}>
           <View style={styles.modalTop}>
-            <TouchableOpacity style={styles.smallBtn} onPress={() => setBarcodeOpen(false)}>
+            <TouchableOpacity
+              style={styles.smallBtn}
+              onPress={() => {
+                setBarcodeOpen(false);
+                setBarcodeMode("lookup");
+              }}
+            >
               <Text style={styles.smallBtnText}>Close</Text>
             </TouchableOpacity>
-            <Text style={styles.modalTitle}>Scan barcode</Text>
+            <Text style={styles.modalTitle}>{barcodeModalTitle}</Text>
             <View style={{ width: 70 }} />
           </View>
 
@@ -4523,11 +5131,15 @@ async function openCamera() {
             barcodeScannerSettings={{
               barcodeTypes: ["ean13", "ean8", "upc_a", "upc_e", "code128", "code39", "qr"],
             }}
-            onBarcodeScanned={barcodeBusy ? undefined : onBarcodeScanned}
+            onBarcodeScanned={barcodeMode === "lookup" && barcodeBusy ? undefined : onBarcodeScanned}
           />
 
           <View style={styles.modalBottom}>
-            <Text style={styles.tiny}>Point camera at barcode. It will auto-detect.</Text>
+            <Text style={styles.tiny}>
+              {barcodeMode === "supplement"
+                ? "Point camera at supplement barcode. Capture is automatic."
+                : "Point camera at barcode. It will auto-detect."}
+            </Text>
           </View>
         </SafeAreaView>
       </Modal>
@@ -4666,6 +5278,157 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   previewText: { color: "#777" },
+  suppAuthorityCard: {
+    borderColor: "#1f2937",
+    backgroundColor: "#0a0d12",
+  },
+  suppHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 10,
+  },
+  suppAuthorityBadge: {
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "#334155",
+    backgroundColor: "#0f172a",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  suppAuthorityBadgeText: {
+    color: "#cbd5e1",
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 0.5,
+  },
+  progressContainer: {
+    width: "100%",
+    height: 8,
+    borderRadius: 999,
+    backgroundColor: "#17202f",
+    overflow: "hidden",
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: "#1f2937",
+  },
+  progressFill: {
+    height: "100%",
+    borderRadius: 999,
+    backgroundColor: "#22c55e",
+  },
+  suppPreviewSingle: { width: "100%", height: 170, borderRadius: 12, marginTop: 8 },
+  suppPreviewEmptySingle: {
+    width: "100%",
+    height: 170,
+    borderRadius: 12,
+    marginTop: 8,
+    backgroundColor: "#111",
+    borderWidth: 1,
+    borderColor: "#222",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  suppNavRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+    marginTop: 12,
+  },
+  suppResultPanel: {
+    marginTop: 10,
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#1e3a5f",
+    backgroundColor: "#08101e",
+  },
+  suppGaugeWrap: {
+    marginTop: 4,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  suppGaugeRing: {
+    width: 168,
+    height: 168,
+    borderRadius: 999,
+    borderWidth: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#0b1320",
+  },
+  suppGaugeValue: {
+    fontSize: 34,
+    fontWeight: "900",
+  },
+  suppGaugeLabel: {
+    marginTop: 2,
+    color: "#c8d5e6",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  suppHeadline: {
+    marginTop: 10,
+    fontSize: 22,
+    fontWeight: "900",
+    textAlign: "center",
+  },
+  suppBreakdownToggle: {
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: "#274468",
+    borderRadius: 12,
+    backgroundColor: "#0b1a2c",
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+  },
+  suppBreakdownRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+    marginBottom: 6,
+  },
+  suppBreakdownIcon: {
+    width: 18,
+    fontWeight: "900",
+    textAlign: "center",
+  },
+  suppLegalText: {
+    marginTop: 12,
+    color: "#8b98aa",
+    fontSize: 11,
+    lineHeight: 16,
+  },
+  suppProcessingOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.72)",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 20,
+  },
+  suppProcessingCard: {
+    width: "100%",
+    borderRadius: 16,
+    backgroundColor: "#0b1018",
+    borderWidth: 1,
+    borderColor: "#26364a",
+    padding: 16,
+  },
+  suppProcessingTitle: {
+    color: "#e2e8f0",
+    fontSize: 18,
+    fontWeight: "800",
+    marginBottom: 10,
+  },
+  suppProcessingLine: {
+    color: "#cbd5e1",
+    fontSize: 14,
+    lineHeight: 22,
+  },
 
   itemRow: { marginTop: 8, paddingBottom: 8, borderBottomWidth: 1, borderBottomColor: "#161616" },
   itemName: { color: "#fff", fontWeight: "800" },

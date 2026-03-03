@@ -18,7 +18,7 @@ from zoneinfo import ZoneInfo
 import requests
 from PIL import Image
 
-from fastapi import FastAPI, File, UploadFile, Request, HTTPException, Header, Body
+from fastapi import FastAPI, File, UploadFile, Request, HTTPException, Header, Body, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import PlainTextResponse, JSONResponse
 from pydantic import BaseModel, Field
@@ -104,6 +104,10 @@ TBL_PROGRAM_STATUS = "program_status"
 TBL_CONFIDENCE_AUDIT = "confidence_audit"
 TBL_CONFIDENCE_CALIBRATION_SETTINGS = "confidence_calibration_settings"
 TBL_USER_AI_CONSENT = "user_ai_consent"
+TBL_SUPPLEMENT_SCANS = "supplement_scans"
+TBL_SUPPLEMENT_BRAND_PROFILES = "supplement_brand_profiles"
+TBL_SUPPLEMENT_BATCH_PATTERNS = "supplement_batch_patterns"
+TBL_SUPPLEMENT_USER_FLAGS = "supplement_user_flags"
 
 # Plans (your requirements)
 DEFAULT_PLAN = "free"
@@ -170,6 +174,22 @@ DEFAULT_CONFIDENCE_CALIBRATION_SETTINGS = {
     "oil": {"confidence_threshold": 0.70, "range_expansion_factor": 1.0},
     "vision": {"confidence_threshold": 0.85, "range_expansion_factor": 1.0},
 }
+SUPPLEMENT_LEGAL_DISCLAIMER = (
+    "CalorieClick Supplement Scanner provides an authenticity confidence score based on pattern analysis "
+    "and community data. This is not a definitive determination of genuineness. "
+    "We recommend verifying directly with the manufacturer for confirmation."
+)
+SUPPLEMENT_SUPPORTED_PRODUCT_TYPES = {"whey_protein"}
+SUPPLEMENT_REQUIRED_STRUCTURED_KEYS = {
+    "brand",
+    "variant",
+    "barcode",
+    "batch_number",
+    "mfg_date",
+    "expiry_date",
+    "ingredients",
+    "nutrition_panel",
+}
 SYSTEM_CALIBRATION_USER_ID = "00000000-0000-0000-0000-000000000000"
 _SINGLE_SUPPORTED_GEMINI_MODEL = "gemini-2.5-flash"
 DEPRECATED_GEMINI_MODELS = {
@@ -222,6 +242,10 @@ _TABLE_MIGRATION_HINTS = {
     "analysis_jobs": "create_analysis_jobs.sql",
     "user_food_priors": "migrate_user_food_priors.sql",
     "user_ai_consent": "create_user_ai_consent.sql",
+    "supplement_scans": "create_supplement_scanner.sql",
+    "supplement_brand_profiles": "create_supplement_scanner.sql",
+    "supplement_batch_patterns": "create_supplement_scanner.sql",
+    "supplement_user_flags": "create_supplement_scanner.sql",
 }
 _EXPECTED_SCHEMA_TABLES = {
     "coach_memory",
@@ -231,6 +255,10 @@ _EXPECTED_SCHEMA_TABLES = {
     "analysis_jobs",
     "user_food_priors",
     "user_ai_consent",
+    "supplement_scans",
+    "supplement_brand_profiles",
+    "supplement_batch_patterns",
+    "supplement_user_flags",
 }
 
 _ANALYSIS_JOBS_CACHE: Dict[str, Dict[str, Any]] = {}
@@ -1121,6 +1149,13 @@ class ProgramDailyCheckinRequestModel(BaseModel):
     adherence_score: Optional[float] = None
     notes: str = ""
     signals: Dict[str, Any] = Field(default_factory=dict)
+
+
+class SupplementIssueReportRequestModel(BaseModel):
+    user_id: str
+    scan_id: str
+    issue_type: str = "suspicious_packaging"
+    description: str = ""
 
 
 _MEAL_ANALYSIS_CACHE: Dict[str, Dict[str, Any]] = {}
@@ -4052,6 +4087,670 @@ def delete_account(
     if auth_error:
         resp["auth_error"] = auth_error
     return _attach_debug_schema(resp, bool(debug))
+
+
+def _supplement_text(value: Any) -> str:
+    return str(value or "").strip()
+
+
+def _supplement_digits(value: Any) -> str:
+    return re.sub(r"\D+", "", str(value or ""))
+
+
+def _supplement_brand_key(value: Any) -> str:
+    return re.sub(r"[^a-z0-9]+", "_", str(value or "").strip().lower()).strip("_")
+
+
+def _extract_supplement_panel_number(panel: Dict[str, Any], keys: List[str]) -> float:
+    if not isinstance(panel, dict):
+        return 0.0
+    for key in keys:
+        if key in panel:
+            return float(_safe_float(panel.get(key), 0.0) or 0.0)
+    for key, value in panel.items():
+        k = str(key or "").strip().lower()
+        if any(target in k for target in keys):
+            return float(_safe_float(value, 0.0) or 0.0)
+    return 0.0
+
+
+def _supplement_fallback_structured(
+    barcode_hint: str = "",
+    batch_hint: str = "",
+) -> Dict[str, Any]:
+    return {
+        "brand": "",
+        "variant": "",
+        "barcode": _supplement_digits(barcode_hint),
+        "batch_number": _supplement_text(batch_hint),
+        "mfg_date": "",
+        "expiry_date": "",
+        "ingredients": [],
+        "nutrition_panel": {},
+    }
+
+
+def extract_supplement_data(
+    front_image_bytes: bytes,
+    back_image_bytes: bytes,
+    barcode_hint: str = "",
+    batch_hint: str = "",
+    request_id: str = "",
+) -> Dict[str, Any]:
+    fallback = _supplement_fallback_structured(barcode_hint=barcode_hint, batch_hint=batch_hint)
+    if not GEMINI_API_KEY:
+        return fallback
+    try:
+        _require_gemini_key()
+        front_img = Image.open(io.BytesIO(front_image_bytes)).convert("RGB")
+        back_img = Image.open(io.BytesIO(back_image_bytes)).convert("RGB")
+        prompt = (
+            "You are a supplement label extraction assistant for whey protein verification.\n"
+            "Return ONLY valid JSON (no markdown, no extra keys) with this exact shape:\n"
+            "{\n"
+            '  "brand": "",\n'
+            '  "variant": "",\n'
+            '  "barcode": "",\n'
+            '  "batch_number": "",\n'
+            '  "mfg_date": "",\n'
+            '  "expiry_date": "",\n'
+            '  "ingredients": [],\n'
+            '  "nutrition_panel": {}\n'
+            "}\n"
+            "Rules:\n"
+            "- Read both front and back label.\n"
+            "- Keep dates as seen on label.\n"
+            "- Keep nutrition_panel numeric fields when available.\n"
+            "- If a field is not visible, return empty string/list/object.\n"
+            f"- Barcode hint from app: {_supplement_digits(barcode_hint)}\n"
+            f"- Batch hint from app: {_supplement_text(batch_hint)}\n"
+        )
+        text = _generate_scan_content(
+            [prompt, front_img, back_img],
+            purpose="vision_scan",
+            request_id=request_id,
+        )
+        parsed = coach_logic.extract_json_object(text)
+        if not isinstance(parsed, dict):
+            return fallback
+        out = {
+            "brand": _supplement_text(parsed.get("brand")),
+            "variant": _supplement_text(parsed.get("variant")),
+            "barcode": _supplement_digits(parsed.get("barcode") or barcode_hint),
+            "batch_number": _supplement_text(parsed.get("batch_number") or batch_hint),
+            "mfg_date": _supplement_text(parsed.get("mfg_date")),
+            "expiry_date": _supplement_text(parsed.get("expiry_date")),
+            "ingredients": [str(x).strip() for x in (parsed.get("ingredients") or []) if str(x).strip()],
+            "nutrition_panel": parsed.get("nutrition_panel") if isinstance(parsed.get("nutrition_panel"), dict) else {},
+        }
+        for key in SUPPLEMENT_REQUIRED_STRUCTURED_KEYS:
+            out.setdefault(key, fallback.get(key))
+        if not out.get("barcode"):
+            out["barcode"] = _supplement_digits(barcode_hint)
+        if not out.get("batch_number"):
+            out["batch_number"] = _supplement_text(batch_hint)
+        return out
+    except Exception as e:
+        logger.warning(f"supplement extraction fallback used: {str(e)[:220]}")
+        return fallback
+
+
+def normalize_supplement_data(
+    structured: Dict[str, Any],
+    *,
+    product_type: str = "whey_protein",
+    region: str = "",
+    brand_override: str = "",
+    variant_override: str = "",
+    barcode_override: str = "",
+    batch_override: str = "",
+    mfg_date_override: str = "",
+    expiry_date_override: str = "",
+) -> Dict[str, Any]:
+    src = structured if isinstance(structured, dict) else {}
+    ptype = str(product_type or "whey_protein").strip().lower()
+    if ptype not in SUPPLEMENT_SUPPORTED_PRODUCT_TYPES:
+        ptype = "whey_protein"
+
+    brand = _supplement_text(brand_override) or _supplement_text(src.get("brand"))
+    variant = _supplement_text(variant_override) or _supplement_text(src.get("variant"))
+    barcode = _supplement_digits(barcode_override) or _supplement_digits(src.get("barcode"))
+    batch_number = _supplement_text(batch_override) or _supplement_text(src.get("batch_number"))
+    mfg_date = _supplement_text(mfg_date_override) or _supplement_text(src.get("mfg_date"))
+    expiry_date = _supplement_text(expiry_date_override) or _supplement_text(src.get("expiry_date"))
+    ingredients = [str(x).strip() for x in (src.get("ingredients") or []) if str(x).strip()]
+    nutrition_panel = src.get("nutrition_panel") if isinstance(src.get("nutrition_panel"), dict) else {}
+
+    out = {
+        "product_type": ptype,
+        "brand": brand,
+        "variant": variant,
+        "barcode": barcode,
+        "batch_number": batch_number,
+        "mfg_date": mfg_date,
+        "expiry_date": expiry_date,
+        "region": _supplement_text(region),
+        "ingredients": ingredients[:100],
+        "nutrition_panel": nutrition_panel,
+    }
+    out["structured_data"] = {
+        "brand": out["brand"],
+        "variant": out["variant"],
+        "barcode": out["barcode"],
+        "batch_number": out["batch_number"],
+        "mfg_date": out["mfg_date"],
+        "expiry_date": out["expiry_date"],
+        "ingredients": out["ingredients"],
+        "nutrition_panel": out["nutrition_panel"],
+    }
+    return out
+
+
+def _supplement_brand_profile(brand: str) -> Dict[str, Any]:
+    brand_txt = _supplement_text(brand)
+    if not brand_txt:
+        return {}
+    if (not (SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY)) or _is_table_disabled(TBL_SUPPLEMENT_BRAND_PROFILES):
+        return {}
+    try:
+        row = sb_get_one(
+            TBL_SUPPLEMENT_BRAND_PROFILES,
+            params={"select": "*", "brand": f"eq.{brand_txt}", "limit": "1"},
+        )
+        return row if isinstance(row, dict) else {}
+    except Exception as e:
+        if not _mark_table_unavailable(TBL_SUPPLEMENT_BRAND_PROFILES, e):
+            logger.info(f"supplement brand profile read skipped: {e}")
+        return {}
+
+
+def barcode_exists_in_db(barcode: str) -> bool:
+    code = _supplement_digits(barcode)
+    if not code:
+        return False
+    try:
+        if supabase_get_barcode(code):
+            return True
+    except Exception:
+        pass
+    if (not (SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY)) or _is_table_disabled(TBL_SUPPLEMENT_SCANS):
+        return False
+    try:
+        row = sb_get_one(
+            TBL_SUPPLEMENT_SCANS,
+            params={"select": "id", "barcode": f"eq.{code}", "limit": "1"},
+        )
+        return isinstance(row, dict) and bool(row.get("id"))
+    except Exception as e:
+        if not _mark_table_unavailable(TBL_SUPPLEMENT_SCANS, e):
+            logger.info(f"supplement barcode existence check skipped: {e}")
+        return False
+
+
+def barcode_matches_brand(barcode: str, brand: str) -> bool:
+    code = _supplement_digits(barcode)
+    brand_txt = _supplement_text(brand)
+    if not code or not brand_txt:
+        return True
+    profile = _supplement_brand_profile(brand_txt)
+    prefix = _supplement_digits(profile.get("official_barcode_prefix"))
+    if not prefix:
+        return True
+    return code.startswith(prefix)
+
+
+def batch_matches_regex(brand: str, batch_number: str) -> bool:
+    batch = _supplement_text(batch_number)
+    if not batch:
+        return False
+    profile = _supplement_brand_profile(brand)
+    regex = _supplement_text(profile.get("expected_batch_regex"))
+    if not regex:
+        return True
+    try:
+        return re.match(regex, batch) is not None
+    except re.error:
+        return True
+
+
+def get_suspicious_batch_count(brand: str, batch_number: str) -> int:
+    brand_txt = _supplement_text(brand)
+    batch = _supplement_text(batch_number)
+    if not brand_txt or not batch:
+        return 0
+    if (not (SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY)) or _is_table_disabled(TBL_SUPPLEMENT_SCANS):
+        return 0
+    try:
+        scans = sb_get_many(
+            TBL_SUPPLEMENT_SCANS,
+            params={
+                "select": "id",
+                "brand": f"eq.{brand_txt}",
+                "batch_number": f"eq.{batch}",
+                "limit": "200",
+            },
+        )
+    except Exception as e:
+        if not _mark_table_unavailable(TBL_SUPPLEMENT_SCANS, e):
+            logger.info(f"supplement suspicious batch scan read skipped: {e}")
+        return 0
+    scan_ids = [str((x or {}).get("id") or "").strip() for x in scans if str((x or {}).get("id") or "").strip()]
+    if not scan_ids:
+        return 0
+    if _is_table_disabled(TBL_SUPPLEMENT_USER_FLAGS):
+        return 0
+    try:
+        ids_clause = f"in.({','.join(scan_ids)})"
+        flags = sb_get_many(
+            TBL_SUPPLEMENT_USER_FLAGS,
+            params={"select": "id,issue_type", "scan_id": ids_clause, "limit": "500"},
+        )
+        risk_count = 0
+        for row in flags:
+            issue = str((row or {}).get("issue_type") or "").strip().lower()
+            if issue in {
+                "counterfeit_risk",
+                "authenticity_concern",
+                "suspicious_packaging",
+                "community_flagged_batch",
+                "fake_suspected",
+            }:
+                risk_count += 1
+        return int(risk_count)
+    except Exception as e:
+        if not _mark_table_unavailable(TBL_SUPPLEMENT_USER_FLAGS, e):
+            logger.info(f"supplement suspicious batch flag read skipped: {e}")
+        return 0
+
+
+def detect_protein_spiking(structured_data: Dict[str, Any]) -> bool:
+    data = structured_data if isinstance(structured_data, dict) else {}
+    panel = data.get("nutrition_panel") if isinstance(data.get("nutrition_panel"), dict) else {}
+    ingredients = [str(x).strip().lower() for x in (data.get("ingredients") or []) if str(x).strip()]
+    protein_100g = _extract_supplement_panel_number(
+        panel,
+        ["protein_per_100g", "protein_g_per_100g", "protein_per100g", "protein"],
+    )
+    carbs_100g = _extract_supplement_panel_number(
+        panel,
+        ["carbs_per_100g", "carbohydrate_per_100g", "carbohydrates_per_100g", "carbs"],
+    )
+    suspicious_ingredient_hits = sum(
+        1
+        for token in ("glycine", "taurine", "maltodextrin", "creatine", "amino blend", "nitrogen")
+        if any(token in ing for ing in ingredients)
+    )
+    if protein_100g >= 95.0:
+        return True
+    if protein_100g > 0 and protein_100g < 55.0 and suspicious_ingredient_hits >= 1:
+        return True
+    if protein_100g > 0 and carbs_100g > 0 and (protein_100g + carbs_100g) > 120.0:
+        return True
+    return False
+
+
+def calculate_authenticity_score(data: Dict[str, Any]) -> Tuple[float, List[str]]:
+    payload = data if isinstance(data, dict) else {}
+    score = 100.0
+    risk_flags: List[str] = []
+    barcode = _supplement_digits(payload.get("barcode"))
+    brand = _supplement_text(payload.get("brand"))
+    batch_number = _supplement_text(payload.get("batch_number"))
+    structured_data = payload.get("structured_data") if isinstance(payload.get("structured_data"), dict) else payload
+
+    if not barcode_exists_in_db(barcode):
+        score -= 25.0
+        risk_flags.append("barcode_not_found")
+
+    if not barcode_matches_brand(barcode, brand):
+        score -= 20.0
+        risk_flags.append("brand_barcode_mismatch")
+
+    if not batch_matches_regex(brand, batch_number):
+        score -= 15.0
+        risk_flags.append("batch_format_mismatch")
+
+    suspicious_count = get_suspicious_batch_count(brand, batch_number)
+    if suspicious_count > 3:
+        score -= 20.0
+        risk_flags.append("community_flagged_batch")
+
+    if detect_protein_spiking(structured_data):
+        score -= 15.0
+        risk_flags.append("possible_protein_spiking")
+
+    score = max(0.0, min(100.0, round(score, 1)))
+    deduped: List[str] = []
+    for flag in risk_flags:
+        f = str(flag or "").strip()
+        if f and f not in deduped:
+            deduped.append(f)
+    return score, deduped
+
+
+def interpret_supplement_score(score: Any) -> str:
+    s = float(_safe_float(score, 0.0) or 0.0)
+    if s >= 80:
+        return "High Authenticity Confidence"
+    if s >= 60:
+        return "Moderate Confidence"
+    if s >= 40:
+        return "Low Confidence - Review Recommended"
+    return "High Risk - Verification Strongly Recommended"
+
+
+def _supplement_explanation(score: Any, risk_flags: List[str]) -> str:
+    s = float(_safe_float(score, 0.0) or 0.0)
+    flags = [str(x or "").strip() for x in (risk_flags or []) if str(x or "").strip()]
+    if not flags:
+        return (
+            f"No major anomaly patterns were detected from barcode, batch formatting, and nutrition consistency checks. "
+            f"Current confidence score: {round(s, 1)}/100."
+        )
+    return (
+        f"Detected {len(flags)} risk signal(s): {', '.join(flags[:4])}. "
+        f"These indicators lowered confidence to {round(s, 1)}/100. "
+        "Consider manual verification with the manufacturer."
+    )
+
+
+def _infer_supplement_region(
+    region_hint: Any = "",
+    *,
+    request: Optional[Request] = None,
+    header_values: Optional[List[Any]] = None,
+) -> str:
+    alias_map = {
+        "AUS": "AU",
+        "USA": "US",
+        "GBR": "GB",
+        "IND": "IN",
+        "CAN": "CA",
+        "NZL": "NZ",
+    }
+
+    def _norm(v: Any) -> str:
+        token = re.sub(r"[^A-Za-z]", "", str(v or "")).upper()
+        if not token:
+            return ""
+        if len(token) == 2:
+            return token
+        return alias_map.get(token, "")
+
+    primary = _norm(region_hint)
+    if primary:
+        return primary
+
+    for raw in (header_values or []):
+        maybe = _norm(raw)
+        if maybe:
+            return maybe
+
+    if request is not None:
+        for key in ("x-country-code", "cf-ipcountry", "x-vercel-ip-country", "x-country", "x-geo-country"):
+            maybe = _norm(request.headers.get(key))
+            if maybe:
+                return maybe
+    return ""
+
+
+def _supplement_macro_snapshot(structured_data: Dict[str, Any]) -> Dict[str, float]:
+    payload = structured_data if isinstance(structured_data, dict) else {}
+    panel = payload.get("nutrition_panel") if isinstance(payload.get("nutrition_panel"), dict) else {}
+    return {
+        "kcal_per_100g": _extract_supplement_panel_number(
+            panel,
+            ["kcal_per_100g", "calories_per_100g", "energy_kcal_per_100g", "kcal", "calories"],
+        ),
+        "protein_per_100g": _extract_supplement_panel_number(
+            panel,
+            ["protein_per_100g", "protein_g_per_100g", "protein_per100g", "protein"],
+        ),
+        "carbs_per_100g": _extract_supplement_panel_number(
+            panel,
+            ["carbs_per_100g", "carbohydrate_per_100g", "carbohydrates_per_100g", "carbs"],
+        ),
+        "fat_per_100g": _extract_supplement_panel_number(
+            panel,
+            ["fat_per_100g", "fat_g_per_100g", "fats_per_100g", "fat"],
+        ),
+    }
+
+
+def _supplement_macro_variance_score_from_scan_rows(scan_rows: List[Dict[str, Any]]) -> float:
+    buckets: Dict[str, List[float]] = {
+        "kcal_per_100g": [],
+        "protein_per_100g": [],
+        "carbs_per_100g": [],
+        "fat_per_100g": [],
+    }
+    for row in scan_rows or []:
+        raw_structured = row.get("structured_data")
+        structured = raw_structured if isinstance(raw_structured, dict) else _parse_jsonish(raw_structured, {})
+        macros = _supplement_macro_snapshot(structured if isinstance(structured, dict) else {})
+        for key in buckets.keys():
+            val = float(_safe_float(macros.get(key), 0.0) or 0.0)
+            if val > 0:
+                buckets[key].append(val)
+
+    cv_scores: List[float] = []
+    for values in buckets.values():
+        if len(values) < 2:
+            continue
+        mean = sum(values) / float(len(values))
+        if mean <= 0:
+            continue
+        variance = sum((v - mean) ** 2 for v in values) / float(len(values))
+        std_dev = math.sqrt(max(0.0, variance))
+        cv_scores.append(std_dev / mean)
+
+    if not cv_scores:
+        return 0.0
+    return round(max(0.0, min(100.0, (sum(cv_scores) / float(len(cv_scores))) * 100.0)), 2)
+
+
+def _supplement_region_map_from_scan_rows(scan_rows: List[Dict[str, Any]]) -> Dict[str, int]:
+    counts: Dict[str, int] = {}
+    for row in scan_rows or []:
+        region_code = _infer_supplement_region((row or {}).get("region"))
+        if not region_code:
+            continue
+        counts[region_code] = int(counts.get(region_code, 0) or 0) + 1
+    return counts
+
+
+def _supplement_batch_pattern_query_match(brand_txt: str, batch: str, variant_txt: str) -> Tuple[Optional[Dict[str, Any]], Dict[str, str]]:
+    base_match = {
+        "brand": f"eq.{brand_txt}",
+        "batch_number": f"eq.{batch}",
+    }
+    variant_match = dict(base_match)
+    if variant_txt:
+        variant_match["variant"] = f"eq.{variant_txt}"
+
+    if variant_txt:
+        try:
+            row = sb_get_one(
+                TBL_SUPPLEMENT_BATCH_PATTERNS,
+                params={"select": "*", "limit": "1", **variant_match},
+            )
+            return (row if isinstance(row, dict) else None), variant_match
+        except Exception as e:
+            raw = _http_exc_raw(e).lower()
+            if "variant" not in raw:
+                if not _mark_table_unavailable(TBL_SUPPLEMENT_BATCH_PATTERNS, e):
+                    logger.info(f"supplement batch pattern read skipped: {e}")
+                return None, variant_match
+
+    try:
+        row = sb_get_one(
+            TBL_SUPPLEMENT_BATCH_PATTERNS,
+            params={"select": "*", "limit": "1", **base_match},
+        )
+        return (row if isinstance(row, dict) else None), base_match
+    except Exception as e:
+        if not _mark_table_unavailable(TBL_SUPPLEMENT_BATCH_PATTERNS, e):
+            logger.info(f"supplement batch pattern read skipped: {e}")
+        return None, base_match
+
+
+def _supplement_batch_scan_rows(brand_txt: str, batch: str, variant_txt: str) -> List[Dict[str, Any]]:
+    if (not (SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY)) or _is_table_disabled(TBL_SUPPLEMENT_SCANS):
+        return []
+    base_params = {
+        "select": "id,region,authenticity_score,structured_data",
+        "brand": f"eq.{brand_txt}",
+        "batch_number": f"eq.{batch}",
+        "limit": "500",
+    }
+    if variant_txt:
+        variant_params = dict(base_params)
+        variant_params["variant"] = f"eq.{variant_txt}"
+        try:
+            return sb_get_many(TBL_SUPPLEMENT_SCANS, params=variant_params)
+        except Exception as e:
+            raw = _http_exc_raw(e).lower()
+            if "variant" not in raw:
+                if not _mark_table_unavailable(TBL_SUPPLEMENT_SCANS, e):
+                    logger.info(f"supplement scan aggregate read skipped: {e}")
+                return []
+    try:
+        return sb_get_many(TBL_SUPPLEMENT_SCANS, params=base_params)
+    except Exception as e:
+        if not _mark_table_unavailable(TBL_SUPPLEMENT_SCANS, e):
+            logger.info(f"supplement scan aggregate read skipped: {e}")
+        return []
+
+
+def _upsert_supplement_batch_pattern(
+    brand: str,
+    batch_number: str,
+    *,
+    variant: str = "",
+    region: str = "",
+    auth_score: Optional[float] = None,
+    structured_data: Optional[Dict[str, Any]] = None,
+) -> None:
+    brand_txt = _supplement_text(brand)
+    batch = _supplement_text(batch_number)
+    if not brand_txt or not batch:
+        return
+    variant_txt = _supplement_text(variant)
+    region_txt = _infer_supplement_region(region)
+    if (not (SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY)) or _is_table_disabled(TBL_SUPPLEMENT_BATCH_PATTERNS):
+        return
+    now_iso = _now_utc_naive().isoformat()
+    existing, match_params = _supplement_batch_pattern_query_match(brand_txt, batch, variant_txt)
+    scan_rows = _supplement_batch_scan_rows(brand_txt, batch, variant_txt)
+    existing_count = int(_safe_float((existing or {}).get("scan_count"), 0) or 0) if isinstance(existing, dict) else 0
+    if len(scan_rows) <= existing_count:
+        scan_rows = list(scan_rows)
+        scan_rows.append(
+            {
+                "region": region_txt,
+                "authenticity_score": float(_safe_float(auth_score, 0.0) or 0.0),
+                "structured_data": structured_data if isinstance(structured_data, dict) else {},
+            }
+        )
+    if not scan_rows:
+        fallback_row = {
+            "region": region_txt,
+            "authenticity_score": float(_safe_float(auth_score, 0.0) or 0.0),
+            "structured_data": structured_data if isinstance(structured_data, dict) else {},
+        }
+        scan_rows = [fallback_row]
+
+    region_scan_map = _supplement_region_map_from_scan_rows(scan_rows)
+    scan_count = int(len(scan_rows or []))
+    if existing_count > 0:
+        scan_count = max(scan_count, existing_count + 1)
+    else:
+        scan_count = max(1, scan_count)
+
+    auth_values = [
+        float(_safe_float((row or {}).get("authenticity_score"), 0.0) or 0.0)
+        for row in (scan_rows or [])
+        if float(_safe_float((row or {}).get("authenticity_score"), 0.0) or 0.0) > 0
+    ]
+    if auth_values:
+        avg_auth_score = round(sum(auth_values) / float(len(auth_values)), 2)
+    else:
+        avg_auth_score = float(_safe_float(auth_score, 0.0) or 0.0)
+    macro_variance_score = _supplement_macro_variance_score_from_scan_rows(scan_rows)
+    regions = sorted([k for k in region_scan_map.keys() if str(k or "").strip()])
+
+    if isinstance(existing, dict):
+        patch = {
+            "variant": variant_txt,
+            "scan_count": scan_count or int(_safe_float(existing.get("scan_count"), 0) or 0),
+            "last_seen": now_iso,
+            "last_updated_at": now_iso,
+            "regions": regions,
+            "region_scan_map": region_scan_map,
+            "macro_variance_score": macro_variance_score,
+            "avg_auth_score": avg_auth_score,
+        }
+        try:
+            _sb_patch_with_column_fallback(TBL_SUPPLEMENT_BATCH_PATTERNS, match_params, patch)
+        except Exception as e:
+            if "variant" in match_params and "variant" in _http_exc_raw(e).lower():
+                fallback_match = {
+                    "brand": f"eq.{brand_txt}",
+                    "batch_number": f"eq.{batch}",
+                }
+                try:
+                    _sb_patch_with_column_fallback(TBL_SUPPLEMENT_BATCH_PATTERNS, fallback_match, patch)
+                    return
+                except Exception as e2:
+                    if not _mark_table_unavailable(TBL_SUPPLEMENT_BATCH_PATTERNS, e2):
+                        logger.info(f"supplement batch pattern patch skipped: {e2}")
+                    return
+            if not _mark_table_unavailable(TBL_SUPPLEMENT_BATCH_PATTERNS, e):
+                logger.info(f"supplement batch pattern patch skipped: {e}")
+        return
+
+    row = {
+        "brand": brand_txt,
+        "variant": variant_txt,
+        "batch_number": batch,
+        "scan_count": max(1, scan_count),
+        "first_seen": now_iso,
+        "last_seen": now_iso,
+        "last_updated_at": now_iso,
+        "regions": regions,
+        "region_scan_map": region_scan_map,
+        "macro_variance_score": macro_variance_score,
+        "avg_auth_score": avg_auth_score,
+    }
+    try:
+        _sb_insert_with_column_fallback(TBL_SUPPLEMENT_BATCH_PATTERNS, row)
+    except Exception as e:
+        if not _mark_table_unavailable(TBL_SUPPLEMENT_BATCH_PATTERNS, e):
+            logger.info(f"supplement batch pattern insert skipped: {e}")
+
+
+def _store_supplement_scan(row: Dict[str, Any]) -> Dict[str, Any]:
+    payload = dict(row or {})
+    if (not (SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY)) or _is_table_disabled(TBL_SUPPLEMENT_SCANS):
+        return payload
+    try:
+        stored = _sb_insert_with_column_fallback(TBL_SUPPLEMENT_SCANS, payload)
+        return dict(stored or payload)
+    except Exception as e:
+        if _mark_table_unavailable(TBL_SUPPLEMENT_SCANS, e):
+            return payload
+        raise
+
+
+async def _read_valid_image_bytes(upload: UploadFile, field_name: str) -> bytes:
+    data = await upload.read()
+    if not data:
+        raise HTTPException(status_code=400, detail={"error": f"{field_name}_empty"})
+    try:
+        Image.open(io.BytesIO(data)).convert("RGB")
+    except Exception:
+        raise HTTPException(status_code=400, detail={"error": f"{field_name}_invalid_image"})
+    return data
 
 
 @app.get("/usage")
@@ -10697,6 +11396,157 @@ def barcode_manual(
             "remaining_month": int(usage_row.get("remaining_month") or 0),
         },
     }
+
+
+@app.post("/supplement/scan")
+async def supplement_scan(
+    request: Request,
+    front_image: UploadFile = File(...),
+    back_image: UploadFile = File(...),
+    product_type: str = Form("whey_protein"),
+    brand: str = Form(""),
+    variant: str = Form(""),
+    barcode: str = Form(""),
+    batch_number: str = Form(""),
+    mfg_date: str = Form(""),
+    expiry_date: str = Form(""),
+    region: str = Form(""),
+    user_id: Optional[str] = None,
+    debug: Optional[bool] = False,
+    x_user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
+    x_country_code: Optional[str] = Header(default=None, alias="X-Country-Code"),
+    cf_ipcountry: Optional[str] = Header(default=None, alias="CF-IPCountry"),
+    x_vercel_ip_country: Optional[str] = Header(default=None, alias="X-Vercel-IP-Country"),
+):
+    uid = require_user_id(x_user_id, user_id)
+    require_ai_consent(uid)
+    request_id = _new_request_id()
+
+    product = str(product_type or "whey_protein").strip().lower()
+    if product not in SUPPLEMENT_SUPPORTED_PRODUCT_TYPES:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error": "unsupported_product_type",
+                "supported": sorted(list(SUPPLEMENT_SUPPORTED_PRODUCT_TYPES)),
+            },
+        )
+
+    front_bytes = await _read_valid_image_bytes(front_image, "front_image")
+    back_bytes = await _read_valid_image_bytes(back_image, "back_image")
+    image_hash = hashlib.sha256(front_bytes + b"::" + back_bytes).hexdigest()
+
+    extracted = extract_supplement_data(
+        front_bytes,
+        back_bytes,
+        barcode_hint=barcode,
+        batch_hint=batch_number,
+        request_id=request_id,
+    )
+    region_code = _infer_supplement_region(
+        region,
+        request=request,
+        header_values=[x_country_code, cf_ipcountry, x_vercel_ip_country],
+    )
+
+    normalized = normalize_supplement_data(
+        extracted,
+        product_type=product,
+        region=region_code,
+        brand_override=brand,
+        variant_override=variant,
+        barcode_override=barcode,
+        batch_override=batch_number,
+        mfg_date_override=mfg_date,
+        expiry_date_override=expiry_date,
+    )
+    score, flags = calculate_authenticity_score(normalized)
+    level = interpret_supplement_score(score)
+    explanation = _supplement_explanation(score, flags)
+
+    row = {
+        "id": str(uuid.uuid4()),
+        "user_id": uid,
+        "product_type": product,
+        "brand": normalized.get("brand"),
+        "variant": normalized.get("variant"),
+        "barcode": normalized.get("barcode"),
+        "batch_number": normalized.get("batch_number"),
+        "mfg_date": normalized.get("mfg_date"),
+        "expiry_date": normalized.get("expiry_date"),
+        "region": normalized.get("region"),
+        "authenticity_score": score,
+        "risk_flags": flags,
+        "structured_data": normalized.get("structured_data"),
+        "image_hash": image_hash,
+        "created_at": _now_utc_naive().isoformat(),
+    }
+    stored = _store_supplement_scan(row)
+    _upsert_supplement_batch_pattern(
+        str(normalized.get("brand") or ""),
+        str(normalized.get("batch_number") or ""),
+        variant=str(normalized.get("variant") or ""),
+        region=str(normalized.get("region") or ""),
+        auth_score=float(_safe_float(score, 0.0) or 0.0),
+        structured_data=normalized.get("structured_data") if isinstance(normalized.get("structured_data"), dict) else {},
+    )
+
+    out = {
+        "scan_id": str(stored.get("id") or row["id"]),
+        "product_type": product,
+        "brand": normalized.get("brand"),
+        "variant": normalized.get("variant"),
+        "barcode": normalized.get("barcode"),
+        "batch_number": normalized.get("batch_number"),
+        "authenticity_score": score,
+        "risk_flags": flags,
+        "confidence_level": level,
+        "explanation": explanation,
+        "legal_note": SUPPLEMENT_LEGAL_DISCLAIMER,
+        "source": "pattern_engine",
+        "llm_used": bool(GEMINI_API_KEY),
+        "structured_data": normalized.get("structured_data"),
+        "request_id": request_id,
+    }
+    return _attach_debug_schema(out, bool(debug))
+
+
+@app.post("/supplement/report_issue")
+def supplement_report_issue(
+    payload: Dict[str, Any] = Body(...),
+    user_id: Optional[str] = None,
+    debug: Optional[bool] = False,
+    x_user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
+):
+    try:
+        req = _model_validate(SupplementIssueReportRequestModel, payload or {})
+    except Exception as e:
+        raise HTTPException(status_code=400, detail={"error": "invalid_supplement_issue_payload", "raw": str(e)[:260]})
+
+    uid = require_user_id(x_user_id, user_id or req.user_id)
+    scan_id = str(req.scan_id or "").strip()
+    if not scan_id:
+        raise HTTPException(status_code=400, detail={"error": "scan_id_required"})
+    row = {
+        "id": str(uuid.uuid4()),
+        "scan_id": scan_id,
+        "issue_type": str(req.issue_type or "suspicious_packaging").strip().lower()[:64],
+        "description": str(req.description or "").strip()[:500],
+        "created_at": _now_utc_naive().isoformat(),
+    }
+
+    if (not (SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY)) or _is_table_disabled(TBL_SUPPLEMENT_USER_FLAGS):
+        return _attach_debug_schema({"ok": True, "reported": False, "scan_id": scan_id}, bool(debug))
+
+    try:
+        _sb_insert_with_column_fallback(TBL_SUPPLEMENT_USER_FLAGS, row)
+    except Exception as e:
+        if _mark_table_unavailable(TBL_SUPPLEMENT_USER_FLAGS, e):
+            return _attach_debug_schema({"ok": True, "reported": False, "scan_id": scan_id}, bool(debug))
+        raise
+
+    resp = {"ok": True, "reported": True, "scan_id": scan_id, "issue_type": row["issue_type"]}
+    return _attach_debug_schema(resp, bool(debug))
 
 
 
