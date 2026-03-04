@@ -16,6 +16,10 @@ from typing import Any, Dict, Optional, List, Tuple, Union, Literal
 from zoneinfo import ZoneInfo
 
 import requests
+try:
+    import httpx
+except Exception:  # pragma: no cover - optional runtime dependency fallback
+    httpx = None
 from PIL import Image
 
 from fastapi import FastAPI, File, UploadFile, Request, HTTPException, Header, Body, Form
@@ -25,6 +29,16 @@ from pydantic import BaseModel, Field
 
 import google.generativeai as genai
 import coach_daily_logic as coach_logic
+from supplement_barcode_utils import (
+    normalize_barcode,
+    detect_gtin_type,
+    validate_checksum,
+    extract_company_prefix,
+)
+from supplement_fssai_utils import (
+    extract_fssai_license,
+    extract_fssai_from_structured,
+)
 
 # -------------------- LOGGING --------------------
 logging.basicConfig(level=logging.INFO)
@@ -54,6 +68,8 @@ if GEMINI_API_KEY:
     genai.configure(api_key=GEMINI_API_KEY)
 
 OPENFOODFACTS_BASE = os.getenv("OPENFOODFACTS_BASE", "https://world.openfoodfacts.org/api/v2").strip()
+OFF_CACHE: Dict[str, Dict[str, Any]] = {}
+OFF_CACHE_TTL = 60 * 60 * 24  # 24 hours
 
 SUPABASE_URL = os.getenv("SUPABASE_URL", "").strip()
 SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "").strip()
@@ -4161,6 +4177,7 @@ def extract_supplement_data(
             "- Read both front and back label.\n"
             "- Keep dates as seen on label.\n"
             "- Keep nutrition_panel numeric fields when available.\n"
+            "- If FSSAI license is visible, include it inside nutrition_panel as key fssai_license_number.\n"
             "- If a field is not visible, return empty string/list/object.\n"
             f"- Barcode hint from app: {_supplement_digits(barcode_hint)}\n"
             f"- Batch hint from app: {_supplement_text(batch_hint)}\n"
@@ -4262,6 +4279,44 @@ def _supplement_brand_profile(brand: str) -> Dict[str, Any]:
         if not _mark_table_unavailable(TBL_SUPPLEMENT_BRAND_PROFILES, e):
             logger.info(f"supplement brand profile read skipped: {e}")
         return {}
+
+
+async def lookup_openfoodfacts(barcode: str) -> Dict[str, Any]:
+    now = time.time()
+    code = str(barcode or "").strip()
+    if not code:
+        return {"status": 0}
+
+    cached = OFF_CACHE.get(code)
+    if isinstance(cached, dict):
+        ts = float(_safe_float(cached.get("ts"), 0.0) or 0.0)
+        if now - ts < OFF_CACHE_TTL:
+            data = cached.get("data")
+            return data if isinstance(data, dict) else {"status": 0}
+
+    url = f"https://world.openfoodfacts.net/api/v2/product/{code}"
+    data: Dict[str, Any]
+    try:
+        if httpx is not None:
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                r = await client.get(url)
+                if r.status_code == 200:
+                    body = r.json()
+                    data = body if isinstance(body, dict) else {"status": 0}
+                else:
+                    data = {"status": 0}
+        else:
+            r = requests.get(url, timeout=5.0)
+            if r.status_code == 200:
+                body = r.json()
+                data = body if isinstance(body, dict) else {"status": 0}
+            else:
+                data = {"status": 0}
+    except Exception:
+        data = {"status": 0}
+
+    OFF_CACHE[code] = {"data": data, "ts": now}
+    return data
 
 
 def barcode_exists_in_db(barcode: str) -> bool:
@@ -4389,7 +4444,10 @@ def detect_protein_spiking(structured_data: Dict[str, Any]) -> bool:
     return False
 
 
-def calculate_authenticity_score(data: Dict[str, Any]) -> Tuple[float, List[str]]:
+def calculate_authenticity_score(
+    data: Dict[str, Any],
+    precomputed_barcode_flags: Optional[List[str]] = None,
+) -> Tuple[float, List[str]]:
     payload = data if isinstance(data, dict) else {}
     score = 100.0
     risk_flags: List[str] = []
@@ -4398,13 +4456,26 @@ def calculate_authenticity_score(data: Dict[str, Any]) -> Tuple[float, List[str]
     batch_number = _supplement_text(payload.get("batch_number"))
     structured_data = payload.get("structured_data") if isinstance(payload.get("structured_data"), dict) else payload
 
-    if not barcode_exists_in_db(barcode):
-        score -= 25.0
-        risk_flags.append("barcode_not_found")
+    if precomputed_barcode_flags is None:
+        if not barcode_exists_in_db(barcode):
+            score -= 25.0
+            risk_flags.append("barcode_not_found")
 
-    if not barcode_matches_brand(barcode, brand):
-        score -= 20.0
-        risk_flags.append("brand_barcode_mismatch")
+        if not barcode_matches_brand(barcode, brand):
+            score -= 20.0
+            risk_flags.append("brand_barcode_mismatch")
+    else:
+        for flag in precomputed_barcode_flags or []:
+            f = str(flag or "").strip()
+            if not f:
+                continue
+            risk_flags.append(f)
+        if "barcode_checksum_invalid" in risk_flags:
+            score -= 25.0
+        if "barcode_not_found_public_db" in risk_flags:
+            score -= 10.0
+        if "barcode_brand_mismatch" in risk_flags:
+            score -= 20.0
 
     if not batch_matches_regex(brand, batch_number):
         score -= 15.0
@@ -4418,6 +4489,15 @@ def calculate_authenticity_score(data: Dict[str, Any]) -> Tuple[float, List[str]
     if detect_protein_spiking(structured_data):
         score -= 15.0
         risk_flags.append("possible_protein_spiking")
+
+    fssai_meta = extract_fssai_from_structured(structured_data if isinstance(structured_data, dict) else {})
+    fssai_number = _supplement_digits((fssai_meta or {}).get("fssai_license_number"))
+    fssai_label_present = bool((fssai_meta or {}).get("fssai_label_present"))
+    if fssai_number and len(fssai_number) == 14:
+        score += 2.0
+    elif fssai_label_present:
+        score -= 5.0
+        risk_flags.append("fssai_number_invalid")
 
     score = max(0.0, min(100.0, round(score, 1)))
     deduped: List[str] = []
@@ -11460,7 +11540,94 @@ async def supplement_scan(
         mfg_date_override=mfg_date,
         expiry_date_override=expiry_date,
     )
-    score, flags = calculate_authenticity_score(normalized)
+    structured_payload = (
+        normalized.get("structured_data")
+        if isinstance(normalized.get("structured_data"), dict)
+        else {}
+    )
+    if not isinstance(structured_payload, dict):
+        structured_payload = {}
+
+    fssai_result = extract_fssai_from_structured(structured_payload)
+    if not fssai_result:
+        combined_text_parts = [
+            _supplement_text(normalized.get("brand")),
+            _supplement_text(normalized.get("variant")),
+            _supplement_text(normalized.get("batch_number")),
+            _supplement_text(normalized.get("mfg_date")),
+            _supplement_text(normalized.get("expiry_date")),
+            " ".join([str(x).strip() for x in (structured_payload.get("ingredients") or []) if str(x).strip()]),
+            json.dumps(structured_payload, ensure_ascii=False),
+        ]
+        fssai_result = extract_fssai_license("\n".join([x for x in combined_text_parts if x]))
+
+    if fssai_result:
+        regulatory = structured_payload.get("regulatory") if isinstance(structured_payload.get("regulatory"), dict) else {}
+        regulatory = dict(regulatory)
+        fssai_no = _supplement_digits(fssai_result.get("fssai_license_number"))
+        regulatory["fssai_license_number"] = fssai_no
+        regulatory["fssai_confidence"] = float(_safe_float(fssai_result.get("confidence"), 0.0) or 0.0)
+        regulatory["fssai_method"] = str(fssai_result.get("method") or "").strip() or "regex"
+        regulatory["fssai_source_image"] = str(fssai_result.get("source_image") or "back").strip() or "back"
+        regulatory["fssai_raw_text_snippet"] = str(fssai_result.get("snippet") or "").strip()[:180]
+        structured_payload["regulatory"] = regulatory
+        normalized["structured_data"] = structured_payload
+
+    logger.info(
+        "supplement_fssai_extract",
+        extra={
+            "found": bool(fssai_result and _supplement_digits((fssai_result or {}).get("fssai_license_number"))),
+            "confidence": float(_safe_float((fssai_result or {}).get("confidence"), 0.0) or 0.0),
+            "method": str((fssai_result or {}).get("method") or ""),
+        },
+    )
+
+    risk_flags: List[str] = []
+    barcode_trace: Dict[str, Any] = {}
+
+    inferred_brand = _supplement_text(normalized.get("brand"))
+    normalized_barcode = normalize_barcode(
+        normalized.get("barcode") or barcode
+    )
+    barcode_trace["normalized"] = normalized_barcode
+
+    if not normalized_barcode:
+        risk_flags.append("barcode_missing")
+    else:
+        gtin_type = detect_gtin_type(normalized_barcode)
+        barcode_trace["gtin_type"] = gtin_type
+
+        if not gtin_type:
+            risk_flags.append("barcode_invalid_format")
+        else:
+            checksum_valid = validate_checksum(normalized_barcode)
+            barcode_trace["checksum_valid"] = checksum_valid
+
+            if not checksum_valid:
+                risk_flags.append("barcode_checksum_invalid")
+            else:
+                prefix = extract_company_prefix(normalized_barcode)
+                barcode_trace["prefix"] = prefix
+
+                off_data = await lookup_openfoodfacts(normalized_barcode)
+                off_status = off_data.get("status")
+                barcode_trace["off_status"] = off_status
+
+                if off_status != 1:
+                    risk_flags.append("barcode_not_found_public_db")
+                else:
+                    product_obj = off_data.get("product", {}) if isinstance(off_data.get("product"), dict) else {}
+                    off_brand = product_obj.get("brands")
+                    barcode_trace["off_brand"] = off_brand
+
+                    if inferred_brand and off_brand:
+                        if inferred_brand.lower() not in str(off_brand).lower():
+                            risk_flags.append("barcode_brand_mismatch")
+
+    score, flags = calculate_authenticity_score(
+        normalized,
+        precomputed_barcode_flags=risk_flags,
+    )
     level = interpret_supplement_score(score)
     explanation = _supplement_explanation(score, flags)
 
@@ -11477,7 +11644,7 @@ async def supplement_scan(
         "region": normalized.get("region"),
         "authenticity_score": score,
         "risk_flags": flags,
-        "structured_data": normalized.get("structured_data"),
+        "structured_data": structured_payload,
         "image_hash": image_hash,
         "created_at": _now_utc_naive().isoformat(),
     }
@@ -11488,7 +11655,7 @@ async def supplement_scan(
         variant=str(normalized.get("variant") or ""),
         region=str(normalized.get("region") or ""),
         auth_score=float(_safe_float(score, 0.0) or 0.0),
-        structured_data=normalized.get("structured_data") if isinstance(normalized.get("structured_data"), dict) else {},
+        structured_data=structured_payload,
     )
 
     out = {
@@ -11505,9 +11672,16 @@ async def supplement_scan(
         "legal_note": SUPPLEMENT_LEGAL_DISCLAIMER,
         "source": "pattern_engine",
         "llm_used": bool(GEMINI_API_KEY),
-        "structured_data": normalized.get("structured_data"),
+        "structured_data": structured_payload,
         "request_id": request_id,
     }
+    logger.info(
+        "supplement_barcode_verification",
+        extra={
+            "barcode_trace": barcode_trace,
+            "risk_flags": risk_flags,
+        },
+    )
     return _attach_debug_schema(out, bool(debug))
 
 

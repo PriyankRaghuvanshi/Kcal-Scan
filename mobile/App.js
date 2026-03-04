@@ -3675,6 +3675,16 @@ async function openCamera(mode = "meal") {
   const supplementFlags = Array.isArray(supplementResult?.risk_flags) ? supplementResult.risk_flags : [];
   const supplementBreakdown = buildSupplementBreakdown(supplementResult);
   const supplementScore = Math.max(0, Math.min(100, Math.round(num(supplementResult?.authenticity_score))));
+  const supplementRegulatory =
+    supplementResult?.structured_data && typeof supplementResult.structured_data === "object"
+      ? supplementResult.structured_data.regulatory || {}
+      : {};
+  const supplementFssaiNumber = String(supplementRegulatory?.fssai_license_number || "").trim();
+  const supplementFssaiConfidence = Math.max(0, Math.min(1, num(supplementRegulatory?.fssai_confidence)));
+  const supplementFssaiSource = String(supplementRegulatory?.fssai_source_image || "").trim();
+  const supplementFssaiSnippet = String(supplementRegulatory?.fssai_raw_text_snippet || "").trim();
+  const supplementFssaiConfidenceLabel =
+    supplementFssaiConfidence >= 0.75 ? "High" : supplementFssaiConfidence >= 0.45 ? "Medium" : "Low";
   const supplementCanSubmit = Boolean(
     supplementFrontUri &&
       (String(supplementBarcode || "").trim() || String(supplementBatchNumber || "").trim())
@@ -4570,6 +4580,34 @@ async function openCamera(mode = "meal") {
                 <Text style={[styles.p, { marginTop: 6 }]}>{String(supplementResult?.explanation || "")}</Text>
               ) : null}
 
+              {supplementFssaiNumber ? (
+                <View style={styles.suppRegulatoryCard}>
+                  <Text style={styles.cardTitle}>Regulatory</Text>
+                  <Text style={styles.p}>FSSAI License (extracted): {supplementFssaiNumber}</Text>
+                  <Text style={styles.tiny}>
+                    Extraction confidence: {supplementFssaiConfidenceLabel}
+                    {supplementFssaiSource ? ` • source ${supplementFssaiSource}` : ""}
+                  </Text>
+                  {supplementFssaiSnippet ? (
+                    <Text style={[styles.tiny, { marginTop: 4 }]}>Snippet: {supplementFssaiSnippet}</Text>
+                  ) : null}
+                  <TouchableOpacity
+                    style={[styles.secondaryBtn, { marginTop: 8, alignSelf: "flex-start" }]}
+                    onPress={() => {
+                      const q = `https://www.google.com/search?q=${encodeURIComponent(
+                        `FSSAI license ${supplementFssaiNumber}`
+                      )}`;
+                      void Linking.openURL(q);
+                    }}
+                  >
+                    <Text style={styles.btnText}>Verify on official portal</Text>
+                  </TouchableOpacity>
+                  <Text style={[styles.tiny, { marginTop: 6 }]}>
+                    Extracted from packaging text. Not an official verification.
+                  </Text>
+                </View>
+              ) : null}
+
               {Number.isFinite(supplementCommunityScanCount) ? (
                 <Text style={[styles.tiny, { marginTop: 6 }]}>
                   {supplementCommunityScanCount <= 1
@@ -5372,6 +5410,14 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: "900",
     textAlign: "center",
+  },
+  suppRegulatoryCard: {
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: "#2c3b51",
+    borderRadius: 12,
+    backgroundColor: "#0b1624",
+    padding: 10,
   },
   suppBreakdownToggle: {
     marginTop: 12,
