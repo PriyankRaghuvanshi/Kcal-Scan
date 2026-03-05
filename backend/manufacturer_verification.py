@@ -1,5 +1,6 @@
 import re
 import time
+import os
 from typing import Any, Dict, Optional
 
 import requests
@@ -151,4 +152,48 @@ def create_manufacturer_verifier(
             prefetched=prefetched,
         )
     return UnavailableManufacturerVerifier(provider=token)
+
+
+def get_manufacturer_verifier(
+    *,
+    enabled: Optional[bool] = None,
+    provider: Optional[str] = None,
+    timeout_sec: Optional[float] = None,
+    prefetched: Optional[Dict[str, Dict[str, Any]]] = None,
+    off_base_url: Optional[str] = None,
+) -> ManufacturerVerifier:
+    env_enabled_raw = str(os.getenv("MFR_VERIFY_ENABLED", "0") or "").strip().lower()
+    env_enabled = env_enabled_raw in {"1", "true", "yes", "on", "y"}
+    env_provider = str(os.getenv("MFR_VERIFY_PROVIDER", "off") or "off").strip().lower()
+    try:
+        env_timeout = float(str(os.getenv("MFR_VERIFY_TIMEOUT_SEC", "5") or "5").strip())
+    except Exception:
+        env_timeout = 5.0
+    env_base_url = str(
+        os.getenv("OPENFOODFACTS_BASE", "https://world.openfoodfacts.net/api/v2")
+        or "https://world.openfoodfacts.net/api/v2"
+    ).strip()
+
+    selected_enabled = env_enabled if enabled is None else bool(enabled)
+    selected_provider = env_provider if provider is None else str(provider or env_provider).strip().lower()
+    selected_timeout = env_timeout if timeout_sec is None else float(timeout_sec)
+    selected_base_url = env_base_url if off_base_url is None else str(off_base_url or env_base_url).strip()
+
+    return create_manufacturer_verifier(
+        selected_provider,
+        enabled=selected_enabled,
+        timeout_sec=selected_timeout,
+        prefetched=prefetched,
+        off_base_url=selected_base_url,
+    )
+
+
+__all__ = [
+    "ManufacturerVerifier",
+    "UnavailableManufacturerVerifier",
+    "GS1LicensedManufacturerVerifier",
+    "OpenFoodFactsManufacturerVerifier",
+    "create_manufacturer_verifier",
+    "get_manufacturer_verifier",
+]
 
