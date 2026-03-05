@@ -130,6 +130,7 @@ const SUPPLEMENT_PROCESSING_CHECKS = [
 ];
 const SUPPLEMENT_LEGAL_NOTE =
   "This authenticity confidence score is based on structural and pattern analysis. It is not a definitive determination of product genuineness. For confirmation, contact the manufacturer.";
+const DEFAULT_HEALTHY_RADIUS_M = 2000;
 const SUPPLEMENT_REPORT_REASONS = [
   { key: "packaging_differs", label: "Packaging looks different" },
   { key: "taste_texture_unusual", label: "Taste/texture unusual" },
@@ -276,6 +277,63 @@ function supplementRiskTone(level) {
   if (tag === "warn") return { icon: "⚠", color: "#f59e0b" };
   return { icon: "✖", color: "#ef4444" };
 }
+function healthyPlaceTone(score) {
+  const s = Math.max(1, Math.min(10, num(score)));
+  if (s >= 8) return { color: "#22c55e", badge: "Excellent" };
+  if (s >= 6.5) return { color: "#84cc16", badge: "Good" };
+  if (s >= 5) return { color: "#f59e0b", badge: "Moderate" };
+  return { color: "#ef4444", badge: "Lower" };
+}
+function haversineKm(lat1, lng1, lat2, lng2) {
+  const a1 = num(lat1);
+  const o1 = num(lng1);
+  const a2 = num(lat2);
+  const o2 = num(lng2);
+  if (!Number.isFinite(a1) || !Number.isFinite(o1) || !Number.isFinite(a2) || !Number.isFinite(o2)) return null;
+  const r = 6371;
+  const toRad = (d) => (d * Math.PI) / 180;
+  const dLat = toRad(a2 - a1);
+  const dLng = toRad(o2 - o1);
+  const s1 = Math.sin(dLat / 2) ** 2;
+  const s2 = Math.cos(toRad(a1)) * Math.cos(toRad(a2)) * Math.sin(dLng / 2) ** 2;
+  const c = 2 * Math.atan2(Math.sqrt(s1 + s2), Math.sqrt(1 - (s1 + s2)));
+  return r * c;
+}
+function buildHealthyMapPoints(places, center, width = 320, height = 210) {
+  const cx = num(center?.lat);
+  const cy = num(center?.lng);
+  if (!Number.isFinite(cx) || !Number.isFinite(cy)) return [];
+  const list = Array.isArray(places) ? places.filter((p) => p && Number.isFinite(num(p?.lat)) && Number.isFinite(num(p?.lng))) : [];
+  if (!list.length) return [];
+
+  const centerLatRad = (cx * Math.PI) / 180;
+  const vectors = list.map((place) => {
+    const lat = num(place?.lat);
+    const lng = num(place?.lng);
+    const dy = (lat - cx) * 110540; // meters north/south
+    const dx = (lng - cy) * 111320 * Math.cos(centerLatRad); // meters east/west
+    return { place, dx, dy };
+  });
+  const maxX = Math.max(200, ...vectors.map((v) => Math.abs(v.dx)));
+  const maxY = Math.max(200, ...vectors.map((v) => Math.abs(v.dy)));
+  const pad = 16;
+  const halfW = Math.max(100, width / 2);
+  const halfH = Math.max(80, height / 2);
+  const maxDrawX = Math.max(10, halfW - pad);
+  const maxDrawY = Math.max(10, halfH - pad);
+
+  return vectors.map((v, idx) => {
+    const x = halfW + (v.dx / maxX) * maxDrawX;
+    const y = halfH - (v.dy / maxY) * maxDrawY;
+    return {
+      key: `${String(v.place?.name || "p")}-${idx}`,
+      x: Math.max(pad, Math.min(width - pad, x)),
+      y: Math.max(pad, Math.min(height - pad, y)),
+      place: v.place,
+      distance_km: haversineKm(cx, cy, v.place?.lat, v.place?.lng),
+    };
+  });
+}
 function buildSupplementBreakdown(result) {
   const riskFlags = Array.isArray(result?.risk_flags)
     ? result.risk_flags.map((x) => String(x || "").trim().toLowerCase())
@@ -284,27 +342,50 @@ function buildSupplementBreakdown(result) {
   const hasBatch = Boolean(String(result?.batch_number || "").trim());
   const communityCount = Number(result?.scan_count ?? result?.community_scan_count);
   const communityKnown = Number.isFinite(communityCount);
-  const communityHeavy = communityKnown && communityCount > 3;
+  const communityMature = communityKnown && communityCount >= 8;
 
   return [
-    flags.has("barcode_not_found") || flags.has("brand_barcode_mismatch")
-      ? { key: "barcode", level: "bad", text: "Barcode structure does not match known brand patterns." }
-      : { key: "barcode", level: "ok", text: "Barcode matches known brand pattern checks." },
+    flags.has("barcode_checksum_invalid") || flags.has("barcode_not_found_public_db") || flags.has("barcode_brand_mismatch")
+      ? { key: "barcode", level: "bad", text: "Barcode checks failed against checksum/public registry signals." }
+      : flags.has("barcode_missing") || flags.has("barcode_invalid_format")
+      ? { key: "barcode", level: "warn", text: "Barcode is missing or not in a valid GTIN format." }
+      : { key: "barcode", level: "ok", text: "Barcode structure passes checksum and registry plausibility checks." },
+    flags.has("gs1_prefix_mismatch_region")
+      ? { key: "gs1", level: "bad", text: "GS1 prefix plausibility check shows region mismatch." }
+      : flags.has("gs1_prefix_unknown")
+      ? { key: "gs1", level: "warn", text: "GS1 prefix plausibility check is inconclusive for this barcode." }
+      : { key: "gs1", level: "ok", text: "GS1 prefix plausibility check passed." },
+    flags.has("mfr_verified_company_mismatch")
+      ? { key: "mfr_registry", level: "bad", text: "Manufacturer registry check: Mismatch." }
+      : flags.has("mfr_verified_company_match")
+      ? { key: "mfr_registry", level: "ok", text: "Manufacturer registry check: Match." }
+      : flags.has("mfr_verification_not_found")
+      ? { key: "mfr_registry", level: "warn", text: "Manufacturer registry check: No registry match found." }
+      : { key: "mfr_registry", level: "warn", text: "Manufacturer registry check: Unavailable." },
     flags.has("batch_format_mismatch")
       ? { key: "batch", level: "bad", text: "Batch format differs from expected structure." }
       : hasBatch
       ? { key: "batch", level: "ok", text: "Batch format appears structurally valid." }
       : { key: "batch", level: "warn", text: "Batch code not provided; structural validation is limited." },
-    flags.has("community_flagged_batch")
-      ? { key: "community", level: "warn", text: "Community scans suggest this batch needs additional review." }
-      : communityHeavy
-      ? { key: "community", level: "ok", text: "Community pattern is stable for this batch in recent scans." }
-      : communityKnown
-      ? { key: "community", level: "warn", text: "Limited historical batch data in your region." }
-      : { key: "community", level: "warn", text: "Community history not yet sufficient for strong pattern matching." },
-    flags.has("possible_protein_spiking")
-      ? { key: "nutrition", level: "bad", text: "Nutrition panel consistency needs manual verification." }
-      : { key: "nutrition", level: "ok", text: "Nutrition panel appears structurally consistent." },
+    flags.has("batch_pattern_unseen")
+      ? { key: "batch_pattern", level: "warn", text: "Batch pattern not seen in prior brand scans." }
+      : { key: "batch_pattern", level: "ok", text: "Batch pattern aligns with observed brand formats." },
+    flags.has("packaging_phrase_missing")
+      ? { key: "packaging", level: "warn", text: "Packaging phrase consistency check found missing expected markers." }
+      : { key: "packaging", level: "ok", text: "Packaging phrase consistency check passed." },
+    flags.has("batch_anomaly_macro_outlier") || flags.has("batch_anomaly_region_outlier") || flags.has("community_flagged_batch")
+      ? { key: "community", level: "warn", text: "Batch community pattern check found an outlier signal in shared scan trends." }
+      : communityMature
+      ? { key: "community", level: "ok", text: "Batch community pattern check is stable for this region." }
+      : { key: "community", level: "warn", text: "Batch community pattern check: Not enough community data yet." },
+    flags.has("nutrition_kcal_mismatch") || flags.has("nutrition_protein_implausible")
+      ? { key: "nutrition_math", level: "bad", text: "Nutrition math consistency check found a label inconsistency." }
+      : flags.has("possible_protein_spiking")
+      ? { key: "nutrition_math", level: "warn", text: "Nutrition math consistency check suggests manual review." }
+      : { key: "nutrition_math", level: "ok", text: "Nutrition math consistency check passed." },
+    flags.has("seal_missing")
+      ? { key: "seal", level: "warn", text: "Seal verification proof mode is on but seal evidence is missing." }
+      : { key: "seal", level: "ok", text: "Seal verification signal is available or not required." },
   ];
 }
 function shortDayLabel(dayIso) {
@@ -1201,6 +1282,8 @@ export default function App() {
   const [rerunBusy, setRerunBusy] = useState(false);
   const [supplementFrontUri, setSupplementFrontUri] = useState(null);
   const [supplementBackUri, setSupplementBackUri] = useState(null);
+  const [sealImage, setSealImage] = useState(null);
+  const [supplementProofMode, setSupplementProofMode] = useState(false);
   const [supplementBarcode, setSupplementBarcode] = useState("");
   const [supplementBatchNumber, setSupplementBatchNumber] = useState("");
   const [supplementStep, setSupplementStep] = useState(1);
@@ -1213,6 +1296,11 @@ export default function App() {
   const [supplementReportModal, setSupplementReportModal] = useState(false);
   const [supplementReportReason, setSupplementReportReason] = useState(SUPPLEMENT_REPORT_REASONS[0].key);
   const [supplementReportOther, setSupplementReportOther] = useState("");
+  const [healthyPlacesBusy, setHealthyPlacesBusy] = useState(false);
+  const [healthyPlacesError, setHealthyPlacesError] = useState("");
+  const [healthyPlaces, setHealthyPlaces] = useState([]);
+  const [healthyPlaceCoords, setHealthyPlaceCoords] = useState(null);
+  const [healthyMapWidth, setHealthyMapWidth] = useState(320);
   const [cameraMode, setCameraMode] = useState("meal");
 
   // ===== History (isolated by user id) =====
@@ -1412,6 +1500,8 @@ export default function App() {
     setCameraMode("meal");
     setSupplementFrontUri(null);
     setSupplementBackUri(null);
+    setSealImage(null);
+    setSupplementProofMode(false);
     setSupplementBarcode("");
     setSupplementBatchNumber("");
     setSupplementStep(1);
@@ -1424,6 +1514,11 @@ export default function App() {
     setSupplementReportModal(false);
     setSupplementReportReason(SUPPLEMENT_REPORT_REASONS[0].key);
     setSupplementReportOther("");
+    setHealthyPlacesBusy(false);
+    setHealthyPlacesError("");
+    setHealthyPlaces([]);
+    setHealthyPlaceCoords(null);
+    setHealthyMapWidth(320);
     setRerunBusy(false);
     setAiConsentGiven(false);
     setAiConsentModalVisible(false);
@@ -1439,6 +1534,8 @@ export default function App() {
       setUsage(null);
       setSupplementFrontUri(null);
       setSupplementBackUri(null);
+      setSealImage(null);
+      setSupplementProofMode(false);
       setSupplementBarcode("");
       setSupplementBatchNumber("");
       setSupplementStep(1);
@@ -1451,6 +1548,11 @@ export default function App() {
       setSupplementReportModal(false);
       setSupplementReportReason(SUPPLEMENT_REPORT_REASONS[0].key);
       setSupplementReportOther("");
+      setHealthyPlacesBusy(false);
+      setHealthyPlacesError("");
+      setHealthyPlaces([]);
+      setHealthyPlaceCoords(null);
+      setHealthyMapWidth(320);
       setCameraMode("meal");
       setBarcodeMode("lookup");
       setAiConsentGiven(false);
@@ -2406,6 +2508,8 @@ export default function App() {
   function clearSupplementScan() {
     setSupplementFrontUri(null);
     setSupplementBackUri(null);
+    setSealImage(null);
+    setSupplementProofMode(false);
     setSupplementBarcode("");
     setSupplementBatchNumber("");
     setSupplementStep(1);
@@ -2887,6 +2991,8 @@ async function openCamera(mode = "meal") {
       } else if (mode === "supp_back") {
         setSupplementBackUri(photo.uri);
         setSupplementStep((s) => Math.max(3, Math.round(num(s))));
+      } else if (mode === "supp_seal") {
+        setSealImage(photo.uri);
       } else {
         setPhotoUri(photo.uri);
       }
@@ -3257,6 +3363,7 @@ async function openCamera(mode = "meal") {
       return;
     }
     const backUriToUse = supplementBackUri || supplementFrontUri;
+    const sealUriToUse = sealImage || null;
     setSupplementBusy(true);
     setSupplementProcessingVisible(true);
     try {
@@ -3271,10 +3378,18 @@ async function openCamera(mode = "meal") {
         name: "supp-back.jpg",
         type: "image/jpeg",
       });
+      if (sealUriToUse) {
+        form.append("seal_image", {
+          uri: sealUriToUse,
+          name: "supp-seal.jpg",
+          type: "image/jpeg",
+        });
+      }
       form.append("product_type", "whey_protein");
       if (barcodeText) form.append("barcode", barcodeText);
       if (batchText) form.append("batch_number", batchText);
       form.append("region", regionFromLocale());
+      form.append("proof_mode", supplementProofMode ? "1" : "0");
 
       const url = withTimezoneQuery(
         `${API_BASE}/supplement/scan?user_id=${encodeURIComponent(userId)}`
@@ -3298,6 +3413,115 @@ async function openCamera(mode = "meal") {
     } finally {
       setSupplementBusy(false);
       setSupplementProcessingVisible(false);
+    }
+  }
+
+  async function getCurrentCoords() {
+    try {
+      const mod = await import("expo-location");
+      if (mod && typeof mod.requestForegroundPermissionsAsync === "function") {
+        const perm = await mod.requestForegroundPermissionsAsync();
+        if (!perm?.granted) {
+          throw new Error("Location permission denied");
+        }
+        const loc = await mod.getCurrentPositionAsync({
+          accuracy: mod.Accuracy?.Balanced ?? undefined,
+        });
+        const lat = num(loc?.coords?.latitude);
+        const lng = num(loc?.coords?.longitude);
+        if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+          throw new Error("Location unavailable");
+        }
+        return { lat, lng };
+      }
+    } catch (e) {
+      // fallback below
+    }
+
+    return await new Promise((resolve, reject) => {
+      const geo = globalThis?.navigator?.geolocation;
+      if (!geo || typeof geo.getCurrentPosition !== "function") {
+        reject(new Error("Location service unavailable"));
+        return;
+      }
+      geo.getCurrentPosition(
+        (pos) => {
+          const lat = num(pos?.coords?.latitude);
+          const lng = num(pos?.coords?.longitude);
+          if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+            reject(new Error("Location unavailable"));
+            return;
+          }
+          resolve({ lat, lng });
+        },
+        (err) => {
+          reject(new Error(String(err?.message || "Location fetch failed")));
+        },
+        { enableHighAccuracy: false, timeout: 10000, maximumAge: 120000 }
+      );
+    });
+  }
+
+  async function loadHealthyPlacesNearby() {
+    setHealthyPlacesBusy(true);
+    setHealthyPlacesError("");
+    try {
+      const coords = await getCurrentCoords();
+      const lat = num(coords?.lat);
+      const lng = num(coords?.lng);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+        throw new Error("Could not read location.");
+      }
+      setHealthyPlaceCoords({ lat, lng });
+      const url = withTimezoneQuery(
+        `${API_BASE}/places/healthy?lat=${encodeURIComponent(lat)}&lng=${encodeURIComponent(
+          lng
+        )}&radius=${encodeURIComponent(DEFAULT_HEALTHY_RADIUS_M)}`
+      );
+      const res = await fetch(url, { method: "GET", headers: { accept: "application/json" } });
+      const data = await safeJson(res);
+      const list = Array.isArray(data?.places)
+        ? data.places.filter((x) => x && typeof x === "object")
+        : [];
+      setHealthyPlaces(list);
+      if (!list.length) {
+        setHealthyPlacesError("No nearby places found right now.");
+      }
+    } catch (e) {
+      const msg = String((e && e.message) || e || "").trim() || "Could not load nearby places.";
+      setHealthyPlacesError(msg.slice(0, 220));
+      setHealthyPlaces([]);
+    } finally {
+      setHealthyPlacesBusy(false);
+    }
+  }
+
+  async function openPlaceInMaps(place) {
+    const lat = num(place?.lat);
+    const lng = num(place?.lng);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+    const label = encodeURIComponent(String(place?.name || "Healthy place"));
+    const iosUrl = `http://maps.apple.com/?ll=${lat},${lng}&q=${label}`;
+    const androidUrl = `geo:${lat},${lng}?q=${lat},${lng}(${label})`;
+    const webUrl = `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+    const target = Platform.OS === "ios" ? iosUrl : androidUrl;
+    try {
+      const supported = await Linking.canOpenURL(target);
+      await Linking.openURL(supported ? target : webUrl);
+    } catch {
+      await Linking.openURL(webUrl);
+    }
+  }
+
+  async function openHealthyAreaMap() {
+    const lat = num(healthyPlaceCoords?.lat);
+    const lng = num(healthyPlaceCoords?.lng);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+    const webUrl = `https://www.google.com/maps/search/healthy+food/@${lat},${lng},14z`;
+    try {
+      await Linking.openURL(webUrl);
+    } catch (e) {
+      Alert.alert("Map unavailable", String((e && e.message) || e || "").slice(0, 180));
     }
   }
 
@@ -3690,11 +3914,17 @@ async function openCamera(mode = "meal") {
       (String(supplementBarcode || "").trim() || String(supplementBatchNumber || "").trim())
   );
   const supplementCommunityScanCount = Number(supplementResult?.scan_count ?? supplementResult?.community_scan_count);
+  const healthyMapPoints = useMemo(
+    () => buildHealthyMapPoints(healthyPlaces, healthyPlaceCoords, Math.max(240, num(healthyMapWidth)), 210),
+    [healthyPlaces, healthyPlaceCoords, healthyMapWidth]
+  );
   const cameraTitle =
     cameraMode === "supp_front"
       ? "Capture front label"
       : cameraMode === "supp_back"
       ? "Capture nutrition panel"
+      : cameraMode === "supp_seal"
+      ? "Capture seal photo"
       : "Take a photo";
   const barcodeModalTitle = barcodeMode === "supplement" ? "Scan supplement barcode" : "Scan barcode";
 
@@ -4521,6 +4751,32 @@ async function openCamera(mode = "meal") {
                 placeholderTextColor="#777"
                 autoCapitalize="characters"
               />
+              <TouchableOpacity
+                style={[styles.secondaryBtn, { marginTop: 8 }]}
+                onPress={() => setSupplementProofMode((v) => !v)}
+              >
+                <Text style={styles.btnText}>
+                  {supplementProofMode ? "High Confidence Mode: ON" : "Enable High Confidence Mode"}
+                </Text>
+              </TouchableOpacity>
+              <Text style={styles.tiny}>
+                Optional: capture cap/seal photo for stronger verification in high confidence mode.
+              </Text>
+              {sealImage ? (
+                <Image source={{ uri: sealImage }} style={styles.suppPreviewSingle} />
+              ) : (
+                <View style={styles.suppPreviewEmptySingle}>
+                  <Text style={styles.previewText}>Seal photo not captured</Text>
+                </View>
+              )}
+              <TouchableOpacity style={[styles.secondaryBtn, { marginTop: 8 }]} onPress={() => openCamera("supp_seal")}>
+                <Text style={styles.btnText}>{sealImage ? "Retake Seal Photo" : "Capture Seal Photo (optional)"}</Text>
+              </TouchableOpacity>
+              {supplementProofMode && !sealImage ? (
+                <Text style={[styles.tiny, { marginTop: 8, color: "#f59e0b" }]}>
+                  High confidence mode is enabled. Capture seal photo to avoid missing-seal penalty.
+                </Text>
+              ) : null}
               {!supplementCanSubmit ? (
                 <Text style={[styles.tiny, { marginTop: 8, color: "#fca5a5" }]}>
                   Front label and either barcode or batch code are required to submit.
@@ -4646,7 +4902,7 @@ async function openCamera(mode = "meal") {
                 {String(supplementResult?.legal_note || SUPPLEMENT_LEGAL_NOTE)}
               </Text>
 
-              <View style={styles.row}>
+              <View style={styles.rowWrap}>
                 <TouchableOpacity
                   style={styles.secondaryBtn}
                   onPress={() => setSupplementReportModal(true)}
@@ -4660,6 +4916,102 @@ async function openCamera(mode = "meal") {
               </View>
             </View>
           ) : null}
+        </View>
+
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Healthy Nearby</Text>
+          <Text style={styles.p}>Find nearby food places with a simple health score signal.</Text>
+          <View style={styles.rowWrap}>
+            <TouchableOpacity style={styles.primaryBtn} onPress={loadHealthyPlacesNearby} disabled={healthyPlacesBusy}>
+              <Text style={styles.btnText}>{healthyPlacesBusy ? "Loading..." : "Find Healthy Places"}</Text>
+            </TouchableOpacity>
+            {healthyPlaceCoords ? (
+              <TouchableOpacity style={styles.secondaryBtn} onPress={openHealthyAreaMap}>
+                <Text style={styles.btnText}>Open Area Map</Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
+          {healthyPlaceCoords ? (
+            <Text style={[styles.tiny, { marginTop: 8 }]}>
+              Using location: {round1(healthyPlaceCoords.lat)}, {round1(healthyPlaceCoords.lng)}
+            </Text>
+          ) : null}
+          {healthyPlacesError ? (
+            <Text style={[styles.tiny, { marginTop: 8, color: "#fca5a5" }]}>{healthyPlacesError}</Text>
+          ) : null}
+          {healthyMapPoints.length ? (
+            <View style={styles.placeMapCard}>
+              <Text style={styles.tiny}>Nearby map preview (tap a pin to open maps)</Text>
+              <View
+                style={styles.placeMapCanvas}
+                onLayout={(e) => {
+                  const w = Math.max(220, num(e?.nativeEvent?.layout?.width));
+                  if (Math.abs(w - num(healthyMapWidth)) > 2) setHealthyMapWidth(w);
+                }}
+              >
+                <View style={styles.placeMapCenter} />
+                {healthyMapPoints.map((pt) => {
+                  const tone = healthyPlaceTone(pt?.place?.health_score);
+                  return (
+                    <TouchableOpacity
+                      key={pt.key}
+                      style={[styles.placeMapPin, { left: pt.x - 8, top: pt.y - 8, borderColor: tone.color }]}
+                      onPress={() => {
+                        void openPlaceInMaps(pt.place);
+                      }}
+                    >
+                      <View style={[styles.placeMapPinCore, { backgroundColor: tone.color }]} />
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+          ) : null}
+          {(healthyPlaces || []).slice(0, 8).map((place, idx) => {
+            const tone = healthyPlaceTone(place?.health_score);
+            const opts = Array.isArray(place?.best_options) ? place.best_options.filter(Boolean).slice(0, 2) : [];
+            const distanceKm = haversineKm(
+              healthyPlaceCoords?.lat,
+              healthyPlaceCoords?.lng,
+              place?.lat,
+              place?.lng
+            );
+            return (
+              <View key={`${place?.name || "place"}-${idx}`} style={styles.placeCard}>
+                <View style={styles.placeHeader}>
+                  <Text style={styles.itemName}>{String(place?.name || "Unknown place")}</Text>
+                  <Text style={[styles.placeScore, { color: tone.color }]}>
+                    {round1(place?.health_score)}/10 • {tone.badge}
+                  </Text>
+                </View>
+                {!!String(place?.address || "").trim() ? (
+                  <Text style={styles.tiny}>{String(place.address)}</Text>
+                ) : null}
+                {Number.isFinite(distanceKm) ? (
+                  <Text style={[styles.tiny, { marginTop: 4 }]}>Distance: {round1(distanceKm)} km</Text>
+                ) : null}
+                {opts.length ? (
+                  <View style={{ marginTop: 6 }}>
+                    {opts.map((opt, i) => (
+                      <Text key={`${idx}-opt-${i}`} style={styles.tiny}>
+                        • {String(opt)}
+                      </Text>
+                    ))}
+                  </View>
+                ) : null}
+                <View style={{ marginTop: 8 }}>
+                  <TouchableOpacity
+                    style={styles.secondaryBtn}
+                    onPress={() => {
+                      void openPlaceInMaps(place);
+                    }}
+                  >
+                    <Text style={styles.btnText}>Open in Maps</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            );
+          })}
         </View>
 
         <View style={styles.card}>
@@ -5186,8 +5538,8 @@ async function openCamera(mode = "meal") {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: "#000" },
-  container: { padding: 16, gap: 12 },
+  safe: { flex: 1, backgroundColor: "#000", paddingBottom: 24 },
+  container: { padding: 16, gap: 12, paddingBottom: 32 },
   h1: { fontSize: 24, fontWeight: "800", color: "#fff" },
   p: { fontSize: 14, color: "#cfcfcf", lineHeight: 20 },
   tiny: { fontSize: 12, color: "#8c8c8c", lineHeight: 18 },
@@ -5375,6 +5727,7 @@ const styles = StyleSheet.create({
   },
   suppResultPanel: {
     marginTop: 10,
+    marginBottom: 8,
     padding: 12,
     borderRadius: 12,
     borderWidth: 1,
@@ -5448,6 +5801,71 @@ const styles = StyleSheet.create({
     color: "#8b98aa",
     fontSize: 11,
     lineHeight: 16,
+  },
+  placeCard: {
+    marginTop: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#1f2937",
+    backgroundColor: "#0b1118",
+    padding: 10,
+  },
+  placeHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 8,
+  },
+  placeScore: {
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  placeMapCard: {
+    marginTop: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#1f2937",
+    backgroundColor: "#0b1118",
+    padding: 10,
+  },
+  placeMapCanvas: {
+    marginTop: 8,
+    width: "100%",
+    height: 210,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#334155",
+    backgroundColor: "#07101a",
+    position: "relative",
+    overflow: "hidden",
+  },
+  placeMapCenter: {
+    position: "absolute",
+    left: "50%",
+    top: "50%",
+    width: 10,
+    height: 10,
+    marginLeft: -5,
+    marginTop: -5,
+    borderRadius: 999,
+    backgroundColor: "#93c5fd",
+    borderWidth: 1,
+    borderColor: "#1e40af",
+  },
+  placeMapPin: {
+    position: "absolute",
+    width: 16,
+    height: 16,
+    borderRadius: 999,
+    borderWidth: 2,
+    backgroundColor: "#0b1118",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  placeMapPinCore: {
+    width: 7,
+    height: 7,
+    borderRadius: 999,
   },
   suppProcessingOverlay: {
     flex: 1,

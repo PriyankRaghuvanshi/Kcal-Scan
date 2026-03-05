@@ -39,6 +39,9 @@ from supplement_fssai_utils import (
     extract_fssai_license,
     extract_fssai_from_structured,
 )
+from gs1_prefix_db import lookup_gs1_prefix_country
+from nutrition_math_validator import validate_nutrition_math
+from manufacturer_verification import get_manufacturer_verifier
 
 # -------------------- LOGGING --------------------
 logging.basicConfig(level=logging.INFO)
@@ -68,8 +71,29 @@ if GEMINI_API_KEY:
     genai.configure(api_key=GEMINI_API_KEY)
 
 OPENFOODFACTS_BASE = os.getenv("OPENFOODFACTS_BASE", "https://world.openfoodfacts.org/api/v2").strip()
+GOOGLE_PLACES_API_KEY = os.getenv("GOOGLE_PLACES_API_KEY", "").strip()
+GOOGLE_PLACES_BASE = os.getenv(
+    "GOOGLE_PLACES_BASE",
+    "https://maps.googleapis.com/maps/api/place/nearbysearch/json",
+).strip()
 OFF_CACHE: Dict[str, Dict[str, Any]] = {}
 OFF_CACHE_TTL = 60 * 60 * 24  # 24 hours
+_mfr_enabled_raw = str(os.getenv("MFR_VERIFY_ENABLED", "0") or "").strip().lower()
+MFR_VERIFY_ENABLED = _mfr_enabled_raw in {"1", "true", "yes", "on", "y"}
+MFR_VERIFY_PROVIDER = str(os.getenv("MFR_VERIFY_PROVIDER", "off") or "off").strip().lower()
+try:
+    _mfr_cache_days = int(float(os.getenv("MFR_VERIFY_CACHE_TTL_DAYS", "14").strip() or "14"))
+except Exception:
+    _mfr_cache_days = 14
+MFR_VERIFY_CACHE_TTL_SEC = max(7 * 86400, min(30 * 86400, _mfr_cache_days * 86400))
+try:
+    MFR_VERIFY_TIMEOUT_SEC = max(1.0, min(8.0, float(os.getenv("MFR_VERIFY_TIMEOUT_SEC", "5").strip() or "5")))
+except Exception:
+    MFR_VERIFY_TIMEOUT_SEC = 5.0
+try:
+    MFR_VERIFY_DAILY_LIMIT = max(1, min(500, int(float(os.getenv("MFR_VERIFY_DAILY_LIMIT", "30").strip() or "30"))))
+except Exception:
+    MFR_VERIFY_DAILY_LIMIT = 30
 
 SUPABASE_URL = os.getenv("SUPABASE_URL", "").strip()
 SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "").strip()
@@ -282,6 +306,10 @@ _ANALYSIS_JOB_QUEUE: "queue.Queue[Dict[str, Any]]" = queue.Queue(maxsize=2048)
 _ANALYSIS_JOB_WORKER_STARTED = False
 _ANALYSIS_JOB_WORKER_LOCK = threading.Lock()
 _AI_CONSENT_CACHE: Dict[str, Dict[str, Any]] = {}
+_MFR_VERIFY_CACHE: Dict[str, Dict[str, Any]] = {}
+_MFR_VERIFY_RATE_DAY = ""
+_MFR_VERIFY_RATE_COUNTER: Dict[str, int] = {}
+_MFR_VERIFY_LOCK = threading.Lock()
 _SCAN_LLM_CIRCUIT = {
     "state": "closed",
     "fail_count": 0,
@@ -4130,6 +4158,69 @@ def _extract_supplement_panel_number(panel: Dict[str, Any], keys: List[str]) -> 
     return 0.0
 
 
+def extract_packaging_fingerprint(structured_data: Dict[str, Any]) -> Dict[str, Any]:
+    payload = structured_data if isinstance(structured_data, dict) else {}
+    raw_text = str(payload.get("raw_text") or "").strip()
+    if not raw_text:
+        text_parts: List[str] = []
+        for key in (
+            "brand",
+            "variant",
+            "batch_number",
+            "mfg_date",
+            "expiry_date",
+            "manufacturer",
+            "distributed_by",
+            "serving_size",
+            "net_weight",
+        ):
+            val = str(payload.get(key) or "").strip()
+            if val:
+                text_parts.append(val)
+        ingredients = payload.get("ingredients") if isinstance(payload.get("ingredients"), list) else []
+        for token in ingredients[:80]:
+            t = str(token or "").strip()
+            if t:
+                text_parts.append(t)
+        nutrition_panel = payload.get("nutrition_panel") if isinstance(payload.get("nutrition_panel"), dict) else {}
+        if nutrition_panel:
+            text_parts.append(json.dumps(nutrition_panel, ensure_ascii=False))
+        text_parts.append(json.dumps(payload, ensure_ascii=False))
+        raw_text = "\n".join([x for x in text_parts if x])
+
+    text = raw_text.lower()
+    key_phrases = [
+        "whey protein isolate",
+        "instantized",
+        "amino acid profile",
+        "manufactured for",
+        "distributed by",
+        "net weight",
+        "serving size",
+    ]
+    detected = [p for p in key_phrases if p in text]
+    return {
+        "phrase_count": len(detected),
+        "phrases": detected[:10],
+    }
+
+
+def infer_batch_pattern(batch_number: str) -> Optional[str]:
+    raw = _supplement_text(batch_number).upper()
+    if not raw:
+        return None
+    pattern = re.sub(r"[A-Z]", "A", raw)
+    pattern = re.sub(r"[0-9]", "9", pattern)
+    pattern = re.sub(r"\s+", "", pattern)
+    return pattern[:64] if pattern else None
+
+
+def detect_seal_presence(image_bytes: Optional[bytes]) -> Dict[str, Any]:
+    if not image_bytes:
+        return {"seal_detected": None}
+    return {"seal_detected": True}
+
+
 def _supplement_fallback_structured(
     barcode_hint: str = "",
     batch_hint: str = "",
@@ -4319,6 +4410,124 @@ async def lookup_openfoodfacts(barcode: str) -> Dict[str, Any]:
     return data
 
 
+def _mfr_cache_key(provider: str, gtin: str) -> str:
+    return f"{str(provider or 'none').strip().lower()}:{_supplement_digits(gtin)}"
+
+
+def _mfr_cache_get(provider: str, gtin: str) -> Optional[Dict[str, Any]]:
+    key = _mfr_cache_key(provider, gtin)
+    now = time.time()
+    with _MFR_VERIFY_LOCK:
+        entry = _MFR_VERIFY_CACHE.get(key)
+        if not isinstance(entry, dict):
+            return None
+        ts = float(_safe_float(entry.get("ts"), 0.0) or 0.0)
+        if now - ts > float(MFR_VERIFY_CACHE_TTL_SEC):
+            _MFR_VERIFY_CACHE.pop(key, None)
+            return None
+        data = entry.get("data")
+        return dict(data) if isinstance(data, dict) else None
+
+
+def _mfr_cache_set(provider: str, gtin: str, payload: Dict[str, Any]) -> None:
+    key = _mfr_cache_key(provider, gtin)
+    with _MFR_VERIFY_LOCK:
+        _MFR_VERIFY_CACHE[key] = {"ts": time.time(), "data": dict(payload or {})}
+
+
+def _mfr_rate_allow(user_or_ip: str) -> bool:
+    token = str(user_or_ip or "anon").strip() or "anon"
+    day = _today_date().isoformat()
+    with _MFR_VERIFY_LOCK:
+        global _MFR_VERIFY_RATE_DAY
+        if _MFR_VERIFY_RATE_DAY != day:
+            _MFR_VERIFY_RATE_DAY = day
+            _MFR_VERIFY_RATE_COUNTER.clear()
+        used = int(_safe_float(_MFR_VERIFY_RATE_COUNTER.get(token), 0) or 0)
+        if used >= int(_safe_float(MFR_VERIFY_DAILY_LIMIT, 30) or 30):
+            return False
+        _MFR_VERIFY_RATE_COUNTER[token] = used + 1
+    return True
+
+
+def _mfr_company_matches_brand(company_name: Any, brand_name: Any) -> bool:
+    company = re.sub(r"[^a-z0-9]+", " ", str(company_name or "").lower()).strip()
+    brand = re.sub(r"[^a-z0-9]+", " ", str(brand_name or "").lower()).strip()
+    if not company or not brand:
+        return False
+    if brand in company or company in brand:
+        return True
+    company_tokens = {x for x in company.split() if len(x) >= 3}
+    brand_tokens = {x for x in brand.split() if len(x) >= 3}
+    if not company_tokens or not brand_tokens:
+        return False
+    overlap = company_tokens.intersection(brand_tokens)
+    return len(overlap) >= 1
+
+
+def _manufacturer_verification_signal(
+    *,
+    gtin: str,
+    region: str,
+    inferred_brand: str,
+    user_or_ip: str,
+    prefetched_off: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """
+    Returns internal verification signal with conservative status mapping.
+    """
+    out = {
+        "status": "unavailable",
+        "company_name": "",
+        "source": "none",
+        "latency_ms": 0,
+        "raw": {"reason": "disabled"},
+    }
+    code = _supplement_digits(gtin)
+    if not MFR_VERIFY_ENABLED:
+        return out
+    if not code:
+        out["raw"] = {"reason": "missing_gtin"}
+        return out
+    if not _mfr_rate_allow(user_or_ip):
+        out["raw"] = {"reason": "rate_limited"}
+        return out
+
+    cached = _mfr_cache_get(MFR_VERIFY_PROVIDER, code)
+    if isinstance(cached, dict):
+        return cached
+
+    prefetched = {}
+    if isinstance(prefetched_off, dict):
+        prefetched[code] = prefetched_off
+
+    verifier = get_manufacturer_verifier(
+        enabled=MFR_VERIFY_ENABLED,
+        provider=MFR_VERIFY_PROVIDER,
+        timeout_sec=MFR_VERIFY_TIMEOUT_SEC,
+        prefetched=prefetched,
+        off_base_url=str(OPENFOODFACTS_BASE or "https://world.openfoodfacts.net/api/v2"),
+    )
+    result = verifier.verify_gtin(code, region=region)
+    if not isinstance(result, dict):
+        result = {
+            "status": "error",
+            "company_name": "",
+            "source": str(MFR_VERIFY_PROVIDER or "none"),
+            "latency_ms": 0,
+            "raw": {"reason": "invalid_verifier_response"},
+        }
+    result["status"] = str(result.get("status") or "error").strip().lower()
+    result["company_name"] = str(result.get("company_name") or "").strip()
+    result["source"] = str(result.get("source") or MFR_VERIFY_PROVIDER or "none").strip().lower()
+    result["latency_ms"] = int(_safe_float(result.get("latency_ms"), 0) or 0)
+    if not isinstance(result.get("raw"), dict):
+        result["raw"] = {"raw": str(result.get("raw") or "")[:220]}
+
+    _mfr_cache_set(MFR_VERIFY_PROVIDER, code, result)
+    return result
+
+
 def barcode_exists_in_db(barcode: str) -> bool:
     code = _supplement_digits(barcode)
     if not code:
@@ -4476,6 +4685,28 @@ def calculate_authenticity_score(
             score -= 10.0
         if "barcode_brand_mismatch" in risk_flags:
             score -= 20.0
+        if "gs1_prefix_unknown" in risk_flags:
+            score -= 5.0
+        if "gs1_prefix_mismatch_region" in risk_flags:
+            score -= 10.0
+        if "batch_anomaly_macro_outlier" in risk_flags:
+            score -= 15.0
+        if "batch_anomaly_region_outlier" in risk_flags:
+            score -= 10.0
+        if "nutrition_kcal_mismatch" in risk_flags:
+            score -= 15.0
+        if "nutrition_protein_implausible" in risk_flags:
+            score -= 10.0
+        if "packaging_phrase_missing" in risk_flags:
+            score -= 10.0
+        if "batch_pattern_unseen" in risk_flags:
+            score -= 10.0
+        if "seal_missing" in risk_flags:
+            score -= 15.0
+        if "mfr_verified_company_match" in risk_flags:
+            score += 5.0
+        if "mfr_verified_company_mismatch" in risk_flags:
+            score -= 15.0
 
     if not batch_matches_regex(brand, batch_number):
         score -= 15.0
@@ -4517,6 +4748,18 @@ def interpret_supplement_score(score: Any) -> str:
     if s >= 40:
         return "Low Confidence - Review Recommended"
     return "High Risk - Verification Strongly Recommended"
+
+
+def _apply_supplement_score_cap(
+    score: Any,
+    *,
+    barcode_verified: bool,
+    same_region_scan_count: int,
+) -> float:
+    s = float(_safe_float(score, 0.0) or 0.0)
+    if s > 95.0 and not (bool(barcode_verified) or int(_safe_float(same_region_scan_count, 0) or 0) >= 8):
+        s = 95.0
+    return round(max(0.0, min(100.0, s)), 1)
 
 
 def _supplement_explanation(score: Any, risk_flags: List[str]) -> str:
@@ -4639,6 +4882,101 @@ def _supplement_region_map_from_scan_rows(scan_rows: List[Dict[str, Any]]) -> Di
     return counts
 
 
+def _supplement_region_confidence(
+    region_form_value: Any,
+    *,
+    x_country_code: Any = "",
+    cf_ipcountry: Any = "",
+    x_vercel_ip_country: Any = "",
+) -> float:
+    """Rough confidence for region inference used in GS1 mismatch penalties."""
+    if _infer_supplement_region(region_form_value):
+        return 0.95
+    for raw in (x_country_code, cf_ipcountry, x_vercel_ip_country):
+        if _infer_supplement_region(raw):
+            return 0.8
+    return 0.35
+
+
+def _supplement_prefix_region_matches(prefix_country_code: Any, user_region_code: Any) -> bool:
+    pref = str(prefix_country_code or "").strip().upper()
+    user = str(user_region_code or "").strip().upper()
+    if not pref or not user:
+        return True
+    if pref == user:
+        return True
+    if pref == "EU":
+        # Minimal coverage for current region-based plausibility checks.
+        eu_codes = {
+            "AT", "BE", "BG", "HR", "CY", "CZ", "DK", "EE", "FI", "FR", "DE", "GR",
+            "HU", "IE", "IT", "LV", "LT", "LU", "MT", "NL", "PL", "PT", "RO", "SK",
+            "SI", "ES", "SE",
+        }
+        return user in eu_codes
+    if pref == "US" and user in {"US", "CA"}:
+        return True
+    if pref == "CA" and user in {"CA", "US"}:
+        return True
+    return False
+
+
+def _parse_region_scan_map(raw: Any) -> Dict[str, int]:
+    payload = raw if isinstance(raw, dict) else _parse_jsonish(raw, {})
+    if not isinstance(payload, dict):
+        return {}
+    out: Dict[str, int] = {}
+    for k, v in payload.items():
+        region = _infer_supplement_region(k)
+        if not region:
+            continue
+        out[region] = int(_safe_float(v, 0) or 0)
+    return out
+
+
+def compute_batch_anomaly(scan: Dict[str, Any], batch_pattern_row: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    """
+    Returns anomaly_score 0..1 and reasons based on community pattern drift.
+    Signals stay weak when scan_count is low.
+    """
+    row = batch_pattern_row if isinstance(batch_pattern_row, dict) else {}
+    scan_count = int(_safe_float(row.get("scan_count"), 0) or 0)
+    macro_variance_score = float(_safe_float(row.get("macro_variance_score"), 0.0) or 0.0)
+    region_scan_map = _parse_region_scan_map(row.get("region_scan_map"))
+    region_code = _infer_supplement_region((scan or {}).get("region"))
+
+    anomaly = 0.0
+    reasons: List[str] = []
+
+    if macro_variance_score >= 35.0:
+        anomaly += 0.72
+        reasons.append("batch_anomaly_macro_outlier")
+    elif macro_variance_score >= 25.0:
+        anomaly += 0.52
+        reasons.append("batch_anomaly_macro_outlier")
+
+    if region_code and scan_count >= 8:
+        region_hits = int(_safe_float(region_scan_map.get(region_code), 0) or 0)
+        share = (float(region_hits) / float(max(scan_count, 1))) if scan_count > 0 else 0.0
+        if region_hits == 0:
+            anomaly += 0.55
+            reasons.append("batch_anomaly_region_outlier")
+        elif share < 0.08:
+            anomaly += 0.35
+            reasons.append("batch_anomaly_region_outlier")
+
+    if scan_count < 8:
+        anomaly *= 0.4
+
+    anomaly = max(0.0, min(1.0, anomaly))
+    return {
+        "anomaly_score": round(anomaly, 3),
+        "reasons": reasons,
+        "scan_count": scan_count,
+        "macro_variance_score": round(macro_variance_score, 2),
+        "region_scan_map": region_scan_map,
+    }
+
+
 def _supplement_batch_pattern_query_match(brand_txt: str, batch: str, variant_txt: str) -> Tuple[Optional[Dict[str, Any]], Dict[str, str]]:
     base_match = {
         "brand": f"eq.{brand_txt}",
@@ -4702,6 +5040,59 @@ def _supplement_batch_scan_rows(brand_txt: str, batch: str, variant_txt: str) ->
         return []
 
 
+def _supplement_brand_pattern_stats(brand_txt: str, variant_txt: str) -> Dict[str, Any]:
+    if not brand_txt:
+        return {}
+    if (not (SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY)) or _is_table_disabled(TBL_SUPPLEMENT_BATCH_PATTERNS):
+        return {}
+
+    params: Dict[str, str] = {
+        "select": "batch_pattern,batch_number,scan_count",
+        "brand": f"eq.{brand_txt}",
+        "limit": "500",
+    }
+    if variant_txt:
+        params["variant"] = f"eq.{variant_txt}"
+
+    rows: List[Dict[str, Any]] = []
+    try:
+        rows = sb_get_many(TBL_SUPPLEMENT_BATCH_PATTERNS, params=params)
+    except Exception as e:
+        raw = _http_exc_raw(e).lower()
+        if "batch_pattern" in raw:
+            fallback_params = dict(params)
+            fallback_params["select"] = "batch_number,scan_count"
+            try:
+                rows = sb_get_many(TBL_SUPPLEMENT_BATCH_PATTERNS, params=fallback_params)
+            except Exception as e2:
+                if not _mark_table_unavailable(TBL_SUPPLEMENT_BATCH_PATTERNS, e2):
+                    logger.info(f"supplement batch pattern stats read skipped: {e2}")
+                return {}
+        else:
+            if not _mark_table_unavailable(TBL_SUPPLEMENT_BATCH_PATTERNS, e):
+                logger.info(f"supplement batch pattern stats read skipped: {e}")
+            return {}
+
+    pattern_counts: Dict[str, int] = {}
+    total = 0
+    for row in rows or []:
+        pattern = _supplement_text((row or {}).get("batch_pattern")) or infer_batch_pattern((row or {}).get("batch_number"))
+        if not pattern:
+            continue
+        weight = max(1, int(_safe_float((row or {}).get("scan_count"), 1) or 1))
+        pattern_counts[pattern] = int(pattern_counts.get(pattern, 0) or 0) + weight
+        total += weight
+
+    if not pattern_counts:
+        return {}
+    dominant_pattern = max(pattern_counts.items(), key=lambda kv: kv[1])[0]
+    return {
+        "pattern_counts": pattern_counts,
+        "dominant_pattern": dominant_pattern,
+        "total_observations": int(total),
+    }
+
+
 def _upsert_supplement_batch_pattern(
     brand: str,
     batch_number: str,
@@ -4716,6 +5107,7 @@ def _upsert_supplement_batch_pattern(
     if not brand_txt or not batch:
         return
     variant_txt = _supplement_text(variant)
+    batch_pattern = infer_batch_pattern(batch)
     region_txt = _infer_supplement_region(region)
     if (not (SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY)) or _is_table_disabled(TBL_SUPPLEMENT_BATCH_PATTERNS):
         return
@@ -4762,6 +5154,7 @@ def _upsert_supplement_batch_pattern(
     if isinstance(existing, dict):
         patch = {
             "variant": variant_txt,
+            "batch_pattern": batch_pattern,
             "scan_count": scan_count or int(_safe_float(existing.get("scan_count"), 0) or 0),
             "last_seen": now_iso,
             "last_updated_at": now_iso,
@@ -4793,6 +5186,7 @@ def _upsert_supplement_batch_pattern(
         "brand": brand_txt,
         "variant": variant_txt,
         "batch_number": batch,
+        "batch_pattern": batch_pattern,
         "scan_count": max(1, scan_count),
         "first_seen": now_iso,
         "last_seen": now_iso,
@@ -11483,6 +11877,7 @@ async def supplement_scan(
     request: Request,
     front_image: UploadFile = File(...),
     back_image: UploadFile = File(...),
+    seal_image: Optional[UploadFile] = File(default=None),
     product_type: str = Form("whey_protein"),
     brand: str = Form(""),
     variant: str = Form(""),
@@ -11491,6 +11886,7 @@ async def supplement_scan(
     mfg_date: str = Form(""),
     expiry_date: str = Form(""),
     region: str = Form(""),
+    proof_mode: Any = Form(False),
     user_id: Optional[str] = None,
     debug: Optional[bool] = False,
     x_user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
@@ -11514,7 +11910,14 @@ async def supplement_scan(
 
     front_bytes = await _read_valid_image_bytes(front_image, "front_image")
     back_bytes = await _read_valid_image_bytes(back_image, "back_image")
-    image_hash = hashlib.sha256(front_bytes + b"::" + back_bytes).hexdigest()
+    seal_bytes: Optional[bytes] = None
+    if seal_image is not None and str(getattr(seal_image, "filename", "") or "").strip():
+        try:
+            seal_bytes = await _read_valid_image_bytes(seal_image, "seal_image")
+        except Exception as e:
+            logger.info(f"supplement seal image skipped: {e}")
+            seal_bytes = None
+    image_hash = hashlib.sha256(front_bytes + b"::" + back_bytes + b"::" + (seal_bytes or b"")).hexdigest()
 
     extracted = extract_supplement_data(
         front_bytes,
@@ -11547,6 +11950,7 @@ async def supplement_scan(
     )
     if not isinstance(structured_payload, dict):
         structured_payload = {}
+    packaging_fingerprint = extract_packaging_fingerprint(structured_payload)
 
     fssai_result = extract_fssai_from_structured(structured_payload)
     if not fssai_result:
@@ -11584,11 +11988,44 @@ async def supplement_scan(
 
     risk_flags: List[str] = []
     barcode_trace: Dict[str, Any] = {}
+    off_status = 0
+    off_brand = ""
+    off_data: Dict[str, Any] = {}
+    gs1_info: Dict[str, Any] = {}
 
     inferred_brand = _supplement_text(normalized.get("brand"))
-    normalized_barcode = normalize_barcode(
-        normalized.get("barcode") or barcode
+    inferred_variant = _supplement_text(normalized.get("variant"))
+    inferred_batch = _supplement_text(normalized.get("batch_number"))
+    inferred_batch_pattern = infer_batch_pattern(inferred_batch)
+    region_confidence = _supplement_region_confidence(
+        region,
+        x_country_code=x_country_code,
+        cf_ipcountry=cf_ipcountry,
+        x_vercel_ip_country=x_vercel_ip_country,
     )
+
+    batch_pattern_row, _batch_match_params = _supplement_batch_pattern_query_match(
+        inferred_brand,
+        inferred_batch,
+        inferred_variant,
+    ) if (
+        inferred_brand
+        and inferred_batch
+        and SUPABASE_URL
+        and SUPABASE_SERVICE_ROLE_KEY
+        and not _is_table_disabled(TBL_SUPPLEMENT_BATCH_PATTERNS)
+    ) else (None, {})
+    brand_pattern_stats = _supplement_brand_pattern_stats(
+        inferred_brand,
+        inferred_variant,
+    ) if (
+        inferred_brand
+        and SUPABASE_URL
+        and SUPABASE_SERVICE_ROLE_KEY
+        and not _is_table_disabled(TBL_SUPPLEMENT_BATCH_PATTERNS)
+    ) else {}
+
+    normalized_barcode = normalize_barcode(normalized.get("barcode") or barcode)
     barcode_trace["normalized"] = normalized_barcode
 
     if not normalized_barcode:
@@ -11609,24 +12046,152 @@ async def supplement_scan(
                 prefix = extract_company_prefix(normalized_barcode)
                 barcode_trace["prefix"] = prefix
 
+                gs1_info = lookup_gs1_prefix_country(normalized_barcode)
+                barcode_trace["gs1"] = gs1_info
+                gs1_country = str((gs1_info or {}).get("country_code") or "").strip().upper()
+                if not gs1_country:
+                    risk_flags.append("gs1_prefix_unknown")
+                elif region_code and region_confidence >= 0.75 and not _supplement_prefix_region_matches(gs1_country, region_code):
+                    risk_flags.append("gs1_prefix_mismatch_region")
+
                 off_data = await lookup_openfoodfacts(normalized_barcode)
-                off_status = off_data.get("status")
+                off_status = int(_safe_float(off_data.get("status"), 0) or 0)
                 barcode_trace["off_status"] = off_status
 
                 if off_status != 1:
                     risk_flags.append("barcode_not_found_public_db")
                 else:
                     product_obj = off_data.get("product", {}) if isinstance(off_data.get("product"), dict) else {}
-                    off_brand = product_obj.get("brands")
+                    off_brand = str(product_obj.get("brands") or "").strip()
                     barcode_trace["off_brand"] = off_brand
-
                     if inferred_brand and off_brand:
                         if inferred_brand.lower() not in str(off_brand).lower():
                             risk_flags.append("barcode_brand_mismatch")
 
+    mfr_result = _manufacturer_verification_signal(
+        gtin=normalized_barcode,
+        region=region_code,
+        inferred_brand=inferred_brand,
+        user_or_ip=uid or request.client.host if request and request.client else uid,
+        prefetched_off=off_data if isinstance(off_data, dict) else None,
+    )
+    mfr_status = str(mfr_result.get("status") or "").strip().lower()
+    mfr_company = _supplement_text(mfr_result.get("company_name"))
+    if mfr_status == "verified":
+        if mfr_company and inferred_brand and _mfr_company_matches_brand(mfr_company, inferred_brand):
+            risk_flags.append("mfr_verified_company_match")
+        elif mfr_company and inferred_brand:
+            risk_flags.append("mfr_verified_company_mismatch")
+    elif mfr_status == "not_found":
+        risk_flags.append("mfr_verification_not_found")
+    elif mfr_status in {"error", "unavailable"}:
+        risk_flags.append("mfr_verification_unavailable")
+
+    logger.info(
+        "supplement_manufacturer_verification",
+        extra={
+            "gtin": _supplement_digits(normalized_barcode),
+            "provider": str(MFR_VERIFY_PROVIDER or "none"),
+            "status": mfr_status or "unavailable",
+            "company_name": mfr_company,
+            "latency_ms": int(_safe_float(mfr_result.get("latency_ms"), 0) or 0),
+        },
+    )
+
+    nutrition_validation = validate_nutrition_math(structured_payload)
+    for nflag in (nutrition_validation.get("flags") or []):
+        token = str(nflag or "").strip()
+        if token:
+            risk_flags.append(token)
+
+    batch_scan_context = {
+        "brand": inferred_brand,
+        "variant": inferred_variant,
+        "batch_number": inferred_batch,
+        "region": region_code,
+        "macro_snapshot": _supplement_macro_snapshot(structured_payload),
+    }
+    batch_anomaly = compute_batch_anomaly(batch_scan_context, batch_pattern_row)
+    batch_scan_count = int(_safe_float(batch_anomaly.get("scan_count"), 0) or 0)
+    if batch_scan_count >= 8:
+        for reason in (batch_anomaly.get("reasons") or []):
+            token = str(reason or "").strip()
+            if token:
+                risk_flags.append(token)
+
+    phrase_count = int(_safe_float(packaging_fingerprint.get("phrase_count"), 0) or 0)
+    if phrase_count < 2:
+        risk_flags.append("packaging_phrase_missing")
+
+    total_pattern_obs = int(_safe_float((brand_pattern_stats or {}).get("total_observations"), 0) or 0)
+    pattern_counts = (brand_pattern_stats or {}).get("pattern_counts")
+    current_pattern_seen = 0
+    if isinstance(pattern_counts, dict) and inferred_batch_pattern:
+        current_pattern_seen = int(_safe_float(pattern_counts.get(inferred_batch_pattern), 0) or 0)
+    if inferred_batch_pattern and total_pattern_obs >= 8 and current_pattern_seen <= 0:
+        risk_flags.append("batch_pattern_unseen")
+
+    proof_mode_enabled = _to_bool_flag(proof_mode, False)
+    seal_check = detect_seal_presence(seal_bytes)
+    seal_detected = seal_check.get("seal_detected")
+    if proof_mode_enabled and seal_detected is not True:
+        risk_flags.append("seal_missing")
+
+    verification_payload = (
+        structured_payload.get("verification")
+        if isinstance(structured_payload.get("verification"), dict)
+        else {}
+    )
+    verification_payload = dict(verification_payload or {})
+    verification_payload["gs1_prefix"] = {
+        "country_code": str((gs1_info or {}).get("country_code") or ""),
+        "org_hint": str((gs1_info or {}).get("org_hint") or ""),
+        "confidence": float(_safe_float((gs1_info or {}).get("confidence"), 0.0) or 0.0),
+        "region_confidence": float(_safe_float(region_confidence, 0.0) or 0.0),
+    }
+    verification_payload["manufacturer_registry"] = {
+        "status": mfr_status or "unavailable",
+        "company_name": mfr_company,
+        "source": str(mfr_result.get("source") or ""),
+        "latency_ms": int(_safe_float(mfr_result.get("latency_ms"), 0) or 0),
+    }
+    verification_payload["nutrition_math"] = nutrition_validation
+    verification_payload["batch_anomaly"] = batch_anomaly
+    verification_payload["packaging_fingerprint"] = packaging_fingerprint
+    verification_payload["batch_pattern_learning"] = {
+        "current_pattern": inferred_batch_pattern or "",
+        "dominant_pattern": str((brand_pattern_stats or {}).get("dominant_pattern") or ""),
+        "current_pattern_seen": current_pattern_seen,
+        "total_observations": total_pattern_obs,
+    }
+    verification_payload["seal_check"] = {
+        "proof_mode": bool(proof_mode_enabled),
+        "seal_detected": seal_detected,
+    }
+    structured_payload["verification"] = verification_payload
+    structured_payload["packaging_fingerprint"] = packaging_fingerprint
+    normalized["structured_data"] = structured_payload
+
     score, flags = calculate_authenticity_score(
         normalized,
         precomputed_barcode_flags=risk_flags,
+    )
+    region_scan_map = (
+        batch_anomaly.get("region_scan_map")
+        if isinstance(batch_anomaly.get("region_scan_map"), dict)
+        else {}
+    )
+    same_region_scan_count = int(_safe_float(region_scan_map.get(region_code), 0) or 0) + (1 if region_code else 0)
+    barcode_verified = (
+        off_status == 1
+        and "barcode_brand_mismatch" not in flags
+        and "barcode_checksum_invalid" not in flags
+        and "barcode_not_found_public_db" not in flags
+    )
+    score = _apply_supplement_score_cap(
+        score,
+        barcode_verified=barcode_verified,
+        same_region_scan_count=same_region_scan_count,
     )
     level = interpret_supplement_score(score)
     explanation = _supplement_explanation(score, flags)
@@ -11645,6 +12210,7 @@ async def supplement_scan(
         "authenticity_score": score,
         "risk_flags": flags,
         "structured_data": structured_payload,
+        "packaging_fingerprint_json": packaging_fingerprint,
         "image_hash": image_hash,
         "created_at": _now_utc_naive().isoformat(),
     }
@@ -11673,6 +12239,9 @@ async def supplement_scan(
         "source": "pattern_engine",
         "llm_used": bool(GEMINI_API_KEY),
         "structured_data": structured_payload,
+        "scan_count": max(1, batch_scan_count + 1),
+        "community_scan_count": max(1, batch_scan_count + 1),
+        "batch_anomaly_score": float(_safe_float(batch_anomaly.get("anomaly_score"), 0.0) or 0.0),
         "request_id": request_id,
     }
     logger.info(
@@ -11680,6 +12249,12 @@ async def supplement_scan(
         extra={
             "barcode_trace": barcode_trace,
             "risk_flags": risk_flags,
+            "batch_anomaly": batch_anomaly,
+            "nutrition_math": nutrition_validation,
+            "packaging_fingerprint": packaging_fingerprint,
+            "batch_pattern": inferred_batch_pattern,
+            "proof_mode": bool(proof_mode_enabled),
+            "seal_detected": seal_detected,
         },
     )
     return _attach_debug_schema(out, bool(debug))
@@ -11721,6 +12296,106 @@ def supplement_report_issue(
 
     resp = {"ok": True, "reported": True, "scan_id": scan_id, "issue_type": row["issue_type"]}
     return _attach_debug_schema(resp, bool(debug))
+
+
+def compute_health_score(place: Dict[str, Any]) -> float:
+    payload = place if isinstance(place, dict) else {}
+    name = str(payload.get("name") or "").strip().lower()
+    types = payload.get("types") if isinstance(payload.get("types"), list) else []
+    address = str(payload.get("address") or payload.get("vicinity") or "").strip().lower()
+    cuisine = " ".join([name, address] + [str(x or "").strip().lower() for x in types])
+
+    score = 5.0
+    if any(token in cuisine for token in ("salad", "healthy", "protein bowl", "poke")):
+        score += 3.0
+    if any(token in cuisine for token in ("grill", "grilled", "mediterranean", "sushi", "thai")):
+        score += 2.0
+    if any(token in cuisine for token in ("burger", "pizza", "donut", "dessert", "fried chicken")):
+        score -= 3.0
+    if any(token in cuisine for token in ("fried", "fries", "deep fry")):
+        score -= 2.0
+
+    return round(max(1.0, min(10.0, score)), 1)
+
+
+def _best_options_for_place(place: Dict[str, Any]) -> List[str]:
+    payload = place if isinstance(place, dict) else {}
+    name = str(payload.get("name") or "").strip().lower()
+    types = [str(x or "").strip().lower() for x in (payload.get("types") or [])]
+    text = " ".join([name] + types)
+    if any(token in text for token in ("salad", "healthy", "vegan")):
+        return ["Protein salad", "Veggie bowl"]
+    if any(token in text for token in ("sushi", "japanese")):
+        return ["Salmon sashimi", "Edamame + miso soup"]
+    if any(token in text for token in ("grill", "bbq")):
+        return ["Grilled chicken plate", "Lean protein + greens"]
+    if any(token in text for token in ("indian", "curry")):
+        return ["Tandoori chicken/paneer", "Dal + salad + roti"]
+    return ["Protein-forward meal", "Lower-oil whole-food option"]
+
+
+async def fetch_google_places(lat: float, lng: float, radius: int = 2000) -> List[Dict[str, Any]]:
+    if not GOOGLE_PLACES_API_KEY:
+        return []
+    radius_val = int(max(200, min(5000, int(_safe_float(radius, 2000) or 2000))))
+    params = {
+        "location": f"{float(lat):.6f},{float(lng):.6f}",
+        "radius": str(radius_val),
+        "type": "restaurant",
+        "key": GOOGLE_PLACES_API_KEY,
+    }
+    try:
+        if httpx is not None:
+            async with httpx.AsyncClient(timeout=6.0) as client:
+                r = await client.get(GOOGLE_PLACES_BASE, params=params)
+                body = r.json() if r.status_code == 200 else {}
+        else:
+            r = requests.get(GOOGLE_PLACES_BASE, params=params, timeout=6.0)
+            body = r.json() if r.status_code == 200 else {}
+    except Exception as e:
+        logger.info(f"healthy places lookup failed: {e}")
+        return []
+
+    results = body.get("results") if isinstance(body, dict) else []
+    out: List[Dict[str, Any]] = []
+    for item in (results or []):
+        if not isinstance(item, dict):
+            continue
+        geom = item.get("geometry") if isinstance(item.get("geometry"), dict) else {}
+        loc = geom.get("location") if isinstance(geom.get("location"), dict) else {}
+        out.append(
+            {
+                "name": str(item.get("name") or "").strip(),
+                "lat": float(_safe_float(loc.get("lat"), 0.0) or 0.0),
+                "lng": float(_safe_float(loc.get("lng"), 0.0) or 0.0),
+                "types": item.get("types") if isinstance(item.get("types"), list) else [],
+                "vicinity": str(item.get("vicinity") or "").strip(),
+                "rating": float(_safe_float(item.get("rating"), 0.0) or 0.0),
+                "user_ratings_total": int(_safe_float(item.get("user_ratings_total"), 0) or 0),
+            }
+        )
+    return out
+
+
+@app.get("/places/healthy")
+async def healthy_places(lat: float, lng: float, radius: int = 2000):
+    places = await fetch_google_places(lat, lng, radius=radius)
+    scored: List[Dict[str, Any]] = []
+    for p in places:
+        score = compute_health_score(p)
+        scored.append(
+            {
+                "name": p.get("name"),
+                "lat": p.get("lat"),
+                "lng": p.get("lng"),
+                "health_score": score,
+                "best_options": _best_options_for_place(p),
+                "address": p.get("vicinity"),
+                "rating": p.get("rating"),
+            }
+        )
+    scored.sort(key=lambda x: float(_safe_float(x.get("health_score"), 0.0) or 0.0), reverse=True)
+    return {"places": scored}
 
 
 
