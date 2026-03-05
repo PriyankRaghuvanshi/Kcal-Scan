@@ -18,6 +18,7 @@ import {
   Linking,
   Share,
   ToastAndroid,
+  Keyboard,
 } from "react-native";
 
 import { CameraView, useCameraPermissions } from "expo-camera";
@@ -246,6 +247,19 @@ function avg(arr) {
   const list = Array.isArray(arr) ? arr.map((x) => num(x)).filter((x) => Number.isFinite(x)) : [];
   if (!list.length) return 0;
   return list.reduce((a, b) => a + b, 0) / list.length;
+}
+function dismissKeyboardSafe() {
+  try {
+    Keyboard.dismiss();
+  } catch {}
+}
+function closeBooleanStateSafely(setter) {
+  dismissKeyboardSafe();
+  setTimeout(() => {
+    try {
+      setter(false);
+    } catch {}
+  }, 60);
 }
 function clampPct(v) {
   return Math.max(0, Math.min(100, num(v)));
@@ -2496,7 +2510,7 @@ export default function App() {
     const uid = userId || session?.user?.id;
     const normalized = normalizeCoachProfile(coachProfileDraft);
     await saveCoachProfile(uid, normalized);
-    setCoachProfileModal(false);
+    closeBooleanStateSafely(setCoachProfileModal);
     await ensureDailyCoach(true, { refreshServer: true, fastMode: true, trigger: "profile_update" });
   }
 
@@ -2668,6 +2682,7 @@ export default function App() {
   }
 
   async function signOut() {
+    dismissKeyboardSafe();
     try {
       await supabase.auth.signOut();
     } catch {}
@@ -3030,7 +3045,7 @@ async function openCamera(mode = "meal") {
       setGoals(g);
       setGoalsDraft(g);
       await saveLocalGoals(uid, g);
-      setGoalsModal(false);
+      closeBooleanStateSafely(setGoalsModal);
       await fetchDailySummary(uid);
     } catch (e) {
       Alert.alert("Goals update failed", errorToMessage(e?.message || e, 0));
@@ -3554,7 +3569,7 @@ async function openCamera(mode = "meal") {
         body: JSON.stringify(payload),
       });
       await safeJson(res);
-      setSupplementReportModal(false);
+      closeBooleanStateSafely(setSupplementReportModal);
       setSupplementReportOther("");
       if (Platform.OS === "android") {
         ToastAndroid.show("Report submitted for review", ToastAndroid.SHORT);
@@ -3914,9 +3929,11 @@ async function openCamera(mode = "meal") {
       (String(supplementBarcode || "").trim() || String(supplementBatchNumber || "").trim())
   );
   const supplementCommunityScanCount = Number(supplementResult?.scan_count ?? supplementResult?.community_scan_count);
-  const healthyMapPoints = useMemo(
-    () => buildHealthyMapPoints(healthyPlaces, healthyPlaceCoords, Math.max(240, num(healthyMapWidth)), 210),
-    [healthyPlaces, healthyPlaceCoords, healthyMapWidth]
+  const healthyMapPoints = buildHealthyMapPoints(
+    healthyPlaces,
+    healthyPlaceCoords,
+    Math.max(240, num(healthyMapWidth)),
+    210
   );
   const cameraTitle =
     cameraMode === "supp_front"
@@ -5191,7 +5208,7 @@ async function openCamera(mode = "meal") {
 
         <View style={{ height: 30 }} />
       
-        <Modal visible={goalsModal} transparent animationType="fade" onRequestClose={() => setGoalsModal(false)}>
+        <Modal visible={goalsModal} transparent animationType="fade" onRequestClose={() => closeBooleanStateSafely(setGoalsModal)}>
           <View style={styles.modalBackdrop}>
             <View style={styles.modalCard}>
               <Text style={styles.cardTitle}>Daily goals</Text>
@@ -5250,7 +5267,10 @@ async function openCamera(mode = "meal") {
               </View>
 
               <View style={{ flexDirection: "row", gap: 10, marginTop: 14 }}>
-                <TouchableOpacity style={[styles.btn, { flex: 1, backgroundColor: "#2c2c2c" }]} onPress={() => setGoalsModal(false)}>
+                <TouchableOpacity
+                  style={[styles.btn, { flex: 1, backgroundColor: "#2c2c2c" }]}
+                  onPress={() => closeBooleanStateSafely(setGoalsModal)}
+                >
                   <Text style={styles.btnText}>Cancel</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={[styles.btn, { flex: 1 }]} onPress={() => upsertGoals(goalsDraft)}>
@@ -5265,7 +5285,7 @@ async function openCamera(mode = "meal") {
           visible={coachProfileModal}
           transparent
           animationType="fade"
-          onRequestClose={() => setCoachProfileModal(false)}
+          onRequestClose={() => closeBooleanStateSafely(setCoachProfileModal)}
         >
           <View style={styles.modalBackdrop}>
             <View style={styles.modalCard}>
@@ -5339,7 +5359,7 @@ async function openCamera(mode = "meal") {
               <View style={{ flexDirection: "row", gap: 10, marginTop: 14 }}>
                 <TouchableOpacity
                   style={[styles.btn, { flex: 1, backgroundColor: "#2c2c2c" }]}
-                  onPress={() => setCoachProfileModal(false)}
+                  onPress={() => closeBooleanStateSafely(setCoachProfileModal)}
                 >
                   <Text style={styles.btnText}>Cancel</Text>
                 </TouchableOpacity>
@@ -5419,7 +5439,7 @@ async function openCamera(mode = "meal") {
           visible={supplementReportModal}
           transparent
           animationType="fade"
-          onRequestClose={() => setSupplementReportModal(false)}
+          onRequestClose={() => closeBooleanStateSafely(setSupplementReportModal)}
         >
           <View style={styles.modalBackdrop}>
             <View style={styles.modalCard}>
@@ -5456,7 +5476,7 @@ async function openCamera(mode = "meal") {
               <View style={{ flexDirection: "row", gap: 10, marginTop: 14 }}>
                 <TouchableOpacity
                   style={[styles.btn, { flex: 1, backgroundColor: "#2c2c2c" }]}
-                  onPress={() => setSupplementReportModal(false)}
+                  onPress={() => closeBooleanStateSafely(setSupplementReportModal)}
                   disabled={supplementReportBusy}
                 >
                   <Text style={styles.btnText}>Cancel</Text>
