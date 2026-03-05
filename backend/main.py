@@ -39,13 +39,25 @@ from supplement_fssai_utils import (
     extract_fssai_license,
     extract_fssai_from_structured,
 )
-from gs1_prefix_db import lookup_gs1_prefix_country
 from nutrition_math_validator import validate_nutrition_math
 from manufacturer_verification import get_manufacturer_verifier
+try:
+    from gs1_prefix_db import lookup_gs1_prefix_country
+    _GS1_IMPORT_ERROR = ""
+except Exception as _gs1_exc:  # pragma: no cover - deployment safety fallback
+    _GS1_IMPORT_ERROR = str(_gs1_exc)
+
+    def lookup_gs1_prefix_country(gtin: Any) -> Dict[str, Any]:
+        return {"country_code": "", "org_hint": "", "confidence": 0.0}
 
 # -------------------- LOGGING --------------------
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("kcal")
+if _GS1_IMPORT_ERROR:
+    logger.warning(
+        "gs1_prefix_db import unavailable (%s); GS1 prefix checks disabled until module is deployed.",
+        _GS1_IMPORT_ERROR[:220],
+    )
 
 # -------------------- APP --------------------
 app = FastAPI(title="Kcal Scan API", version="1.0.0")
@@ -13489,4 +13501,3 @@ def analyze_rerun(
     )
     response["latency_ms"] = int(max(0, round((time.time() - started) * 1000)))
     return _attach_debug_schema(response, bool(debug))
-
