@@ -46,8 +46,12 @@ class HealthyOrderRecommenderTests(unittest.TestCase):
             "macro_estimation_version",
             "order_confidence",
             "short_reason",
+            "why_this_works",
             "order_strategy_tags",
             "recommendation_version",
+            "copy_method",
+            "copy_confidence",
+            "copy_version",
         }
         self.assertTrue(required_fields.issubset(out.keys()))
         self.assertIn(out["estimated_satiety"], {"high", "medium", "low"})
@@ -71,6 +75,16 @@ class HealthyOrderRecommenderTests(unittest.TestCase):
         self.assertIn("cut_warning", cut_out)
         self.assertIn("cut_mode", cut_out.get("order_strategy_tags", []))
         self.assertNotEqual(default_out.get("short_reason"), cut_out.get("short_reason"))
+
+    def test_temple_context_avoids_generic_grilled_bowl_fallback(self):
+        place = {
+            "name": "Sri Temple Canteen",
+            "types": ["restaurant", "canteen"],
+            "vicinity": "South Indian temple street",
+        }
+        out = suggest_best_order_for_place(place, health_score=5.0)
+        self.assertNotIn("grilled protein bowl", str(out.get("best_order") or "").lower())
+        self.assertTrue(str(out.get("best_order") or "").strip())
 
 
 if __name__ == "__main__":

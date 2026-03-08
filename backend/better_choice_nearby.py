@@ -61,7 +61,7 @@ def _build_place_profile(place: Dict[str, Any]) -> Dict[str, Any]:
     menu = recommend_menu_items_for_place(payload, health_score=health_score_10pt)
     top_menu_item = menu.get("top_menu_item") if isinstance(menu.get("top_menu_item"), dict) else None
 
-    best_order = str((top_menu_item or {}).get("item_name") or order.get("best_order") or "Grilled protein bowl")
+    best_order = str((top_menu_item or {}).get("item_name") or order.get("best_order") or "Lighter menu option")
     est_calories = int(_safe_float((top_menu_item or {}).get("estimated_calories"), _safe_float(order.get("estimated_calories"), 520)) or 520)
     est_protein = int(_safe_float((top_menu_item or {}).get("estimated_protein_g"), _safe_float(order.get("estimated_protein_g"), 32)) or 32)
     short_reason = str((top_menu_item or {}).get("short_reason") or order.get("short_reason") or "Better protein-calorie balance.")
@@ -195,7 +195,7 @@ def build_better_choice_nearby_response(
                 "walk_time_minutes": int(walk_mins),
                 "drive_time_minutes": int(drive_mins),
                 "why_better": _why_better(selected, alt),
-                "best_order": str(alt.get("best_order") or "Grilled protein bowl"),
+                "best_order": str(alt.get("best_order") or "Lighter menu option"),
                 "estimated_calories": int(_safe_float(alt.get("estimated_calories"), 520) or 520),
                 "estimated_protein_g": int(_safe_float(alt.get("estimated_protein_g"), 32) or 32),
                 "short_reason": str(alt.get("short_reason") or "Better protein-calorie profile."),

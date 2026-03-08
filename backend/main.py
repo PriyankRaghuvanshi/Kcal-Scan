@@ -12599,7 +12599,7 @@ async def healthy_places(
                 "cut_mode_active": bool(cut_mode),
             }
 
-        best_order = str(order_suggestion.get("best_order") or "Grilled protein bowl")
+        best_order = str(order_suggestion.get("best_order") or "Lighter menu option")
         estimated_calories = int(_safe_float(order_suggestion.get("estimated_calories"), 520) or 520)
         estimated_protein_g = int(_safe_float(order_suggestion.get("estimated_protein_g"), 32) or 32)
         top_menu_item = menu_recommendations.get("top_menu_item") if isinstance(menu_recommendations.get("top_menu_item"), dict) else {}
@@ -12681,6 +12681,18 @@ async def healthy_places(
                     )
                     or 0.52
                 ),
+                "menu_item_source": str(
+                    top_menu_item.get("menu_item_source")
+                    or menu_recommendations.get("menu_items_source")
+                    or "heuristic"
+                ),
+                "menu_item_confidence": float(
+                    _safe_float(
+                        top_menu_item.get("menu_item_confidence"),
+                        _safe_float(top_menu_item.get("confidence"), _safe_float(order_suggestion.get("order_confidence"), 0.52)),
+                    )
+                    or 0.52
+                ),
             },
             context={
                 "top_menu_item": top_menu_item,
@@ -12729,7 +12741,7 @@ async def healthy_places(
                 "cut_mode_active": bool(order_suggestion.get("cut_mode_active", bool(cut_mode))),
                 "cut_friendly": bool(order_suggestion.get("cut_friendly", scoring.get("cut_friendly", False))),
                 "cut_warning": str(order_suggestion.get("cut_warning") or scoring.get("cut_warning") or ""),
-                "best_order_for_cut": str(order_suggestion.get("best_order_for_cut") or order_suggestion.get("best_order") or "Grilled protein bowl"),
+                "best_order_for_cut": str(order_suggestion.get("best_order_for_cut") or order_suggestion.get("best_order") or "Lighter menu option"),
                 # Goal-based personalization (additive; baseline fields remain unchanged).
                 "personalization_goal": personalization_goal_value_str,
                 "personalized_health_score": personalized_health_score,

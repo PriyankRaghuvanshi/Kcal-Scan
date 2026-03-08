@@ -1,4 +1,5 @@
 import unittest
+from unittest.mock import patch
 
 from restaurant_macro_estimator import estimate_restaurant_macros
 
@@ -60,8 +61,49 @@ class RestaurantMacroEstimatorTests(unittest.TestCase):
             "estimated_satiety",
             "macro_confidence",
             "macro_estimation_version",
+            "estimation_method",
+            "estimation_version",
         }
         self.assertTrue(required.issubset(out.keys()))
+
+    def test_known_meal_keeps_deterministic_method(self):
+        out = estimate_restaurant_macros(
+            item_name="Grilled chicken bowl",
+            cuisine_hint="healthy bowl",
+        )
+        self.assertEqual(out.get("estimation_method"), "deterministic")
+
+    def test_unknown_meal_can_use_llm_path(self):
+        fake_llm = {
+            "attempted": True,
+            "used": True,
+            "error": "",
+            "estimate": {
+                "estimated_calories": 610,
+                "estimated_protein_g": 37,
+                "estimated_carbs_g": 54,
+                "estimated_fat_g": 19,
+                "estimated_satiety": "medium",
+                "macro_confidence": 0.77,
+            },
+        }
+        with patch("restaurant_macro_estimator.maybe_estimate_unknown_meal_macros", return_value=fake_llm):
+            out = estimate_restaurant_macros(item_name="Volcano dragon crunch stack")
+        self.assertEqual(out.get("estimation_method"), "llm")
+        self.assertEqual(out.get("estimation_version"), "v1")
+        self.assertGreaterEqual(float(out.get("macro_confidence") or 0.0), 0.35)
+
+    def test_llm_failure_falls_back_to_deterministic(self):
+        fake_llm = {
+            "attempted": True,
+            "used": False,
+            "error": "timeout",
+            "estimate": None,
+        }
+        with patch("restaurant_macro_estimator.maybe_estimate_unknown_meal_macros", return_value=fake_llm):
+            out = estimate_restaurant_macros(item_name="Volcano dragon crunch stack")
+        self.assertEqual(out.get("estimation_method"), "deterministic")
+        self.assertIn("timeout", str(out.get("llm_fallback_reason") or ""))
 
 
 if __name__ == "__main__":

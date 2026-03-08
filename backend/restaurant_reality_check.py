@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Tuple
 
+from llm_explanation_copy import maybe_rewrite_explanation_copy
 from restaurant_macro_estimator import estimate_restaurant_macros
 
 
@@ -272,7 +273,7 @@ def _best_rule(place: Dict[str, Any]) -> Tuple[Dict[str, Any], int]:
         "typical_name": "Combo meal + sugary drink",
         "typical_calories": 860,
         "typical_protein_g": 26,
-        "smarter_name": "Grilled protein bowl + water",
+        "smarter_name": "Lighter menu option + water",
         "smarter_calories": 560,
         "smarter_protein_g": 34,
     }, 0
@@ -375,7 +376,7 @@ def _infer_smarter_order(
 
     rule, _ = _best_rule(place)
     smart = _with_macro_estimate(
-        item_name=str(rule.get("smarter_name") or "Grilled protein bowl + water"),
+        item_name=str(rule.get("smarter_name") or "Lighter menu option + water"),
         place=place,
         calories=_safe_int(rule.get("smarter_calories"), 560),
         protein_g=_safe_int(rule.get("smarter_protein_g"), 34),
@@ -472,6 +473,39 @@ def build_restaurant_reality_check(
     confidence = _clamp((typical_conf * 0.5) + (smart_conf * 0.5) + density_bonus, 0.38, 0.94)
 
     short_reason = _build_short_reason(calories_saved, protein_diff)
+    recommendation_source = str(
+        (recommended_order or {}).get("menu_item_source")
+        or ((ctx.get("top_menu_item") if isinstance(ctx.get("top_menu_item"), dict) else {}).get("menu_item_source"))
+        or "heuristic"
+    ).strip().lower()
+    ctx_top_menu_item = ctx.get("top_menu_item") if isinstance(ctx.get("top_menu_item"), dict) else {}
+    recommendation_confidence = float(
+        _safe_float(
+            (recommended_order or {}).get("menu_item_confidence"),
+            _safe_float(ctx_top_menu_item.get("menu_item_confidence"), confidence),
+        )
+    )
+    rewritten = maybe_rewrite_explanation_copy(
+        place_name=place_name,
+        cuisine=_place_text(payload),
+        recommended_order=smart.get("name"),
+        estimated_calories=smart_cal,
+        estimated_protein_g=smart_protein,
+        typical_order_calories=typical_cal,
+        goal=ctx.get("goal"),
+        confidence=confidence,
+        recommendation_source=recommendation_source,
+        menu_item_confidence=recommendation_confidence,
+        today_fit=ctx.get("fit_for_today"),
+        has_reality_check=True,
+        base_why_this_works=short_reason,
+        base_short_reason=short_reason,
+    )
+    short_reason = str(rewritten.get("short_reason") or short_reason)
+    why_this_works = str(rewritten.get("why_this_works") or short_reason)
+    copy_method = str(rewritten.get("copy_method") or "deterministic")
+    copy_confidence = round(_clamp(_safe_float(rewritten.get("copy_confidence"), confidence), 0.2, 0.95), 2)
+    copy_version = str(rewritten.get("copy_version") or "v1")
 
     reality_check = {
         "title": "Restaurant Reality Check",
@@ -482,15 +516,19 @@ def build_restaurant_reality_check(
             "estimated_protein_g": typical_protein,
         },
         "smarter_order": {
-            "name": _clip(smart.get("name"), 72, "Grilled protein bowl"),
+            "name": _clip(smart.get("name"), 72, "Lighter menu option"),
             "estimated_calories": smart_cal,
             "estimated_protein_g": smart_protein,
         },
         "calories_saved": calories_saved,
         "protein_difference_g": protein_diff,
         "wow_line": f"You saved {calories_saved} calories." if calories_saved > 0 else "Smarter order for better control.",
+        "why_this_works": why_this_works,
         "short_reason": short_reason,
         "confidence": round(float(confidence), 2),
+        "copy_method": copy_method,
+        "copy_confidence": copy_confidence,
+        "copy_version": copy_version,
         "reality_check_version": RESTAURANT_REALITY_CHECK_VERSION,
     }
 

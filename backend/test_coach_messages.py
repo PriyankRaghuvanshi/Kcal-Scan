@@ -60,6 +60,8 @@ class CoachMessageTests(unittest.TestCase):
         self.assertIsInstance(msg.get("supporting_text"), str)
         self.assertIn(msg.get("tone"), {"encouraging", "caution", "warning"})
         self.assertGreaterEqual(float(msg.get("confidence", 0.0)), 0.45)
+        self.assertIn(msg.get("phrasing_method"), {"deterministic", "llm"})
+        self.assertEqual(msg.get("phrasing_version"), "v1")
 
 
 if __name__ == "__main__":

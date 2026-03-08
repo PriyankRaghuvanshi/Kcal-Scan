@@ -1495,6 +1495,8 @@ export default function App() {
   const [healthyViewMode, setHealthyViewMode] = useState("map");
   const [healthyMapFilter, setHealthyMapFilter] = useState("all");
   const [selectedHealthyPlaceId, setSelectedHealthyPlaceId] = useState("");
+  const [activeScreen, setActiveScreen] = useState("home");
+  const [healthyNearbyTab, setHealthyNearbyTab] = useState("decision");
   const [lunchDecisionBusy, setLunchDecisionBusy] = useState(false);
   const [lunchDecisionError, setLunchDecisionError] = useState("");
   const [lunchDecision, setLunchDecision] = useState(null);
@@ -1516,6 +1518,7 @@ export default function App() {
   const [weeklyCoach, setWeeklyCoach] = useState(null);
   const [weeklyCoachBusy, setWeeklyCoachBusy] = useState(false);
   const [weeklyCoachError, setWeeklyCoachError] = useState("");
+  const [weeklyCoachExpanded, setWeeklyCoachExpanded] = useState(false);
   const [coachBusy, setCoachBusy] = useState(false);
   const [fliSyncing, setFliSyncing] = useState(false);
   const [fliPending, setFliPending] = useState(false);
@@ -1739,6 +1742,7 @@ export default function App() {
     setMenuScanBusy(false);
     setMenuScanError("");
     setMenuScanResult(null);
+    setActiveScreen("home");
     setHealthyMapWidth(320);
     setRerunBusy(false);
     setAiConsentGiven(false);
@@ -1784,6 +1788,7 @@ export default function App() {
       setMenuScanBusy(false);
       setMenuScanError("");
       setMenuScanResult(null);
+      setActiveScreen("home");
       setHealthyMapWidth(320);
       setCameraMode("meal");
       setBarcodeMode("lookup");
@@ -4383,6 +4388,169 @@ async function openCamera(mode = "meal") {
     }
   }
 
+  async function openHealthyNearbyScreen(target = "overview") {
+    const mode = String(target || "overview").trim().toLowerCase();
+    setActiveScreen("healthy_nearby");
+    setWeeklyCoachExpanded(false);
+
+    if (mode === "decide") {
+      setHealthyNearbyTab("decision");
+      await loadLunchDecision();
+      return;
+    }
+    if (mode === "weekly") {
+      setHealthyNearbyTab("coach");
+      await fetchWeeklyCoachProgress(true);
+      return;
+    }
+    if (mode === "menu") {
+      setHealthyNearbyTab("decision");
+      await openCamera("menu_scan");
+      return;
+    }
+    if (mode === "map") {
+      setHealthyNearbyTab("map");
+      await loadHealthyPlacesNearby();
+      setHealthyViewMode("map");
+      return;
+    }
+    setHealthyNearbyTab("decision");
+    await loadHealthyPlacesNearby();
+  }
+
+  function renderWeeklyCoachBlock() {
+    if (weeklyCoach) {
+      const weekSummary =
+        weeklyCoach?.week_summary && typeof weeklyCoach.week_summary === "object"
+          ? weeklyCoach.week_summary
+          : {};
+      const insights = Array.isArray(weeklyCoach?.habit_insights)
+        ? weeklyCoach.habit_insights.filter((x) => x && typeof x === "object").slice(0, 3)
+        : [];
+      const bestChoices =
+        Array.isArray(weeklyCoach?.best_choices_this_week)
+          ? weeklyCoach.best_choices_this_week.filter((x) => x && typeof x === "object").slice(0, 2)
+          : [];
+      const nextFocus =
+        weeklyCoach?.next_week_focus && typeof weeklyCoach.next_week_focus === "object"
+          ? weeklyCoach.next_week_focus
+          : null;
+      const primaryInsight = insights.length ? insights[0] : null;
+      const remainingInsights = insights.length > 1 ? insights.slice(1, 3) : [];
+      const hasExpandedContent = Boolean(remainingInsights.length || bestChoices.length || nextFocus);
+      const onTrackDays = Math.max(0, Math.round(num(weekSummary?.days_on_track)));
+      const trackedDays = Math.max(0, Math.round(num(weekSummary?.days_tracked)));
+      const avgProtein = Math.max(0, Math.round(num(weekSummary?.average_daily_protein_g)));
+
+      return (
+        <View style={[styles.weeklyCoachCard, styles.weeklyCoachCardCompact]}>
+          {!!String(weeklyCoach?.week_start || "").trim() ? (
+            <Text style={styles.weeklyCoachMeta}>Week of {String(weeklyCoach.week_start).trim()}</Text>
+          ) : null}
+
+          {!!String(weeklyCoach?.headline || "").trim() ? (
+            <Text style={styles.weeklyCoachHeadline} numberOfLines={2}>
+              {String(weeklyCoach.headline).trim()}
+            </Text>
+          ) : null}
+          {!!String(weeklyCoach?.supporting_text || "").trim() ? (
+            <Text style={styles.weeklyCoachSupport} numberOfLines={2}>
+              {String(weeklyCoach.supporting_text).trim()}
+            </Text>
+          ) : null}
+
+          <Text style={styles.weeklyCoachSummaryLine}>
+            {onTrackDays}/{trackedDays} days on track • Avg protein {avgProtein}g
+          </Text>
+
+          {primaryInsight ? (
+            <View style={styles.weeklyCoachPrimaryInsight}>
+              {!!String(primaryInsight?.title || "").trim() ? (
+                <Text style={styles.weeklyCoachInsightTitle} numberOfLines={1}>
+                  {String(primaryInsight.title).trim()}
+                </Text>
+              ) : null}
+              {!!String(primaryInsight?.text || "").trim() ? (
+                <Text style={styles.tiny} numberOfLines={2}>
+                  {String(primaryInsight.text).trim()}
+                </Text>
+              ) : null}
+            </View>
+          ) : null}
+
+          {weeklyCoachExpanded && remainingInsights.length ? (
+            <View style={styles.dayCoachSection}>
+              <Text style={styles.dayCoachSectionTitle}>More Patterns</Text>
+              {remainingInsights.map((insight, idx) => (
+                <View key={`weekly-insight-extra-${idx}`} style={styles.weeklyCoachInsightRow}>
+                  <Text style={styles.weeklyCoachInsightBullet}>•</Text>
+                  <View style={{ flex: 1 }}>
+                    {!!String(insight?.title || "").trim() ? (
+                      <Text style={styles.weeklyCoachInsightTitle}>{String(insight.title).trim()}</Text>
+                    ) : null}
+                    {!!String(insight?.text || "").trim() ? (
+                      <Text style={styles.tiny}>{String(insight.text).trim()}</Text>
+                    ) : null}
+                  </View>
+                </View>
+              ))}
+            </View>
+          ) : null}
+
+          {weeklyCoachExpanded && bestChoices.length ? (
+            <View style={styles.dayCoachSection}>
+              <Text style={styles.dayCoachSectionTitle}>Best Pick</Text>
+              <Text style={styles.tiny}>
+                {String(bestChoices[0]?.place_name || "Nearby pick")}
+                {String(bestChoices[0]?.recommended_order || "").trim()
+                  ? ` — ${String(bestChoices[0].recommended_order).trim()}`
+                  : ""}
+              </Text>
+              {!!String(bestChoices[0]?.why_it_helped || "").trim() ? (
+                <Text style={styles.tiny}>{String(bestChoices[0].why_it_helped).trim()}</Text>
+              ) : null}
+            </View>
+          ) : null}
+
+          {weeklyCoachExpanded && nextFocus ? (
+            <View style={styles.dayCoachSection}>
+              <Text style={styles.dayCoachSectionTitle}>Next Week</Text>
+              {!!String(nextFocus?.headline || "").trim() ? (
+                <Text style={styles.tiny}>{String(nextFocus.headline).trim()}</Text>
+              ) : null}
+              {!!String(nextFocus?.supporting_text || "").trim() ? (
+                <Text style={styles.tiny}>{String(nextFocus.supporting_text).trim()}</Text>
+              ) : null}
+            </View>
+          ) : null}
+
+          {hasExpandedContent ? (
+            <TouchableOpacity
+              style={[styles.smallBtn, styles.weeklyCoachToggleBtn]}
+              onPress={() => setWeeklyCoachExpanded((v) => !v)}
+            >
+              <Text style={styles.smallBtnText}>{weeklyCoachExpanded ? "Show less" : "See more"}</Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
+      );
+    }
+
+    if (weeklyCoachBusy) {
+      return (
+        <View style={{ marginTop: 10 }}>
+          <ActivityIndicator />
+        </View>
+      );
+    }
+
+    return (
+      <Text style={[styles.tiny, styles.nearbyLowPriorityHint]}>
+        Weekly insights will appear after a few tracked days.
+      </Text>
+    );
+  }
+
   async function reportSupplementIssue(reasonKey, notes) {
     if (!userId) return;
     const scanId = String(supplementResult?.scan_id || "").trim();
@@ -4893,7 +5061,9 @@ async function openCamera(mode = "meal") {
             <TouchableOpacity
               style={styles.launcherActionCard}
               activeOpacity={0.85}
-              onPress={loadLunchDecision}
+              onPress={() => {
+                void openHealthyNearbyScreen("decide");
+              }}
               disabled={lunchDecisionBusy}
             >
               <Text style={styles.launcherActionIcon}>📍</Text>
@@ -4909,6 +5079,8 @@ async function openCamera(mode = "meal") {
           <Text style={styles.launcherCoachLine}>{homeCoachLine}</Text>
         </View>
 
+        {activeScreen !== "healthy_nearby" ? (
+        <>
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Scans left</Text>
           <Text style={styles.big}>
@@ -5881,44 +6053,127 @@ async function openCamera(mode = "meal") {
             </View>
           ) : null}
         </View>
+        </>
+        ) : null}
 
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Healthy Nearby</Text>
-          <Text style={styles.p}>Find nearby food places with a simple health score signal.</Text>
-          <View style={styles.rowWrap}>
-            <TouchableOpacity style={styles.primaryBtn} onPress={loadHealthyPlacesNearby} disabled={healthyPlacesBusy}>
-              <Text style={styles.btnText}>{healthyPlacesBusy ? "Loading..." : "Find Healthy Places"}</Text>
-            </TouchableOpacity>
+        {activeScreen === "healthy_nearby" ? (
+        <>
+        <View style={[styles.card, styles.healthyNearbyHeroCard]}>
+          <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+            <Text style={styles.cardTitle}>Healthy Nearby</Text>
             <TouchableOpacity
-              style={[styles.secondaryBtn, styles.lunchDecisionBtn]}
-              onPress={loadLunchDecision}
+              style={styles.smallBtn}
+              onPress={() => {
+                setActiveScreen("home");
+              }}
+            >
+              <Text style={styles.smallBtnText}>Back to Home</Text>
+            </TouchableOpacity>
+          </View>
+          <Text style={styles.p}>Your next meal, map, and menu scan in one place.</Text>
+          <View style={styles.nearbyPrimaryActions}>
+            <TouchableOpacity
+              style={[styles.primaryBtn, styles.nearbyPrimaryCta]}
+              onPress={() => {
+                setHealthyNearbyTab("decision");
+                void loadLunchDecision();
+              }}
               disabled={lunchDecisionBusy}
             >
-              <Text style={styles.btnText}>{lunchDecisionBusy ? "Deciding..." : "🎯 Decide my meal"}</Text>
+              <Text style={styles.btnText}>{lunchDecisionBusy ? "Deciding..." : "🎯 Decide My Meal"}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.secondaryBtn, styles.menuScanBtn]}
+              onPress={async () => {
+                setHealthyNearbyTab("map");
+                await loadHealthyPlacesNearby();
+                setHealthyViewMode("map");
+              }}
+              disabled={healthyPlacesBusy}
+            >
+              <Text style={styles.btnText}>{healthyPlacesBusy ? "Loading..." : "Healthy Food Map"}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.secondaryBtn, styles.menuScanBtn]}
               onPress={() => {
+                setHealthyNearbyTab("decision");
                 void openCamera("menu_scan");
               }}
               disabled={menuScanBusy}
             >
               <Text style={styles.btnText}>{menuScanBusy ? "Scanning..." : "📸 Scan Menu"}</Text>
             </TouchableOpacity>
+          </View>
+          <View style={styles.nearbySecondaryActions}>
             <TouchableOpacity
-              style={[styles.secondaryBtn, styles.weeklyCoachBtn]}
+              style={[styles.smallBtn, styles.weeklyCoachBtn]}
               onPress={() => {
+                setHealthyNearbyTab("coach");
+                setWeeklyCoachExpanded(false);
                 void fetchWeeklyCoachProgress(true);
               }}
               disabled={weeklyCoachBusy}
             >
-              <Text style={styles.btnText}>{weeklyCoachBusy ? "Loading..." : "Weekly Coach"}</Text>
+              <Text style={styles.smallBtnText}>{weeklyCoachBusy ? "Loading..." : "Weekly Coach"}</Text>
             </TouchableOpacity>
             {healthyPlaceCoords ? (
-              <TouchableOpacity style={styles.secondaryBtn} onPress={openHealthyAreaMap}>
-                <Text style={styles.btnText}>Open Area Map</Text>
+              <TouchableOpacity style={styles.smallBtn} onPress={openHealthyAreaMap}>
+                <Text style={styles.smallBtnText}>Open Area Map</Text>
               </TouchableOpacity>
             ) : null}
+          </View>
+          <View style={styles.nearbyTabsRow}>
+            <TouchableOpacity
+              style={[styles.nearbyTabPill, healthyNearbyTab === "decision" ? styles.nearbyTabPillActive : null]}
+              onPress={() => {
+                setHealthyNearbyTab("decision");
+              }}
+            >
+              <Text
+                style={[
+                  styles.nearbyTabText,
+                  healthyNearbyTab === "decision" ? styles.nearbyTabTextActive : null,
+                ]}
+              >
+                Decision
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.nearbyTabPill, healthyNearbyTab === "map" ? styles.nearbyTabPillActive : null]}
+              onPress={() => {
+                setHealthyNearbyTab("map");
+                if (!(healthyPlaces || []).length && !healthyPlacesBusy) {
+                  void loadHealthyPlacesNearby();
+                }
+              }}
+            >
+              <Text
+                style={[
+                  styles.nearbyTabText,
+                  healthyNearbyTab === "map" ? styles.nearbyTabTextActive : null,
+                ]}
+              >
+                Map
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.nearbyTabPill, healthyNearbyTab === "coach" ? styles.nearbyTabPillActive : null]}
+              onPress={() => {
+                setHealthyNearbyTab("coach");
+                if (!weeklyCoach && !weeklyCoachBusy) {
+                  void fetchWeeklyCoachProgress(true);
+                }
+              }}
+            >
+              <Text
+                style={[
+                  styles.nearbyTabText,
+                  healthyNearbyTab === "coach" ? styles.nearbyTabTextActive : null,
+                ]}
+              >
+                Coach
+              </Text>
+            </TouchableOpacity>
           </View>
           {healthyPlaceCoords ? (
             <Text style={[styles.tiny, { marginTop: 8 }]}>
@@ -5937,107 +6192,12 @@ async function openCamera(mode = "meal") {
           {weeklyCoachError ? (
             <Text style={[styles.tiny, { marginTop: 8, color: "#fca5a5" }]}>{weeklyCoachError}</Text>
           ) : null}
-          {weeklyCoach ? (
-            (() => {
-              const weekSummary =
-                weeklyCoach?.week_summary && typeof weeklyCoach.week_summary === "object"
-                  ? weeklyCoach.week_summary
-                  : {};
-              const insights = Array.isArray(weeklyCoach?.habit_insights)
-                ? weeklyCoach.habit_insights.filter((x) => x && typeof x === "object").slice(0, 3)
-                : [];
-              const bestChoices =
-                Array.isArray(weeklyCoach?.best_choices_this_week)
-                  ? weeklyCoach.best_choices_this_week.filter((x) => x && typeof x === "object").slice(0, 2)
-                  : [];
-              const nextFocus =
-                weeklyCoach?.next_week_focus && typeof weeklyCoach.next_week_focus === "object"
-                  ? weeklyCoach.next_week_focus
-                  : null;
+        </View>
 
-              return (
-                <View style={styles.weeklyCoachCard}>
-                  <View style={styles.weeklyCoachHeaderRow}>
-                    <Text style={styles.healthyPanelSectionTitle}>Weekly Coach</Text>
-                    {!!String(weeklyCoach?.week_start || "").trim() ? (
-                      <Text style={styles.weeklyCoachMeta}>Week of {String(weeklyCoach.week_start).trim()}</Text>
-                    ) : null}
-                  </View>
-
-                  {!!String(weeklyCoach?.headline || "").trim() ? (
-                    <Text style={styles.mapCoachHeadline}>{String(weeklyCoach.headline).trim()}</Text>
-                  ) : null}
-                  {!!String(weeklyCoach?.supporting_text || "").trim() ? (
-                    <Text style={styles.mapCoachSupport}>{String(weeklyCoach.supporting_text).trim()}</Text>
-                  ) : null}
-
-                  <Text style={styles.weeklyCoachSummaryLine}>
-                    On track {Math.max(0, Math.round(num(weekSummary?.days_on_track)))}/
-                    {Math.max(0, Math.round(num(weekSummary?.days_tracked)))} days • Avg protein{" "}
-                    {Math.round(num(weekSummary?.average_daily_protein_g))}g
-                  </Text>
-
-                  {insights.length ? (
-                    <View style={styles.weeklyCoachInsightsWrap}>
-                      <Text style={styles.dayCoachSectionTitle}>This week's pattern</Text>
-                      {insights.map((insight, idx) => {
-                        const kind = String(insight?.type || "info").trim().toLowerCase();
-                        const bullet = kind === "warning" ? "⚠" : kind === "positive" ? "✓" : "•";
-                        return (
-                          <View key={`weekly-insight-${idx}`} style={styles.weeklyCoachInsightRow}>
-                            <Text style={styles.weeklyCoachInsightBullet}>{bullet}</Text>
-                            <View style={{ flex: 1 }}>
-                              {!!String(insight?.title || "").trim() ? (
-                                <Text style={styles.weeklyCoachInsightTitle}>{String(insight.title).trim()}</Text>
-                              ) : null}
-                              {!!String(insight?.text || "").trim() ? (
-                                <Text style={styles.tiny}>{String(insight.text).trim()}</Text>
-                              ) : null}
-                            </View>
-                          </View>
-                        );
-                      })}
-                    </View>
-                  ) : null}
-
-                  {bestChoices.length ? (
-                    <View style={styles.dayCoachSection}>
-                      <Text style={styles.dayCoachSectionTitle}>Best choices this week</Text>
-                      {bestChoices.map((choice, idx) => (
-                        <View key={`weekly-best-choice-${idx}`} style={idx > 0 ? { marginTop: 6 } : null}>
-                          <Text style={styles.tiny}>
-                            {String(choice?.place_name || "Nearby pick")}
-                            {String(choice?.recommended_order || "").trim()
-                              ? ` — ${String(choice.recommended_order).trim()}`
-                              : ""}
-                          </Text>
-                          {!!String(choice?.why_it_helped || "").trim() ? (
-                            <Text style={styles.tiny}>{String(choice.why_it_helped).trim()}</Text>
-                          ) : null}
-                        </View>
-                      ))}
-                    </View>
-                  ) : null}
-
-                  {nextFocus ? (
-                    <View style={styles.dayCoachSection}>
-                      <Text style={styles.dayCoachSectionTitle}>Focus for next week</Text>
-                      {!!String(nextFocus?.headline || "").trim() ? (
-                        <Text style={styles.tiny}>{String(nextFocus.headline).trim()}</Text>
-                      ) : null}
-                      {!!String(nextFocus?.supporting_text || "").trim() ? (
-                        <Text style={styles.tiny}>{String(nextFocus.supporting_text).trim()}</Text>
-                      ) : null}
-                    </View>
-                  ) : null}
-                </View>
-              );
-            })()
-          ) : weeklyCoachBusy ? (
-            <View style={{ marginTop: 10 }}>
-              <ActivityIndicator />
-            </View>
-          ) : null}
+        {healthyNearbyTab === "decision" ? (
+        <View style={[styles.card, styles.healthyNearbySectionCard]}>
+          <Text style={styles.nearbySectionHeader}>Decision</Text>
+          <Text style={styles.nearbySectionSubtle}>Coach + lunch picks</Text>
           {menuScanBusy && !menuScanResult ? (
             <View style={{ marginTop: 10 }}>
               <ActivityIndicator />
@@ -6299,6 +6459,7 @@ async function openCamera(mode = "meal") {
                 const distanceLabel = formatDistanceFromMeters(card?.distance_meters);
                 const badges = Array.isArray(card?.badges) ? card.badges.filter(Boolean).slice(0, 2) : [];
                 const cta = String(card?.cta_label || "").trim();
+                const orderLabel = String(card?.recommended_order_label || "").trim();
                 const fitForToday = card?.fit_for_today;
                 const realityCheck = card?.reality_check && typeof card.reality_check === "object" ? card.reality_check : null;
                 const caloriesSaved = Number.isFinite(num(realityCheck?.calories_saved))
@@ -6315,6 +6476,9 @@ async function openCamera(mode = "meal") {
                       {String(card?.place_name || "Nearby option")}
                       {distanceLabel ? " (" + distanceLabel + ")" : ""}
                     </Text>
+                    {!!orderLabel ? (
+                      <Text style={[styles.tiny, { marginTop: 4 }]}>{orderLabel}</Text>
+                    ) : null}
                     {!!String(card?.recommended_order || "").trim() ? (
                       <Text style={[styles.tiny, { marginTop: 4 }]}>Recommended: {String(card.recommended_order)}</Text>
                     ) : null}
@@ -6351,9 +6515,9 @@ async function openCamera(mode = "meal") {
                         ))}
                       </View>
                     ) : null}
-                    <Text style={[styles.tiny, { marginTop: 6 }]}>Why this works: {String(card?.why_this_works || "Good option for your current goals.")}</Text>
+                    <Text style={[styles.tiny, { marginTop: 6 }]}>Why: {String(card?.why_this_works || "Good fit for today.")}</Text>
                     {!!String(card?.decision_reason || "").trim() ? (
-                      <Text style={[styles.tiny, { marginTop: 4 }]}>Coach note: {String(card.decision_reason).trim()}</Text>
+                      <Text style={[styles.tiny, { marginTop: 4 }]}>Coach: {String(card.decision_reason).trim()}</Text>
                     ) : null}
                     <View style={styles.lunchCardActionsRow}>
                       {!!cta ? (
@@ -6372,7 +6536,7 @@ async function openCamera(mode = "meal") {
                           void shareLunchDecisionCard(card);
                         }}
                       >
-                        <Text style={styles.smallBtnText}>Share my smarter order</Text>
+                        <Text style={styles.smallBtnText}>Share</Text>
                       </TouchableOpacity>
                     </View>
                   </View>
@@ -6380,6 +6544,14 @@ async function openCamera(mode = "meal") {
               })}
             </View>
           ) : null}
+        </View>
+        ) : null}
+
+        {healthyNearbyTab === "map" ? (
+
+        <View style={[styles.card, styles.healthyNearbySectionCard]}>
+          <Text style={styles.nearbySectionHeader}>Map</Text>
+          <Text style={styles.nearbySectionSubtle}>Tap a place to compare options.</Text>
           {(healthyPlaces || []).length ? (
             <View style={styles.healthyViewToggleRow}>
               <TouchableOpacity
@@ -6526,6 +6698,21 @@ async function openCamera(mode = "meal") {
                     ? Math.round(num(place?.estimated_protein_g))
                     : null;
                   const topItemReason = String(topMenuItem?.short_reason || why).trim();
+                  const topItemLabel = String(topMenuItem?.display_label || "Best Menu Item").trim();
+                  const topItemSource = String(topMenuItem?.menu_item_source || place?.menu_items_source || "heuristic")
+                    .trim()
+                    .toLowerCase();
+                  const topItemConfidence = Number.isFinite(num(topMenuItem?.menu_item_confidence))
+                    ? Math.max(0, Math.min(1, num(topMenuItem.menu_item_confidence)))
+                    : Number.isFinite(num(place?.menu_item_confidence))
+                    ? Math.max(0, Math.min(1, num(place.menu_item_confidence)))
+                    : null;
+                  const lowConfidenceHint =
+                    topItemLabel === "Needs Menu Check"
+                      ? "Menu looks unclear here, so use lighter options."
+                      : topItemSource !== "real_menu" && topItemConfidence !== null && topItemConfidence < 0.55
+                      ? "Likely pick for this place."
+                      : "";
 
                   const todayFit =
                     (panel?.today_fit && typeof panel.today_fit === "object" ? panel.today_fit : null) ||
@@ -6561,10 +6748,10 @@ async function openCamera(mode = "meal") {
                     todayFit?.decision_reason ||
                     place?.decision_reason ||
                     (decisionToken === "YES"
-                      ? "Fits today's calories and gives strong protein."
+                      ? "Fits calories and protein today."
                       : decisionToken === "NO"
-                      ? "Harder to fit your current calories today."
-                      : "Can fit today with smarter swaps.")
+                      ? "Harder to fit today."
+                      : "Can fit with lighter choices.")
                   ).trim();
 
                   const reality =
@@ -6581,7 +6768,7 @@ async function openCamera(mode = "meal") {
                     reality?.short_reason ||
                     (caloriesSaved !== null && caloriesSaved > 0
                       ? `You save ${caloriesSaved} kcal with a smarter order.`
-                      : "Better calorie control with a smarter order.")
+                      : "Smarter order, better calorie control.")
                   ).trim();
 
                   const selectedCta = String(decisionCard?.cta_label || place?.cta_label || "Navigate").trim();
@@ -6595,6 +6782,7 @@ async function openCamera(mode = "meal") {
                     share_card: place?.share_card,
                     reality_check: reality || null,
                   };
+                  const topItemHeading = topItemLabel === "Best Menu Item" ? "Best Item" : topItemLabel;
 
                   return (
                     <View style={styles.healthySelectedCard}>
@@ -6608,16 +6796,17 @@ async function openCamera(mode = "meal") {
                       {!!distanceLabel ? <Text style={styles.tiny}>{distanceLabel}</Text> : null}
 
                       <View style={styles.healthyCoachSection}>
-                        <Text style={styles.healthyPanelSectionTitle}>AI Coach</Text>
-                        <Text style={styles.mapCoachHeadline}>{coachHeadline}</Text>
-                        {!!coachSupport ? <Text style={styles.mapCoachSupport}>{coachSupport}</Text> : null}
-                        <View style={styles.mapDecisionRow}>
-                          <Text style={[styles.mapDecisionBadge, coachToneStyle]}>{coachTone === "warning" ? "Watch out" : coachTone === "caution" ? "Be smart" : "Coach pick"}</Text>
-                        </View>
+                        <Text style={styles.mapCoachHeadline} numberOfLines={2}>{coachHeadline}</Text>
+                        {!!coachSupport && coachSupport !== coachHeadline ? (
+                          <Text style={styles.mapCoachSupportCompact} numberOfLines={2}>{coachSupport}</Text>
+                        ) : null}
+                        <Text style={[styles.mapDecisionBadge, coachToneStyle]}>
+                          {coachTone === "warning" ? "Watch out" : coachTone === "caution" ? "Be smart" : "Coach pick"}
+                        </Text>
                       </View>
 
                       <View style={styles.healthyPanelSection}>
-                        <Text style={styles.healthyPanelSectionTitle}>Best Menu Item</Text>
+                        <Text style={styles.healthyPanelSectionTitle}>{topItemHeading}</Text>
                         <Text style={styles.healthyPanelItemName}>{topItemName}</Text>
                         {(topItemCalories !== null || topItemProtein !== null) ? (
                           <Text style={styles.tiny}>
@@ -6625,16 +6814,19 @@ async function openCamera(mode = "meal") {
                             {topItemProtein !== null ? ` • ${topItemProtein}g protein` : ""}
                           </Text>
                         ) : null}
-                        {!!topItemReason ? <Text style={styles.tiny}>{topItemReason}</Text> : null}
+                        {!!topItemReason ? <Text style={styles.tiny} numberOfLines={2}>{topItemReason}</Text> : null}
+                        {!!lowConfidenceHint ? (
+                          <Text style={[styles.tiny, styles.nearbyLowPriorityHint]} numberOfLines={1}>{lowConfidenceHint}</Text>
+                        ) : null}
                       </View>
 
                       <View style={styles.healthyPanelSection}>
-                        <Text style={styles.healthyPanelSectionTitle}>Can I Eat Here Today?</Text>
+                        <Text style={styles.healthyPanelSectionTitle}>Fits Today</Text>
                         <View style={styles.mapDecisionRow}>
                           <Text style={[styles.mapDecisionBadge, decisionBadgeStyle]}>{decisionText}</Text>
                           <Text style={styles.tiny}>{decisionLabel}</Text>
                         </View>
-                        <Text style={styles.tiny}>{decisionReason}</Text>
+                        <Text style={styles.tiny} numberOfLines={2}>{decisionReason}</Text>
                         {badges.length ? (
                           <View style={styles.lunchBadgeRow}>
                             {badges.map((badge, badgeIdx) => (
@@ -6649,16 +6841,19 @@ async function openCamera(mode = "meal") {
                       {reality ? (
                         <View style={styles.healthyPanelSection}>
                           <Text style={styles.healthyPanelSectionTitle}>Reality Check</Text>
-                          {typicalCalories !== null ? (
-                            <Text style={styles.tiny}>Typical meal: {typicalCalories} kcal</Text>
-                          ) : null}
-                          {smarterCalories !== null ? (
-                            <Text style={styles.tiny}>Smarter order: {smarterCalories} kcal</Text>
+                          {typicalCalories !== null && smarterCalories !== null ? (
+                            <Text style={styles.tiny}>Typical {typicalCalories} kcal • Smart {smarterCalories} kcal</Text>
+                          ) : typicalCalories !== null ? (
+                            <Text style={styles.tiny}>Typical {typicalCalories} kcal</Text>
+                          ) : smarterCalories !== null ? (
+                            <Text style={styles.tiny}>Smart {smarterCalories} kcal</Text>
                           ) : null}
                           {caloriesSaved !== null && caloriesSaved > 0 ? (
                             <Text style={[styles.tiny, styles.realitySavedText]}>You save: {caloriesSaved} kcal</Text>
                           ) : null}
-                          {!!realityReason ? <Text style={styles.tiny}>{realityReason}</Text> : null}
+                          {!!realityReason ? (
+                            <Text style={[styles.tiny, styles.nearbyLowPriorityHint]} numberOfLines={2}>{realityReason}</Text>
+                          ) : null}
                         </View>
                       ) : null}
 
@@ -6682,7 +6877,7 @@ async function openCamera(mode = "meal") {
                             void shareLunchDecisionCard(sharePayload);
                           }}
                         >
-                          <Text style={styles.smallBtnText}>Share smarter order</Text>
+                          <Text style={styles.smallBtnText}>Share</Text>
                         </TouchableOpacity>
 
                         <TouchableOpacity
@@ -6702,7 +6897,7 @@ async function openCamera(mode = "meal") {
                             }
                           }}
                         >
-                          <Text style={styles.smallBtnText}>View alternatives</Text>
+                          <Text style={styles.smallBtnText}>Alternatives</Text>
                         </TouchableOpacity>
                       </View>
                     </View>
@@ -6761,7 +6956,23 @@ async function openCamera(mode = "meal") {
               })
             : null}
         </View>
+        ) : null}
 
+        {healthyNearbyTab === "coach" ? (
+        <View style={[styles.card, styles.weeklyCoachSectionCard]}>
+          <View style={styles.weeklyCoachSectionTopRow}>
+            <Text style={styles.nearbySectionHeader}>Weekly Coach</Text>
+            <Text style={[styles.tiny, styles.nearbyLowPriorityHint]}>Weekly</Text>
+          </View>
+          <Text style={styles.nearbySectionSubtle}>Quick weekly summary.</Text>
+          {renderWeeklyCoachBlock()}
+        </View>
+        ) : null}
+        </>
+        ) : null}
+
+        {activeScreen !== "healthy_nearby" ? (
+        <>
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Barcode</Text>
           <Text style={styles.p}>Elite+ can scan barcodes to fetch macros (OpenFoodFacts).</Text>
@@ -6936,6 +7147,8 @@ async function openCamera(mode = "meal") {
             <Text style={styles.tiny}>No history yet.</Text>
           )}
         </View>
+        </>
+        ) : null}
 
         <View style={{ height: 30 }} />
       
@@ -7595,6 +7808,71 @@ const styles = StyleSheet.create({
     borderColor: "#f59e0b",
     backgroundColor: "#3a2a0e",
   },
+  healthyNearbyHeroCard: {
+    borderColor: "#25406a",
+    backgroundColor: "#081427",
+    padding: 16,
+    gap: 10,
+  },
+  nearbyPrimaryActions: {
+    marginTop: 8,
+    gap: 8,
+  },
+  nearbyPrimaryCta: {
+    borderWidth: 1,
+    borderColor: "#1f8f4d",
+    backgroundColor: "#0f3a22",
+  },
+  nearbySecondaryActions: {
+    marginTop: 8,
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    gap: 8,
+  },
+  nearbyTabsRow: {
+    marginTop: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  nearbyTabPill: {
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "#2f4461",
+    backgroundColor: "#0c1a2e",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  nearbyTabPillActive: {
+    borderColor: "#22c55e",
+    backgroundColor: "#0d2c1a",
+  },
+  nearbyTabText: {
+    color: "#cbd5e1",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  nearbyTabTextActive: {
+    color: "#dcfce7",
+  },
+  healthyNearbySectionCard: {
+    padding: 11,
+    gap: 6,
+  },
+  nearbySectionHeader: {
+    color: "#f8fafc",
+    fontSize: 15,
+    fontWeight: "800",
+  },
+  nearbySectionSubtle: {
+    color: "#94a3b8",
+    fontSize: 12,
+    lineHeight: 17,
+  },
+  nearbyLowPriorityHint: {
+    color: "#7b879a",
+  },
   lunchDecisionWrap: {
     marginTop: 12,
     gap: 10,
@@ -7652,6 +7930,23 @@ const styles = StyleSheet.create({
     padding: 10,
     gap: 4,
   },
+  weeklyCoachCardCompact: {
+    marginTop: 8,
+    borderColor: "#2b3d56",
+    backgroundColor: "#0b1220",
+    padding: 8,
+  },
+  weeklyCoachSectionCard: {
+    borderColor: "#1f2f45",
+    backgroundColor: "#080e17",
+    paddingTop: 12,
+  },
+  weeklyCoachSectionTopRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+  },
   weeklyCoachHeaderRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -7659,15 +7954,34 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   weeklyCoachMeta: {
-    color: "#93c5fd",
-    fontSize: 11,
+    color: "#8aa9cf",
+    fontSize: 10,
     fontWeight: "700",
   },
+  weeklyCoachHeadline: {
+    color: "#dce8fb",
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  weeklyCoachSupport: {
+    color: "#9fb2ca",
+    fontSize: 11,
+    lineHeight: 16,
+  },
   weeklyCoachSummaryLine: {
-    color: "#dbeafe",
-    fontSize: 12,
+    color: "#bfd3ee",
+    fontSize: 11,
     fontWeight: "700",
     marginTop: 2,
+  },
+  weeklyCoachPrimaryInsight: {
+    marginTop: 6,
+    borderWidth: 1,
+    borderColor: "#24364f",
+    borderRadius: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 7,
+    gap: 2,
   },
   weeklyCoachInsightsWrap: {
     marginTop: 6,
@@ -7689,6 +8003,13 @@ const styles = StyleSheet.create({
     color: "#e2e8f0",
     fontSize: 12,
     fontWeight: "800",
+  },
+  weeklyCoachToggleBtn: {
+    alignSelf: "flex-start",
+    marginTop: 6,
+    borderWidth: 1,
+    borderColor: "#30455f",
+    backgroundColor: "#101827",
   },
   menuScanCard: {
     marginTop: 10,
@@ -7822,7 +8143,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#1f2937",
     backgroundColor: "#0b1118",
-    padding: 10,
+    padding: 9,
   },
   placeMapCanvas: {
     marginTop: 8,
@@ -7876,27 +8197,23 @@ const styles = StyleSheet.create({
     marginTop: 10,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#1f8f4d",
-    backgroundColor: "#081711",
-    padding: 10,
+    borderColor: "#24533b",
+    backgroundColor: "#07140f",
+    padding: 9,
   },
   healthyCoachSection: {
-    marginTop: 8,
-    paddingTop: 8,
+    marginTop: 6,
+    paddingTop: 6,
     borderTopWidth: 1,
     borderTopColor: "#1b2d24",
-    gap: 3,
-    backgroundColor: "#0b1e15",
-    borderRadius: 10,
-    paddingHorizontal: 8,
-    paddingBottom: 8,
+    gap: 2,
   },
   healthyPanelSection: {
-    marginTop: 8,
-    paddingTop: 8,
+    marginTop: 6,
+    paddingTop: 6,
     borderTopWidth: 1,
     borderTopColor: "#1b2d24",
-    gap: 3,
+    gap: 2,
   },
   healthyPanelSectionTitle: {
     color: "#bbf7d0",
@@ -7912,19 +8229,24 @@ const styles = StyleSheet.create({
   },
   mapCoachHeadline: {
     color: "#dcfce7",
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: "800",
   },
   mapCoachSupport: {
     color: "#cbd5e1",
-    fontSize: 12,
-    lineHeight: 17,
+    fontSize: 11,
+    lineHeight: 16,
+  },
+  mapCoachSupportCompact: {
+    color: "#b5c3d6",
+    fontSize: 11,
+    lineHeight: 15,
   },
   mapDecisionRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
-    marginTop: 1,
+    gap: 6,
+    marginTop: 2,
   },
   mapDecisionBadge: {
     borderRadius: 999,

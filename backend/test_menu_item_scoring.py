@@ -1,4 +1,5 @@
 import unittest
+from unittest.mock import patch
 
 from menu_item_scoring import recommend_menu_items_for_place, rank_menu_items_for_place
 from nutrition_mode import NutritionMode
@@ -46,6 +47,11 @@ class MenuItemScoringTests(unittest.TestCase):
         self.assertEqual(out["menu_items_source"], "heuristic")
         self.assertEqual(len(out["top_menu_items"]), 3)
         self.assertIsInstance(out["top_menu_item"], dict)
+        self.assertIn(out["top_menu_item"].get("menu_item_source"), {"heuristic", "llm_inferred", "real_menu"})
+        self.assertIn(
+            out["top_menu_item"].get("display_label"),
+            {"Estimated Best Fit", "Needs Menu Check", "Likely Better Choice", "Best Menu Item", "Suggested Lighter Option"},
+        )
 
     def test_response_fields_are_card_ready(self):
         place = {
@@ -76,7 +82,14 @@ class MenuItemScoringTests(unittest.TestCase):
             "macro_estimation_version",
             "fat_loss_friendly",
             "short_reason",
+            "why_this_works",
             "confidence",
+            "menu_item_source",
+            "menu_item_confidence",
+            "display_label",
+            "copy_method",
+            "copy_confidence",
+            "copy_version",
             "recommendation_tags",
             "recommendation_version",
         }
@@ -141,6 +154,65 @@ class MenuItemScoringTests(unittest.TestCase):
         self.assertTrue(top.get("cut_mode_active"))
         self.assertIn("cut_friendly", top)
         self.assertIn("cut_warning", top)
+
+    def test_temple_canteen_avoids_unrealistic_generic_western_item(self):
+        place = {
+            "name": "Sri Venkateswara Temple Canteen",
+            "types": ["restaurant", "canteen"],
+            "vicinity": "South Indian Temple Road",
+        }
+
+        out = recommend_menu_items_for_place(place)
+        top = out["top_menu_item"]
+
+        self.assertTrue(str(top.get("item_name") or "").strip())
+        self.assertNotIn("grilled protein bowl", str(top.get("item_name") or "").lower())
+        self.assertIn(top.get("display_label"), {"Estimated Best Fit", "Suggested Lighter Option", "Needs Menu Check"})
+
+    def test_llm_inferred_source_is_exposed_in_output(self):
+        place = {"name": "Generic Cafe & Snacks", "types": ["restaurant", "cafe"]}
+        mocked_bundle = {
+            "parsed_items": [
+                {
+                    "item_name": "Lighter cafe meal option",
+                    "confidence": 0.63,
+                    "menu_item_source": "llm_inferred",
+                }
+            ],
+            "parse_method": "llm_inferred",
+            "parser_confidence": 0.63,
+            "llm_enabled": True,
+            "llm_attempted": True,
+            "llm_error": "",
+        }
+        with patch("menu_item_scoring.infer_place_menu_items_with_optional_llm", return_value=mocked_bundle):
+            out = recommend_menu_items_for_place(place)
+
+        top = out["top_menu_item"]
+        self.assertEqual(out["menu_items_source"], "llm_inferred")
+        self.assertEqual(top.get("menu_item_source"), "llm_inferred")
+        self.assertGreater(float(top.get("menu_item_confidence", 0.0)), 0.0)
+
+    def test_burger_and_pizza_places_keep_cuisine_appropriate_items(self):
+        burger_out = recommend_menu_items_for_place(
+            {"name": "Downtown Burger Point", "types": ["restaurant", "fast_food", "burger"]}
+        )
+        pizza_out = recommend_menu_items_for_place(
+            {"name": "City Pizza Hub", "types": ["restaurant", "pizza"]}
+        )
+
+        burger_name = str((burger_out.get("top_menu_item") or {}).get("item_name") or "").lower()
+        pizza_name = str((pizza_out.get("top_menu_item") or {}).get("item_name") or "").lower()
+
+        self.assertTrue(any(token in burger_name for token in ("burger", "wrap", "nugget", "lighter")))
+        self.assertTrue(any(token in pizza_name for token in ("pizza", "slice", "lighter")))
+
+    def test_sparse_unknown_place_uses_honest_low_confidence_label(self):
+        out = recommend_menu_items_for_place({"name": "XYZ Eatery", "types": ["restaurant"]})
+        top = out["top_menu_item"]
+        self.assertTrue(str(top.get("item_name") or "").strip())
+        self.assertNotIn("grilled protein bowl", str(top.get("item_name") or "").lower())
+        self.assertIn(top.get("display_label"), {"Estimated Best Fit", "Needs Menu Check", "Suggested Lighter Option"})
 
 
 if __name__ == "__main__":

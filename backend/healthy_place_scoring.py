@@ -235,7 +235,7 @@ def score_healthy_place(
 
     if not place_text:
         breakdown = _default_breakdown(applied_weights)
-        badges = ["Needs menu check"]
+        badges = ["Needs Menu Check"]
         if cut_mode_active:
             badges.append("Cut review needed")
         return {
@@ -273,7 +273,7 @@ def score_healthy_place(
     if breakdown["fat_loss_friendliness"]["score"] >= 7.0:
         badges.append("Fat-loss friendly")
     if not badges:
-        badges.append("Needs menu check")
+        badges.append("Needs Menu Check")
 
     fat_loss_friendly = bool(
         health_score >= 6.5 and float(breakdown["fat_loss_friendliness"]["score"]) >= 6.0

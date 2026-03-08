@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Any, Dict, Optional
 
+from llm_coach_phrasing import maybe_rephrase_coach_message
+
 
 COACH_MESSAGE_VERSION = "v1"
 
@@ -48,6 +50,20 @@ def _calorie_saved(reality_check: Dict[str, Any]) -> int:
     return max(0, _safe_int(reality_check.get("calories_saved"), 0))
 
 
+def _menu_source_token(top_menu_item: Dict[str, Any], place: Dict[str, Any]) -> str:
+    token = str(
+        top_menu_item.get("menu_item_source")
+        or place.get("menu_item_source")
+        or place.get("menu_items_source")
+        or "heuristic"
+    ).strip().lower()
+    if token in {"real_menu", "menu_intelligence_store", "structured_menu", "scraped_menu", "user_scan"}:
+        return "real_menu"
+    if token in {"llm_inferred", "llm"}:
+        return "llm_inferred"
+    return "heuristic"
+
+
 def build_place_coach_message(
     place: Dict[str, Any],
     top_menu_item: Optional[Dict[str, Any]] = None,
@@ -64,6 +80,11 @@ def build_place_coach_message(
     decision = _decision_token(fit_payload, place_payload)
     calories_saved = _calorie_saved(reality_payload)
     protein_g = _protein_values(menu_payload, place_payload)
+    menu_source = _menu_source_token(menu_payload, place_payload)
+    menu_confidence_raw = menu_payload.get("menu_item_confidence")
+    if menu_confidence_raw is None:
+        menu_confidence_raw = place_payload.get("menu_item_confidence")
+    menu_confidence = None if menu_confidence_raw is None else _clamp(_safe_float(menu_confidence_raw, 0.0), 0.0, 1.0)
 
     cut_mode = bool(ctx.get("cut_mode") or place_payload.get("cut_mode_active"))
     goal = str(ctx.get("goal") or place_payload.get("personalization_goal") or "").strip().lower()
@@ -106,6 +127,21 @@ def build_place_coach_message(
         elif decision == "MAYBE" and "swap" not in supporting_text.lower():
             supporting_text = decision_reason
 
+    # Avoid sounding certain when recommendation source/confidence is weak.
+    if menu_source != "real_menu" and menu_confidence is not None and menu_confidence < 0.55:
+        if decision == "YES":
+            headline = "Likely good fit if you keep choices simple."
+            supporting_text = "Menu details look limited, so choose lighter and less oily options."
+            tone = "caution"
+        elif decision == "MAYBE":
+            headline = "Could work today with a lighter order."
+            supporting_text = "Menu details are limited, so keep portions and extras controlled."
+            tone = "caution"
+        else:
+            headline = "Hard to confirm fit from this menu."
+            supporting_text = "If you still eat here, keep it light and avoid heavier extras."
+            tone = "warning"
+
     health_score_100 = _safe_float(place_payload.get("health_score_100"), _safe_float(place_payload.get("health_score"), 0.0))
     if health_score_100 <= 10:
         health_score_100 *= 10.0
@@ -121,11 +157,30 @@ def build_place_coach_message(
         confidence += 0.07
     if not str(menu_payload.get("item_name") or place_payload.get("best_order") or "").strip():
         confidence -= 0.07
+    if menu_source != "real_menu" and menu_confidence is not None:
+        confidence -= 0.05
+    if menu_confidence is not None:
+        confidence += (menu_confidence - 0.5) * 0.18
+
+    phrased = maybe_rephrase_coach_message(
+        headline=headline,
+        supporting_text=supporting_text,
+        context={
+            "tone": tone,
+            "goal": goal,
+            "decision": decision,
+            "cut_mode": cut_mode,
+            "menu_item_source": menu_source,
+            "menu_item_confidence": "" if menu_confidence is None else menu_confidence,
+        },
+    )
 
     return {
-        "headline": headline,
-        "supporting_text": supporting_text,
+        "headline": str(phrased.get("headline") or headline),
+        "supporting_text": str(phrased.get("supporting_text") or supporting_text),
         "tone": tone,
         "confidence": round(_clamp(confidence, 0.45, 0.92), 2),
         "message_version": COACH_MESSAGE_VERSION,
+        "phrasing_method": str(phrased.get("phrasing_method") or "deterministic"),
+        "phrasing_version": str(phrased.get("phrasing_version") or "v1"),
     }

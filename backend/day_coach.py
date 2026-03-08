@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
+from llm_coach_phrasing import maybe_rephrase_coach_message
+
 
 DAY_COACH_VERSION = "v1"
 
@@ -130,10 +132,22 @@ def build_day_coach_summary(
             if remain_protein is not None and remain_protein > 0:
                 supporting_text = f"Protein is moving well. You still need about {int(round(remain_protein))}g by tonight."
 
+    phrased = maybe_rephrase_coach_message(
+        headline=headline,
+        supporting_text=supporting_text,
+        context={
+            "tone": "encouraging",
+            "goal": str(goal or "").strip().lower(),
+            "cut_mode": bool(cut_mode),
+        },
+    )
+
     return {
-        "headline": headline,
-        "supporting_text": supporting_text,
+        "headline": str(phrased.get("headline") or headline),
+        "supporting_text": str(phrased.get("supporting_text") or supporting_text),
         "progress": progress,
+        "phrasing_method": str(phrased.get("phrasing_method") or "deterministic"),
+        "phrasing_version": str(phrased.get("phrasing_version") or "v1"),
     }
 
 

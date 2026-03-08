@@ -73,6 +73,7 @@ class LunchDecisionTests(unittest.TestCase):
         self.assertEqual(top["place_name"], "Protein Grill House")
         self.assertGreaterEqual(int(top.get("estimated_protein_g", 0)), 30)
         self.assertEqual(top.get("cta_label"), "Navigate")
+        self.assertIn(top.get("recommended_order_label"), {"Best Menu Item", "Likely Better Choice", "Suggested Lighter Option", "Estimated Best Fit", "Needs Menu Check"})
         self.assertIn("fit_for_today", top)
         self.assertIn("daily_fit_score", top)
 
@@ -222,6 +223,7 @@ class LunchDecisionTests(unittest.TestCase):
         self.assertIsNone(out["decision_context"]["remaining_calories"])
         self.assertIsNone(out["decision_context"]["remaining_protein_g"])
         self.assertEqual(out["summary_line"], "Based on nearby menu quality and smart swaps")
+        self.assertNotIn("grilled protein bowl", str(out["cards"][0].get("recommended_order") or "").lower())
 
     def test_share_card_present_for_top_card(self):
         out = build_lunch_decision_response(
@@ -254,8 +256,14 @@ class LunchDecisionTests(unittest.TestCase):
         self.assertEqual(top["share_card"].get("title"), "Best Order Near Me")
         self.assertIsInstance(out.get("top_share_card"), dict)
         self.assertIn("tracking", top)
+        self.assertIn(top.get("copy_method"), {"deterministic", "llm"})
+        self.assertGreaterEqual(float(top.get("copy_confidence", 0.0)), 0.0)
+        self.assertEqual(top.get("copy_version"), "v1")
         self.assertIsInstance(top.get("reality_check"), dict)
         self.assertEqual(top["reality_check"].get("title"), "Restaurant Reality Check")
+        self.assertIn(top["reality_check"].get("copy_method"), {"deterministic", "llm"})
+        self.assertGreaterEqual(float(top["reality_check"].get("copy_confidence", 0.0)), 0.0)
+        self.assertEqual(top["reality_check"].get("copy_version"), "v1")
         self.assertIsInstance(top.get("reality_check_share_card"), dict)
 
     def test_cut_mode_changes_context_but_keeps_schema(self):

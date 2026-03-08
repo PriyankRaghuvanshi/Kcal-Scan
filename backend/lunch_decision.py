@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Optional
 from day_coach import build_day_coach_payload
 from healthy_order_recommender import suggest_best_order_for_place
 from healthy_place_scoring import score_healthy_place
+from llm_explanation_copy import maybe_rewrite_explanation_copy
 from menu_item_scoring import recommend_menu_items_for_place
 from nutrition_mode import NutritionMode
 from personalization_profiles import (
@@ -52,6 +53,21 @@ def _clamp(x: float, lo: float, hi: float) -> float:
 
 def _norm_text(text: Any) -> str:
     return " ".join(str(text or "").strip().lower().split())
+
+
+def _cuisine_hint_from_place(place: Dict[str, Any]) -> str:
+    payload = place if isinstance(place, dict) else {}
+    primary = str(payload.get("primary_type") or payload.get("primaryType") or "").strip()
+    if primary:
+        return primary.replace("_", " ")
+
+    types = payload.get("types") if isinstance(payload.get("types"), list) else []
+    out = []
+    for token in types:
+        text = str(token or "").strip().lower()
+        if text and text not in {"restaurant", "food", "point_of_interest", "establishment", "meal_takeaway"}:
+            out.append(text.replace("_", " "))
+    return ", ".join(out[:3])
 
 
 def _haversine_meters(lat1: float, lng1: float, lat2: float, lng2: float) -> int:
@@ -104,6 +120,38 @@ def _tracking_payload(place_id: str, item: str, card_type: str) -> Dict[str, Any
     }
 
 
+def _rewrite_card_copy(
+    *,
+    profile: Dict[str, Any],
+    why_this_works: str,
+    short_reason: str,
+    typical_order_calories: Any = None,
+) -> Dict[str, Any]:
+    rewritten = maybe_rewrite_explanation_copy(
+        place_name=str(profile.get("name") or "").strip(),
+        cuisine=str(profile.get("cuisine_hint") or "").strip(),
+        recommended_order=str(profile.get("recommended_order") or "").strip(),
+        estimated_calories=profile.get("estimated_calories"),
+        estimated_protein_g=profile.get("estimated_protein_g"),
+        typical_order_calories=typical_order_calories,
+        goal=str(profile.get("personalization_goal") or "").strip(),
+        confidence=profile.get("decision_confidence"),
+        recommendation_source=profile.get("menu_item_source"),
+        menu_item_confidence=profile.get("menu_item_confidence"),
+        today_fit=profile.get("decision_today"),
+        has_reality_check=bool(profile.get("reality_check")),
+        base_why_this_works=why_this_works,
+        base_short_reason=short_reason,
+    )
+    return {
+        "why_this_works": str(rewritten.get("why_this_works") or why_this_works),
+        "short_reason": str(rewritten.get("short_reason") or short_reason),
+        "copy_method": str(rewritten.get("copy_method") or "deterministic"),
+        "copy_confidence": round(_clamp(_safe_float(rewritten.get("copy_confidence"), 0.6), 0.2, 0.95), 2),
+        "copy_version": str(rewritten.get("copy_version") or "v1"),
+    }
+
+
 def _place_profile(
     place: Dict[str, Any],
     *,
@@ -114,6 +162,7 @@ def _place_profile(
     remaining_calories: Any,
     remaining_protein_g: Any,
 ) -> Dict[str, Any]:
+    goal_value = personalization_goal_value(personalization_goal)
     scoring = score_healthy_place(place, mode=mode, personalization_goal=personalization_goal)
     health_score_10pt = _clamp(_safe_float(scoring.get("health_score"), 5.0), 1.0, 10.0)
     health_score = int(round(health_score_10pt * 10.0))
@@ -168,6 +217,8 @@ def _place_profile(
         _safe_float(top_item.get("confidence"), _safe_float(order.get("order_confidence"), 0.52))
         or 0.52
     )
+    menu_item_source = str(top_item.get("menu_item_source") or "heuristic").strip().lower() or "heuristic"
+    menu_item_confidence = float(_safe_float(top_item.get("menu_item_confidence"), order_confidence) or order_confidence)
 
     fit_score = (
         (health_score * 0.46)
@@ -215,8 +266,9 @@ def _place_profile(
         or order.get("personalized_best_order")
         or order.get("best_order_for_cut")
         or order.get("best_order")
-        or "Grilled protein bowl"
+        or "Lighter menu option"
     )
+    recommended_order_label = str(top_item.get("display_label") or "").strip() or "Estimated Best Fit"
 
     short_reason = str(
         top_item.get("short_reason")
@@ -259,6 +311,7 @@ def _place_profile(
             "health_score": health_score,
             "mode": mode.value,
             "fit_for_today": fit_for_today,
+            "goal": goal_value,
         },
     )
 
@@ -271,6 +324,7 @@ def _place_profile(
         "health_score": int(_clamp(health_score, 1, 100)),
         "health_score_10pt": round(health_score_10pt, 1),
         "recommended_order": recommended_order,
+        "recommended_order_label": recommended_order_label,
         "estimated_calories": int(max(0, estimated_calories)),
         "estimated_protein_g": int(max(0, estimated_protein_g)),
         "short_reason": short_reason,
@@ -283,11 +337,15 @@ def _place_profile(
         "daily_fit_score": daily_fit_score,
         "decision_confidence": float(_safe_float(decision.get("decision_confidence"), order_confidence) or order_confidence),
         "order_confidence": float(_clamp(order_confidence, 0.35, 0.95)),
+        "menu_item_source": menu_item_source,
+        "menu_item_confidence": round(_clamp(menu_item_confidence, 0.2, 0.95), 2),
         "fit_score": float(round(_clamp(fit_score, 0.0, 100.0), 2)),
         "weak_option": bool(weak_option),
         "top_menu_items": menu.get("top_menu_items") if isinstance(menu.get("top_menu_items"), list) else [],
         "share_card": share_card,
         "reality_check": reality_check,
+        "cuisine_hint": _cuisine_hint_from_place(place),
+        "personalization_goal": personalization_goal_value(personalization_goal),
     }
 
 
@@ -392,12 +450,29 @@ def _typical_calorie_range(profile: Dict[str, Any]) -> str:
 
 
 def _build_best_card(profile: Dict[str, Any]) -> Dict[str, Any]:
-    recommended_order = str(profile.get("recommended_order") or "Grilled protein bowl")
+    recommended_order = str(profile.get("recommended_order") or "Lighter menu option")
     reality_check = profile.get("reality_check") if isinstance(profile.get("reality_check"), dict) else {}
     calories_saved = int(_safe_float(reality_check.get("calories_saved"), 0.0) or 0)
     why_this_works = str(profile.get("short_reason") or "Strong protein-calorie balance for your lunch.")
     if calories_saved >= 180:
         why_this_works = f"You save {calories_saved} calories with this smarter pick."
+
+    typical_calories = None
+    if isinstance(reality_check.get("typical_order"), dict):
+        typical_calories = (reality_check.get("typical_order") or {}).get("estimated_calories")
+    rewritten = _rewrite_card_copy(
+        profile=profile,
+        why_this_works=why_this_works,
+        short_reason=str(profile.get("short_reason") or why_this_works),
+        typical_order_calories=typical_calories,
+    )
+
+    reality_payload = dict(reality_check) if isinstance(reality_check, dict) else {}
+    if reality_payload:
+        reality_payload["short_reason"] = rewritten["short_reason"]
+        reality_payload["copy_method"] = rewritten["copy_method"]
+        reality_payload["copy_confidence"] = rewritten["copy_confidence"]
+        reality_payload["copy_version"] = rewritten["copy_version"]
 
     return {
         "card_type": "best_right_now",
@@ -406,6 +481,7 @@ def _build_best_card(profile: Dict[str, Any]) -> Dict[str, Any]:
         "place_id": str(profile.get("place_id") or ""),
         "distance_meters": int(_safe_float(profile.get("distance_meters"), 0.0) or 0),
         "recommended_order": recommended_order,
+        "recommended_order_label": str(profile.get("recommended_order_label") or "Estimated Best Fit"),
         "estimated_calories": int(_safe_float(profile.get("estimated_calories"), 0.0) or 0),
         "estimated_protein_g": int(_safe_float(profile.get("estimated_protein_g"), 0.0) or 0),
         "fit_for_today": profile.get("fit_for_today"),
@@ -413,7 +489,7 @@ def _build_best_card(profile: Dict[str, Any]) -> Dict[str, Any]:
         "fits_remaining_protein": profile.get("fits_remaining_protein"),
         "daily_fit_score": float(_safe_float(profile.get("daily_fit_score"), 0.0) or 0.0),
         "badges": _card_badges(profile, is_best=True),
-        "why_this_works": why_this_works,
+        "why_this_works": rewritten["why_this_works"],
         "decision_reason": str(profile.get("decision_reason") or ""),
         "cta_label": "Navigate",
         "health_score": int(_safe_float(profile.get("health_score"), 0.0) or 0),
@@ -421,10 +497,13 @@ def _build_best_card(profile: Dict[str, Any]) -> Dict[str, Any]:
         "place_lat": float(_safe_float(profile.get("lat"), 0.0) or 0.0),
         "place_lng": float(_safe_float(profile.get("lng"), 0.0) or 0.0),
         "share_card": profile.get("share_card") if isinstance(profile.get("share_card"), dict) else None,
-        "reality_check": reality_check if isinstance(reality_check, dict) else None,
+        "reality_check": reality_payload if reality_payload else None,
         "reality_check_share_card": (
             reality_check.get("share_card") if isinstance(reality_check.get("share_card"), dict) else None
         ) if isinstance(reality_check, dict) else None,
+        "copy_method": rewritten["copy_method"],
+        "copy_confidence": rewritten["copy_confidence"],
+        "copy_version": rewritten["copy_version"],
         "tracking": _tracking_payload(str(profile.get("place_id") or ""), recommended_order, "best_right_now"),
     }
 
@@ -438,7 +517,24 @@ def _build_better_card(profile: Dict[str, Any]) -> Dict[str, Any]:
     elif not explanation.lower().startswith("better"):
         explanation = f"A more macro-friendly option than typical fast-food meals. {explanation}"
 
-    recommended_order = str(profile.get("recommended_order") or "Grilled protein bowl")
+    recommended_order = str(profile.get("recommended_order") or "Lighter menu option")
+
+    typical_calories = None
+    if isinstance(reality_check.get("typical_order"), dict):
+        typical_calories = (reality_check.get("typical_order") or {}).get("estimated_calories")
+    rewritten = _rewrite_card_copy(
+        profile=profile,
+        why_this_works=explanation,
+        short_reason=str(profile.get("short_reason") or explanation),
+        typical_order_calories=typical_calories,
+    )
+
+    reality_payload = dict(reality_check) if isinstance(reality_check, dict) else {}
+    if reality_payload:
+        reality_payload["short_reason"] = rewritten["short_reason"]
+        reality_payload["copy_method"] = rewritten["copy_method"]
+        reality_payload["copy_confidence"] = rewritten["copy_confidence"]
+        reality_payload["copy_version"] = rewritten["copy_version"]
 
     return {
         "card_type": "better_alternative",
@@ -447,6 +543,7 @@ def _build_better_card(profile: Dict[str, Any]) -> Dict[str, Any]:
         "place_id": str(profile.get("place_id") or ""),
         "distance_meters": int(_safe_float(profile.get("distance_meters"), 0.0) or 0),
         "recommended_order": recommended_order,
+        "recommended_order_label": str(profile.get("recommended_order_label") or "Suggested Lighter Option"),
         "estimated_calories": int(_safe_float(profile.get("estimated_calories"), 0.0) or 0),
         "estimated_protein_g": int(_safe_float(profile.get("estimated_protein_g"), 0.0) or 0),
         "fit_for_today": profile.get("fit_for_today"),
@@ -454,7 +551,7 @@ def _build_better_card(profile: Dict[str, Any]) -> Dict[str, Any]:
         "fits_remaining_protein": profile.get("fits_remaining_protein"),
         "daily_fit_score": float(_safe_float(profile.get("daily_fit_score"), 0.0) or 0.0),
         "badges": ["Better swap"],
-        "why_this_works": explanation,
+        "why_this_works": rewritten["why_this_works"],
         "decision_reason": str(profile.get("decision_reason") or ""),
         "cta_label": "Navigate",
         "health_score": int(_safe_float(profile.get("health_score"), 0.0) or 0),
@@ -462,10 +559,13 @@ def _build_better_card(profile: Dict[str, Any]) -> Dict[str, Any]:
         "place_lat": float(_safe_float(profile.get("lat"), 0.0) or 0.0),
         "place_lng": float(_safe_float(profile.get("lng"), 0.0) or 0.0),
         "share_card": profile.get("share_card") if isinstance(profile.get("share_card"), dict) else None,
-        "reality_check": reality_check if isinstance(reality_check, dict) else None,
+        "reality_check": reality_payload if reality_payload else None,
         "reality_check_share_card": (
             reality_check.get("share_card") if isinstance(reality_check.get("share_card"), dict) else None
         ) if isinstance(reality_check, dict) else None,
+        "copy_method": rewritten["copy_method"],
+        "copy_confidence": rewritten["copy_confidence"],
+        "copy_version": rewritten["copy_version"],
         "tracking": _tracking_payload(str(profile.get("place_id") or ""), recommended_order, "better_alternative"),
     }
 
@@ -477,6 +577,23 @@ def _build_hard_card(profile: Dict[str, Any], remaining_calories: Optional[float
         reason = "Possible, but difficult to stay within your calorie target."
 
     recommended_order = str(profile.get("recommended_order") or "Use lighter alternatives today")
+
+    typical_calories = None
+    if isinstance(reality_check.get("typical_order"), dict):
+        typical_calories = (reality_check.get("typical_order") or {}).get("estimated_calories")
+    rewritten = _rewrite_card_copy(
+        profile=profile,
+        why_this_works=reason,
+        short_reason=reason,
+        typical_order_calories=typical_calories,
+    )
+
+    reality_payload = dict(reality_check) if isinstance(reality_check, dict) else {}
+    if reality_payload:
+        reality_payload["short_reason"] = rewritten["short_reason"]
+        reality_payload["copy_method"] = rewritten["copy_method"]
+        reality_payload["copy_confidence"] = rewritten["copy_confidence"]
+        reality_payload["copy_version"] = rewritten["copy_version"]
 
     return {
         "card_type": "hard_to_fit_today",
@@ -492,7 +609,7 @@ def _build_hard_card(profile: Dict[str, Any], remaining_calories: Optional[float
         "fits_remaining_calories": profile.get("fits_remaining_calories"),
         "fits_remaining_protein": profile.get("fits_remaining_protein"),
         "daily_fit_score": float(_safe_float(profile.get("daily_fit_score"), 0.0) or 0.0),
-        "why_this_works": reason,
+        "why_this_works": rewritten["why_this_works"],
         "decision_reason": reason,
         "cta_label": "View alternatives",
         "health_score": int(_safe_float(profile.get("health_score"), 0.0) or 0),
@@ -500,10 +617,13 @@ def _build_hard_card(profile: Dict[str, Any], remaining_calories: Optional[float
         "place_lat": float(_safe_float(profile.get("lat"), 0.0) or 0.0),
         "place_lng": float(_safe_float(profile.get("lng"), 0.0) or 0.0),
         "share_card": profile.get("share_card") if isinstance(profile.get("share_card"), dict) else None,
-        "reality_check": reality_check if isinstance(reality_check, dict) else None,
+        "reality_check": reality_payload if reality_payload else None,
         "reality_check_share_card": (
             reality_check.get("share_card") if isinstance(reality_check.get("share_card"), dict) else None
         ) if isinstance(reality_check, dict) else None,
+        "copy_method": rewritten["copy_method"],
+        "copy_confidence": rewritten["copy_confidence"],
+        "copy_version": rewritten["copy_version"],
         "tracking": _tracking_payload(str(profile.get("place_id") or ""), recommended_order, "hard_to_fit_today"),
     }
 

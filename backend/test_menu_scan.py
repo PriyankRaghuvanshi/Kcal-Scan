@@ -1,4 +1,5 @@
 import unittest
+from unittest.mock import patch
 
 from menu_scan import build_menu_scan_response, parse_menu_items_from_text
 
@@ -90,6 +91,24 @@ class MenuScanTests(unittest.TestCase):
         top = (out.get("top_recommendations") or [{}])[0]
         self.assertIsNone(top.get("fit_for_today"))
         self.assertIn("coach_message", out)
+
+    def test_parse_metadata_fields_are_present(self):
+        raw = """
+        Chicken burrito bowl $14
+        Chicken tacos $12
+        Loaded nachos $18
+        """
+        with patch.dict("os.environ", {"ENABLE_LLM_MENU_PARSING": "false"}, clear=False):
+            out = build_menu_scan_response(
+                raw_menu_text=raw,
+                ocr_confidence=0.8,
+                restaurant_name="Mexican Grill",
+            )
+
+        self.assertIn(out.get("parse_method"), {"deterministic", "llm"})
+        self.assertIn("parse_version", out)
+        self.assertIn("parser_confidence", out)
+        self.assertIsInstance(out.get("parsed_menu_items_structured"), list)
 
 
 if __name__ == "__main__":

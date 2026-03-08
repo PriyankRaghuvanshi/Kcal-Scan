@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Tuple
 
+from llm_macro_estimator import maybe_estimate_unknown_meal_macros
+
 
 MACRO_ESTIMATION_VERSION = "v1_template_heuristic"
 
@@ -118,6 +120,13 @@ def _safe_int(value: Any, default: int = 0) -> int:
         return int(default)
 
 
+def _safe_float(value: Any, default: float = 0.0) -> float:
+    try:
+        return float(value)
+    except Exception:
+        return float(default)
+
+
 def _place_text(place: Dict[str, Any] | None) -> str:
     payload = place if isinstance(place, dict) else {}
     name = str(payload.get("name") or "").strip().lower()
@@ -225,6 +234,8 @@ def estimate_restaurant_macros(
         protein_g = int(round((0.65 * int(input_protein_g)) + (0.35 * protein_g)))
         confidence += 0.08
 
+    has_known_nutrition = bool((input_calories is not None and int(input_calories) > 0) or (input_protein_g is not None and int(input_protein_g) > 0))
+
     deltas = _collect_adjustments(item_text, cuisine_text, place_text)
     calories += int(deltas["kcal"])
     protein_g += int(deltas["protein"])
@@ -248,6 +259,57 @@ def estimate_restaurant_macros(
 
     confidence = round(_clamp(confidence, 0.35, 0.92), 2)
 
+    deterministic = {
+        "estimated_calories": int(calories),
+        "estimated_protein_g": int(protein_g),
+        "estimated_carbs_g": int(carbs_g),
+        "estimated_fat_g": int(fat_g),
+        "estimated_satiety": satiety,
+        "macro_confidence": confidence,
+    }
+
+    llm_out = maybe_estimate_unknown_meal_macros(
+        item_name=str(item_name or ""),
+        cuisine_hint=cuisine_text,
+        place=place,
+        known_components=[],
+        deterministic_estimate=deterministic,
+        has_known_nutrition=has_known_nutrition,
+        profile_hit_count=int(hit_count or 0),
+    )
+
+    if bool(llm_out.get("used")) and isinstance(llm_out.get("estimate"), dict):
+        llm_est = llm_out["estimate"]
+        calories, protein_g, carbs_g, fat_g = _reconcile_energy(
+            int(_safe_int(llm_est.get("estimated_calories"), deterministic["estimated_calories"])),
+            int(_safe_int(llm_est.get("estimated_protein_g"), deterministic["estimated_protein_g"])),
+            int(_safe_int(llm_est.get("estimated_carbs_g"), deterministic["estimated_carbs_g"])),
+            int(_safe_int(llm_est.get("estimated_fat_g"), deterministic["estimated_fat_g"])),
+        )
+        satiety = str(llm_est.get("estimated_satiety") or _satiety_from_macros(calories, protein_g, carbs_g, fat_g))
+        satiety = satiety if satiety in {"low", "medium", "high"} else _satiety_from_macros(calories, protein_g, carbs_g, fat_g)
+        confidence = round(
+            _clamp(
+                _safe_float(llm_est.get("macro_confidence"), float(deterministic["macro_confidence"])),
+                0.35,
+                0.92,
+            ),
+            2,
+        )
+
+        return {
+            "estimated_calories": int(calories),
+            "estimated_protein_g": int(protein_g),
+            "estimated_carbs_g": int(carbs_g),
+            "estimated_fat_g": int(fat_g),
+            "estimated_satiety": satiety,
+            "macro_confidence": confidence,
+            "macro_estimation_version": "v1_llm_optional",
+            "estimation_method": "llm",
+            "estimation_version": "v1",
+            "llm_estimation_attempted": bool(llm_out.get("attempted")),
+        }
+
     return {
         "estimated_calories": int(calories),
         "estimated_protein_g": int(protein_g),
@@ -256,4 +318,8 @@ def estimate_restaurant_macros(
         "estimated_satiety": satiety,
         "macro_confidence": confidence,
         "macro_estimation_version": MACRO_ESTIMATION_VERSION,
+        "estimation_method": "deterministic",
+        "estimation_version": "v1",
+        "llm_estimation_attempted": bool(llm_out.get("attempted")),
+        "llm_fallback_reason": str(llm_out.get("error") or "")[:120] if bool(llm_out.get("attempted")) and not bool(llm_out.get("used")) else "",
     }

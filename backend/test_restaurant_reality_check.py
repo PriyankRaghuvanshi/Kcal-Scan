@@ -28,6 +28,8 @@ class RestaurantRealityCheckTests(unittest.TestCase):
         self.assertEqual(out["place_name"], "McDonald's")
         self.assertGreaterEqual(int(out["calories_saved"]), 300)
         self.assertEqual(out["smarter_order"]["name"], "Grilled wrap + water")
+        self.assertIn(out.get("copy_method"), {"deterministic", "llm"})
+        self.assertGreaterEqual(float(out.get("copy_confidence", 0.0)), 0.0)
         self.assertIsInstance(out.get("share_card"), dict)
 
     def test_fried_chicken_rule_fallback(self):
@@ -91,6 +93,7 @@ class RestaurantRealityCheckTests(unittest.TestCase):
 
         self.assertIn("typical_order", out)
         self.assertIn("smarter_order", out)
+        self.assertNotIn("grilled protein bowl", str(out["smarter_order"].get("name") or "").lower())
         self.assertIsInstance(out["confidence"], float)
         self.assertGreaterEqual(float(out["confidence"]), 0.35)
         self.assertLessEqual(float(out["confidence"]), 0.94)

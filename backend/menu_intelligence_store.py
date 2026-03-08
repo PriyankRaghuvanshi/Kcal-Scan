@@ -13,6 +13,7 @@ MENU_INTELLIGENCE_VERSION = "v1"
 SOURCE_SCRAPED_MENU = "scraped_menu"
 SOURCE_HEURISTIC = "heuristic_generation"
 SOURCE_USER_SCAN = "user_scan"
+SOURCE_LLM_INFERRED = "llm_inferred"
 
 _SOURCE_ALIASES = {
     "scraped_menu": SOURCE_SCRAPED_MENU,
@@ -21,6 +22,8 @@ _SOURCE_ALIASES = {
     "heuristic": SOURCE_HEURISTIC,
     "heuristic_generation": SOURCE_HEURISTIC,
     "generated": SOURCE_HEURISTIC,
+    "llm_inferred": SOURCE_LLM_INFERRED,
+    "llm": SOURCE_LLM_INFERRED,
     "user_scan": SOURCE_USER_SCAN,
     "scan": SOURCE_USER_SCAN,
     "user": SOURCE_USER_SCAN,
@@ -29,11 +32,13 @@ _SOURCE_ALIASES = {
 _SOURCE_CONFIDENCE_DEFAULT = {
     SOURCE_SCRAPED_MENU: 0.72,
     SOURCE_HEURISTIC: 0.48,
+    SOURCE_LLM_INFERRED: 0.6,
     SOURCE_USER_SCAN: 0.82,
 }
 
 _SOURCE_PRIORITY = {
     SOURCE_HEURISTIC: 1,
+    SOURCE_LLM_INFERRED: 2,
     SOURCE_SCRAPED_MENU: 2,
     SOURCE_USER_SCAN: 3,
 }

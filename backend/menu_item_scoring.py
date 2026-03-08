@@ -15,8 +15,11 @@ from personalization_profiles import (
     personalization_goal_value,
 )
 from restaurant_macro_estimator import estimate_restaurant_macros
+from llm_explanation_copy import maybe_rewrite_explanation_copy
+from llm_menu_parser import infer_place_menu_items_with_optional_llm
 from menu_intelligence_store import (
     SOURCE_HEURISTIC,
+    SOURCE_LLM_INFERRED,
     SOURCE_SCRAPED_MENU,
     get_menu_items_by_place_id,
     ingest_menu_intelligence,
@@ -95,6 +98,15 @@ PLACE_MENU_RULES: List[Dict[str, Any]] = [
         ],
     },
     {
+        "rule_id": "south_indian_temple_canteen",
+        "tokens": ("south indian", "idli", "dosa", "sambar", "udupi", "canteen", "temple"),
+        "items": [
+            {"item_name": "Idli + sambar", "estimated_calories": 360, "estimated_protein_g": 13},
+            {"item_name": "Plain dosa + sambar", "estimated_calories": 420, "estimated_protein_g": 14},
+            {"item_name": "Veg meal (light rice + dal)", "estimated_calories": 520, "estimated_protein_g": 16},
+        ],
+    },
+    {
         "rule_id": "thai_chinese",
         "tokens": ("thai", "chinese", "wok", "stir fry", "noodle"),
         "items": [
@@ -124,9 +136,9 @@ PLACE_MENU_RULES: List[Dict[str, Any]] = [
 ]
 
 FALLBACK_ITEMS: List[Dict[str, Any]] = [
-    {"item_name": "Grilled protein bowl", "estimated_calories": 520, "estimated_protein_g": 34},
-    {"item_name": "Chicken salad plate", "estimated_calories": 450, "estimated_protein_g": 30},
-    {"item_name": "Protein wrap (light sauce)", "estimated_calories": 500, "estimated_protein_g": 31},
+    {"item_name": "Lighter menu option", "estimated_calories": 520, "estimated_protein_g": 30},
+    {"item_name": "Lean protein + simple side", "estimated_calories": 500, "estimated_protein_g": 28},
+    {"item_name": "Lower-fried option with water", "estimated_calories": 540, "estimated_protein_g": 26},
 ]
 
 
@@ -172,6 +184,81 @@ def _infer_cuisine(place: Dict[str, Any]) -> str:
         if token_str and token_str not in {"restaurant", "food", "point_of_interest", "establishment"}:
             return token_str.replace("_", " ").strip()
     return ""
+
+
+def _menu_item_source_from_menu_source(menu_source: Any) -> str:
+    token = str(menu_source or "").strip().lower()
+    if token in {"structured_menu", "menu_intelligence_store"}:
+        return "real_menu"
+    if token == "llm_inferred":
+        return "llm_inferred"
+    return "heuristic"
+
+
+def _display_label_for_menu_item(source: str, confidence: float) -> str:
+    conf = _clamp(_safe_float(confidence, 0.5), 0.0, 1.0)
+    if source == "real_menu":
+        return "Best Menu Item" if conf >= 0.72 else "Likely Better Choice"
+    if source == "llm_inferred":
+        if conf >= 0.75:
+            return "Likely Better Choice"
+        if conf >= 0.58:
+            return "Suggested Lighter Option"
+        if conf >= 0.45:
+            return "Estimated Best Fit"
+        return "Needs Menu Check"
+    if conf >= 0.7:
+        return "Estimated Best Fit"
+    if conf >= 0.52:
+        return "Suggested Lighter Option"
+    return "Needs Menu Check"
+
+
+def _coarse_item_name_for_context(cuisine_hint: str) -> str:
+    text = str(cuisine_hint or "").strip().lower()
+    if any(token in text for token in ("south indian", "idli", "dosa", "udupi", "temple", "canteen")):
+        return "Idli or plain dosa-style option"
+    if "indian" in text:
+        return "Simpler tandoori or dal + roti option"
+    if any(token in text for token in ("cafe", "coffee", "bakery", "brunch")):
+        return "Lighter cafe meal option"
+    if any(token in text for token in ("burger", "fast food", "fast_food", "fried chicken")):
+        return "Lighter grilled or single-item option"
+    if "pizza" in text:
+        return "Lighter thin-crust option"
+    if any(token in text for token in ("sushi", "japanese")):
+        return "Sashimi or simple rice-bowl option"
+    if any(token in text for token in ("mexican", "burrito", "taco")):
+        return "Lighter bowl or taco-style option"
+    return "Lighter menu option"
+
+
+def _final_item_name(
+    *,
+    item_name: str,
+    source: str,
+    confidence: float,
+    cuisine_hint: str,
+) -> str:
+    text = str(item_name or "").strip()
+    if not text:
+        return _coarse_item_name_for_context(cuisine_hint)
+    if source == "real_menu":
+        return text
+
+    lower_item = text.lower()
+    lower_cuisine = str(cuisine_hint or "").lower()
+    is_south_indian_context = any(
+        token in lower_cuisine for token in ("south indian", "idli", "dosa", "udupi", "temple", "canteen")
+    )
+
+    # Avoid unrealistic western fallback names in cuisine-specific contexts.
+    if is_south_indian_context and any(token in lower_item for token in ("grilled protein bowl", "protein wrap")):
+        return "Idli or plain dosa-style option"
+
+    if _safe_float(confidence, 0.0) < 0.55:
+        return _coarse_item_name_for_context(cuisine_hint)
+    return text
 
 
 def _ingest_menu_snapshot(
@@ -318,6 +405,22 @@ def score_menu_item(
         weights = get_goal_adjusted_menu_weights(weights, resolved_goal)
 
     item_name = str(payload.get("item_name") or payload.get("name") or "Menu item").strip() or "Menu item"
+    raw_item_name = item_name
+    raw_item_source = str(
+        payload.get("menu_item_source")
+        or payload.get("source")
+        or _menu_item_source_from_menu_source(context_payload.get("menu_source"))
+    ).strip().lower()
+    if raw_item_source in {"real_menu", "structured_menu", "menu_intelligence_store", "scraped_menu", "user_scan"}:
+        menu_item_source = "real_menu"
+    elif raw_item_source in {"llm_inferred", "llm"}:
+        menu_item_source = "llm_inferred"
+    else:
+        menu_item_source = "heuristic"
+    source_confidence = _safe_float(
+        payload.get("menu_item_confidence", payload.get("confidence")),
+        0.0,
+    )
 
     input_calories = int(_safe_float(payload.get("estimated_calories", payload.get("calories")), 0) or 0)
     input_protein = int(_safe_float(payload.get("estimated_protein_g", payload.get("protein_g")), 0) or 0)
@@ -457,6 +560,8 @@ def score_menu_item(
     confidence = nutrition_conf
     if context_payload.get("menu_source") == "heuristic":
         confidence -= 0.12
+    elif context_payload.get("menu_source") == "llm_inferred":
+        confidence -= 0.06
     if context_payload.get("place_text"):
         place_text = str(context_payload.get("place_text") or "")
         if any(token in place_text for token in ("grill", "salad", "sushi", "healthy", "bowl")):
@@ -469,9 +574,42 @@ def score_menu_item(
             confidence -= 0.08
 
     confidence = round(_clamp(confidence, 0.35, 0.93), 2)
+    menu_item_confidence = round(
+        _clamp((confidence * 0.72) + ((source_confidence or confidence) * 0.28), 0.25, 0.97),
+        2,
+    )
+    cuisine_hint = str(context_payload.get("cuisine_hint") or context_payload.get("place_text") or "")
+    display_label = _display_label_for_menu_item(menu_item_source, menu_item_confidence)
+    item_name = _final_item_name(
+        item_name=item_name,
+        source=menu_item_source,
+        confidence=menu_item_confidence,
+        cuisine_hint=cuisine_hint,
+    )
+    place_ctx = context_payload.get("place") if isinstance(context_payload.get("place"), dict) else {}
+    place_name = str(place_ctx.get("name") or "").strip()
+    rewritten = maybe_rewrite_explanation_copy(
+        place_name=place_name,
+        cuisine=cuisine_hint,
+        recommended_order=raw_item_name,
+        estimated_calories=calories,
+        estimated_protein_g=protein_g,
+        goal=goal_value,
+        confidence=confidence,
+        recommendation_source=menu_item_source,
+        menu_item_confidence=menu_item_confidence,
+        base_why_this_works=short_reason,
+        base_short_reason=short_reason,
+    )
+    short_reason = str(rewritten.get("short_reason") or short_reason)
+    why_this_works = str(rewritten.get("why_this_works") or short_reason)
+    copy_method = str(rewritten.get("copy_method") or "deterministic")
+    copy_confidence = round(_clamp(_safe_float(rewritten.get("copy_confidence"), menu_item_confidence), 0.2, 0.95), 2)
+    copy_version = str(rewritten.get("copy_version") or "v1")
 
     return {
         "item_name": item_name,
+        "raw_item_name": raw_item_name,
         "item_score": item_score,
         "item_score_breakdown": {
             "protein_density": int(round(_clamp(protein_density, 0.0, 100.0))),
@@ -488,7 +626,14 @@ def score_menu_item(
         "macro_estimation_version": macro_estimation_version,
         "fat_loss_friendly": fat_loss_friendly,
         "short_reason": short_reason,
+        "why_this_works": why_this_works,
         "confidence": confidence,
+        "menu_item_source": menu_item_source,
+        "menu_item_confidence": menu_item_confidence,
+        "display_label": display_label,
+        "copy_method": copy_method,
+        "copy_confidence": copy_confidence,
+        "copy_version": copy_version,
         "recommendation_tags": tags,
         "recommendation_version": MENU_RECOMMENDATION_VERSION,
         "cut_mode_active": cut_mode_active,
@@ -510,6 +655,7 @@ def rank_menu_items_for_place(
     personalization_goal: Any = None,
 ) -> List[Dict[str, Any]]:
     place_text = _place_text(place)
+    cuisine_hint = _infer_cuisine(place)
     if not isinstance(menu_items, list) or not menu_items:
         return []
 
@@ -523,6 +669,7 @@ def rank_menu_items_for_place(
             item,
             context={
                 "place_text": place_text,
+                "cuisine_hint": cuisine_hint,
                 "menu_source": "structured_menu",
                 "mode": resolved_mode.value,
                 "place": place,
@@ -561,17 +708,30 @@ def recommend_menu_items_for_place(
         menu_items = source_items
         _ingest_menu_snapshot(place, menu_items, SOURCE_SCRAPED_MENU)
     else:
-        menu_source = "heuristic"
-        menu_items = _heuristic_menu_items(place)
-        _ingest_menu_snapshot(place, menu_items, SOURCE_HEURISTIC)
+        heuristic_items = _heuristic_menu_items(place)
+        llm_bundle = infer_place_menu_items_with_optional_llm(
+            place=place,
+            heuristic_items=heuristic_items,
+            max_items=3,
+        )
+        menu_source = "llm_inferred" if str(llm_bundle.get("parse_method") or "") == "llm_inferred" else "heuristic"
+        parsed_items = llm_bundle.get("parsed_items") if isinstance(llm_bundle.get("parsed_items"), list) else []
+        menu_items = parsed_items if parsed_items else heuristic_items
+        _ingest_menu_snapshot(
+            place,
+            menu_items,
+            SOURCE_LLM_INFERRED if menu_source == "llm_inferred" else SOURCE_HEURISTIC,
+        )
 
     place_text = _place_text(place)
+    cuisine_hint = _infer_cuisine(place)
     scored_items: List[Dict[str, Any]] = []
     for item in menu_items:
         scored = score_menu_item(
             item,
             context={
                 "place_text": place_text,
+                "cuisine_hint": cuisine_hint,
                 "menu_source": menu_source,
                 "mode": resolved_mode.value,
                 "place": place,

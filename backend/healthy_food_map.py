@@ -134,6 +134,34 @@ def _build_badges(payload: Dict[str, Any], fit_for_today: Optional[bool]) -> Lis
     return deduped[:4]
 
 
+def _normalize_menu_source(source: Any) -> str:
+    token = str(source or "").strip().lower()
+    if token in {"real_menu", "menu_intelligence_store", "structured_menu", "scraped_menu", "user_scan"}:
+        return "real_menu"
+    if token in {"llm_inferred", "llm"}:
+        return "llm_inferred"
+    return "heuristic"
+
+
+def _display_label_for_menu_item(source: str, confidence: float) -> str:
+    conf = _clamp(_safe_float(confidence, 0.5), 0.0, 1.0)
+    if source == "real_menu":
+        return "Best Menu Item" if conf >= 0.72 else "Likely Better Choice"
+    if source == "llm_inferred":
+        if conf >= 0.75:
+            return "Likely Better Choice"
+        if conf >= 0.58:
+            return "Suggested Lighter Option"
+        if conf >= 0.45:
+            return "Estimated Best Fit"
+        return "Needs Menu Check"
+    if conf >= 0.7:
+        return "Estimated Best Fit"
+    if conf >= 0.52:
+        return "Suggested Lighter Option"
+    return "Needs Menu Check"
+
+
 def _build_top_menu_item(payload: Dict[str, Any], fallback_reason: str) -> Dict[str, Any]:
     top = payload.get("top_menu_item") if isinstance(payload.get("top_menu_item"), dict) else None
 
@@ -147,7 +175,7 @@ def _build_top_menu_item(payload: Dict[str, Any], fallback_reason: str) -> Dict[
     item_name = str(
         (top or {}).get("item_name")
         or payload.get("best_order")
-        or "Smart high-protein order"
+        or "Lighter menu option"
     ).strip()
 
     estimated_calories = _safe_int(
@@ -166,11 +194,32 @@ def _build_top_menu_item(payload: Dict[str, Any], fallback_reason: str) -> Dict[
         or fallback_reason
     ).strip()
 
+    source = _normalize_menu_source(
+        (top or {}).get("menu_item_source")
+        or payload.get("menu_items_source")
+        or payload.get("menu_item_source")
+    )
+    confidence = _clamp(
+        _safe_float((top or {}).get("menu_item_confidence"), _safe_float((top or {}).get("confidence"), 0.46)),
+        0.2,
+        0.95,
+    )
+    display_label = str((top or {}).get("display_label") or "").strip() or _display_label_for_menu_item(source, confidence)
+
     return {
         "item_name": item_name,
         "estimated_calories": max(0, estimated_calories),
         "estimated_protein_g": max(0, estimated_protein_g),
         "short_reason": reason,
+        "display_label": display_label,
+        "menu_item_source": source,
+        "menu_item_confidence": round(confidence, 2),
+        "copy_method": str((top or {}).get("copy_method") or "deterministic"),
+        "copy_confidence": round(
+            _clamp(_safe_float((top or {}).get("copy_confidence"), confidence), 0.2, 0.95),
+            2,
+        ),
+        "copy_version": str((top or {}).get("copy_version") or "v1"),
     }
 
 

@@ -94,6 +94,9 @@ class HealthyFoodMapTests(unittest.TestCase):
         row = out[0]
         self.assertIsInstance(row.get("top_menu_item"), dict)
         self.assertTrue(str(row["top_menu_item"].get("item_name") or "").strip())
+        self.assertIn(row["top_menu_item"].get("display_label"), {"Estimated Best Fit", "Suggested Lighter Option", "Needs Menu Check"})
+        self.assertIn(row["top_menu_item"].get("menu_item_source"), {"heuristic", "llm_inferred", "real_menu"})
+        self.assertIsInstance(row["top_menu_item"].get("menu_item_confidence"), float)
         self.assertIsInstance(row.get("today_fit"), dict)
         self.assertIn(row["today_fit"].get("decision"), {"YES", "MAYBE", "NO"})
         self.assertIsInstance(row.get("reality_check"), dict)
@@ -101,6 +104,24 @@ class HealthyFoodMapTests(unittest.TestCase):
         self.assertIn("smarter_order", row["reality_check"])
         self.assertIsInstance(row.get("coach_message"), dict)
         self.assertTrue(str(row["coach_message"].get("headline") or "").strip())
+
+    def test_low_confidence_top_item_gets_needs_menu_check_label(self):
+        out = enrich_places_for_healthy_map(
+            [
+                {
+                    "name": "Temple Canteen",
+                    "health_score": 5.9,
+                    "menu_items_source": "heuristic",
+                    "top_menu_item": {
+                        "item_name": "Lighter menu option",
+                        "menu_item_source": "heuristic",
+                        "menu_item_confidence": 0.32,
+                    },
+                }
+            ]
+        )
+        row = out[0]
+        self.assertEqual(row["top_menu_item"].get("display_label"), "Needs Menu Check")
 
     def test_build_response_shape(self):
         payload = build_healthy_food_map_response(

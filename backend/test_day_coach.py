@@ -33,6 +33,8 @@ class DayCoachPayloadTests(unittest.TestCase):
         self.assertEqual(progress.get("remaining_calories"), 1300.0)
         self.assertEqual(progress.get("remaining_protein_g"), 90.0)
         self.assertIsInstance(out.get("next_meal_guidance"), dict)
+        self.assertIn(out["day_summary"].get("phrasing_method"), {"deterministic", "llm"})
+        self.assertEqual(out["day_summary"].get("phrasing_version"), "v1")
 
     def test_low_protein_guidance_uses_next_meal(self):
         out = build_day_coach_payload(

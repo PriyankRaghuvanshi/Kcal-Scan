@@ -3,7 +3,7 @@
     "a1": {
       "confidence": 0.72,
       "cuisine": "grill",
-      "last_updated": "2026-03-08T04:34:49.409536+00:00",
+      "last_updated": "2026-03-08T10:27:26.830598+00:00",
       "menu_items": [
         {
           "confidence": 0.72,
@@ -19,7 +19,7 @@
           "estimated_protein_g": 36,
           "estimated_satiety": "",
           "item_name": "Grilled chicken wrap",
-          "last_updated": "2026-03-08T04:34:49.409530+00:00",
+          "last_updated": "2026-03-08T10:27:26.830583+00:00",
           "source": "scraped_menu"
         }
       ],
@@ -33,7 +33,7 @@
     "a2": {
       "confidence": 0.72,
       "cuisine": "salad",
-      "last_updated": "2026-03-08T04:34:49.411801+00:00",
+      "last_updated": "2026-03-08T10:27:26.833982+00:00",
       "menu_items": [
         {
           "confidence": 0.72,
@@ -49,7 +49,7 @@
           "estimated_protein_g": 34,
           "estimated_satiety": "",
           "item_name": "Protein salad",
-          "last_updated": "2026-03-08T04:34:49.411793+00:00",
+          "last_updated": "2026-03-08T10:27:26.833973+00:00",
           "source": "scraped_menu"
         }
       ],
@@ -63,7 +63,7 @@
     "a3": {
       "confidence": 0.72,
       "cuisine": "fast food",
-      "last_updated": "2026-03-08T04:34:49.415351+00:00",
+      "last_updated": "2026-03-08T10:27:26.837228+00:00",
       "menu_items": [
         {
           "confidence": 0.72,
@@ -79,7 +79,7 @@
           "estimated_protein_g": 22,
           "estimated_satiety": "",
           "item_name": "Fried mega combo",
-          "last_updated": "2026-03-08T04:34:49.415341+00:00",
+          "last_updated": "2026-03-08T10:27:26.837222+00:00",
           "source": "scraped_menu"
         }
       ],
@@ -413,7 +413,7 @@
     "h1": {
       "confidence": 0.72,
       "cuisine": "healthy",
-      "last_updated": "2026-03-08T04:34:49.419807+00:00",
+      "last_updated": "2026-03-08T10:27:26.842642+00:00",
       "menu_items": [
         {
           "confidence": 0.72,
@@ -429,7 +429,7 @@
           "estimated_protein_g": 40,
           "estimated_satiety": "",
           "item_name": "Chicken bowl",
-          "last_updated": "2026-03-08T04:34:49.419800+00:00",
+          "last_updated": "2026-03-08T10:27:26.842637+00:00",
           "source": "scraped_menu"
         }
       ],
@@ -443,7 +443,7 @@
     "h2": {
       "confidence": 0.72,
       "cuisine": "pizza",
-      "last_updated": "2026-03-08T04:34:49.421787+00:00",
+      "last_updated": "2026-03-08T10:27:26.846473+00:00",
       "menu_items": [
         {
           "confidence": 0.72,
@@ -459,7 +459,7 @@
           "estimated_protein_g": 30,
           "estimated_satiety": "",
           "item_name": "Large cheesy combo",
-          "last_updated": "2026-03-08T04:34:49.421781+00:00",
+          "last_updated": "2026-03-08T10:27:26.846425+00:00",
           "source": "scraped_menu"
         }
       ],
@@ -473,7 +473,7 @@
     "h3": {
       "confidence": 0.72,
       "cuisine": "fast food",
-      "last_updated": "2026-03-08T04:34:49.423706+00:00",
+      "last_updated": "2026-03-08T10:27:26.851189+00:00",
       "menu_items": [
         {
           "confidence": 0.72,
@@ -489,7 +489,7 @@
           "estimated_protein_g": 27,
           "estimated_satiety": "",
           "item_name": "Double burger combo",
-          "last_updated": "2026-03-08T04:34:49.423700+00:00",
+          "last_updated": "2026-03-08T10:27:26.851174+00:00",
           "source": "scraped_menu"
         }
       ],
@@ -631,7 +631,7 @@
     "p1": {
       "confidence": 0.72,
       "cuisine": "grill",
-      "last_updated": "2026-03-08T04:34:49.402075+00:00",
+      "last_updated": "2026-03-08T10:27:26.820688+00:00",
       "menu_items": [
         {
           "confidence": 0.72,
@@ -647,7 +647,7 @@
           "estimated_protein_g": 44,
           "estimated_satiety": "",
           "item_name": "Grilled chicken bowl",
-          "last_updated": "2026-03-08T04:34:49.402051+00:00",
+          "last_updated": "2026-03-08T10:27:26.820672+00:00",
           "source": "scraped_menu"
         },
         {
@@ -678,7 +678,7 @@
     "p2": {
       "confidence": 0.72,
       "cuisine": "fast food",
-      "last_updated": "2026-03-08T04:34:49.405259+00:00",
+      "last_updated": "2026-03-08T10:27:26.823955+00:00",
       "menu_items": [
         {
           "confidence": 0.72,
@@ -694,7 +694,7 @@
           "estimated_protein_g": 24,
           "estimated_satiety": "",
           "item_name": "Loaded fried combo",
-          "last_updated": "2026-03-08T04:34:49.405250+00:00",
+          "last_updated": "2026-03-08T10:27:26.823947+00:00",
           "source": "scraped_menu"
         }
       ],
@@ -708,7 +708,7 @@
     "p3": {
       "confidence": 0.72,
       "cuisine": "healthy",
-      "last_updated": "2026-03-08T04:34:49.407329+00:00",
+      "last_updated": "2026-03-08T10:27:26.825910+00:00",
       "menu_items": [
         {
           "confidence": 0.72,
@@ -724,7 +724,7 @@
           "estimated_protein_g": 38,
           "estimated_satiety": "",
           "item_name": "Chicken quinoa bowl",
-          "last_updated": "2026-03-08T04:34:49.407322+00:00",
+          "last_updated": "2026-03-08T10:27:26.825905+00:00",
           "source": "scraped_menu"
         }
       ],
@@ -738,7 +738,7 @@
     "s1": {
       "confidence": 0.72,
       "cuisine": "grill",
-      "last_updated": "2026-03-08T04:34:49.427200+00:00",
+      "last_updated": "2026-03-08T10:27:26.856473+00:00",
       "menu_items": [
         {
           "confidence": 0.72,
@@ -754,7 +754,7 @@
           "estimated_protein_g": 44,
           "estimated_satiety": "",
           "item_name": "Quarter chicken + salad",
-          "last_updated": "2026-03-08T04:34:49.427192+00:00",
+          "last_updated": "2026-03-08T10:27:26.856466+00:00",
           "source": "scraped_menu"
         }
       ],

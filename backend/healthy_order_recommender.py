@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List
 
+from llm_explanation_copy import maybe_rewrite_explanation_copy
 from nutrition_mode import NutritionMode, is_cut_mode, normalize_nutrition_mode
 from personalization_profiles import (
     get_personalized_reason,
@@ -114,6 +115,18 @@ CUISINE_ORDER_RULES: List[Dict[str, Any]] = [
         "short_reason": "Tandoori + dal gives strong satiety with better calorie control.",
     },
     {
+        "rule_id": "south_indian_temple",
+        "tokens": ("south indian", "idli", "dosa", "sambar", "udupi", "temple", "canteen"),
+        "best_order": "Idli or plain dosa-style option",
+        "better_swap": "Choose steamed items and keep chutney portions moderate",
+        "avoid_if_cutting": "Deep-fried snacks and heavy ghee-rich combos",
+        "estimated_calories": 430,
+        "estimated_protein_g": 15,
+        "estimated_satiety": "medium",
+        "order_strategy_tags": ["portion_control", "better_swap", "fat_loss_friendly"],
+        "short_reason": "Usually easier to fit than fried or richer canteen options.",
+    },
+    {
         "rule_id": "thai_chinese",
         "tokens": ("thai", "chinese", "stir fry", "noodle", "wok"),
         "best_order": "Lean protein stir-fry with controlled rice",
@@ -144,6 +157,13 @@ def _clamp(x: float, lo: float, hi: float) -> float:
     return max(lo, min(hi, float(x)))
 
 
+def _safe_float(value: Any, default: float = 0.0) -> float:
+    try:
+        return float(value)
+    except Exception:
+        return float(default)
+
+
 def _place_text(place: Dict[str, Any]) -> str:
     payload = place if isinstance(place, dict) else {}
     name = str(payload.get("name") or "").strip().lower()
@@ -151,6 +171,20 @@ def _place_text(place: Dict[str, Any]) -> str:
     types = payload.get("types") if isinstance(payload.get("types"), list) else []
     type_text = " ".join(str(t or "").strip().lower() for t in types)
     return " ".join(x for x in [name, address, type_text] if x)
+
+
+def _cuisine_hint(place: Dict[str, Any]) -> str:
+    payload = place if isinstance(place, dict) else {}
+    primary = str(payload.get("primary_type") or payload.get("primaryType") or "").strip()
+    if primary:
+        return primary.replace("_", " ")
+    types = payload.get("types") if isinstance(payload.get("types"), list) else []
+    cleaned = []
+    for token in types:
+        text = str(token or "").strip().lower()
+        if text and text not in {"restaurant", "food", "point_of_interest", "establishment", "meal_takeaway"}:
+            cleaned.append(text.replace("_", " "))
+    return ", ".join(cleaned[:3])
 
 
 def _match_rule(place_text: str) -> tuple[Dict[str, Any] | None, int]:
@@ -191,7 +225,25 @@ def _best_order_for_cut(best_order: str) -> str:
     return f"{str(best_order).strip()} (light sauce)"
 
 
+def _fallback_best_order_for_place(place: Dict[str, Any] | None) -> str:
+    place_text = _place_text(place if isinstance(place, dict) else {})
+    if any(token in place_text for token in ("south indian", "idli", "dosa", "udupi", "temple", "canteen")):
+        return "Idli or plain dosa-style option"
+    if "indian" in place_text:
+        return "Simpler tandoori or dal + roti option"
+    if any(token in place_text for token in ("cafe", "coffee", "bakery")):
+        return "Lighter cafe meal option"
+    if any(token in place_text for token in ("burger", "fast food", "fast_food", "fried")):
+        return "Lighter grilled or single-item option"
+    if "pizza" in place_text:
+        return "Lighter thin-crust option"
+    if any(token in place_text for token in ("sushi", "japanese")):
+        return "Sashimi or simple rice-bowl option"
+    return "Lighter menu option"
+
+
 def _fallback_recommendation(
+    place: Dict[str, Any] | None = None,
     mode: NutritionMode | str = NutritionMode.DEFAULT,
     personalization_goal: Any = None,
 ) -> Dict[str, Any]:
@@ -200,21 +252,22 @@ def _fallback_recommendation(
     resolved_goal = normalize_personalization_goal(personalization_goal)
     goal_value = personalization_goal_value(resolved_goal)
     cut_mode_active = is_cut_mode(resolved_mode)
+    best_order = _fallback_best_order_for_place(place)
 
     macro = estimate_restaurant_macros(
-        item_name="Grilled protein bowl",
+        item_name=best_order,
         cuisine_hint="",
         place=None,
-        input_calories=520,
-        input_protein_g=32,
+        input_calories=500,
+        input_protein_g=26,
     )
 
     out = {
-        "best_order": "Grilled protein bowl",
+        "best_order": best_order,
         "better_swap": "Pick water and keep sauces on the side",
         "avoid_if_cutting": "Large fried combo meals",
-        "estimated_calories": int(macro.get("estimated_calories", 520)),
-        "estimated_protein_g": int(macro.get("estimated_protein_g", 32)),
+        "estimated_calories": int(macro.get("estimated_calories", 500)),
+        "estimated_protein_g": int(macro.get("estimated_protein_g", 26)),
         "estimated_carbs_g": int(macro.get("estimated_carbs_g", 45)),
         "estimated_fat_g": int(macro.get("estimated_fat_g", 18)),
         "estimated_satiety": str(macro.get("estimated_satiety") or "medium"),
@@ -227,7 +280,7 @@ def _fallback_recommendation(
         "cut_mode_active": cut_mode_active,
         "cut_friendly": False,
         "cut_warning": "",
-        "best_order_for_cut": "Grilled protein bowl",
+        "best_order_for_cut": best_order,
         "personalization_goal": goal_value,
         "personalized_best_order": "",
         "personalized_reason": "",
@@ -235,13 +288,32 @@ def _fallback_recommendation(
 
     if cut_mode_active:
         out["cut_friendly"] = True
-        out["best_order_for_cut"] = "Grilled protein bowl (light sauce)"
+        out["best_order_for_cut"] = _best_order_for_cut(best_order)
         out["short_reason"] = "Cut-focused default: protein-forward and easier calories."
         out["order_strategy_tags"] = list(dict.fromkeys([*out["order_strategy_tags"], "cut_mode"]))
 
     if resolved_goal:
         out["personalized_best_order"] = personalize_order_for_goal(out["best_order"], resolved_goal)
         out["personalized_reason"] = get_personalized_reason(resolved_goal)
+
+    rewritten = maybe_rewrite_explanation_copy(
+        place_name=str((place or {}).get("name") or "Nearby place").strip(),
+        cuisine=_cuisine_hint(place if isinstance(place, dict) else {}),
+        recommended_order=out["best_order"],
+        estimated_calories=out["estimated_calories"],
+        estimated_protein_g=out["estimated_protein_g"],
+        goal=goal_value,
+        confidence=out["order_confidence"],
+        recommendation_source="heuristic",
+        menu_item_confidence=out["order_confidence"],
+        base_why_this_works=out["short_reason"],
+        base_short_reason=out["short_reason"],
+    )
+    out["short_reason"] = str(rewritten.get("short_reason") or out["short_reason"])
+    out["why_this_works"] = str(rewritten.get("why_this_works") or out["short_reason"])
+    out["copy_method"] = str(rewritten.get("copy_method") or "deterministic")
+    out["copy_confidence"] = round(_clamp(_safe_float(rewritten.get("copy_confidence"), out["order_confidence"]), 0.2, 0.95), 2)
+    out["copy_version"] = str(rewritten.get("copy_version") or "v1")
 
     return out
 
@@ -258,11 +330,11 @@ def suggest_best_order_for_place(
     cut_mode_active = is_cut_mode(resolved_mode)
     place_text = _place_text(place)
     if not place_text:
-        return _fallback_recommendation(mode=resolved_mode, personalization_goal=resolved_goal)
+        return _fallback_recommendation(place=place, mode=resolved_mode, personalization_goal=resolved_goal)
 
     rule, hits = _match_rule(place_text)
     if not rule:
-        return _fallback_recommendation(mode=resolved_mode, personalization_goal=resolved_goal)
+        return _fallback_recommendation(place=place, mode=resolved_mode, personalization_goal=resolved_goal)
 
     # Confidence rises when venue type is clear (more token hits) and healthy score is stronger.
     confidence = 0.68 if hits == 1 else 0.78 if hits >= 2 else 0.46
@@ -328,7 +400,7 @@ def suggest_best_order_for_place(
 
     confidence = round(_clamp(confidence, 0.35, 0.93), 2)
 
-    return {
+    result = {
         "best_order": str(rule["best_order"]),
         "better_swap": better_swap,
         "avoid_if_cutting": str(rule["avoid_if_cutting"]),
@@ -351,3 +423,22 @@ def suggest_best_order_for_place(
         "personalized_best_order": personalized_best_order,
         "personalized_reason": personalized_reason,
     }
+    rewritten = maybe_rewrite_explanation_copy(
+        place_name=str((place or {}).get("name") or "").strip(),
+        cuisine=_cuisine_hint(place),
+        recommended_order=result["best_order_for_cut"] if cut_mode_active else result["best_order"],
+        estimated_calories=result["estimated_calories"],
+        estimated_protein_g=result["estimated_protein_g"],
+        goal=goal_value,
+        confidence=result["order_confidence"],
+        recommendation_source="heuristic",
+        menu_item_confidence=result["order_confidence"],
+        base_why_this_works=result["short_reason"],
+        base_short_reason=result["short_reason"],
+    )
+    result["short_reason"] = str(rewritten.get("short_reason") or result["short_reason"])
+    result["why_this_works"] = str(rewritten.get("why_this_works") or result["short_reason"])
+    result["copy_method"] = str(rewritten.get("copy_method") or "deterministic")
+    result["copy_confidence"] = round(_clamp(_safe_float(rewritten.get("copy_confidence"), result["order_confidence"]), 0.2, 0.95), 2)
+    result["copy_version"] = str(rewritten.get("copy_version") or "v1")
+    return result

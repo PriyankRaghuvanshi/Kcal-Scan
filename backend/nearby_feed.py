@@ -70,7 +70,7 @@ def _normalize_place_card(place: Dict[str, Any], mode: NutritionMode | str = Nut
         "address": str(payload.get("address") or payload.get("vicinity") or "").strip(),
         "rating": float(_safe_float(payload.get("rating"), 0.0) or 0.0),
         "health_score": health_score_10pt,
-        "best_order": str(top_menu_item.get("item_name") or order.get("best_order") or "Grilled protein bowl"),
+        "best_order": str(top_menu_item.get("item_name") or order.get("best_order") or "Lighter menu option"),
         "estimated_calories": max(0, estimated_calories),
         "estimated_protein_g": max(0, estimated_protein_g),
         "estimated_satiety": str(

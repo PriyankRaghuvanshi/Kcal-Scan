@@ -54,7 +54,7 @@ def _place_profile(place: Dict[str, Any]) -> Dict[str, Any]:
 
     top_menu_item = menu.get("top_menu_item") if isinstance(menu.get("top_menu_item"), dict) else None
 
-    best_order = str((top_menu_item or {}).get("item_name") or order.get("best_order") or "Grilled protein bowl")
+    best_order = str((top_menu_item or {}).get("item_name") or order.get("best_order") or "Lighter menu option")
     est_calories = int(
         _safe_float(
             (top_menu_item or {}).get("estimated_calories"),
@@ -168,7 +168,7 @@ def build_daily_fatloss_coach_response(
             "health_score": int(_safe_float(prof.get("health_score"), 50) or 50),
             "fit_for_today": bool(fit["fit_for_today"]),
             "fit_reason": str(fit["fit_reason"]),
-            "best_order": str(prof.get("best_order") or "Grilled protein bowl"),
+            "best_order": str(prof.get("best_order") or "Lighter menu option"),
             "estimated_calories": int(_safe_float(prof.get("estimated_calories"), 520) or 520),
             "estimated_protein_g": int(_safe_float(prof.get("estimated_protein_g"), 32) or 32),
             "short_reason": str(prof.get("short_reason") or "Better fit for your day."),

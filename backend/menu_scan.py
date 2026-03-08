@@ -4,6 +4,7 @@ import re
 from typing import Any, Dict, List, Optional
 
 from coach_messages import build_place_coach_message
+from llm_menu_parser import parse_menu_items_with_optional_llm
 from menu_item_scoring import score_menu_item
 from nutrition_mode import NutritionMode
 from personalization_profiles import normalize_personalization_goal, personalization_goal_value
@@ -334,16 +335,39 @@ def build_menu_scan_response(
     goal: str = "",
     cut_mode: bool = False,
 ) -> Dict[str, Any]:
-    parsed = parse_menu_items_from_text(raw_menu_text, ocr_lines=ocr_lines)
+    deterministic_parsed = parse_menu_items_from_text(raw_menu_text, ocr_lines=ocr_lines)
+    parse_bundle = parse_menu_items_with_optional_llm(
+        raw_text=raw_menu_text,
+        ocr_lines=ocr_lines,
+        deterministic_items=deterministic_parsed,
+        max_items=24,
+    )
+    parsed = (
+        parse_bundle.get("parsed_items")
+        if isinstance(parse_bundle.get("parsed_items"), list)
+        else deterministic_parsed
+    )
+    structured_parsed = (
+        parse_bundle.get("structured_items")
+        if isinstance(parse_bundle.get("structured_items"), list)
+        else []
+    )
+    parse_method = str(parse_bundle.get("parse_method") or "deterministic").strip() or "deterministic"
+    parse_version = str(parse_bundle.get("parse_version") or MENU_SCAN_VERSION).strip() or MENU_SCAN_VERSION
+    parser_confidence = round(_safe_float(parse_bundle.get("parser_confidence"), 0.0), 2)
+    llm_attempted = bool(parse_bundle.get("llm_attempted"))
+    llm_error = str(parse_bundle.get("llm_error") or "").strip()
+
     goal_token = _normalized_token(goal)
     mode = _resolve_mode(goal_token, bool(cut_mode))
     goal_value = personalization_goal_value(normalize_personalization_goal(goal_token))
 
     if len(parsed) < 2:
-        return {
+        fallback_response = {
             "title": "Menu scan needs a clearer photo",
             "subtitle": "We couldn't confidently read enough menu items yet.",
             "parsed_menu_items": parsed[:8],
+            "parsed_menu_items_structured": structured_parsed[:8],
             "top_recommendations": [],
             "better_swap": None,
             "avoid_if_cutting": None,
@@ -351,9 +375,17 @@ def build_menu_scan_response(
                 "headline": "Try a straighter photo with better lighting.",
                 "supporting_text": "Include item names clearly and avoid glare.",
             },
+            "parse_method": parse_method,
+            "parse_version": parse_version,
+            "parser_confidence": parser_confidence,
+            "llm_parser_used": bool(parse_method == "llm"),
+            "llm_parser_attempted": llm_attempted,
             "scan_confidence": _scan_confidence(parsed_items=parsed, top_recommendations=[], ocr_confidence=_safe_float(ocr_confidence, 0.0)),
             "scan_version": MENU_SCAN_VERSION,
         }
+        if llm_attempted and llm_error and parse_method != "llm":
+            fallback_response["parse_fallback_reason"] = llm_error[:120]
+        return fallback_response
 
     place = _place_context(
         restaurant_name=restaurant_name,
@@ -373,10 +405,11 @@ def build_menu_scan_response(
     ]
 
     if not enriched_top:
-        return {
+        fallback_response = {
             "title": "Menu scan needs a clearer photo",
             "subtitle": "We couldn't score enough clear menu items from this photo.",
             "parsed_menu_items": parsed[:8],
+            "parsed_menu_items_structured": structured_parsed[:8],
             "top_recommendations": [],
             "better_swap": None,
             "avoid_if_cutting": None,
@@ -384,9 +417,17 @@ def build_menu_scan_response(
                 "headline": "Try another scan in brighter light.",
                 "supporting_text": "A clearer image helps us rank menu items accurately.",
             },
+            "parse_method": parse_method,
+            "parse_version": parse_version,
+            "parser_confidence": parser_confidence,
+            "llm_parser_used": bool(parse_method == "llm"),
+            "llm_parser_attempted": llm_attempted,
             "scan_confidence": _scan_confidence(parsed_items=parsed, top_recommendations=[], ocr_confidence=_safe_float(ocr_confidence, 0.0)),
             "scan_version": MENU_SCAN_VERSION,
         }
+        if llm_attempted and llm_error and parse_method != "llm":
+            fallback_response["parse_fallback_reason"] = llm_error[:120]
+        return fallback_response
 
     best = enriched_top[0]
     better = enriched_top[1] if len(enriched_top) > 1 else None
@@ -459,6 +500,7 @@ def build_menu_scan_response(
             "recommendation_tags": list(best.get("recommendation_tags") or []),
         },
         "parsed_menu_items": parsed[:18],
+        "parsed_menu_items_structured": structured_parsed[:18],
         "top_recommendations": enriched_top,
         "better_swap": (
             {
@@ -473,6 +515,11 @@ def build_menu_scan_response(
         "avoid_if_cutting": avoid,
         "coach_message": coach_message,
         "reality_check": reality_check,
+        "parse_method": parse_method,
+        "parse_version": parse_version,
+        "parser_confidence": parser_confidence,
+        "llm_parser_used": bool(parse_method == "llm"),
+        "llm_parser_attempted": llm_attempted,
         "scan_confidence": _scan_confidence(
             parsed_items=parsed,
             top_recommendations=enriched_top,
@@ -480,4 +527,6 @@ def build_menu_scan_response(
         ),
         "scan_version": MENU_SCAN_VERSION,
     }
+    if llm_attempted and llm_error and parse_method != "llm":
+        response["parse_fallback_reason"] = llm_error[:120]
     return response

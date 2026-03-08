@@ -121,7 +121,7 @@ def build_best_order_share_card(
         "title": SHARE_CARD_TITLE,
         "place_name": _clip(place_name, 40, "Nearby Pick"),
         "health_score": _score_to_100(health_score),
-        "best_order": _clip(best_order, 64, "Grilled protein bowl"),
+        "best_order": _clip(best_order, 64, "Lighter menu option"),
         "estimated_calories": max(0, calories),
         "estimated_protein_g": max(0, protein),
         "subtitle": safe_subtitle,

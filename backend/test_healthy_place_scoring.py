@@ -40,7 +40,7 @@ class HealthyPlaceScoringTests(unittest.TestCase):
     def test_missing_metadata_uses_neutral_fallback(self):
         scored = score_healthy_place({})
         self.assertAlmostEqual(float(scored["health_score"]), 5.0, places=1)
-        self.assertIn("Needs menu check", scored.get("recommended_badges", []))
+        self.assertIn("Needs Menu Check", scored.get("recommended_badges", []))
 
     def test_cut_mode_adds_cut_fields_and_changes_score(self):
         place = {
