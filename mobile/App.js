@@ -91,6 +91,8 @@ const UPGRADE_NUDGE_KEY = "kcal_upgrade_nudge_v1";
 const upgradeNudgeKey = (uid) => `${UPGRADE_NUDGE_KEY}:${uid}`;
 const COACH_FEEDBACK_QUEUE_KEY = "kcal_coach_feedback_queue_v1";
 const coachFeedbackQueueKey = (uid) => `${COACH_FEEDBACK_QUEUE_KEY}:${uid}`;
+const WEEKLY_COACH_CHOICES_KEY = "kcal_weekly_coach_choices_v1";
+const weeklyCoachChoicesKey = (uid) => `${WEEKLY_COACH_CHOICES_KEY}:${uid}`;
 
 const RC_IOS_KEY = process.env.EXPO_PUBLIC_RC_IOS_KEY || "";
 const RC_ANDROID_KEY = process.env.EXPO_PUBLIC_RC_ANDROID_KEY || "";
@@ -298,6 +300,137 @@ function healthyPlaceTone(score) {
   if (s >= 5) return { color: "#f59e0b", badge: "Moderate" };
   return { color: "#ef4444", badge: "Lower" };
 }
+function normalizePlaceNameKey(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim()
+    .replace(/\s+/g, " ");
+}
+function healthyPlaceCoordinateKey(lat, lng) {
+  const a = num(lat);
+  const b = num(lng);
+  if (!Number.isFinite(a) || !Number.isFinite(b)) return "";
+  return `${a.toFixed(4)},${b.toFixed(4)}`;
+}
+function healthyPlaceStableId(place, idx = 0) {
+  const raw = String(place?.place_id || place?.id || "").trim();
+  if (raw) return raw;
+  const slug = String(place?.place_name || place?.name || "place")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  const coord = healthyPlaceCoordinateKey(place?.lat, place?.lng)
+    .replace(/,/g, "-")
+    .replace(/\./g, "_");
+  if (coord) return `${slug || "place"}-${coord}`;
+  return `${slug || "place"}-${idx}`;
+}
+function findMatchingHealthyPlaceIndex(target, places) {
+  const rows = Array.isArray(places) ? places.filter((x) => x && typeof x === "object") : [];
+  if (!rows.length || !target || typeof target !== "object") return -1;
+
+  const targetId = String(target?.place_id || target?.id || target?.tracking?.place_id || "").trim();
+  if (targetId) {
+    const byId = rows.findIndex((row) => String(row?.place_id || row?.id || "").trim() === targetId);
+    if (byId >= 0) return byId;
+  }
+
+  const targetName = normalizePlaceNameKey(target?.place_name || target?.name);
+  const targetLat = num(target?.place_lat ?? target?.lat);
+  const targetLng = num(target?.place_lng ?? target?.lng);
+  const targetCoordKey = healthyPlaceCoordinateKey(targetLat, targetLng);
+
+  let bestIdx = -1;
+  let bestScore = -1;
+
+  rows.forEach((row, idx) => {
+    let score = 0;
+    const rowName = normalizePlaceNameKey(row?.place_name || row?.name);
+    if (targetName && rowName) {
+      if (targetName === rowName) score += 6;
+      else if (targetName.includes(rowName) || rowName.includes(targetName)) score += 4;
+    }
+
+    const rowLat = num(row?.lat);
+    const rowLng = num(row?.lng);
+    const rowCoordKey = healthyPlaceCoordinateKey(rowLat, rowLng);
+    if (targetCoordKey && rowCoordKey && targetCoordKey === rowCoordKey) {
+      score += 7;
+    } else {
+      const km = haversineKm(targetLat, targetLng, rowLat, rowLng);
+      if (Number.isFinite(km)) {
+        const meters = km * 1000;
+        if (meters <= 120) score += 6;
+        else if (meters <= 260) score += 4;
+        else if (meters <= 500) score += 2;
+      }
+    }
+
+    if (score > bestScore) {
+      bestScore = score;
+      bestIdx = idx;
+    }
+  });
+
+  return bestScore >= 4 ? bestIdx : -1;
+}
+function findMatchingLunchCard(place, cards) {
+  const list = Array.isArray(cards) ? cards.filter((x) => x && typeof x === "object") : [];
+  if (!place || typeof place !== "object" || !list.length) return null;
+  const idx = findMatchingHealthyPlaceIndex(place, list);
+  return idx >= 0 ? list[idx] : null;
+}
+function healthyPlaceBand(place) {
+  const explicit = String(place?.score_band || "").trim().toLowerCase();
+  if (explicit === "high" || explicit === "medium" || explicit === "low") return explicit;
+  const score100 = Number.isFinite(num(place?.health_score_100))
+    ? num(place?.health_score_100)
+    : Number.isFinite(num(place?.health_score))
+    ? num(place?.health_score) * 10
+    : 0;
+  if (score100 >= 80) return "high";
+  if (score100 >= 60) return "medium";
+  return "low";
+}
+function healthyMapPinTone(place) {
+  const explicit = String(place?.map_pin_color || "").trim().toLowerCase();
+  if (explicit === "green") return { color: "#22c55e", badge: "Best" };
+  if (explicit === "yellow") return { color: "#f59e0b", badge: "Okay" };
+  if (explicit === "red") return { color: "#ef4444", badge: "Hard" };
+
+  const band = healthyPlaceBand(place);
+  if (band === "high") return { color: "#22c55e", badge: "Best" };
+  if (band === "medium") return { color: "#f59e0b", badge: "Okay" };
+  return { color: "#ef4444", badge: "Hard" };
+}
+function healthyPlaceBadges(place) {
+  const source = Array.isArray(place?.badges)
+    ? place.badges
+    : Array.isArray(place?.recommended_badges)
+    ? place.recommended_badges
+    : [];
+  const out = source.map((x) => String(x || "").trim()).filter(Boolean);
+  if (place?.fit_for_today === true && !out.includes("Fits Today's Macros")) out.unshift("Fits Today's Macros");
+  if ((place?.cut_friendly || place?.fat_loss_friendly) && !out.includes("Cut Friendly")) out.push("Cut Friendly");
+  return Array.from(new Set(out)).slice(0, 3);
+}
+function filterHealthyPlacesForMap(places, filterKey) {
+  const rows = Array.isArray(places) ? places.filter((x) => x && typeof x === "object") : [];
+  const key = String(filterKey || "all").trim().toLowerCase();
+  if (key === "high_protein") return rows.filter((x) => num(x?.estimated_protein_g) >= 30);
+  if (key === "under_600") return rows.filter((x) => num(x?.estimated_calories) > 0 && num(x?.estimated_calories) <= 600);
+  if (key === "fits_today") return rows.filter((x) => x?.fit_for_today === true || String(x?.decision_today || "").toUpperCase() === "YES");
+  if (key === "cut_friendly") return rows.filter((x) => Boolean(x?.cut_friendly || x?.fat_loss_friendly));
+  if (key === "best_right_now") {
+    return rows.filter((x) => {
+      const rank = num(x?.map_rank);
+      const score100 = Number.isFinite(num(x?.health_score_100)) ? num(x?.health_score_100) : num(x?.health_score) * 10;
+      return (Number.isFinite(rank) && rank <= 3) || score100 >= 80;
+    });
+  }
+  return rows;
+}
 function haversineKm(lat1, lng1, lat2, lng2) {
   const a1 = num(lat1);
   const o1 = num(lng1);
@@ -340,7 +473,7 @@ function buildHealthyMapPoints(places, center, width = 320, height = 210) {
     const x = halfW + (v.dx / maxX) * maxDrawX;
     const y = halfH - (v.dy / maxY) * maxDrawY;
     return {
-      key: `${String(v.place?.name || "p")}-${idx}`,
+      key: healthyPlaceStableId(v.place, idx),
       x: Math.max(pad, Math.min(width - pad, x)),
       y: Math.max(pad, Math.min(height - pad, y)),
       place: v.place,
@@ -1049,6 +1182,49 @@ function normalizeWeeklyReport(raw) {
     disclaimer: String(data?.disclaimer || "Informational only."),
   };
 }
+function normalizeWeeklyCoach(raw) {
+  const root = raw && typeof raw === "object" ? raw : {};
+  const coach = root?.weekly_coach && typeof root.weekly_coach === "object" ? root.weekly_coach : root;
+  const weekSummary = coach?.week_summary && typeof coach.week_summary === "object" ? coach.week_summary : {};
+  const insights = Array.isArray(coach?.habit_insights) ? coach.habit_insights : [];
+  const bestChoices = Array.isArray(coach?.best_choices_this_week) ? coach.best_choices_this_week : [];
+  const focus = coach?.next_week_focus && typeof coach.next_week_focus === "object" ? coach.next_week_focus : {};
+
+  return {
+    week_start: String(root?.week_start || "").trim(),
+    headline: String(coach?.headline || "").trim(),
+    supporting_text: String(coach?.supporting_text || "").trim(),
+    week_summary: {
+      days_on_track: Math.max(0, Math.round(num(weekSummary?.days_on_track))),
+      days_over_target: Math.max(0, Math.round(num(weekSummary?.days_over_target))),
+      days_under_protein: Math.max(0, Math.round(num(weekSummary?.days_under_protein))),
+      days_tracked: Math.max(0, Math.round(num(weekSummary?.days_tracked))),
+      average_daily_protein_g: round1(num(weekSummary?.average_daily_protein_g)),
+      average_daily_calories: round1(num(weekSummary?.average_daily_calories)),
+    },
+    habit_insights: insights
+      .map((row) => ({
+        type: String(row?.type || "info").trim().toLowerCase(),
+        title: String(row?.title || "").trim(),
+        text: String(row?.text || "").trim(),
+      }))
+      .filter((row) => row.title || row.text)
+      .slice(0, 3),
+    best_choices_this_week: bestChoices
+      .map((row) => ({
+        place_name: String(row?.place_name || "").trim(),
+        recommended_order: String(row?.recommended_order || "").trim(),
+        why_it_helped: String(row?.why_it_helped || "").trim(),
+      }))
+      .filter((row) => row.place_name && row.recommended_order)
+      .slice(0, 2),
+    next_week_focus: {
+      headline: String(focus?.headline || "").trim(),
+      supporting_text: String(focus?.supporting_text || "").trim(),
+    },
+    coach_version: String(coach?.coach_version || "v1"),
+  };
+}
 function isCoachStaleForScan(coachPayload, latestScanId) {
   const latest = String(latestScanId || "").trim();
   if (!latest) return false;
@@ -1314,7 +1490,18 @@ export default function App() {
   const [healthyPlacesError, setHealthyPlacesError] = useState("");
   const [healthyPlaces, setHealthyPlaces] = useState([]);
   const [healthyPlaceCoords, setHealthyPlaceCoords] = useState(null);
+  const [healthyMapFocusCoords, setHealthyMapFocusCoords] = useState(null);
   const [healthyMapWidth, setHealthyMapWidth] = useState(320);
+  const [healthyViewMode, setHealthyViewMode] = useState("map");
+  const [healthyMapFilter, setHealthyMapFilter] = useState("all");
+  const [selectedHealthyPlaceId, setSelectedHealthyPlaceId] = useState("");
+  const [lunchDecisionBusy, setLunchDecisionBusy] = useState(false);
+  const [lunchDecisionError, setLunchDecisionError] = useState("");
+  const [lunchDecision, setLunchDecision] = useState(null);
+  const [menuScanPhotoUri, setMenuScanPhotoUri] = useState(null);
+  const [menuScanBusy, setMenuScanBusy] = useState(false);
+  const [menuScanError, setMenuScanError] = useState("");
+  const [menuScanResult, setMenuScanResult] = useState(null);
   const [cameraMode, setCameraMode] = useState("meal");
 
   // ===== History (isolated by user id) =====
@@ -1326,6 +1513,9 @@ export default function App() {
   const [coachLastPayload, setCoachLastPayload] = useState(null);
   const [weeklyReport, setWeeklyReport] = useState(null);
   const [weeklyReportBusy, setWeeklyReportBusy] = useState(false);
+  const [weeklyCoach, setWeeklyCoach] = useState(null);
+  const [weeklyCoachBusy, setWeeklyCoachBusy] = useState(false);
+  const [weeklyCoachError, setWeeklyCoachError] = useState("");
   const [coachBusy, setCoachBusy] = useState(false);
   const [fliSyncing, setFliSyncing] = useState(false);
   const [fliPending, setFliPending] = useState(false);
@@ -1343,6 +1533,9 @@ export default function App() {
   const coachRefreshTimerRef = useRef(null);
   const coachQueuedRefreshRef = useRef(null);
   const coachTitleTapRef = useRef({ count: 0, lastTs: 0 });
+  const healthyPlacesReqSeqRef = useRef(0);
+  const lunchDecisionReqSeqRef = useRef(0);
+  const lunchDecisionInFlightRef = useRef(false);
   const rerunReqSeqRef = useRef(0);
   const analyzeCancelRef = useRef(false);
 
@@ -1496,6 +1689,9 @@ export default function App() {
     setCoachTrend([]);
     setCoachLastPayload(null);
     setWeeklyReport(null);
+    setWeeklyCoach(null);
+    setWeeklyCoachBusy(false);
+    setWeeklyCoachError("");
     setFliSyncing(false);
     setFliPending(false);
     setCoachErr("");
@@ -1532,6 +1728,17 @@ export default function App() {
     setHealthyPlacesError("");
     setHealthyPlaces([]);
     setHealthyPlaceCoords(null);
+    setHealthyMapFocusCoords(null);
+    setHealthyViewMode("map");
+    setHealthyMapFilter("all");
+    setSelectedHealthyPlaceId("");
+    setLunchDecisionBusy(false);
+    setLunchDecisionError("");
+    setLunchDecision(null);
+    setMenuScanPhotoUri(null);
+    setMenuScanBusy(false);
+    setMenuScanError("");
+    setMenuScanResult(null);
     setHealthyMapWidth(320);
     setRerunBusy(false);
     setAiConsentGiven(false);
@@ -1566,6 +1773,17 @@ export default function App() {
       setHealthyPlacesError("");
       setHealthyPlaces([]);
       setHealthyPlaceCoords(null);
+      setHealthyMapFocusCoords(null);
+      setHealthyViewMode("map");
+      setHealthyMapFilter("all");
+      setSelectedHealthyPlaceId("");
+      setLunchDecisionBusy(false);
+      setLunchDecisionError("");
+      setLunchDecision(null);
+      setMenuScanPhotoUri(null);
+      setMenuScanBusy(false);
+      setMenuScanError("");
+      setMenuScanResult(null);
       setHealthyMapWidth(320);
       setCameraMode("meal");
       setBarcodeMode("lookup");
@@ -1955,6 +2173,184 @@ export default function App() {
       return `${y}-${m}-${day}`;
     } catch {
       return String(dayIso);
+    }
+  }
+
+  function buildWeeklyCoachDailyRows() {
+    const target = normalizeGoals(goals || dailySummary?.goals || DEFAULT_GOALS, DEFAULT_GOALS);
+    const today = localDayISO();
+    const weekStart = localWeekStartISO(today);
+    const rowsByDay = {};
+
+    function ensureRow(day) {
+      const token = String(day || "").slice(0, 10);
+      if (!token) return null;
+      if (!rowsByDay[token]) {
+        rowsByDay[token] = {
+          date: token,
+          consumed_calories: 0,
+          target_calories: round1(target.kcal),
+          consumed_protein_g: 0,
+          target_protein_g: round1(target.protein_g),
+          lunch_calories: 0,
+          dinner_calories: 0,
+          lunch_protein_g: 0,
+          dinner_protein_g: 0,
+        };
+      }
+      return rowsByDay[token];
+    }
+
+    (Array.isArray(history) ? history : []).forEach((entry) => {
+      if (String(entry?.kind || "").trim().toLowerCase() !== "photo") return;
+      const day = localDayFromISO(entry?.ts);
+      if (!day || day < weekStart || day > today) return;
+
+      const row = ensureRow(day);
+      if (!row) return;
+
+      const kcal = Math.max(0, num(entry?.total_kcal ?? entry?.totals?.kcal ?? entry?.totals?.total_kcal));
+      const protein = Math.max(0, num(entry?.totals?.protein_g));
+      row.consumed_calories = round1(num(row.consumed_calories) + kcal);
+      row.consumed_protein_g = round1(num(row.consumed_protein_g) + protein);
+
+      const at = new Date(entry?.ts || "");
+      const hour = Number.isFinite(at.getTime()) ? at.getHours() : 12;
+      if (hour >= 11 && hour <= 15) {
+        row.lunch_calories = round1(num(row.lunch_calories) + kcal);
+        row.lunch_protein_g = round1(num(row.lunch_protein_g) + protein);
+      } else if (hour >= 18 || hour <= 2) {
+        row.dinner_calories = round1(num(row.dinner_calories) + kcal);
+        row.dinner_protein_g = round1(num(row.dinner_protein_g) + protein);
+      }
+    });
+
+    const todayRow = ensureRow(today);
+    if (todayRow) {
+      const totals = dailySummary?.totals && typeof dailySummary.totals === "object" ? dailySummary.totals : {};
+      const consumedKcal = Math.max(
+        0,
+        num(dailySummary?.total_kcal ?? totals?.kcal ?? totals?.total_kcal)
+      );
+      const consumedProtein = Math.max(0, num(totals?.protein_g));
+      if (consumedKcal > 0) todayRow.consumed_calories = round1(Math.max(num(todayRow.consumed_calories), consumedKcal));
+      if (consumedProtein > 0) {
+        todayRow.consumed_protein_g = round1(Math.max(num(todayRow.consumed_protein_g), consumedProtein));
+      }
+    }
+
+    return Object.values(rowsByDay)
+      .filter((row) => row.date >= weekStart && row.date <= today)
+      .sort((a, b) => String(a.date).localeCompare(String(b.date)))
+      .slice(-7);
+  }
+
+  async function loadWeeklyCoachChoiceRows(uid, weekStartIso) {
+    if (!uid) return [];
+    try {
+      const raw = await AsyncStorage.getItem(weeklyCoachChoicesKey(uid));
+      const arr = raw ? JSON.parse(raw) : [];
+      const rows = Array.isArray(arr) ? arr : [];
+      const today = localDayISO();
+      return rows
+        .map((row) => {
+          const ts = String(row?.ts || "").trim();
+          const day = localDayFromISO(ts);
+          if (!day || day < weekStartIso || day > today) return null;
+          return {
+            ts,
+            place_name: String(row?.place_name || "").trim(),
+            recommended_order: String(row?.recommended_order || "").trim(),
+            fit_for_today:
+              typeof row?.fit_for_today === "boolean" ? row.fit_for_today : null,
+            health_score:
+              Number.isFinite(num(row?.health_score)) ? round1(num(row.health_score)) : null,
+            why_it_helped: String(row?.why_it_helped || "").trim(),
+          };
+        })
+        .filter((row) => row && row.place_name && row.recommended_order)
+        .slice(-40);
+    } catch {
+      return [];
+    }
+  }
+
+  async function rememberWeeklyCoachChoice(uid, eventName, card, metadata = {}) {
+    const event = String(eventName || "").trim().toLowerCase();
+    if (!uid || !event) return;
+    if (!["recommendation_clicked", "place_selected", "recommendation_followed", "recommendation_selected"].includes(event)) return;
+
+    const payload = card && typeof card === "object" ? card : {};
+    const placeName = String(payload?.place_name || payload?.name || "").trim();
+    const order = String(payload?.recommended_order || payload?.best_order || "").trim();
+    if (!placeName || !order) return;
+
+    const row = {
+      ts: nowISO(),
+      event,
+      place_name: placeName,
+      recommended_order: order,
+      fit_for_today: typeof payload?.fit_for_today === "boolean" ? payload.fit_for_today : null,
+      health_score: Number.isFinite(num(payload?.health_score_100))
+        ? round1(num(payload.health_score_100))
+        : Number.isFinite(num(payload?.health_score))
+        ? round1(num(payload.health_score) * 10)
+        : null,
+      why_it_helped: String(
+        payload?.why_this_works ||
+          payload?.decision_reason ||
+          metadata?.why_it_helped ||
+          ""
+      ).trim(),
+    };
+
+    try {
+      const key = weeklyCoachChoicesKey(uid);
+      const raw = await AsyncStorage.getItem(key);
+      const arr = raw ? JSON.parse(raw) : [];
+      const rows = Array.isArray(arr) ? arr : [];
+      rows.push(row);
+      await AsyncStorage.setItem(key, JSON.stringify(rows.slice(-120)));
+    } catch {}
+  }
+
+  async function fetchWeeklyCoachProgress(force = false) {
+    const uid = userId || session?.user?.id;
+    if (!uid || !canCoaching || !aiConsentGiven) return;
+    const currentWeekStart = localWeekStartISO(localDayISO());
+    if (weeklyCoach && !force && String(weeklyCoach?.week_start || "").trim() === currentWeekStart) return;
+
+    setWeeklyCoachBusy(true);
+    setWeeklyCoachError("");
+    try {
+      const weekStart = currentWeekStart;
+      const goal = resolveLunchGoal();
+      const cutMode = goal === "fat_loss";
+      const dailyRows = buildWeeklyCoachDailyRows();
+      const choices = await loadWeeklyCoachChoiceRows(uid, weekStart);
+
+      const body = {
+        user_id: uid,
+        week_start: weekStart,
+        goal,
+        cut_mode: cutMode,
+        daily_rows: dailyRows,
+        choices,
+      };
+
+      const res = await fetch(withTimezoneQuery(`${API_BASE}/coach/weekly-progress`), {
+        method: "POST",
+        headers: { "Content-Type": "application/json", accept: "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await safeJson(res);
+      setWeeklyCoach(normalizeWeeklyCoach(data));
+    } catch (e) {
+      setWeeklyCoachError(
+        (String((e && e.message) || e || "").trim() || "Could not load weekly coach right now.").slice(0, 200)
+      );
+    } finally {
+      setWeeklyCoachBusy(false);
     }
   }
 
@@ -2487,6 +2883,8 @@ export default function App() {
       setCoachDaily(null);
       setCoachVoice(null);
       setWeeklyReport(null);
+      setWeeklyCoach(null);
+      setWeeklyCoachError("");
       setFliSyncing(false);
       setFliPending(false);
       setCoachErr("");
@@ -2496,6 +2894,8 @@ export default function App() {
       setCoachDaily(null);
       setCoachVoice(null);
       setWeeklyReport(null);
+      setWeeklyCoach(null);
+      setWeeklyCoachError("");
       setFliSyncing(false);
       setFliPending(false);
       setCoachErr("AI processing consent required.");
@@ -2504,6 +2904,7 @@ export default function App() {
     void ensureDailyCoach(false);
     void fetchCoachVoice(null, false);
     void fetchWeeklyReport(false);
+    void fetchWeeklyCoachProgress(false);
   }, [userId, coachProfileReady, goals, dailySummary, history, coachProfile, canCoaching, aiConsentGiven]);
 
   async function applyCoachProfile() {
@@ -2695,6 +3096,9 @@ export default function App() {
     setCoachTrend([]);
     setCoachLastPayload(null);
     setWeeklyReport(null);
+    setWeeklyCoach(null);
+    setWeeklyCoachBusy(false);
+    setWeeklyCoachError("");
     setFliSyncing(false);
     setFliPending(false);
     setCoachErr("");
@@ -2725,6 +3129,21 @@ export default function App() {
     setSupplementReportModal(false);
     setSupplementReportReason(SUPPLEMENT_REPORT_REASONS[0].key);
     setSupplementReportOther("");
+    setHealthyPlacesBusy(false);
+    setHealthyPlacesError("");
+    setHealthyPlaces([]);
+    setHealthyPlaceCoords(null);
+    setHealthyMapFocusCoords(null);
+    setHealthyViewMode("map");
+    setHealthyMapFilter("all");
+    setSelectedHealthyPlaceId("");
+    setLunchDecisionBusy(false);
+    setLunchDecisionError("");
+    setLunchDecision(null);
+    setMenuScanPhotoUri(null);
+    setMenuScanBusy(false);
+    setMenuScanError("");
+    setMenuScanResult(null);
     setRerunBusy(false);
     if (coachRefreshTimerRef.current) {
       clearTimeout(coachRefreshTimerRef.current);
@@ -2982,13 +3401,18 @@ export default function App() {
 
 async function openCamera(mode = "meal") {
     if (!ensureAiConsentOrAlert()) return;
-    const { granted } = permission || {};
-    if (!granted) {
-      const r = await requestPermission();
-      if (!r?.granted) {
-        Alert.alert("Camera permission", "Please allow camera access.");
-        return;
+    try {
+      const { granted } = permission || {};
+      if (!granted) {
+        const r = await requestPermission();
+        if (!r?.granted) {
+          Alert.alert("Camera permission", "Please allow camera access.");
+          return;
+        }
       }
+    } catch (e) {
+      Alert.alert("Camera permission", String((e && e.message) || e || "Please allow camera access.").slice(0, 180));
+      return;
     }
     setCameraMode(String(mode || "meal"));
     setCamOpen(true);
@@ -3008,6 +3432,14 @@ async function openCamera(mode = "meal") {
         setSupplementStep((s) => Math.max(3, Math.round(num(s))));
       } else if (mode === "supp_seal") {
         setSealImage(photo.uri);
+      } else if (mode === "menu_scan") {
+        setMenuScanPhotoUri(photo.uri);
+        setMenuScanError("");
+        setMenuScanResult(null);
+        setCamOpen(false);
+        setCameraMode("meal");
+        void scanRestaurantMenu(photo.uri);
+        return;
       } else {
         setPhotoUri(photo.uri);
       }
@@ -3328,6 +3760,7 @@ async function openCamera(mode = "meal") {
       });
       void fetchCoachVoice(normalized, true);
       void fetchWeeklyReport(true);
+      void fetchWeeklyCoachProgress(true);
       await maybeSendScanUpgradeNudge(photoScansAfterThisAnalyze);
     } catch (e) {
       setFliPending(false);
@@ -3432,6 +3865,7 @@ async function openCamera(mode = "meal") {
   }
 
   async function getCurrentCoords() {
+    let priorError = null;
     try {
       const mod = await import("expo-location");
       if (mod && typeof mod.requestForegroundPermissionsAsync === "function") {
@@ -3450,72 +3884,478 @@ async function openCamera(mode = "meal") {
         return { lat, lng };
       }
     } catch (e) {
-      // fallback below
+      priorError = e;
     }
 
-    return await new Promise((resolve, reject) => {
-      const geo = globalThis?.navigator?.geolocation;
-      if (!geo || typeof geo.getCurrentPosition !== "function") {
-        reject(new Error("Location service unavailable"));
-        return;
-      }
-      geo.getCurrentPosition(
-        (pos) => {
-          const lat = num(pos?.coords?.latitude);
-          const lng = num(pos?.coords?.longitude);
-          if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-            reject(new Error("Location unavailable"));
-            return;
-          }
-          resolve({ lat, lng });
-        },
-        (err) => {
-          reject(new Error(String(err?.message || "Location fetch failed")));
-        },
-        { enableHighAccuracy: false, timeout: 10000, maximumAge: 120000 }
-      );
-    });
+    try {
+      return await new Promise((resolve, reject) => {
+        const geo = globalThis?.navigator?.geolocation;
+        if (!geo || typeof geo.getCurrentPosition !== "function") {
+          reject(new Error("Location service unavailable"));
+          return;
+        }
+        geo.getCurrentPosition(
+          (pos) => {
+            const lat = num(pos?.coords?.latitude);
+            const lng = num(pos?.coords?.longitude);
+            if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+              reject(new Error("Location unavailable"));
+              return;
+            }
+            resolve({ lat, lng });
+          },
+          (err) => {
+            reject(new Error(String(err?.message || "Location fetch failed")));
+          },
+          { enableHighAccuracy: false, timeout: 10000, maximumAge: 120000 }
+        );
+      });
+    } catch (fallbackErr) {
+      const priorMsg = String((priorError && priorError.message) || "").trim();
+      if (priorMsg) throw new Error(priorMsg);
+      throw fallbackErr;
+    }
   }
 
-  async function loadHealthyPlacesNearby() {
+  async function loadHealthyPlacesNearby(options = {}) {
+    const reqSeq = healthyPlacesReqSeqRef.current + 1;
+    healthyPlacesReqSeqRef.current = reqSeq;
+    const opts = options && typeof options === "object" ? options : {};
     setHealthyPlacesBusy(true);
     setHealthyPlacesError("");
     try {
-      const coords = await getCurrentCoords();
+      const seedCoords = opts?.coords && typeof opts.coords === "object" ? opts.coords : null;
+      const coords = seedCoords || healthyPlaceCoords || (await getCurrentCoords());
+      if (reqSeq !== healthyPlacesReqSeqRef.current) return;
       const lat = num(coords?.lat);
       const lng = num(coords?.lng);
       if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
         throw new Error("Could not read location.");
       }
       setHealthyPlaceCoords({ lat, lng });
-      const url = withTimezoneQuery(
-        `${API_BASE}/places/healthy?lat=${encodeURIComponent(lat)}&lng=${encodeURIComponent(
-          lng
-        )}&radius=${encodeURIComponent(DEFAULT_HEALTHY_RADIUS_M)}`
-      );
+
+      const remainingCalories = Number.isFinite(num(opts?.remaining_calories))
+        ? Math.max(0, num(opts?.remaining_calories))
+        : Number.isFinite(num(remainingToday?.kcal))
+        ? Math.max(0, num(remainingToday?.kcal))
+        : null;
+      const remainingProtein = Number.isFinite(num(opts?.remaining_protein_g))
+        ? Math.max(0, num(opts?.remaining_protein_g))
+        : Number.isFinite(num(remainingToday?.protein_g))
+        ? Math.max(0, num(remainingToday?.protein_g))
+        : null;
+      const goal = String(opts?.goal || resolveLunchGoal()).trim();
+      const cutMode = typeof opts?.cut_mode === "boolean" ? opts.cut_mode : goal === "fat_loss";
+
+      const params = [
+        "lat=" + encodeURIComponent(lat),
+        "lng=" + encodeURIComponent(lng),
+        "radius=" + encodeURIComponent(DEFAULT_HEALTHY_RADIUS_M),
+      ];
+      if (remainingCalories !== null) params.push("remaining_calories=" + encodeURIComponent(remainingCalories));
+      if (remainingProtein !== null) params.push("remaining_protein_g=" + encodeURIComponent(remainingProtein));
+      if (goal) params.push("goal=" + encodeURIComponent(goal));
+      if (cutMode) params.push("cut_mode=true");
+
+      const url = withTimezoneQuery(`${API_BASE}/places/healthy?${params.join("&")}`);
       const res = await fetch(url, { method: "GET", headers: { accept: "application/json" } });
       const data = await safeJson(res);
+      if (reqSeq !== healthyPlacesReqSeqRef.current) return;
       const list = Array.isArray(data?.places)
         ? data.places.filter((x) => x && typeof x === "object")
         : [];
+
       setHealthyPlaces(list);
+      setHealthyViewMode("map");
+      if (!opts?.preserveFilter) setHealthyMapFilter("all");
+
+      const preferredIndex = findMatchingHealthyPlaceIndex(opts?.preferredCard, list);
+      const selectedIndex = preferredIndex >= 0 ? preferredIndex : list.length ? 0 : -1;
+      const selectedPlace = selectedIndex >= 0 ? list[selectedIndex] : null;
+
+      setSelectedHealthyPlaceId(
+        selectedPlace ? healthyPlaceStableId(selectedPlace, selectedIndex) : ""
+      );
+
+      if (selectedPlace && Number.isFinite(num(selectedPlace?.lat)) && Number.isFinite(num(selectedPlace?.lng))) {
+        setHealthyMapFocusCoords({ lat: num(selectedPlace.lat), lng: num(selectedPlace.lng) });
+      } else {
+        setHealthyMapFocusCoords(null);
+      }
+
       if (!list.length) {
         setHealthyPlacesError("No nearby places found right now.");
       }
     } catch (e) {
+      if (reqSeq !== healthyPlacesReqSeqRef.current) return;
       const msg = String((e && e.message) || e || "").trim() || "Could not load nearby places.";
       setHealthyPlacesError(msg.slice(0, 220));
       setHealthyPlaces([]);
+      setSelectedHealthyPlaceId("");
+      setHealthyMapFocusCoords(null);
     } finally {
-      setHealthyPlacesBusy(false);
+      if (reqSeq === healthyPlacesReqSeqRef.current) {
+        setHealthyPlacesBusy(false);
+      }
+    }
+  }
+
+  function resolveLunchGoal() {
+    const goalType = String(coachProfile?.goal_type || "").trim().toLowerCase();
+    if (goalType === "fat_loss") return "fat_loss";
+    if (goalType === "lean_gain") return "muscle_gain";
+    if (goalType === "recomposition") return "high_protein";
+    return "";
+  }
+
+  function formatDistanceFromMeters(distanceMeters) {
+    const meters = num(distanceMeters);
+    if (!Number.isFinite(meters) || meters <= 0) return "";
+    if (meters >= 1000) return round1(meters / 1000) + " km away";
+    return Math.round(meters) + " m away";
+  }
+
+  function normalizeFeedbackPlaceId(card) {
+    const raw = String(card?.place_id || card?.tracking?.place_id || "").trim();
+    if (raw) return raw;
+    const fallback = String(card?.place_name || "unknown place")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "");
+    return fallback ? "name:" + fallback : "name:unknown-place";
+  }
+
+  async function logRecommendationEvent(eventName, card, metadata = {}) {
+    const event = String(eventName || "").trim().toLowerCase();
+    if (!event) return;
+
+    const payload = card && typeof card === "object" ? card : {};
+    const placeId = normalizeFeedbackPlaceId(payload);
+    const item = String(payload?.recommended_order || payload?.tracking?.item || "").trim();
+    const uid = String(userId || "").trim();
+    const safeMetadata = (metadata && typeof metadata === "object") ? metadata : {};
+
+    void rememberWeeklyCoachChoice(uid, event, payload, safeMetadata);
+
+    try {
+      await apiPost("/places/recommendation-feedback", {
+        event,
+        place_id: placeId,
+        item,
+        user_id: uid,
+        session_id: String(uid || "anon"),
+        metadata: {
+          source: "lunch_decision_screen",
+          card_type: String(payload?.card_type || ""),
+          ...safeMetadata,
+        },
+      });
+    } catch {
+      // Feedback logging is best-effort and must never block meal decisions.
+    }
+  }
+
+  function buildLunchShareMessage(card) {
+    const payload = card && typeof card === "object" ? card : {};
+    const shareCard = payload?.share_card && typeof payload.share_card === "object" ? payload.share_card : {};
+    const realityCheck = payload?.reality_check && typeof payload.reality_check === "object" ? payload.reality_check : {};
+    const realityShare =
+      realityCheck?.share_card && typeof realityCheck.share_card === "object" ? realityCheck.share_card : {};
+
+    const activeCard = Object.keys(realityShare).length ? realityShare : shareCard;
+
+    const title = String(activeCard?.title || "Best Order Near Me").trim();
+    const place = String(activeCard?.place_name || payload?.place_name || "Nearby pick").trim();
+    const score = Number.isFinite(num(activeCard?.health_score)) ? Math.round(num(activeCard.health_score)) : null;
+    const order = String(activeCard?.best_order || activeCard?.smarter_order || payload?.recommended_order || "Smart high-protein pick").trim();
+    const calories = Number.isFinite(num(activeCard?.estimated_calories))
+      ? Math.round(num(activeCard.estimated_calories))
+      : Number.isFinite(num(payload?.estimated_calories))
+      ? Math.round(num(payload.estimated_calories))
+      : null;
+    const protein = Number.isFinite(num(activeCard?.estimated_protein_g))
+      ? Math.round(num(activeCard.estimated_protein_g))
+      : Number.isFinite(num(payload?.estimated_protein_g))
+      ? Math.round(num(payload.estimated_protein_g))
+      : null;
+
+    const typicalCalories = Number.isFinite(num(realityShare?.typical_calories))
+      ? Math.round(num(realityShare.typical_calories))
+      : Number.isFinite(num(realityCheck?.typical_order?.estimated_calories))
+      ? Math.round(num(realityCheck.typical_order.estimated_calories))
+      : null;
+    const smarterCalories = Number.isFinite(num(realityShare?.smarter_calories))
+      ? Math.round(num(realityShare.smarter_calories))
+      : calories;
+    const caloriesSaved = Number.isFinite(num(realityShare?.calories_saved))
+      ? Math.max(0, Math.round(num(realityShare.calories_saved)))
+      : Number.isFinite(num(realityCheck?.calories_saved))
+      ? Math.max(0, Math.round(num(realityCheck.calories_saved)))
+      : null;
+
+    const subtitle = String(
+      activeCard?.subtitle || payload?.why_this_works || "High protein and better calorie control for your goal."
+    ).trim();
+
+    const lines = [title, "", place];
+    if (score !== null) lines.push("🔥 Fat Loss Score: " + score);
+    if (caloriesSaved !== null && caloriesSaved > 0) lines.push("", "You saved " + caloriesSaved + " calories");
+    if (typicalCalories !== null) lines.push("Typical: ~" + typicalCalories + " kcal");
+    if (smarterCalories !== null) lines.push("Smarter: ~" + smarterCalories + " kcal");
+    lines.push("", "Best Order:", order);
+    if (calories !== null) lines.push("Calories: " + calories);
+    if (protein !== null) lines.push("Protein: " + protein + "g");
+    lines.push("", subtitle, "", "CalorieClick AI");
+    return lines.join("\n");
+  }
+
+  async function shareLunchDecisionCard(card) {
+    const payload = card && typeof card === "object" ? card : {};
+    void logRecommendationEvent("share_card_opened", payload, { action: "open_share_sheet" });
+
+    try {
+      await Share.share({ message: buildLunchShareMessage(payload) });
+      void logRecommendationEvent("share_action_triggered", payload, { action: "native_share" });
+    } catch (e) {
+      Alert.alert("Share unavailable", String((e && e.message) || e || "").slice(0, 180));
+    }
+  }
+
+  async function loadLunchDecision() {
+    if (lunchDecisionInFlightRef.current) return;
+    const reqSeq = lunchDecisionReqSeqRef.current + 1;
+    lunchDecisionReqSeqRef.current = reqSeq;
+    lunchDecisionInFlightRef.current = true;
+    setLunchDecisionBusy(true);
+    setLunchDecisionError("");
+    try {
+      const coords = healthyPlaceCoords || (await getCurrentCoords());
+      if (reqSeq !== lunchDecisionReqSeqRef.current) return;
+      const lat = num(coords?.lat);
+      const lng = num(coords?.lng);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+        throw new Error("Could not read location.");
+      }
+
+      setHealthyPlaceCoords({ lat, lng });
+
+      const remainingCalories = Number.isFinite(num(remainingToday?.kcal)) ? Math.max(0, num(remainingToday?.kcal)) : null;
+      const remainingProtein = Number.isFinite(num(remainingToday?.protein_g))
+        ? Math.max(0, num(remainingToday?.protein_g))
+        : null;
+      const targetCalories = Number.isFinite(num(goals?.kcal)) ? Math.max(0, num(goals?.kcal)) : null;
+      const targetProtein = Number.isFinite(num(goals?.protein_g)) ? Math.max(0, num(goals?.protein_g)) : null;
+      const consumedCalories = Number.isFinite(
+        num(dailySummary?.total_kcal ?? dailySummary?.totals?.kcal ?? dailySummary?.totals?.total_kcal)
+      )
+        ? Math.max(0, num(dailySummary?.total_kcal ?? dailySummary?.totals?.kcal ?? dailySummary?.totals?.total_kcal))
+        : null;
+      const consumedProtein = Number.isFinite(num(dailySummary?.totals?.protein_g))
+        ? Math.max(0, num(dailySummary?.totals?.protein_g))
+        : null;
+      const currentHour = new Date().getHours();
+      const goal = resolveLunchGoal();
+      const cutMode = goal === "fat_loss";
+
+      const params = [
+        "lat=" + encodeURIComponent(lat),
+        "lng=" + encodeURIComponent(lng),
+        "radius=" + encodeURIComponent(DEFAULT_HEALTHY_RADIUS_M),
+      ];
+      if (remainingCalories !== null) params.push("remaining_calories=" + encodeURIComponent(remainingCalories));
+      if (remainingProtein !== null) params.push("remaining_protein_g=" + encodeURIComponent(remainingProtein));
+      if (targetCalories !== null) params.push("target_calories=" + encodeURIComponent(targetCalories));
+      if (consumedCalories !== null) params.push("consumed_calories=" + encodeURIComponent(consumedCalories));
+      if (targetProtein !== null) params.push("target_protein_g=" + encodeURIComponent(targetProtein));
+      if (consumedProtein !== null) params.push("consumed_protein_g=" + encodeURIComponent(consumedProtein));
+      if (Number.isFinite(currentHour)) params.push("current_hour=" + encodeURIComponent(Math.max(0, Math.min(23, currentHour))));
+      if (goal) params.push("goal=" + encodeURIComponent(goal));
+      if (cutMode) params.push("cut_mode=true");
+
+      const url = withTimezoneQuery(API_BASE + "/places/lunch-decision?" + params.join("&"));
+      const res = await fetch(url, { method: "GET", headers: { accept: "application/json" } });
+      const data = await safeJson(res);
+      if (reqSeq !== lunchDecisionReqSeqRef.current) return;
+      const payload = data && typeof data === "object" ? data : {};
+      const cards = Array.isArray(payload?.cards) ? payload.cards.filter((x) => x && typeof x === "object") : [];
+
+      const bestCard =
+        cards.find((card) => String(card?.card_type || "").trim().toLowerCase() === "best_right_now") ||
+        cards[0] ||
+        null;
+      const selectedPlaceId = String(payload?.selected_place_id || bestCard?.place_id || "").trim();
+      const selectedPlaceName = String(payload?.selected_place_name || bestCard?.place_name || "").trim();
+      const selectedPlaceLat = num(payload?.selected_place_lat ?? bestCard?.place_lat ?? bestCard?.lat);
+      const selectedPlaceLng = num(payload?.selected_place_lng ?? bestCard?.place_lng ?? bestCard?.lng);
+
+      setLunchDecision({
+        ...payload,
+        cards,
+        selected_place_id: selectedPlaceId,
+        selected_place_name: selectedPlaceName,
+        selected_place_lat: Number.isFinite(selectedPlaceLat) ? selectedPlaceLat : null,
+        selected_place_lng: Number.isFinite(selectedPlaceLng) ? selectedPlaceLng : null,
+      });
+      void fetchWeeklyCoachProgress(false);
+
+      if (cards.length) {
+        setHealthyViewMode("map");
+        cards.slice(0, 3).forEach((card, idx) => {
+          void logRecommendationEvent("recommendation_shown", card, {
+            position: idx + 1,
+            generated_at: String(payload?.generated_at || ""),
+          });
+        });
+
+        const preferredCard =
+          bestCard ||
+          (selectedPlaceId
+            ? {
+                place_id: selectedPlaceId,
+                place_name: selectedPlaceName,
+                place_lat: Number.isFinite(selectedPlaceLat) ? selectedPlaceLat : null,
+                place_lng: Number.isFinite(selectedPlaceLng) ? selectedPlaceLng : null,
+              }
+            : null);
+
+        await loadHealthyPlacesNearby({
+          coords: { lat, lng },
+          preferredCard,
+          remaining_calories: remainingCalories,
+          remaining_protein_g: remainingProtein,
+          goal,
+          cut_mode: cutMode,
+        });
+      } else {
+        setLunchDecisionError("No strong lunch picks nearby right now. Try widening your map area.");
+      }
+    } catch (e) {
+      if (reqSeq !== lunchDecisionReqSeqRef.current) return;
+      const msg = String((e && e.message) || e || "").trim() || "Could not decide your meal right now.";
+      setLunchDecisionError(msg.slice(0, 220));
+      setLunchDecision(null);
+    } finally {
+      if (reqSeq === lunchDecisionReqSeqRef.current) {
+        setLunchDecisionBusy(false);
+        lunchDecisionInFlightRef.current = false;
+      }
+    }
+  }
+
+  async function scanRestaurantMenu(photoUriOverride = "") {
+    if (!userId) return;
+    if (!ensureAiConsentOrAlert()) return;
+    if (menuScanBusy) return;
+
+    const sourceUri = String(photoUriOverride || menuScanPhotoUri || "").trim();
+    if (!sourceUri) {
+      Alert.alert("No menu photo", "Take a menu photo first.");
+      return;
+    }
+
+    setMenuScanBusy(true);
+    setMenuScanError("");
+    setMenuScanResult(null);
+    try {
+      const selectedPlace =
+        (healthyPlaces || []).find(
+          (x, idx) => healthyPlaceStableId(x, idx) === String(selectedHealthyPlaceId || "").trim()
+        ) ||
+        (Array.isArray(healthyPlaces) && healthyPlaces.length ? healthyPlaces[0] : null);
+
+      const goal = resolveLunchGoal();
+      const cutMode = goal === "fat_loss";
+      const remainingCalories = Number.isFinite(num(remainingToday?.kcal))
+        ? Math.max(0, num(remainingToday?.kcal))
+        : null;
+      const remainingProtein = Number.isFinite(num(remainingToday?.protein_g))
+        ? Math.max(0, num(remainingToday?.protein_g))
+        : null;
+
+      const form = new FormData();
+      form.append("file", {
+        uri: sourceUri,
+        name: "menu.jpg",
+        type: "image/jpeg",
+      });
+      if (selectedPlace?.place_id) form.append("place_id", String(selectedPlace.place_id));
+      if (selectedPlace?.place_name || selectedPlace?.name) {
+        form.append("restaurant_name", String(selectedPlace.place_name || selectedPlace.name || ""));
+      }
+      if (selectedPlace?.primary_type) {
+        form.append("cuisine", String(selectedPlace.primary_type));
+      } else if (Array.isArray(selectedPlace?.types) && selectedPlace.types.length) {
+        form.append("cuisine", String(selectedPlace.types[0] || "").replace(/_/g, " "));
+      }
+      if (remainingCalories !== null) form.append("remaining_calories", String(remainingCalories));
+      if (remainingProtein !== null) form.append("remaining_protein_g", String(remainingProtein));
+      if (goal) form.append("goal", goal);
+      if (cutMode) form.append("cut_mode", "true");
+
+      const url = withTimezoneQuery(`${API_BASE}/menu/scan?user_id=${encodeURIComponent(userId)}`);
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { accept: "application/json" },
+        body: form,
+      });
+      const data = await safeJson(res);
+      const payload = data?.menu_scan && typeof data.menu_scan === "object" ? data.menu_scan : null;
+      if (!payload) {
+        throw new Error("Menu scan returned no recommendation payload.");
+      }
+      setMenuScanResult(payload);
+      setMenuScanPhotoUri(sourceUri);
+    } catch (e) {
+      const msg =
+        String((e && e.message) || e || "").trim() || "Could not scan this menu right now.";
+      setMenuScanError(msg.slice(0, 220));
+      setMenuScanResult(null);
+    } finally {
+      setMenuScanBusy(false);
+    }
+  }
+
+  async function handleLunchDecisionCTA(card) {
+    const payload = card && typeof card === "object" ? card : {};
+    const cta = String(payload?.cta_label || "").trim().toLowerCase();
+
+    void logRecommendationEvent("recommendation_clicked", payload, { cta_label: cta });
+    void logRecommendationEvent("place_selected", payload, { cta_label: cta });
+
+    if (cta.includes("navigate")) {
+      await openPlaceInMaps({
+        name: payload?.place_name,
+        lat: payload?.place_lat,
+        lng: payload?.place_lng,
+      });
+      return;
+    }
+
+    if (cta.includes("alternative")) {
+      await loadHealthyPlacesNearby({
+        coords: healthyPlaceCoords,
+        preferredCard: payload,
+      });
     }
   }
 
   async function openPlaceInMaps(place) {
-    const lat = num(place?.lat);
-    const lng = num(place?.lng);
-    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
-    const label = encodeURIComponent(String(place?.name || "Healthy place"));
+    const name = String(place?.name || place?.place_name || "Healthy place").trim();
+    const address = String(place?.address || place?.formatted_address || "").trim();
+    const queryText = [name, address].filter(Boolean).join(" ");
+    const lat = num(place?.lat ?? place?.place_lat);
+    const lng = num(place?.lng ?? place?.place_lng);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      const fallbackQuery = encodeURIComponent(queryText || name);
+      const webByName = `https://www.google.com/maps/search/?api=1&query=${fallbackQuery}`;
+      try {
+        await Linking.openURL(webByName);
+      } catch (e) {
+        Alert.alert("Map unavailable", String((e && e.message) || e || "").slice(0, 180));
+      }
+      return;
+    }
+    const label = encodeURIComponent(name);
     const iosUrl = `http://maps.apple.com/?ll=${lat},${lng}&q=${label}`;
     const androidUrl = `geo:${lat},${lng}?q=${lat},${lng}(${label})`;
     const webUrl = `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
@@ -3531,7 +4371,10 @@ async function openCamera(mode = "meal") {
   async function openHealthyAreaMap() {
     const lat = num(healthyPlaceCoords?.lat);
     const lng = num(healthyPlaceCoords?.lng);
-    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      Alert.alert("Location needed", "Turn on location to open nearby places on map.");
+      return;
+    }
     const webUrl = `https://www.google.com/maps/search/healthy+food/@${lat},${lng},14z`;
     try {
       await Linking.openURL(webUrl);
@@ -3693,6 +4536,7 @@ async function openCamera(mode = "meal") {
       });
       void fetchCoachVoice(normalized, true);
       void fetchWeeklyReport(true);
+      void fetchWeeklyCoachProgress(true);
     } catch (e) {
       if (rerunSeq === Number(rerunReqSeqRef.current || 0)) {
         setFliPending(false);
@@ -3929,9 +4773,43 @@ async function openCamera(mode = "meal") {
       (String(supplementBarcode || "").trim() || String(supplementBatchNumber || "").trim())
   );
   const supplementCommunityScanCount = Number(supplementResult?.scan_count ?? supplementResult?.community_scan_count);
+  const healthyMapFilterChips = [
+    { key: "all", label: "All" },
+    { key: "high_protein", label: "High Protein" },
+    { key: "under_600", label: "Under 600 kcal" },
+    { key: "fits_today", label: "Fits Today" },
+    { key: "cut_friendly", label: "Cut Friendly" },
+    { key: "best_right_now", label: "Best Right Now" },
+  ];
+  const healthyVisiblePlaces = (() => {
+    const filtered = filterHealthyPlacesForMap(healthyPlaces, healthyMapFilter);
+    const rows = [...filtered];
+    rows.sort((a, b) => {
+      const rankA = num(a?.map_rank);
+      const rankB = num(b?.map_rank);
+      if (Number.isFinite(rankA) && Number.isFinite(rankB) && rankA !== rankB) return rankA - rankB;
+      const scoreA = Number.isFinite(num(a?.health_score_100)) ? num(a?.health_score_100) : num(a?.health_score) * 10;
+      const scoreB = Number.isFinite(num(b?.health_score_100)) ? num(b?.health_score_100) : num(b?.health_score) * 10;
+      return scoreB - scoreA;
+    });
+    return rows;
+  })();
+  const healthySelectedPlace = (() => {
+    if (!healthyVisiblePlaces.length) return null;
+    const picked = healthyVisiblePlaces.find(
+      (x, idx) => healthyPlaceStableId(x, idx) === String(selectedHealthyPlaceId || "").trim()
+    );
+    return picked || healthyVisiblePlaces[0];
+  })();
+  const healthySelectedPlaceStableId = healthySelectedPlace ? healthyPlaceStableId(healthySelectedPlace, 0) : "";
+  const healthySelectedDecisionCard = findMatchingLunchCard(healthySelectedPlace, lunchDecision?.cards || []);
+  const lunchDayCoach = lunchDecision?.day_coach && typeof lunchDecision.day_coach === "object"
+    ? lunchDecision.day_coach
+    : null;
+  const healthyMapCenter = healthyMapFocusCoords || healthyPlaceCoords;
   const healthyMapPoints = buildHealthyMapPoints(
-    healthyPlaces,
-    healthyPlaceCoords,
+    healthyVisiblePlaces,
+    healthyMapCenter,
     Math.max(240, num(healthyMapWidth)),
     210
   );
@@ -3942,10 +4820,30 @@ async function openCamera(mode = "meal") {
       ? "Capture nutrition panel"
       : cameraMode === "supp_seal"
       ? "Capture seal photo"
+      : cameraMode === "menu_scan"
+      ? "Capture menu photo"
       : "Take a photo";
   const barcodeModalTitle = barcodeMode === "supplement" ? "Scan supplement barcode" : "Scan barcode";
 
   const subscriptionPriceText = (key) => priceByEntitlement?.[key] || (rcReady ? "Loading…" : "See App Store");
+  const homeCoachLine = (() => {
+    const daySummaryHeadline = String(lunchDayCoach?.day_summary?.headline || "").trim();
+    if (daySummaryHeadline) return daySummaryHeadline;
+
+    const bestCard = Array.isArray(lunchDecision?.cards) && lunchDecision.cards.length
+      ? lunchDecision.cards.find((x) => String(x?.card_type || "").trim().toLowerCase() === "best_right_now") ||
+        lunchDecision.cards[0]
+      : null;
+    const bestPlace = String(bestCard?.place_name || "").trim();
+    if (bestPlace) return `Best lunch near you: ${bestPlace}`;
+
+    const remainingProtein = num(remainingToday?.protein_g);
+    if (Number.isFinite(remainingProtein) && remainingProtein > 0) {
+      return `You still need ${Math.round(Math.max(0, remainingProtein))}g protein today.`;
+    }
+
+    return "AI helps you eat smarter anywhere.";
+  })();
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -3960,6 +4858,55 @@ async function openCamera(mode = "meal") {
           <TouchableOpacity style={styles.smallBtn} onPress={signOut}>
             <Text style={styles.smallBtnText}>Logout</Text>
           </TouchableOpacity>
+        </View>
+
+        <View style={styles.launcherCard}>
+          <Text style={styles.launcherTitle}>CalorieClick AI</Text>
+          <Text style={styles.launcherQuestion}>What should I eat right now?</Text>
+          <Text style={styles.launcherSubline}>Pick one action and we will guide the next move.</Text>
+
+          <View style={styles.launcherActions}>
+            <TouchableOpacity
+              style={styles.launcherActionCard}
+              activeOpacity={0.85}
+              onPress={() => openCamera("meal")}
+            >
+              <Text style={styles.launcherActionIcon}>📸</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.launcherActionTitle}>Scan Food</Text>
+                <Text style={styles.launcherActionSubtitle}>Analyze your meal in seconds</Text>
+              </View>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.launcherActionCard}
+              activeOpacity={0.85}
+              onPress={() => openCamera("menu_scan")}
+            >
+              <Text style={styles.launcherActionIcon}>🍽</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.launcherActionTitle}>Scan Menu</Text>
+                <Text style={styles.launcherActionSubtitle}>Find the best item at any restaurant</Text>
+              </View>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.launcherActionCard}
+              activeOpacity={0.85}
+              onPress={loadLunchDecision}
+              disabled={lunchDecisionBusy}
+            >
+              <Text style={styles.launcherActionIcon}>📍</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.launcherActionTitle}>Best Nearby</Text>
+                <Text style={styles.launcherActionSubtitle}>
+                  {lunchDecisionBusy ? "Finding your best nearby lunch..." : "See what fits your macros around you"}
+                </Text>
+              </View>
+            </TouchableOpacity>
+          </View>
+
+          <Text style={styles.launcherCoachLine}>{homeCoachLine}</Text>
         </View>
 
         <View style={styles.card}>
@@ -4942,6 +5889,31 @@ async function openCamera(mode = "meal") {
             <TouchableOpacity style={styles.primaryBtn} onPress={loadHealthyPlacesNearby} disabled={healthyPlacesBusy}>
               <Text style={styles.btnText}>{healthyPlacesBusy ? "Loading..." : "Find Healthy Places"}</Text>
             </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.secondaryBtn, styles.lunchDecisionBtn]}
+              onPress={loadLunchDecision}
+              disabled={lunchDecisionBusy}
+            >
+              <Text style={styles.btnText}>{lunchDecisionBusy ? "Deciding..." : "🎯 Decide my meal"}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.secondaryBtn, styles.menuScanBtn]}
+              onPress={() => {
+                void openCamera("menu_scan");
+              }}
+              disabled={menuScanBusy}
+            >
+              <Text style={styles.btnText}>{menuScanBusy ? "Scanning..." : "📸 Scan Menu"}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.secondaryBtn, styles.weeklyCoachBtn]}
+              onPress={() => {
+                void fetchWeeklyCoachProgress(true);
+              }}
+              disabled={weeklyCoachBusy}
+            >
+              <Text style={styles.btnText}>{weeklyCoachBusy ? "Loading..." : "Weekly Coach"}</Text>
+            </TouchableOpacity>
             {healthyPlaceCoords ? (
               <TouchableOpacity style={styles.secondaryBtn} onPress={openHealthyAreaMap}>
                 <Text style={styles.btnText}>Open Area Map</Text>
@@ -4956,79 +5928,838 @@ async function openCamera(mode = "meal") {
           {healthyPlacesError ? (
             <Text style={[styles.tiny, { marginTop: 8, color: "#fca5a5" }]}>{healthyPlacesError}</Text>
           ) : null}
-          {healthyMapPoints.length ? (
-            <View style={styles.placeMapCard}>
-              <Text style={styles.tiny}>Nearby map preview (tap a pin to open maps)</Text>
-              <View
-                style={styles.placeMapCanvas}
-                onLayout={(e) => {
-                  const w = Math.max(220, num(e?.nativeEvent?.layout?.width));
-                  if (Math.abs(w - num(healthyMapWidth)) > 2) setHealthyMapWidth(w);
-                }}
-              >
-                <View style={styles.placeMapCenter} />
-                {healthyMapPoints.map((pt) => {
-                  const tone = healthyPlaceTone(pt?.place?.health_score);
-                  return (
-                    <TouchableOpacity
-                      key={pt.key}
-                      style={[styles.placeMapPin, { left: pt.x - 8, top: pt.y - 8, borderColor: tone.color }]}
-                      onPress={() => {
-                        void openPlaceInMaps(pt.place);
-                      }}
-                    >
-                      <View style={[styles.placeMapPinCore, { backgroundColor: tone.color }]} />
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
+          {lunchDecisionError ? (
+            <Text style={[styles.tiny, { marginTop: 8, color: "#fca5a5" }]}>{lunchDecisionError}</Text>
+          ) : null}
+          {menuScanError ? (
+            <Text style={[styles.tiny, { marginTop: 8, color: "#fca5a5" }]}>{menuScanError}</Text>
+          ) : null}
+          {weeklyCoachError ? (
+            <Text style={[styles.tiny, { marginTop: 8, color: "#fca5a5" }]}>{weeklyCoachError}</Text>
+          ) : null}
+          {weeklyCoach ? (
+            (() => {
+              const weekSummary =
+                weeklyCoach?.week_summary && typeof weeklyCoach.week_summary === "object"
+                  ? weeklyCoach.week_summary
+                  : {};
+              const insights = Array.isArray(weeklyCoach?.habit_insights)
+                ? weeklyCoach.habit_insights.filter((x) => x && typeof x === "object").slice(0, 3)
+                : [];
+              const bestChoices =
+                Array.isArray(weeklyCoach?.best_choices_this_week)
+                  ? weeklyCoach.best_choices_this_week.filter((x) => x && typeof x === "object").slice(0, 2)
+                  : [];
+              const nextFocus =
+                weeklyCoach?.next_week_focus && typeof weeklyCoach.next_week_focus === "object"
+                  ? weeklyCoach.next_week_focus
+                  : null;
+
+              return (
+                <View style={styles.weeklyCoachCard}>
+                  <View style={styles.weeklyCoachHeaderRow}>
+                    <Text style={styles.healthyPanelSectionTitle}>Weekly Coach</Text>
+                    {!!String(weeklyCoach?.week_start || "").trim() ? (
+                      <Text style={styles.weeklyCoachMeta}>Week of {String(weeklyCoach.week_start).trim()}</Text>
+                    ) : null}
+                  </View>
+
+                  {!!String(weeklyCoach?.headline || "").trim() ? (
+                    <Text style={styles.mapCoachHeadline}>{String(weeklyCoach.headline).trim()}</Text>
+                  ) : null}
+                  {!!String(weeklyCoach?.supporting_text || "").trim() ? (
+                    <Text style={styles.mapCoachSupport}>{String(weeklyCoach.supporting_text).trim()}</Text>
+                  ) : null}
+
+                  <Text style={styles.weeklyCoachSummaryLine}>
+                    On track {Math.max(0, Math.round(num(weekSummary?.days_on_track)))}/
+                    {Math.max(0, Math.round(num(weekSummary?.days_tracked)))} days • Avg protein{" "}
+                    {Math.round(num(weekSummary?.average_daily_protein_g))}g
+                  </Text>
+
+                  {insights.length ? (
+                    <View style={styles.weeklyCoachInsightsWrap}>
+                      <Text style={styles.dayCoachSectionTitle}>This week's pattern</Text>
+                      {insights.map((insight, idx) => {
+                        const kind = String(insight?.type || "info").trim().toLowerCase();
+                        const bullet = kind === "warning" ? "⚠" : kind === "positive" ? "✓" : "•";
+                        return (
+                          <View key={`weekly-insight-${idx}`} style={styles.weeklyCoachInsightRow}>
+                            <Text style={styles.weeklyCoachInsightBullet}>{bullet}</Text>
+                            <View style={{ flex: 1 }}>
+                              {!!String(insight?.title || "").trim() ? (
+                                <Text style={styles.weeklyCoachInsightTitle}>{String(insight.title).trim()}</Text>
+                              ) : null}
+                              {!!String(insight?.text || "").trim() ? (
+                                <Text style={styles.tiny}>{String(insight.text).trim()}</Text>
+                              ) : null}
+                            </View>
+                          </View>
+                        );
+                      })}
+                    </View>
+                  ) : null}
+
+                  {bestChoices.length ? (
+                    <View style={styles.dayCoachSection}>
+                      <Text style={styles.dayCoachSectionTitle}>Best choices this week</Text>
+                      {bestChoices.map((choice, idx) => (
+                        <View key={`weekly-best-choice-${idx}`} style={idx > 0 ? { marginTop: 6 } : null}>
+                          <Text style={styles.tiny}>
+                            {String(choice?.place_name || "Nearby pick")}
+                            {String(choice?.recommended_order || "").trim()
+                              ? ` — ${String(choice.recommended_order).trim()}`
+                              : ""}
+                          </Text>
+                          {!!String(choice?.why_it_helped || "").trim() ? (
+                            <Text style={styles.tiny}>{String(choice.why_it_helped).trim()}</Text>
+                          ) : null}
+                        </View>
+                      ))}
+                    </View>
+                  ) : null}
+
+                  {nextFocus ? (
+                    <View style={styles.dayCoachSection}>
+                      <Text style={styles.dayCoachSectionTitle}>Focus for next week</Text>
+                      {!!String(nextFocus?.headline || "").trim() ? (
+                        <Text style={styles.tiny}>{String(nextFocus.headline).trim()}</Text>
+                      ) : null}
+                      {!!String(nextFocus?.supporting_text || "").trim() ? (
+                        <Text style={styles.tiny}>{String(nextFocus.supporting_text).trim()}</Text>
+                      ) : null}
+                    </View>
+                  ) : null}
+                </View>
+              );
+            })()
+          ) : weeklyCoachBusy ? (
+            <View style={{ marginTop: 10 }}>
+              <ActivityIndicator />
             </View>
           ) : null}
-          {(healthyPlaces || []).slice(0, 8).map((place, idx) => {
-            const tone = healthyPlaceTone(place?.health_score);
-            const opts = Array.isArray(place?.best_options) ? place.best_options.filter(Boolean).slice(0, 2) : [];
-            const distanceKm = haversineKm(
-              healthyPlaceCoords?.lat,
-              healthyPlaceCoords?.lng,
-              place?.lat,
-              place?.lng
-            );
-            return (
-              <View key={`${place?.name || "place"}-${idx}`} style={styles.placeCard}>
-                <View style={styles.placeHeader}>
-                  <Text style={styles.itemName}>{String(place?.name || "Unknown place")}</Text>
-                  <Text style={[styles.placeScore, { color: tone.color }]}>
-                    {round1(place?.health_score)}/10 • {tone.badge}
-                  </Text>
-                </View>
-                {!!String(place?.address || "").trim() ? (
-                  <Text style={styles.tiny}>{String(place.address)}</Text>
-                ) : null}
-                {Number.isFinite(distanceKm) ? (
-                  <Text style={[styles.tiny, { marginTop: 4 }]}>Distance: {round1(distanceKm)} km</Text>
-                ) : null}
-                {opts.length ? (
-                  <View style={{ marginTop: 6 }}>
-                    {opts.map((opt, i) => (
-                      <Text key={`${idx}-opt-${i}`} style={styles.tiny}>
-                        • {String(opt)}
+          {menuScanBusy && !menuScanResult ? (
+            <View style={{ marginTop: 10 }}>
+              <ActivityIndicator />
+            </View>
+          ) : null}
+          {menuScanResult ? (
+            (() => {
+              const bestChoice =
+                menuScanResult?.best_choice_here && typeof menuScanResult.best_choice_here === "object"
+                  ? menuScanResult.best_choice_here
+                  : Array.isArray(menuScanResult?.top_recommendations) && menuScanResult.top_recommendations.length
+                  ? menuScanResult.top_recommendations[0]
+                  : null;
+              const betterSwap =
+                menuScanResult?.better_swap && typeof menuScanResult.better_swap === "object"
+                  ? menuScanResult.better_swap
+                  : null;
+              const avoidCutting =
+                menuScanResult?.avoid_if_cutting && typeof menuScanResult.avoid_if_cutting === "object"
+                  ? menuScanResult.avoid_if_cutting
+                  : null;
+              const coachMsg =
+                menuScanResult?.coach_message && typeof menuScanResult.coach_message === "object"
+                  ? menuScanResult.coach_message
+                  : null;
+              const reality =
+                menuScanResult?.reality_check && typeof menuScanResult.reality_check === "object"
+                  ? menuScanResult.reality_check
+                  : null;
+
+              return (
+                <View style={styles.menuScanCard}>
+                  <Text style={styles.cardTitle}>{String(menuScanResult?.title || "Best Choice Here")}</Text>
+                  <Text style={styles.p}>{String(menuScanResult?.subtitle || "AI analyzed this restaurant menu")}</Text>
+                  {Number.isFinite(num(menuScanResult?.scan_confidence)) ? (
+                    <Text style={styles.tiny}>Scan confidence {Math.round(num(menuScanResult.scan_confidence) * 100)}%</Text>
+                  ) : null}
+
+                  {bestChoice ? (
+                    <View style={styles.dayCoachSection}>
+                      <Text style={styles.dayCoachSectionTitle}>Best Choice Here</Text>
+                      <Text style={styles.healthyPanelItemName}>{String(bestChoice?.item_name || "Smart pick")}</Text>
+                      <Text style={styles.tiny}>
+                        {Number.isFinite(num(bestChoice?.estimated_calories))
+                          ? `${Math.round(num(bestChoice.estimated_calories))} kcal`
+                          : "Calories n/a"}
+                        {Number.isFinite(num(bestChoice?.estimated_protein_g))
+                          ? ` • ${Math.round(num(bestChoice.estimated_protein_g))}g protein`
+                          : ""}
                       </Text>
-                    ))}
+                      {!!String(bestChoice?.short_reason || "").trim() ? (
+                        <Text style={styles.tiny}>{String(bestChoice.short_reason).trim()}</Text>
+                      ) : null}
+                      {bestChoice?.fit_for_today === true ? (
+                        <Text style={[styles.tiny, styles.lunchFitGood]}>✅ Fits today's macros</Text>
+                      ) : null}
+                      {bestChoice?.fit_for_today === false ? (
+                        <Text style={[styles.tiny, styles.lunchFitCaution]}>⚠ Harder to fit today</Text>
+                      ) : null}
+                    </View>
+                  ) : null}
+
+                  {betterSwap ? (
+                    <View style={styles.dayCoachSection}>
+                      <Text style={styles.dayCoachSectionTitle}>Better Swap</Text>
+                      <Text style={styles.tiny}>
+                        {String(betterSwap?.item_name || "Lighter menu swap")}
+                        {Number.isFinite(num(betterSwap?.estimated_calories))
+                          ? ` • ${Math.round(num(betterSwap.estimated_calories))} kcal`
+                          : ""}
+                      </Text>
+                      {!!String(betterSwap?.short_reason || "").trim() ? (
+                        <Text style={styles.tiny}>{String(betterSwap.short_reason).trim()}</Text>
+                      ) : null}
+                    </View>
+                  ) : null}
+
+                  {avoidCutting ? (
+                    <View style={styles.dayCoachSection}>
+                      <Text style={styles.dayCoachSectionTitle}>Avoid if Cutting</Text>
+                      <Text style={styles.tiny}>
+                        {String(avoidCutting?.item_name || "Calorie-dense option")}
+                        {Number.isFinite(num(avoidCutting?.estimated_calories))
+                          ? ` • ~${Math.round(num(avoidCutting.estimated_calories))} kcal`
+                          : ""}
+                      </Text>
+                      {!!String(avoidCutting?.short_reason || "").trim() ? (
+                        <Text style={styles.tiny}>{String(avoidCutting.short_reason).trim()}</Text>
+                      ) : null}
+                    </View>
+                  ) : null}
+
+                  {coachMsg ? (
+                    <View style={styles.dayCoachSection}>
+                      <Text style={styles.dayCoachSectionTitle}>Coach Note</Text>
+                      {!!String(coachMsg?.headline || "").trim() ? (
+                        <Text style={styles.mapCoachHeadline}>{String(coachMsg.headline).trim()}</Text>
+                      ) : null}
+                      {!!String(coachMsg?.supporting_text || "").trim() ? (
+                        <Text style={styles.tiny}>{String(coachMsg.supporting_text).trim()}</Text>
+                      ) : null}
+                    </View>
+                  ) : null}
+
+                  {reality ? (
+                    <View style={styles.dayCoachSection}>
+                      <Text style={styles.dayCoachSectionTitle}>Reality Check</Text>
+                      {Number.isFinite(num(reality?.typical_order?.estimated_calories)) ? (
+                        <Text style={styles.tiny}>Typical order: ~{Math.round(num(reality.typical_order.estimated_calories))} kcal</Text>
+                      ) : null}
+                      {Number.isFinite(num(reality?.smarter_order?.estimated_calories)) ? (
+                        <Text style={styles.tiny}>Smarter order: ~{Math.round(num(reality.smarter_order.estimated_calories))} kcal</Text>
+                      ) : null}
+                      {Number.isFinite(num(reality?.calories_saved)) ? (
+                        <Text style={[styles.tiny, styles.realitySavedText]}>You save ~{Math.max(0, Math.round(num(reality.calories_saved)))} kcal</Text>
+                      ) : null}
+                    </View>
+                  ) : null}
+
+                  <View style={styles.lunchCardActionsRow}>
+                    <TouchableOpacity
+                      style={[styles.smallBtn, styles.menuScanBtn]}
+                      onPress={() => {
+                        void openCamera("menu_scan");
+                      }}
+                    >
+                      <Text style={styles.smallBtnText}>Scan again</Text>
+                    </TouchableOpacity>
+                    {!!menuScanPhotoUri ? (
+                      <TouchableOpacity
+                        style={styles.smallBtn}
+                        onPress={() => {
+                          void scanRestaurantMenu();
+                        }}
+                        disabled={menuScanBusy}
+                      >
+                        <Text style={styles.smallBtnText}>{menuScanBusy ? "Scanning..." : "Re-run"}</Text>
+                      </TouchableOpacity>
+                    ) : null}
                   </View>
-                ) : null}
-                <View style={{ marginTop: 8 }}>
-                  <TouchableOpacity
-                    style={styles.secondaryBtn}
-                    onPress={() => {
-                      void openPlaceInMaps(place);
-                    }}
-                  >
-                    <Text style={styles.btnText}>Open in Maps</Text>
-                  </TouchableOpacity>
                 </View>
-              </View>
-            );
-          })}
+              );
+            })()
+          ) : null}
+          {lunchDecision && Array.isArray(lunchDecision.cards) && lunchDecision.cards.length ? (
+            <View style={styles.lunchDecisionWrap}>
+              <Text style={styles.cardTitle}>{String(lunchDecision.title || "What should I eat right now?")}</Text>
+              <Text style={styles.p}>{String(lunchDecision.subtitle || "Best lunch near you")}</Text>
+              {!!String(lunchDecision?.summary_line || "").trim() ? (
+                <Text style={styles.lunchSummaryLine}>{String(lunchDecision.summary_line).trim()}</Text>
+              ) : null}
+              {lunchDayCoach ? (
+                (() => {
+                  const daySummary = lunchDayCoach?.day_summary && typeof lunchDayCoach.day_summary === "object"
+                    ? lunchDayCoach.day_summary
+                    : null;
+                  const nextMeal = lunchDayCoach?.next_meal_guidance && typeof lunchDayCoach.next_meal_guidance === "object"
+                    ? lunchDayCoach.next_meal_guidance
+                    : null;
+                  const evening = lunchDayCoach?.evening_guidance && typeof lunchDayCoach.evening_guidance === "object"
+                    ? lunchDayCoach.evening_guidance
+                    : null;
+                  const endOfDay = lunchDayCoach?.end_of_day_feedback && typeof lunchDayCoach.end_of_day_feedback === "object"
+                    ? lunchDayCoach.end_of_day_feedback
+                    : null;
+                  const progress = daySummary?.progress && typeof daySummary.progress === "object"
+                    ? daySummary.progress
+                    : {};
+                  const consumedCal = Number.isFinite(num(progress?.consumed_calories))
+                    ? Math.round(num(progress.consumed_calories))
+                    : null;
+                  const targetCal = Number.isFinite(num(progress?.target_calories))
+                    ? Math.round(num(progress.target_calories))
+                    : null;
+                  const remainingCal = Number.isFinite(num(progress?.remaining_calories))
+                    ? Math.round(num(progress.remaining_calories))
+                    : null;
+                  const consumedProtein = Number.isFinite(num(progress?.consumed_protein_g))
+                    ? Math.round(num(progress.consumed_protein_g))
+                    : null;
+                  const targetProtein = Number.isFinite(num(progress?.target_protein_g))
+                    ? Math.round(num(progress.target_protein_g))
+                    : null;
+                  const remainingProtein = Number.isFinite(num(progress?.remaining_protein_g))
+                    ? Math.round(num(progress.remaining_protein_g))
+                    : null;
+
+                  return (
+                    <View style={styles.dayCoachCard}>
+                      <Text style={styles.healthyPanelSectionTitle}>AI Coach</Text>
+                      {!!String(daySummary?.headline || "").trim() ? (
+                        <Text style={styles.mapCoachHeadline}>{String(daySummary.headline).trim()}</Text>
+                      ) : null}
+                      {!!String(daySummary?.supporting_text || "").trim() ? (
+                        <Text style={styles.mapCoachSupport}>{String(daySummary.supporting_text).trim()}</Text>
+                      ) : null}
+
+                      {(consumedCal !== null || targetCal !== null || consumedProtein !== null || targetProtein !== null) ? (
+                        <Text style={styles.dayCoachProgressLine}>
+                          {consumedCal !== null && targetCal !== null ? `Today: ${consumedCal}/${targetCal} kcal` : ""}
+                          {consumedCal !== null && targetCal !== null && consumedProtein !== null && targetProtein !== null ? " • " : ""}
+                          {consumedProtein !== null && targetProtein !== null ? `Protein: ${consumedProtein}/${targetProtein}g` : ""}
+                        </Text>
+                      ) : null}
+
+                      {(remainingCal !== null || remainingProtein !== null) ? (
+                        <Text style={styles.dayCoachProgressSubtle}>
+                          {remainingCal !== null ? `${remainingCal} kcal left` : ""}
+                          {remainingCal !== null && remainingProtein !== null ? " • " : ""}
+                          {remainingProtein !== null ? `${remainingProtein}g protein left` : ""}
+                        </Text>
+                      ) : null}
+
+                      {nextMeal ? (
+                        <View style={styles.dayCoachSection}>
+                          <Text style={styles.dayCoachSectionTitle}>{String(nextMeal?.headline || "Best next meal").trim()}</Text>
+                          <Text style={styles.tiny}>
+                            {String(nextMeal?.recommended_place_name || "Nearby pick")}
+                            {String(nextMeal?.recommended_order || "").trim() ? ` — ${String(nextMeal.recommended_order).trim()}` : ""}
+                          </Text>
+                          {(Number.isFinite(num(nextMeal?.estimated_calories)) || Number.isFinite(num(nextMeal?.estimated_protein_g))) ? (
+                            <Text style={styles.tiny}>
+                              {Number.isFinite(num(nextMeal?.estimated_calories)) ? `${Math.round(num(nextMeal.estimated_calories))} kcal` : ""}
+                              {Number.isFinite(num(nextMeal?.estimated_calories)) && Number.isFinite(num(nextMeal?.estimated_protein_g)) ? " • " : ""}
+                              {Number.isFinite(num(nextMeal?.estimated_protein_g)) ? `${Math.round(num(nextMeal.estimated_protein_g))}g protein` : ""}
+                            </Text>
+                          ) : null}
+                          {!!String(nextMeal?.supporting_text || "").trim() ? (
+                            <Text style={styles.tiny}>{String(nextMeal.supporting_text).trim()}</Text>
+                          ) : null}
+                        </View>
+                      ) : null}
+
+                      {evening ? (
+                        <View style={styles.dayCoachSection}>
+                          <Text style={styles.dayCoachSectionTitle}>{String(evening?.headline || "").trim()}</Text>
+                          {!!String(evening?.supporting_text || "").trim() ? (
+                            <Text style={styles.tiny}>{String(evening.supporting_text).trim()}</Text>
+                          ) : null}
+                        </View>
+                      ) : null}
+
+                      {endOfDay ? (
+                        <View style={styles.dayCoachSection}>
+                          <Text style={styles.dayCoachSectionTitle}>{String(endOfDay?.headline || "").trim()}</Text>
+                          {!!String(endOfDay?.supporting_text || "").trim() ? (
+                            <Text style={styles.tiny}>{String(endOfDay.supporting_text).trim()}</Text>
+                          ) : null}
+                          {!!String(endOfDay?.score_label || "").trim() ? (
+                            <Text style={styles.dayCoachScoreLabel}>{String(endOfDay.score_label).trim()}</Text>
+                          ) : null}
+                        </View>
+                      ) : null}
+                    </View>
+                  );
+                })()
+              ) : null}
+              {lunchDecision.cards.slice(0, 3).map((card, idx) => {
+                const distanceLabel = formatDistanceFromMeters(card?.distance_meters);
+                const badges = Array.isArray(card?.badges) ? card.badges.filter(Boolean).slice(0, 2) : [];
+                const cta = String(card?.cta_label || "").trim();
+                const fitForToday = card?.fit_for_today;
+                const realityCheck = card?.reality_check && typeof card.reality_check === "object" ? card.reality_check : null;
+                const caloriesSaved = Number.isFinite(num(realityCheck?.calories_saved))
+                  ? Math.max(0, Math.round(num(realityCheck.calories_saved)))
+                  : null;
+                const typicalOrderName = String(realityCheck?.typical_order?.name || "").trim();
+                return (
+                  <View
+                    key={"lunch-card-" + idx}
+                    style={[styles.lunchDecisionCard, idx === 0 ? styles.lunchDecisionCardTop : null]}
+                  >
+                    <Text style={styles.lunchDecisionLabel}>{String(card?.label || "")}</Text>
+                    <Text style={styles.itemName}>
+                      {String(card?.place_name || "Nearby option")}
+                      {distanceLabel ? " (" + distanceLabel + ")" : ""}
+                    </Text>
+                    {!!String(card?.recommended_order || "").trim() ? (
+                      <Text style={[styles.tiny, { marginTop: 4 }]}>Recommended: {String(card.recommended_order)}</Text>
+                    ) : null}
+                    {Number.isFinite(num(card?.estimated_calories)) ? (
+                      <Text style={styles.tiny}>Calories: ~{Math.round(num(card?.estimated_calories))}</Text>
+                    ) : null}
+                    {Number.isFinite(num(card?.estimated_protein_g)) ? (
+                      <Text style={styles.tiny}>Protein: {Math.round(num(card?.estimated_protein_g))}g</Text>
+                    ) : null}
+                    {!!String(card?.typical_calorie_range || "").trim() ? (
+                      <Text style={styles.tiny}>Typical meals: {String(card.typical_calorie_range)}</Text>
+                    ) : null}
+                    {Number.isFinite(num(card?.remaining_calories)) ? (
+                      <Text style={styles.tiny}>Your remaining calories: {Math.round(num(card?.remaining_calories))}</Text>
+                    ) : null}
+                    {caloriesSaved !== null && caloriesSaved > 0 ? (
+                      <Text style={[styles.tiny, styles.realitySavedText]}>✨ You saved {caloriesSaved} calories</Text>
+                    ) : null}
+                    {!!typicalOrderName ? (
+                      <Text style={styles.tiny}>Typical order: {typicalOrderName}</Text>
+                    ) : null}
+                    {fitForToday === true ? (
+                      <Text style={[styles.tiny, styles.lunchFitGood]}>✅ Fits today's macros</Text>
+                    ) : null}
+                    {fitForToday === false ? (
+                      <Text style={[styles.tiny, styles.lunchFitCaution]}>⚠ Harder to fit today</Text>
+                    ) : null}
+                    {badges.length ? (
+                      <View style={styles.lunchBadgeRow}>
+                        {badges.map((badge, badgeIdx) => (
+                          <View key={"lunch-badge-" + idx + "-" + badgeIdx} style={styles.lunchBadge}>
+                            <Text style={styles.lunchBadgeText}>{String(badge)}</Text>
+                          </View>
+                        ))}
+                      </View>
+                    ) : null}
+                    <Text style={[styles.tiny, { marginTop: 6 }]}>Why this works: {String(card?.why_this_works || "Good option for your current goals.")}</Text>
+                    {!!String(card?.decision_reason || "").trim() ? (
+                      <Text style={[styles.tiny, { marginTop: 4 }]}>Coach note: {String(card.decision_reason).trim()}</Text>
+                    ) : null}
+                    <View style={styles.lunchCardActionsRow}>
+                      {!!cta ? (
+                        <TouchableOpacity
+                          style={[styles.secondaryBtn, styles.lunchCardCtaBtn]}
+                          onPress={() => {
+                            void handleLunchDecisionCTA(card);
+                          }}
+                        >
+                          <Text style={styles.btnText}>{cta}</Text>
+                        </TouchableOpacity>
+                      ) : null}
+                      <TouchableOpacity
+                        style={[styles.smallBtn, styles.lunchShareBtn]}
+                        onPress={() => {
+                          void shareLunchDecisionCard(card);
+                        }}
+                      >
+                        <Text style={styles.smallBtnText}>Share my smarter order</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
+          ) : null}
+          {(healthyPlaces || []).length ? (
+            <View style={styles.healthyViewToggleRow}>
+              <TouchableOpacity
+                style={[styles.smallBtn, healthyViewMode === "map" ? styles.healthyViewToggleActive : null]}
+                onPress={() => setHealthyViewMode("map")}
+              >
+                <Text style={styles.smallBtnText}>Healthy Food Map</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.smallBtn, healthyViewMode === "list" ? styles.healthyViewToggleActive : null]}
+                onPress={() => setHealthyViewMode("list")}
+              >
+                <Text style={styles.smallBtnText}>List View</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
+
+          {healthyViewMode === "map" ? (
+            <View style={styles.placeMapCard}>
+              <Text style={styles.itemName}>Healthy Food Map</Text>
+              <Text style={[styles.tiny, { marginTop: 4 }]}>Best places near you</Text>
+              {healthySelectedDecisionCard ? (
+                <Text style={[styles.lunchSummaryLine, { marginTop: 4 }]}>Selected for your current macros</Text>
+              ) : null}
+
+              {healthyMapFilterChips.length ? (
+                <View style={styles.healthyFilterRow}>
+                  {healthyMapFilterChips.map((chip) => {
+                    const active = healthyMapFilter === chip.key;
+                    return (
+                      <TouchableOpacity
+                        key={chip.key}
+                        style={[styles.healthyFilterChip, active ? styles.healthyFilterChipActive : null]}
+                        onPress={() => setHealthyMapFilter(chip.key)}
+                      >
+                        <Text style={styles.healthyFilterChipText}>{chip.label}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              ) : null}
+
+              {healthyMapPoints.length ? (
+                <View
+                  style={styles.placeMapCanvas}
+                  onLayout={(e) => {
+                    const w = Math.max(220, num(e?.nativeEvent?.layout?.width));
+                    if (Math.abs(w - num(healthyMapWidth)) > 2) setHealthyMapWidth(w);
+                  }}
+                >
+                  <View style={styles.placeMapCenter} />
+                  {healthyMapPoints.map((pt, idx) => {
+                    const tone = healthyMapPinTone(pt?.place);
+                    const selected =
+                      Boolean(healthySelectedPlaceStableId) &&
+                      healthyPlaceStableId(pt?.place, idx) === healthySelectedPlaceStableId;
+                    return (
+                      <TouchableOpacity
+                        key={pt.key}
+                        style={[
+                          styles.placeMapPin,
+                          selected ? styles.placeMapPinSelected : null,
+                          {
+                            left: pt.x - 9,
+                            top: pt.y - 9,
+                            borderColor: tone.color,
+                            backgroundColor: selected ? "#0b1220" : "#050a12",
+                          },
+                        ]}
+                        onPress={() => {
+                          setSelectedHealthyPlaceId(healthyPlaceStableId(pt?.place, idx));
+                          if (Number.isFinite(num(pt?.place?.lat)) && Number.isFinite(num(pt?.place?.lng))) {
+                            setHealthyMapFocusCoords({ lat: num(pt.place.lat), lng: num(pt.place.lng) });
+                          }
+                        }}
+                      >
+                        <View style={[styles.placeMapPinCore, { backgroundColor: tone.color }]} />
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              ) : (
+                <Text style={[styles.tiny, { marginTop: 8 }]}>No places match this filter right now.</Text>
+              )}
+
+              {healthySelectedPlace ? (
+                (() => {
+                  const place = healthySelectedPlace;
+                  const tone = healthyMapPinTone(place);
+                  const decisionCard = healthySelectedDecisionCard && typeof healthySelectedDecisionCard === "object"
+                    ? healthySelectedDecisionCard
+                    : null;
+                  const badges = healthyPlaceBadges(place);
+                  const distanceLabel = formatDistanceFromMeters(place?.distance_meters);
+                  const why = String(
+                    decisionCard?.why_this_works ||
+                    place?.why_this_works ||
+                    place?.short_reason ||
+                    "Better choice nearby for your goal."
+                  ).trim();
+
+                  const panel = place?.intelligence_panel && typeof place.intelligence_panel === "object"
+                    ? place.intelligence_panel
+                    : null;
+                  const coachMessage =
+                    (panel?.coach_message && typeof panel.coach_message === "object" ? panel.coach_message : null) ||
+                    (place?.coach_message && typeof place.coach_message === "object" ? place.coach_message : null) ||
+                    null;
+                  const coachHeadline = String(
+                    coachMessage?.headline ||
+                    (decisionCard?.why_this_works ? decisionCard.why_this_works : "Best fit for your remaining calories.")
+                  ).trim();
+                  const coachSupport = String(
+                    coachMessage?.supporting_text ||
+                    (decisionCard?.decision_reason ? decisionCard.decision_reason : "Pick lean protein and keep extras light.")
+                  ).trim();
+                  const coachTone = String(coachMessage?.tone || "encouraging").trim().toLowerCase();
+                  const coachToneStyle =
+                    coachTone === "warning"
+                      ? styles.mapCoachToneWarning
+                      : coachTone === "caution"
+                      ? styles.mapCoachToneCaution
+                      : styles.mapCoachToneEncouraging;
+
+                  const topMenuItem =
+                    (panel?.top_menu_item && typeof panel.top_menu_item === "object" ? panel.top_menu_item : null) ||
+                    (place?.top_menu_item && typeof place.top_menu_item === "object" ? place.top_menu_item : null) ||
+                    {
+                      item_name: String(place?.best_order || "Smart high-protein order"),
+                      estimated_calories: Number.isFinite(num(place?.estimated_calories)) ? Math.round(num(place?.estimated_calories)) : null,
+                      estimated_protein_g: Number.isFinite(num(place?.estimated_protein_g)) ? Math.round(num(place?.estimated_protein_g)) : null,
+                      short_reason: why,
+                    };
+
+                  const topItemName = String(topMenuItem?.item_name || place?.best_order || "Smart high-protein order").trim();
+                  const topItemCalories = Number.isFinite(num(topMenuItem?.estimated_calories))
+                    ? Math.round(num(topMenuItem?.estimated_calories))
+                    : Number.isFinite(num(place?.estimated_calories))
+                    ? Math.round(num(place?.estimated_calories))
+                    : null;
+                  const topItemProtein = Number.isFinite(num(topMenuItem?.estimated_protein_g))
+                    ? Math.round(num(topMenuItem?.estimated_protein_g))
+                    : Number.isFinite(num(place?.estimated_protein_g))
+                    ? Math.round(num(place?.estimated_protein_g))
+                    : null;
+                  const topItemReason = String(topMenuItem?.short_reason || why).trim();
+
+                  const todayFit =
+                    (panel?.today_fit && typeof panel.today_fit === "object" ? panel.today_fit : null) ||
+                    (place?.today_fit && typeof place.today_fit === "object" ? place.today_fit : null) ||
+                    {};
+                  const rawDecision = String(todayFit?.decision || place?.decision_today || "").trim().toUpperCase();
+                  const decisionToken = rawDecision === "YES" || rawDecision === "MAYBE" || rawDecision === "NO"
+                    ? rawDecision
+                    : place?.fit_for_today === true
+                    ? "YES"
+                    : place?.fit_for_today === false
+                    ? "NO"
+                    : "MAYBE";
+                  const decisionText =
+                    decisionToken === "YES"
+                      ? "YES"
+                      : decisionToken === "NO"
+                      ? "NO"
+                      : "MAYBE";
+                  const decisionBadgeStyle =
+                    decisionToken === "YES"
+                      ? styles.mapDecisionBadgeYes
+                      : decisionToken === "NO"
+                      ? styles.mapDecisionBadgeNo
+                      : styles.mapDecisionBadgeMaybe;
+                  const decisionLabel =
+                    decisionToken === "YES"
+                      ? "Fits Today"
+                      : decisionToken === "NO"
+                      ? "Hard to Fit Today"
+                      : "Can Work Today";
+                  const decisionReason = String(
+                    todayFit?.decision_reason ||
+                    place?.decision_reason ||
+                    (decisionToken === "YES"
+                      ? "Fits today's calories and gives strong protein."
+                      : decisionToken === "NO"
+                      ? "Harder to fit your current calories today."
+                      : "Can fit today with smarter swaps.")
+                  ).trim();
+
+                  const reality =
+                    (panel?.reality_check && typeof panel.reality_check === "object" ? panel.reality_check : null) ||
+                    (place?.reality_check && typeof place.reality_check === "object" ? place.reality_check : null);
+                  const caloriesSaved = Number.isFinite(num(reality?.calories_saved)) ? Math.max(0, Math.round(num(reality.calories_saved))) : null;
+                  const typicalCalories = Number.isFinite(num(reality?.typical_order?.estimated_calories))
+                    ? Math.round(num(reality.typical_order.estimated_calories))
+                    : null;
+                  const smarterCalories = Number.isFinite(num(reality?.smarter_order?.estimated_calories))
+                    ? Math.round(num(reality.smarter_order.estimated_calories))
+                    : topItemCalories;
+                  const realityReason = String(
+                    reality?.short_reason ||
+                    (caloriesSaved !== null && caloriesSaved > 0
+                      ? `You save ${caloriesSaved} kcal with a smarter order.`
+                      : "Better calorie control with a smarter order.")
+                  ).trim();
+
+                  const selectedCta = String(decisionCard?.cta_label || place?.cta_label || "Navigate").trim();
+                  const sharePayload = decisionCard || {
+                    place_id: place?.place_id,
+                    place_name: place?.place_name || place?.name,
+                    recommended_order: topItemName,
+                    estimated_calories: topItemCalories,
+                    estimated_protein_g: topItemProtein,
+                    why_this_works: topItemReason,
+                    share_card: place?.share_card,
+                    reality_check: reality || null,
+                  };
+
+                  return (
+                    <View style={styles.healthySelectedCard}>
+                      {!!String(decisionCard?.label || "").trim() ? (
+                        <Text style={styles.lunchDecisionLabel}>{String(decisionCard.label).trim()}</Text>
+                      ) : null}
+                      <View style={styles.placeHeader}>
+                        <Text style={styles.itemName}>{String(place?.place_name || place?.name || "Nearby place")}</Text>
+                        <Text style={[styles.placeScore, { color: tone.color }]}>Score {Math.round(num(place?.health_score_100 || num(place?.health_score) * 10 || 0))}</Text>
+                      </View>
+                      {!!distanceLabel ? <Text style={styles.tiny}>{distanceLabel}</Text> : null}
+
+                      <View style={styles.healthyCoachSection}>
+                        <Text style={styles.healthyPanelSectionTitle}>AI Coach</Text>
+                        <Text style={styles.mapCoachHeadline}>{coachHeadline}</Text>
+                        {!!coachSupport ? <Text style={styles.mapCoachSupport}>{coachSupport}</Text> : null}
+                        <View style={styles.mapDecisionRow}>
+                          <Text style={[styles.mapDecisionBadge, coachToneStyle]}>{coachTone === "warning" ? "Watch out" : coachTone === "caution" ? "Be smart" : "Coach pick"}</Text>
+                        </View>
+                      </View>
+
+                      <View style={styles.healthyPanelSection}>
+                        <Text style={styles.healthyPanelSectionTitle}>Best Menu Item</Text>
+                        <Text style={styles.healthyPanelItemName}>{topItemName}</Text>
+                        {(topItemCalories !== null || topItemProtein !== null) ? (
+                          <Text style={styles.tiny}>
+                            {topItemCalories !== null ? `${topItemCalories} kcal` : "Calories n/a"}
+                            {topItemProtein !== null ? ` • ${topItemProtein}g protein` : ""}
+                          </Text>
+                        ) : null}
+                        {!!topItemReason ? <Text style={styles.tiny}>{topItemReason}</Text> : null}
+                      </View>
+
+                      <View style={styles.healthyPanelSection}>
+                        <Text style={styles.healthyPanelSectionTitle}>Can I Eat Here Today?</Text>
+                        <View style={styles.mapDecisionRow}>
+                          <Text style={[styles.mapDecisionBadge, decisionBadgeStyle]}>{decisionText}</Text>
+                          <Text style={styles.tiny}>{decisionLabel}</Text>
+                        </View>
+                        <Text style={styles.tiny}>{decisionReason}</Text>
+                        {badges.length ? (
+                          <View style={styles.lunchBadgeRow}>
+                            {badges.map((badge, badgeIdx) => (
+                              <View key={`map-badge-${badgeIdx}`} style={styles.lunchBadge}>
+                                <Text style={styles.lunchBadgeText}>{badge}</Text>
+                              </View>
+                            ))}
+                          </View>
+                        ) : null}
+                      </View>
+
+                      {reality ? (
+                        <View style={styles.healthyPanelSection}>
+                          <Text style={styles.healthyPanelSectionTitle}>Reality Check</Text>
+                          {typicalCalories !== null ? (
+                            <Text style={styles.tiny}>Typical meal: {typicalCalories} kcal</Text>
+                          ) : null}
+                          {smarterCalories !== null ? (
+                            <Text style={styles.tiny}>Smarter order: {smarterCalories} kcal</Text>
+                          ) : null}
+                          {caloriesSaved !== null && caloriesSaved > 0 ? (
+                            <Text style={[styles.tiny, styles.realitySavedText]}>You save: {caloriesSaved} kcal</Text>
+                          ) : null}
+                          {!!realityReason ? <Text style={styles.tiny}>{realityReason}</Text> : null}
+                        </View>
+                      ) : null}
+
+                      <View style={styles.lunchCardActionsRow}>
+                        <TouchableOpacity
+                          style={[styles.secondaryBtn, styles.lunchCardCtaBtn]}
+                          onPress={() => {
+                            if (decisionCard) {
+                              void handleLunchDecisionCTA(decisionCard);
+                              return;
+                            }
+                            void openPlaceInMaps(place);
+                          }}
+                        >
+                          <Text style={styles.btnText}>{selectedCta || "Navigate"}</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                          style={[styles.smallBtn, styles.lunchShareBtn]}
+                          onPress={() => {
+                            void shareLunchDecisionCard(sharePayload);
+                          }}
+                        >
+                          <Text style={styles.smallBtnText}>Share smarter order</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                          style={styles.smallBtn}
+                          onPress={() => {
+                            setHealthyMapFilter("best_right_now");
+                            const currentId = healthyPlaceStableId(place, 0);
+                            const alternatives = healthyVisiblePlaces.filter(
+                              (row, rowIdx) => healthyPlaceStableId(row, rowIdx) !== currentId
+                            );
+                            const next = alternatives[0] || null;
+                            if (next) {
+                              setSelectedHealthyPlaceId(healthyPlaceStableId(next, 0));
+                              if (Number.isFinite(num(next?.lat)) && Number.isFinite(num(next?.lng))) {
+                                setHealthyMapFocusCoords({ lat: num(next.lat), lng: num(next.lng) });
+                              }
+                            }
+                          }}
+                        >
+                          <Text style={styles.smallBtnText}>View alternatives</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  );
+                })()
+              ) : null}
+            </View>
+          ) : null}
+
+          {healthyViewMode === "list"
+            ? (healthyVisiblePlaces || []).slice(0, 8).map((place, idx) => {
+                const tone = healthyMapPinTone(place);
+                const opts = Array.isArray(place?.best_options) ? place.best_options.filter(Boolean).slice(0, 2) : [];
+                const distanceKm = haversineKm(
+                  healthyPlaceCoords?.lat,
+                  healthyPlaceCoords?.lng,
+                  place?.lat,
+                  place?.lng
+                );
+                return (
+                  <View key={healthyPlaceStableId(place, idx)} style={styles.placeCard}>
+                    <View style={styles.placeHeader}>
+                      <Text style={styles.itemName}>{String(place?.place_name || place?.name || "Unknown place")}</Text>
+                      <Text style={[styles.placeScore, { color: tone.color }]}>Score {Math.round(num(place?.health_score_100 || num(place?.health_score) * 10 || 0))}</Text>
+                    </View>
+                    {!!String(place?.address || "").trim() ? (
+                      <Text style={styles.tiny}>{String(place.address)}</Text>
+                    ) : null}
+                    {Number.isFinite(distanceKm) ? (
+                      <Text style={[styles.tiny, { marginTop: 4 }]}>Distance: {round1(distanceKm)} km</Text>
+                    ) : null}
+                    {!!String(place?.best_order || "").trim() ? (
+                      <Text style={[styles.tiny, { marginTop: 4 }]}>Best order: {String(place.best_order)}</Text>
+                    ) : null}
+                    {opts.length ? (
+                      <View style={{ marginTop: 6 }}>
+                        {opts.map((opt, i) => (
+                          <Text key={`${idx}-opt-${i}`} style={styles.tiny}>
+                            • {String(opt)}
+                          </Text>
+                        ))}
+                      </View>
+                    ) : null}
+                    <View style={{ marginTop: 8 }}>
+                      <TouchableOpacity
+                        style={styles.secondaryBtn}
+                        onPress={() => {
+                          void openPlaceInMaps(place);
+                        }}
+                      >
+                        <Text style={styles.btnText}>Open in Maps</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                );
+              })
+            : null}
         </View>
 
         <View style={styles.card}>
@@ -5577,6 +7308,33 @@ const styles = StyleSheet.create({
     borderColor: "#1c1c1c",
     padding: 14,
   },
+  launcherCard: {
+    backgroundColor: "#05070d",
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "#1b2b45",
+    padding: 16,
+    gap: 10,
+  },
+  launcherTitle: { color: "#dbeafe", fontSize: 14, fontWeight: "700", letterSpacing: 0.3 },
+  launcherQuestion: { color: "#fff", fontSize: 28, fontWeight: "900", lineHeight: 34 },
+  launcherSubline: { color: "#9bb0cf", fontSize: 13, lineHeight: 18 },
+  launcherActions: { gap: 10, marginTop: 6 },
+  launcherActionCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#22344f",
+    backgroundColor: "#0c1526",
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+  },
+  launcherActionIcon: { fontSize: 22 },
+  launcherActionTitle: { color: "#fff", fontSize: 16, fontWeight: "800" },
+  launcherActionSubtitle: { color: "#9bb0cf", fontSize: 13, marginTop: 2, lineHeight: 17 },
+  launcherCoachLine: { color: "#c3d5ef", fontSize: 12, lineHeight: 18, marginTop: 2 },
   cardTitle: { color: "#fff", fontWeight: "800", fontSize: 16 },
   big: { color: "#fff", fontWeight: "800", fontSize: 18, marginTop: 6 },
 
@@ -5822,6 +7580,224 @@ const styles = StyleSheet.create({
     fontSize: 11,
     lineHeight: 16,
   },
+  lunchDecisionBtn: {
+    borderWidth: 1,
+    borderColor: "#1f8f4d",
+    backgroundColor: "#0f2f1c",
+  },
+  weeklyCoachBtn: {
+    borderWidth: 1,
+    borderColor: "#3b82f6",
+    backgroundColor: "#0d1f36",
+  },
+  menuScanBtn: {
+    borderWidth: 1,
+    borderColor: "#f59e0b",
+    backgroundColor: "#3a2a0e",
+  },
+  lunchDecisionWrap: {
+    marginTop: 12,
+    gap: 10,
+  },
+  lunchSummaryLine: {
+    color: "#86efac",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  dayCoachCard: {
+    marginTop: 6,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#1f8f4d",
+    backgroundColor: "#0a1a13",
+    padding: 10,
+    gap: 4,
+  },
+  dayCoachProgressLine: {
+    color: "#dcfce7",
+    fontSize: 12,
+    fontWeight: "700",
+    marginTop: 2,
+  },
+  dayCoachProgressSubtle: {
+    color: "#9ca3af",
+    fontSize: 11,
+  },
+  dayCoachSection: {
+    marginTop: 6,
+    paddingTop: 6,
+    borderTopWidth: 1,
+    borderTopColor: "#1b2d24",
+    gap: 2,
+  },
+  dayCoachSectionTitle: {
+    color: "#bbf7d0",
+    fontSize: 11,
+    fontWeight: "800",
+    textTransform: "uppercase",
+    letterSpacing: 0.2,
+  },
+  dayCoachScoreLabel: {
+    color: "#86efac",
+    fontSize: 11,
+    fontWeight: "800",
+    marginTop: 2,
+  },
+  weeklyCoachCard: {
+    marginTop: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#2563eb",
+    backgroundColor: "#0a1629",
+    padding: 10,
+    gap: 4,
+  },
+  weeklyCoachHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+  },
+  weeklyCoachMeta: {
+    color: "#93c5fd",
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  weeklyCoachSummaryLine: {
+    color: "#dbeafe",
+    fontSize: 12,
+    fontWeight: "700",
+    marginTop: 2,
+  },
+  weeklyCoachInsightsWrap: {
+    marginTop: 6,
+    gap: 6,
+  },
+  weeklyCoachInsightRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 6,
+  },
+  weeklyCoachInsightBullet: {
+    color: "#93c5fd",
+    width: 14,
+    fontSize: 12,
+    fontWeight: "800",
+    lineHeight: 16,
+  },
+  weeklyCoachInsightTitle: {
+    color: "#e2e8f0",
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  menuScanCard: {
+    marginTop: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#a16207",
+    backgroundColor: "#22180a",
+    padding: 10,
+    gap: 3,
+  },
+  lunchDecisionCard: {
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#22543d",
+    backgroundColor: "#081711",
+    padding: 10,
+  },
+  lunchDecisionCardTop: {
+    borderColor: "#34d399",
+    backgroundColor: "#052617",
+  },
+  lunchDecisionLabel: {
+    color: "#d1fae5",
+    fontSize: 12,
+    fontWeight: "800",
+    marginBottom: 4,
+  },
+  lunchFitGood: {
+    color: "#86efac",
+    marginTop: 4,
+    fontWeight: "700",
+  },
+  lunchFitCaution: {
+    color: "#fca5a5",
+    marginTop: 4,
+    fontWeight: "700",
+  },
+  realitySavedText: {
+    color: "#fde68a",
+    marginTop: 4,
+    fontWeight: "800",
+  },
+  lunchBadgeRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+    marginTop: 6,
+  },
+  lunchBadge: {
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "#1f8f4d",
+    backgroundColor: "#0b2a19",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  lunchBadgeText: {
+    color: "#d1fae5",
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  lunchCardCtaBtn: {
+    alignSelf: "flex-start",
+  },
+  lunchCardActionsRow: {
+    marginTop: 8,
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    gap: 8,
+  },
+  lunchShareBtn: {
+    borderWidth: 1,
+    borderColor: "#1f8f4d",
+    backgroundColor: "#0a2316",
+  },
+  healthyViewToggleRow: {
+    marginTop: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  healthyViewToggleActive: {
+    borderColor: "#22c55e",
+    backgroundColor: "#0d2c1a",
+  },
+  healthyFilterRow: {
+    marginTop: 8,
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  healthyFilterChip: {
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "#334155",
+    backgroundColor: "#0f172a",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  healthyFilterChipActive: {
+    borderColor: "#22c55e",
+    backgroundColor: "#0d2c1a",
+  },
+  healthyFilterChipText: {
+    color: "#dbeafe",
+    fontSize: 11,
+    fontWeight: "700",
+  },
   placeCard: {
     marginTop: 10,
     borderRadius: 12,
@@ -5882,10 +7858,117 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  placeMapPinSelected: {
+    transform: [{ scale: 1.25 }],
+    zIndex: 4,
+    shadowColor: "#22c55e",
+    shadowOpacity: 0.45,
+    shadowRadius: 5,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 3,
+  },
   placeMapPinCore: {
     width: 7,
     height: 7,
     borderRadius: 999,
+  },
+  healthySelectedCard: {
+    marginTop: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#1f8f4d",
+    backgroundColor: "#081711",
+    padding: 10,
+  },
+  healthyCoachSection: {
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: "#1b2d24",
+    gap: 3,
+    backgroundColor: "#0b1e15",
+    borderRadius: 10,
+    paddingHorizontal: 8,
+    paddingBottom: 8,
+  },
+  healthyPanelSection: {
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: "#1b2d24",
+    gap: 3,
+  },
+  healthyPanelSectionTitle: {
+    color: "#bbf7d0",
+    fontSize: 11,
+    fontWeight: "800",
+    textTransform: "uppercase",
+    letterSpacing: 0.2,
+  },
+  healthyPanelItemName: {
+    color: "#f8fafc",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  mapCoachHeadline: {
+    color: "#dcfce7",
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  mapCoachSupport: {
+    color: "#cbd5e1",
+    fontSize: 12,
+    lineHeight: 17,
+  },
+  mapDecisionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 1,
+  },
+  mapDecisionBadge: {
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    fontSize: 11,
+    fontWeight: "800",
+    overflow: "hidden",
+  },
+  mapDecisionBadgeYes: {
+    color: "#86efac",
+    backgroundColor: "#0e3a21",
+    borderWidth: 1,
+    borderColor: "#1f8f4d",
+  },
+  mapDecisionBadgeMaybe: {
+    color: "#fde68a",
+    backgroundColor: "#3a300f",
+    borderWidth: 1,
+    borderColor: "#a16207",
+  },
+  mapDecisionBadgeNo: {
+    color: "#fecaca",
+    backgroundColor: "#3b1212",
+    borderWidth: 1,
+    borderColor: "#b91c1c",
+  },
+  mapCoachToneEncouraging: {
+    color: "#86efac",
+    backgroundColor: "#0f3a21",
+    borderWidth: 1,
+    borderColor: "#15803d",
+  },
+  mapCoachToneCaution: {
+    color: "#fde68a",
+    backgroundColor: "#3a300f",
+    borderWidth: 1,
+    borderColor: "#a16207",
+  },
+  mapCoachToneWarning: {
+    color: "#fecaca",
+    backgroundColor: "#3b1212",
+    borderWidth: 1,
+    borderColor: "#b91c1c",
   },
   suppProcessingOverlay: {
     flex: 1,

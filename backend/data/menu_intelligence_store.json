@@ -1,0 +1,962 @@
+{
+  "places": {
+    "a1": {
+      "confidence": 0.72,
+      "cuisine": "grill",
+      "last_updated": "2026-03-08T04:34:49.409536+00:00",
+      "menu_items": [
+        {
+          "confidence": 0.72,
+          "estimated_calories": 490,
+          "estimated_carbs_g": 0,
+          "estimated_fat_g": 0,
+          "estimated_macros": {
+            "calories": 490,
+            "carbs_g": 0,
+            "fat_g": 0,
+            "protein_g": 36
+          },
+          "estimated_protein_g": 36,
+          "estimated_satiety": "",
+          "item_name": "Grilled chicken wrap",
+          "last_updated": "2026-03-08T04:34:49.409530+00:00",
+          "source": "scraped_menu"
+        }
+      ],
+      "place_id": "a1",
+      "restaurant_name": "Lean Grill",
+      "sources": [
+        "scraped_menu"
+      ],
+      "version": "v1"
+    },
+    "a2": {
+      "confidence": 0.72,
+      "cuisine": "salad",
+      "last_updated": "2026-03-08T04:34:49.411801+00:00",
+      "menu_items": [
+        {
+          "confidence": 0.72,
+          "estimated_calories": 460,
+          "estimated_carbs_g": 0,
+          "estimated_fat_g": 0,
+          "estimated_macros": {
+            "calories": 460,
+            "carbs_g": 0,
+            "fat_g": 0,
+            "protein_g": 34
+          },
+          "estimated_protein_g": 34,
+          "estimated_satiety": "",
+          "item_name": "Protein salad",
+          "last_updated": "2026-03-08T04:34:49.411793+00:00",
+          "source": "scraped_menu"
+        }
+      ],
+      "place_id": "a2",
+      "restaurant_name": "Salad Stack",
+      "sources": [
+        "scraped_menu"
+      ],
+      "version": "v1"
+    },
+    "a3": {
+      "confidence": 0.72,
+      "cuisine": "fast food",
+      "last_updated": "2026-03-08T04:34:49.415351+00:00",
+      "menu_items": [
+        {
+          "confidence": 0.72,
+          "estimated_calories": 1020,
+          "estimated_carbs_g": 0,
+          "estimated_fat_g": 0,
+          "estimated_macros": {
+            "calories": 1020,
+            "carbs_g": 0,
+            "fat_g": 0,
+            "protein_g": 22
+          },
+          "estimated_protein_g": 22,
+          "estimated_satiety": "",
+          "item_name": "Fried mega combo",
+          "last_updated": "2026-03-08T04:34:49.415341+00:00",
+          "source": "scraped_menu"
+        }
+      ],
+      "place_id": "a3",
+      "restaurant_name": "Fried Box",
+      "sources": [
+        "scraped_menu"
+      ],
+      "version": "v1"
+    },
+    "alt-1": {
+      "confidence": 0.48,
+      "cuisine": "meal takeaway",
+      "last_updated": "2026-03-07T12:29:09.232693+00:00",
+      "menu_items": [
+        {
+          "confidence": 0.48,
+          "estimated_calories": 520,
+          "estimated_carbs_g": 0,
+          "estimated_fat_g": 0,
+          "estimated_macros": {
+            "calories": 520,
+            "carbs_g": 0,
+            "fat_g": 0,
+            "protein_g": 42
+          },
+          "estimated_protein_g": 42,
+          "estimated_satiety": "",
+          "item_name": "Grilled chicken bowl",
+          "last_updated": "2026-03-07T12:29:09.232401+00:00",
+          "source": "heuristic_generation"
+        },
+        {
+          "confidence": 0.48,
+          "estimated_calories": 430,
+          "estimated_carbs_g": 0,
+          "estimated_fat_g": 0,
+          "estimated_macros": {
+            "calories": 430,
+            "carbs_g": 0,
+            "fat_g": 0,
+            "protein_g": 35
+          },
+          "estimated_protein_g": 35,
+          "estimated_satiety": "",
+          "item_name": "Chicken salad plate",
+          "last_updated": "2026-03-07T12:29:09.232406+00:00",
+          "source": "heuristic_generation"
+        },
+        {
+          "confidence": 0.48,
+          "estimated_calories": 500,
+          "estimated_carbs_g": 0,
+          "estimated_fat_g": 0,
+          "estimated_macros": {
+            "calories": 500,
+            "carbs_g": 0,
+            "fat_g": 0,
+            "protein_g": 34
+          },
+          "estimated_protein_g": 34,
+          "estimated_satiety": "",
+          "item_name": "Chicken wrap (light sauce)",
+          "last_updated": "2026-03-07T12:29:09.232409+00:00",
+          "source": "heuristic_generation"
+        }
+      ],
+      "place_id": "alt-1",
+      "restaurant_name": "Protein Grill House",
+      "sources": [
+        "heuristic_generation"
+      ],
+      "version": "v1"
+    },
+    "alt-2": {
+      "confidence": 0.48,
+      "cuisine": "healthy",
+      "last_updated": "2026-03-07T12:29:09.234180+00:00",
+      "menu_items": [
+        {
+          "confidence": 0.48,
+          "estimated_calories": 500,
+          "estimated_carbs_g": 0,
+          "estimated_fat_g": 0,
+          "estimated_macros": {
+            "calories": 500,
+            "carbs_g": 0,
+            "fat_g": 0,
+            "protein_g": 36
+          },
+          "estimated_protein_g": 36,
+          "estimated_satiety": "",
+          "item_name": "Protein poke bowl",
+          "last_updated": "2026-03-07T12:29:09.234026+00:00",
+          "source": "heuristic_generation"
+        },
+        {
+          "confidence": 0.48,
+          "estimated_calories": 460,
+          "estimated_carbs_g": 0,
+          "estimated_fat_g": 0,
+          "estimated_macros": {
+            "calories": 460,
+            "carbs_g": 0,
+            "fat_g": 0,
+            "protein_g": 34
+          },
+          "estimated_protein_g": 34,
+          "estimated_satiety": "",
+          "item_name": "Chicken quinoa salad",
+          "last_updated": "2026-03-07T12:29:09.234034+00:00",
+          "source": "heuristic_generation"
+        },
+        {
+          "confidence": 0.48,
+          "estimated_calories": 480,
+          "estimated_carbs_g": 0,
+          "estimated_fat_g": 0,
+          "estimated_macros": {
+            "calories": 480,
+            "carbs_g": 0,
+            "fat_g": 0,
+            "protein_g": 27
+          },
+          "estimated_protein_g": 27,
+          "estimated_satiety": "",
+          "item_name": "Tofu grain bowl",
+          "last_updated": "2026-03-07T12:29:09.234037+00:00",
+          "source": "heuristic_generation"
+        }
+      ],
+      "place_id": "alt-2",
+      "restaurant_name": "Salad Bowl Co",
+      "sources": [
+        "heuristic_generation"
+      ],
+      "version": "v1"
+    },
+    "alt-3": {
+      "confidence": 0.48,
+      "cuisine": "fast food",
+      "last_updated": "2026-03-07T12:29:09.229353+00:00",
+      "menu_items": [
+        {
+          "confidence": 0.48,
+          "estimated_calories": 470,
+          "estimated_carbs_g": 0,
+          "estimated_fat_g": 0,
+          "estimated_macros": {
+            "calories": 470,
+            "carbs_g": 0,
+            "fat_g": 0,
+            "protein_g": 28
+          },
+          "estimated_protein_g": 28,
+          "estimated_satiety": "",
+          "item_name": "Single grilled chicken burger",
+          "last_updated": "2026-03-07T12:29:09.229233+00:00",
+          "source": "heuristic_generation"
+        },
+        {
+          "confidence": 0.48,
+          "estimated_calories": 500,
+          "estimated_carbs_g": 0,
+          "estimated_fat_g": 0,
+          "estimated_macros": {
+            "calories": 500,
+            "carbs_g": 0,
+            "fat_g": 0,
+            "protein_g": 31
+          },
+          "estimated_protein_g": 31,
+          "estimated_satiety": "",
+          "item_name": "Grilled chicken wrap",
+          "last_updated": "2026-03-07T12:29:09.229238+00:00",
+          "source": "heuristic_generation"
+        },
+        {
+          "confidence": 0.48,
+          "estimated_calories": 360,
+          "estimated_carbs_g": 0,
+          "estimated_fat_g": 0,
+          "estimated_macros": {
+            "calories": 360,
+            "carbs_g": 0,
+            "fat_g": 0,
+            "protein_g": 21
+          },
+          "estimated_protein_g": 21,
+          "estimated_satiety": "",
+          "item_name": "6-piece nuggets (no fries)",
+          "last_updated": "2026-03-07T12:29:09.229241+00:00",
+          "source": "heuristic_generation"
+        }
+      ],
+      "place_id": "alt-3",
+      "restaurant_name": "Fried Bites",
+      "sources": [
+        "heuristic_generation"
+      ],
+      "version": "v1"
+    },
+    "alt-4": {
+      "confidence": 0.48,
+      "cuisine": "meal takeaway",
+      "last_updated": "2026-03-07T12:29:09.230840+00:00",
+      "menu_items": [
+        {
+          "confidence": 0.48,
+          "estimated_calories": 500,
+          "estimated_carbs_g": 0,
+          "estimated_fat_g": 0,
+          "estimated_macros": {
+            "calories": 500,
+            "carbs_g": 0,
+            "fat_g": 0,
+            "protein_g": 36
+          },
+          "estimated_protein_g": 36,
+          "estimated_satiety": "",
+          "item_name": "Protein poke bowl",
+          "last_updated": "2026-03-07T12:29:09.230741+00:00",
+          "source": "heuristic_generation"
+        },
+        {
+          "confidence": 0.48,
+          "estimated_calories": 460,
+          "estimated_carbs_g": 0,
+          "estimated_fat_g": 0,
+          "estimated_macros": {
+            "calories": 460,
+            "carbs_g": 0,
+            "fat_g": 0,
+            "protein_g": 34
+          },
+          "estimated_protein_g": 34,
+          "estimated_satiety": "",
+          "item_name": "Chicken quinoa salad",
+          "last_updated": "2026-03-07T12:29:09.230745+00:00",
+          "source": "heuristic_generation"
+        },
+        {
+          "confidence": 0.48,
+          "estimated_calories": 480,
+          "estimated_carbs_g": 0,
+          "estimated_fat_g": 0,
+          "estimated_macros": {
+            "calories": 480,
+            "carbs_g": 0,
+            "fat_g": 0,
+            "protein_g": 27
+          },
+          "estimated_protein_g": 27,
+          "estimated_satiety": "",
+          "item_name": "Tofu grain bowl",
+          "last_updated": "2026-03-07T12:29:09.230748+00:00",
+          "source": "heuristic_generation"
+        }
+      ],
+      "place_id": "alt-4",
+      "restaurant_name": "Healthy Grill Bowl",
+      "sources": [
+        "heuristic_generation"
+      ],
+      "version": "v1"
+    },
+    "c1": {
+      "confidence": 0.48,
+      "cuisine": "grill",
+      "last_updated": "2026-03-07T13:38:27.763964+00:00",
+      "menu_items": [
+        {
+          "confidence": 0.48,
+          "estimated_calories": 520,
+          "estimated_carbs_g": 0,
+          "estimated_fat_g": 0,
+          "estimated_macros": {
+            "calories": 520,
+            "carbs_g": 0,
+            "fat_g": 0,
+            "protein_g": 42
+          },
+          "estimated_protein_g": 42,
+          "estimated_satiety": "",
+          "item_name": "Grilled chicken bowl",
+          "last_updated": "2026-03-07T13:38:27.763810+00:00",
+          "source": "heuristic_generation"
+        },
+        {
+          "confidence": 0.48,
+          "estimated_calories": 430,
+          "estimated_carbs_g": 0,
+          "estimated_fat_g": 0,
+          "estimated_macros": {
+            "calories": 430,
+            "carbs_g": 0,
+            "fat_g": 0,
+            "protein_g": 35
+          },
+          "estimated_protein_g": 35,
+          "estimated_satiety": "",
+          "item_name": "Chicken salad plate",
+          "last_updated": "2026-03-07T13:38:27.763815+00:00",
+          "source": "heuristic_generation"
+        },
+        {
+          "confidence": 0.48,
+          "estimated_calories": 500,
+          "estimated_carbs_g": 0,
+          "estimated_fat_g": 0,
+          "estimated_macros": {
+            "calories": 500,
+            "carbs_g": 0,
+            "fat_g": 0,
+            "protein_g": 34
+          },
+          "estimated_protein_g": 34,
+          "estimated_satiety": "",
+          "item_name": "Chicken wrap (light sauce)",
+          "last_updated": "2026-03-07T13:38:27.763818+00:00",
+          "source": "heuristic_generation"
+        }
+      ],
+      "place_id": "c1",
+      "restaurant_name": "Protein Grill House",
+      "sources": [
+        "heuristic_generation"
+      ],
+      "version": "v1"
+    },
+    "h1": {
+      "confidence": 0.72,
+      "cuisine": "healthy",
+      "last_updated": "2026-03-08T04:34:49.419807+00:00",
+      "menu_items": [
+        {
+          "confidence": 0.72,
+          "estimated_calories": 520,
+          "estimated_carbs_g": 0,
+          "estimated_fat_g": 0,
+          "estimated_macros": {
+            "calories": 520,
+            "carbs_g": 0,
+            "fat_g": 0,
+            "protein_g": 40
+          },
+          "estimated_protein_g": 40,
+          "estimated_satiety": "",
+          "item_name": "Chicken bowl",
+          "last_updated": "2026-03-08T04:34:49.419800+00:00",
+          "source": "scraped_menu"
+        }
+      ],
+      "place_id": "h1",
+      "restaurant_name": "Protein Bowl Lab",
+      "sources": [
+        "scraped_menu"
+      ],
+      "version": "v1"
+    },
+    "h2": {
+      "confidence": 0.72,
+      "cuisine": "pizza",
+      "last_updated": "2026-03-08T04:34:49.421787+00:00",
+      "menu_items": [
+        {
+          "confidence": 0.72,
+          "estimated_calories": 1150,
+          "estimated_carbs_g": 0,
+          "estimated_fat_g": 0,
+          "estimated_macros": {
+            "calories": 1150,
+            "carbs_g": 0,
+            "fat_g": 0,
+            "protein_g": 30
+          },
+          "estimated_protein_g": 30,
+          "estimated_satiety": "",
+          "item_name": "Large cheesy combo",
+          "last_updated": "2026-03-08T04:34:49.421781+00:00",
+          "source": "scraped_menu"
+        }
+      ],
+      "place_id": "h2",
+      "restaurant_name": "Pizza Hut",
+      "sources": [
+        "scraped_menu"
+      ],
+      "version": "v1"
+    },
+    "h3": {
+      "confidence": 0.72,
+      "cuisine": "fast food",
+      "last_updated": "2026-03-08T04:34:49.423706+00:00",
+      "menu_items": [
+        {
+          "confidence": 0.72,
+          "estimated_calories": 980,
+          "estimated_carbs_g": 0,
+          "estimated_fat_g": 0,
+          "estimated_macros": {
+            "calories": 980,
+            "carbs_g": 0,
+            "fat_g": 0,
+            "protein_g": 27
+          },
+          "estimated_protein_g": 27,
+          "estimated_satiety": "",
+          "item_name": "Double burger combo",
+          "last_updated": "2026-03-08T04:34:49.423700+00:00",
+          "source": "scraped_menu"
+        }
+      ],
+      "place_id": "h3",
+      "restaurant_name": "Burger King",
+      "sources": [
+        "scraped_menu"
+      ],
+      "version": "v1"
+    },
+    "m1": {
+      "confidence": 0.48,
+      "cuisine": "cafe",
+      "last_updated": "2026-03-07T13:38:27.768890+00:00",
+      "menu_items": [
+        {
+          "confidence": 0.48,
+          "estimated_calories": 430,
+          "estimated_carbs_g": 0,
+          "estimated_fat_g": 0,
+          "estimated_macros": {
+            "calories": 430,
+            "carbs_g": 0,
+            "fat_g": 0,
+            "protein_g": 30
+          },
+          "estimated_protein_g": 30,
+          "estimated_satiety": "",
+          "item_name": "Egg and chicken plate",
+          "last_updated": "2026-03-07T13:38:27.768731+00:00",
+          "source": "heuristic_generation"
+        },
+        {
+          "confidence": 0.48,
+          "estimated_calories": 390,
+          "estimated_carbs_g": 0,
+          "estimated_fat_g": 0,
+          "estimated_macros": {
+            "calories": 390,
+            "carbs_g": 0,
+            "fat_g": 0,
+            "protein_g": 26
+          },
+          "estimated_protein_g": 26,
+          "estimated_satiety": "",
+          "item_name": "Greek yogurt protein bowl",
+          "last_updated": "2026-03-07T13:38:27.768736+00:00",
+          "source": "heuristic_generation"
+        },
+        {
+          "confidence": 0.48,
+          "estimated_calories": 520,
+          "estimated_carbs_g": 0,
+          "estimated_fat_g": 0,
+          "estimated_macros": {
+            "calories": 520,
+            "carbs_g": 0,
+            "fat_g": 0,
+            "protein_g": 32
+          },
+          "estimated_protein_g": 32,
+          "estimated_satiety": "",
+          "item_name": "Chicken sandwich (no fries)",
+          "last_updated": "2026-03-07T13:38:27.768739+00:00",
+          "source": "heuristic_generation"
+        }
+      ],
+      "place_id": "m1",
+      "restaurant_name": "Cafe One",
+      "sources": [
+        "heuristic_generation"
+      ],
+      "version": "v1"
+    },
+    "n1": {
+      "confidence": 0.72,
+      "cuisine": "grill",
+      "last_updated": "2026-03-07T13:50:39.999172+00:00",
+      "menu_items": [
+        {
+          "confidence": 0.72,
+          "estimated_calories": 540,
+          "estimated_carbs_g": 0,
+          "estimated_fat_g": 0,
+          "estimated_macros": {
+            "calories": 540,
+            "carbs_g": 0,
+            "fat_g": 0,
+            "protein_g": 44
+          },
+          "estimated_protein_g": 44,
+          "estimated_satiety": "",
+          "item_name": "Quarter chicken + salad",
+          "last_updated": "2026-03-07T13:50:39.999166+00:00",
+          "source": "scraped_menu"
+        },
+        {
+          "confidence": 0.72,
+          "estimated_calories": 610,
+          "estimated_carbs_g": 0,
+          "estimated_fat_g": 0,
+          "estimated_macros": {
+            "calories": 610,
+            "carbs_g": 0,
+            "fat_g": 0,
+            "protein_g": 33
+          },
+          "estimated_protein_g": 33,
+          "estimated_satiety": "",
+          "item_name": "Chicken wrap",
+          "last_updated": "2026-03-07T13:38:45.448249+00:00",
+          "source": "scraped_menu"
+        },
+        {
+          "confidence": 0.72,
+          "estimated_calories": 900,
+          "estimated_carbs_g": 0,
+          "estimated_fat_g": 0,
+          "estimated_macros": {
+            "calories": 900,
+            "carbs_g": 0,
+            "fat_g": 0,
+            "protein_g": 32
+          },
+          "estimated_protein_g": 32,
+          "estimated_satiety": "",
+          "item_name": "Large chicken combo",
+          "last_updated": "2026-03-07T13:50:39.998062+00:00",
+          "source": "scraped_menu"
+        }
+      ],
+      "place_id": "n1",
+      "restaurant_name": "Nando's",
+      "sources": [
+        "scraped_menu"
+      ],
+      "version": "v1"
+    },
+    "p1": {
+      "confidence": 0.72,
+      "cuisine": "grill",
+      "last_updated": "2026-03-08T04:34:49.402075+00:00",
+      "menu_items": [
+        {
+          "confidence": 0.72,
+          "estimated_calories": 520,
+          "estimated_carbs_g": 0,
+          "estimated_fat_g": 0,
+          "estimated_macros": {
+            "calories": 520,
+            "carbs_g": 0,
+            "fat_g": 0,
+            "protein_g": 44
+          },
+          "estimated_protein_g": 44,
+          "estimated_satiety": "",
+          "item_name": "Grilled chicken bowl",
+          "last_updated": "2026-03-08T04:34:49.402051+00:00",
+          "source": "scraped_menu"
+        },
+        {
+          "confidence": 0.72,
+          "estimated_calories": 1080,
+          "estimated_carbs_g": 0,
+          "estimated_fat_g": 0,
+          "estimated_macros": {
+            "calories": 1080,
+            "carbs_g": 0,
+            "fat_g": 0,
+            "protein_g": 28
+          },
+          "estimated_protein_g": 28,
+          "estimated_satiety": "",
+          "item_name": "Large cheesy combo",
+          "last_updated": "2026-03-07T13:38:45.449882+00:00",
+          "source": "scraped_menu"
+        }
+      ],
+      "place_id": "p1",
+      "restaurant_name": "Protein Grill House",
+      "sources": [
+        "scraped_menu"
+      ],
+      "version": "v1"
+    },
+    "p2": {
+      "confidence": 0.72,
+      "cuisine": "fast food",
+      "last_updated": "2026-03-08T04:34:49.405259+00:00",
+      "menu_items": [
+        {
+          "confidence": 0.72,
+          "estimated_calories": 980,
+          "estimated_carbs_g": 0,
+          "estimated_fat_g": 0,
+          "estimated_macros": {
+            "calories": 980,
+            "carbs_g": 0,
+            "fat_g": 0,
+            "protein_g": 24
+          },
+          "estimated_protein_g": 24,
+          "estimated_satiety": "",
+          "item_name": "Loaded fried combo",
+          "last_updated": "2026-03-08T04:34:49.405250+00:00",
+          "source": "scraped_menu"
+        }
+      ],
+      "place_id": "p2",
+      "restaurant_name": "Burger Combo Spot",
+      "sources": [
+        "scraped_menu"
+      ],
+      "version": "v1"
+    },
+    "p3": {
+      "confidence": 0.72,
+      "cuisine": "healthy",
+      "last_updated": "2026-03-08T04:34:49.407329+00:00",
+      "menu_items": [
+        {
+          "confidence": 0.72,
+          "estimated_calories": 500,
+          "estimated_carbs_g": 0,
+          "estimated_fat_g": 0,
+          "estimated_macros": {
+            "calories": 500,
+            "carbs_g": 0,
+            "fat_g": 0,
+            "protein_g": 38
+          },
+          "estimated_protein_g": 38,
+          "estimated_satiety": "",
+          "item_name": "Chicken quinoa bowl",
+          "last_updated": "2026-03-08T04:34:49.407322+00:00",
+          "source": "scraped_menu"
+        }
+      ],
+      "place_id": "p3",
+      "restaurant_name": "Healthy Bowl Co",
+      "sources": [
+        "scraped_menu"
+      ],
+      "version": "v1"
+    },
+    "s1": {
+      "confidence": 0.72,
+      "cuisine": "grill",
+      "last_updated": "2026-03-08T04:34:49.427200+00:00",
+      "menu_items": [
+        {
+          "confidence": 0.72,
+          "estimated_calories": 540,
+          "estimated_carbs_g": 0,
+          "estimated_fat_g": 0,
+          "estimated_macros": {
+            "calories": 540,
+            "carbs_g": 0,
+            "fat_g": 0,
+            "protein_g": 44
+          },
+          "estimated_protein_g": 44,
+          "estimated_satiety": "",
+          "item_name": "Quarter chicken + salad",
+          "last_updated": "2026-03-08T04:34:49.427192+00:00",
+          "source": "scraped_menu"
+        }
+      ],
+      "place_id": "s1",
+      "restaurant_name": "Nando's",
+      "sources": [
+        "scraped_menu"
+      ],
+      "version": "v1"
+    },
+    "sel-1": {
+      "confidence": 0.48,
+      "cuisine": "fast food",
+      "last_updated": "2026-03-07T12:29:09.231634+00:00",
+      "menu_items": [
+        {
+          "confidence": 0.48,
+          "estimated_calories": 470,
+          "estimated_carbs_g": 0,
+          "estimated_fat_g": 0,
+          "estimated_macros": {
+            "calories": 470,
+            "carbs_g": 0,
+            "fat_g": 0,
+            "protein_g": 28
+          },
+          "estimated_protein_g": 28,
+          "estimated_satiety": "",
+          "item_name": "Single grilled chicken burger",
+          "last_updated": "2026-03-07T12:29:09.231526+00:00",
+          "source": "heuristic_generation"
+        },
+        {
+          "confidence": 0.48,
+          "estimated_calories": 500,
+          "estimated_carbs_g": 0,
+          "estimated_fat_g": 0,
+          "estimated_macros": {
+            "calories": 500,
+            "carbs_g": 0,
+            "fat_g": 0,
+            "protein_g": 31
+          },
+          "estimated_protein_g": 31,
+          "estimated_satiety": "",
+          "item_name": "Grilled chicken wrap",
+          "last_updated": "2026-03-07T12:29:09.231531+00:00",
+          "source": "heuristic_generation"
+        },
+        {
+          "confidence": 0.48,
+          "estimated_calories": 360,
+          "estimated_carbs_g": 0,
+          "estimated_fat_g": 0,
+          "estimated_macros": {
+            "calories": 360,
+            "carbs_g": 0,
+            "fat_g": 0,
+            "protein_g": 21
+          },
+          "estimated_protein_g": 21,
+          "estimated_satiety": "",
+          "item_name": "6-piece nuggets (no fries)",
+          "last_updated": "2026-03-07T12:29:09.231535+00:00",
+          "source": "heuristic_generation"
+        }
+      ],
+      "place_id": "sel-1",
+      "restaurant_name": "McDonald's Central",
+      "sources": [
+        "heuristic_generation"
+      ],
+      "version": "v1"
+    },
+    "sel-2": {
+      "confidence": 0.48,
+      "cuisine": "fast food",
+      "last_updated": "2026-03-07T12:29:09.228752+00:00",
+      "menu_items": [
+        {
+          "confidence": 0.48,
+          "estimated_calories": 470,
+          "estimated_carbs_g": 0,
+          "estimated_fat_g": 0,
+          "estimated_macros": {
+            "calories": 470,
+            "carbs_g": 0,
+            "fat_g": 0,
+            "protein_g": 28
+          },
+          "estimated_protein_g": 28,
+          "estimated_satiety": "",
+          "item_name": "Single grilled chicken burger",
+          "last_updated": "2026-03-07T12:29:09.228685+00:00",
+          "source": "heuristic_generation"
+        },
+        {
+          "confidence": 0.48,
+          "estimated_calories": 500,
+          "estimated_carbs_g": 0,
+          "estimated_fat_g": 0,
+          "estimated_macros": {
+            "calories": 500,
+            "carbs_g": 0,
+            "fat_g": 0,
+            "protein_g": 31
+          },
+          "estimated_protein_g": 31,
+          "estimated_satiety": "",
+          "item_name": "Grilled chicken wrap",
+          "last_updated": "2026-03-07T12:29:09.228691+00:00",
+          "source": "heuristic_generation"
+        },
+        {
+          "confidence": 0.48,
+          "estimated_calories": 360,
+          "estimated_carbs_g": 0,
+          "estimated_fat_g": 0,
+          "estimated_macros": {
+            "calories": 360,
+            "carbs_g": 0,
+            "fat_g": 0,
+            "protein_g": 21
+          },
+          "estimated_protein_g": 21,
+          "estimated_satiety": "",
+          "item_name": "6-piece nuggets (no fries)",
+          "last_updated": "2026-03-07T12:29:09.228695+00:00",
+          "source": "heuristic_generation"
+        }
+      ],
+      "place_id": "sel-2",
+      "restaurant_name": "Burger Point",
+      "sources": [
+        "heuristic_generation"
+      ],
+      "version": "v1"
+    },
+    "sel-3": {
+      "confidence": 0.48,
+      "cuisine": "fast food",
+      "last_updated": "2026-03-07T12:29:09.229978+00:00",
+      "menu_items": [
+        {
+          "confidence": 0.48,
+          "estimated_calories": 470,
+          "estimated_carbs_g": 0,
+          "estimated_fat_g": 0,
+          "estimated_macros": {
+            "calories": 470,
+            "carbs_g": 0,
+            "fat_g": 0,
+            "protein_g": 28
+          },
+          "estimated_protein_g": 28,
+          "estimated_satiety": "",
+          "item_name": "Single grilled chicken burger",
+          "last_updated": "2026-03-07T12:29:09.229885+00:00",
+          "source": "heuristic_generation"
+        },
+        {
+          "confidence": 0.48,
+          "estimated_calories": 500,
+          "estimated_carbs_g": 0,
+          "estimated_fat_g": 0,
+          "estimated_macros": {
+            "calories": 500,
+            "carbs_g": 0,
+            "fat_g": 0,
+            "protein_g": 31
+          },
+          "estimated_protein_g": 31,
+          "estimated_satiety": "",
+          "item_name": "Grilled chicken wrap",
+          "last_updated": "2026-03-07T12:29:09.229889+00:00",
+          "source": "heuristic_generation"
+        },
+        {
+          "confidence": 0.48,
+          "estimated_calories": 360,
+          "estimated_carbs_g": 0,
+          "estimated_fat_g": 0,
+          "estimated_macros": {
+            "calories": 360,
+            "carbs_g": 0,
+            "fat_g": 0,
+            "protein_g": 21
+          },
+          "estimated_protein_g": 21,
+          "estimated_satiety": "",
+          "item_name": "6-piece nuggets (no fries)",
+          "last_updated": "2026-03-07T12:29:09.229893+00:00",
+          "source": "heuristic_generation"
+        }
+      ],
+      "place_id": "sel-3",
+      "restaurant_name": "Fast Burger Hub",
+      "sources": [
+        "heuristic_generation"
+      ],
+      "version": "v1"
+    }
+  },
+  "version": "v1"
+}

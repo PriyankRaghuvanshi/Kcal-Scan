@@ -41,6 +41,42 @@ from supplement_fssai_utils import (
 )
 from nutrition_math_validator import validate_nutrition_math
 from manufacturer_verification import get_manufacturer_verifier
+from healthy_place_scoring import (
+    HEALTHY_PLACE_SCORING_VERSION,
+    best_options_for_place,
+    score_healthy_place,
+)
+from healthy_order_recommender import suggest_best_order_for_place
+from healthy_food_map import build_healthy_food_map_response, enrich_places_for_healthy_map
+from menu_item_scoring import recommend_menu_items_for_place
+from menu_scan import build_menu_scan_response
+from menu_intelligence_store import get_place_menu_intelligence, ingest_menu_intelligence
+from recommendation_feedback_store import (
+    ALLOWED_FEEDBACK_EVENTS,
+    get_feedback_summary,
+    get_place_item_feedback_signal,
+    log_recommendation_feedback_event,
+)
+from nutrition_mode import NutritionMode
+from better_choice_nearby import build_better_choice_nearby_response
+from daily_fatloss_coach import build_daily_fatloss_coach_response
+from lunch_decision import build_lunch_decision_response
+from nearby_feed import build_healthy_nearby_feed
+from place_today_decision import evaluate_place_for_today
+from restaurant_reality_check import build_restaurant_reality_check
+from share_card_formatter import build_best_order_share_card
+from weekly_coach import build_weekly_coach_payload
+from personalization_profiles import (
+    get_personalized_reason,
+    normalize_personalization_goal,
+    personalization_goal_value,
+)
+from google_places_new_client import (
+    PLACES_NEARBY_FIELD_MASK,
+    build_nearby_search_payload,
+    map_places_new_response,
+    resolve_nearby_base,
+)
 try:
     from gs1_prefix_db import lookup_gs1_prefix_country
     _GS1_IMPORT_ERROR = ""
@@ -84,10 +120,13 @@ if GEMINI_API_KEY:
 
 OPENFOODFACTS_BASE = os.getenv("OPENFOODFACTS_BASE", "https://world.openfoodfacts.org/api/v2").strip()
 GOOGLE_PLACES_API_KEY = os.getenv("GOOGLE_PLACES_API_KEY", "").strip()
-GOOGLE_PLACES_BASE = os.getenv(
-    "GOOGLE_PLACES_BASE",
-    "https://maps.googleapis.com/maps/api/place/nearbysearch/json",
-).strip()
+# Reuse existing env var names but enforce Places API (New) Nearby Search endpoint.
+_GOOGLE_PLACES_BASE_RAW = os.getenv("GOOGLE_PLACES_NEARBY_BASE", os.getenv("GOOGLE_PLACES_BASE", "")).strip()
+GOOGLE_PLACES_NEARBY_BASE = resolve_nearby_base(_GOOGLE_PLACES_BASE_RAW)
+if _GOOGLE_PLACES_BASE_RAW and GOOGLE_PLACES_NEARBY_BASE != _GOOGLE_PLACES_BASE_RAW:
+    logger.warning(
+        "Ignoring legacy GOOGLE_PLACES_BASE value; Healthy Nearby now requires Places API (New) searchNearby endpoint."
+    )
 OFF_CACHE: Dict[str, Dict[str, Any]] = {}
 OFF_CACHE_TTL = 60 * 60 * 24  # 24 hours
 _mfr_enabled_raw = str(os.getenv("MFR_VERIFY_ENABLED", "0") or "").strip().lower()
@@ -805,6 +844,75 @@ class AnalyzeRerunEditsModel(BaseModel):
 class AnalyzeRerunRequestModel(BaseModel):
     analysis_id: str
     edits: AnalyzeRerunEditsModel = Field(default_factory=AnalyzeRerunEditsModel)
+
+
+class DailyFatLossCoachRequestModel(BaseModel):
+    lat: float
+    lng: float
+    radius: int = 2000
+    target_calories: float = 2000.0
+    consumed_calories: float = 0.0
+    target_protein_g: float = 150.0
+    consumed_protein_g: float = 0.0
+    limit: int = 5
+
+
+class WeeklyCoachDayRowModel(BaseModel):
+    date: str = ""
+    consumed_calories: Optional[float] = None
+    target_calories: Optional[float] = None
+    consumed_protein_g: Optional[float] = None
+    target_protein_g: Optional[float] = None
+    lunch_calories: Optional[float] = None
+    dinner_calories: Optional[float] = None
+    lunch_protein_g: Optional[float] = None
+    dinner_protein_g: Optional[float] = None
+
+
+class WeeklyCoachChoiceRowModel(BaseModel):
+    ts: str = ""
+    place_name: str = ""
+    recommended_order: str = ""
+    fit_for_today: Optional[bool] = None
+    health_score: Optional[float] = None
+    why_it_helped: str = ""
+
+
+class WeeklyCoachRequestModel(BaseModel):
+    user_id: str = ""
+    week_start: str = ""
+    goal: str = ""
+    cut_mode: bool = False
+    daily_rows: List[WeeklyCoachDayRowModel] = Field(default_factory=list)
+    choices: List[WeeklyCoachChoiceRowModel] = Field(default_factory=list)
+
+
+class MenuIntelligenceItemModel(BaseModel):
+    item_name: str
+    estimated_calories: Optional[float] = None
+    estimated_protein_g: Optional[float] = None
+    estimated_carbs_g: Optional[float] = None
+    estimated_fat_g: Optional[float] = None
+    estimated_satiety: Optional[str] = None
+    confidence: Optional[float] = None
+
+
+class MenuIntelligenceIngestRequestModel(BaseModel):
+    place_id: str
+    restaurant_name: Optional[str] = ""
+    cuisine: Optional[str] = ""
+    source: str = "user_scan"
+    menu_items: List[MenuIntelligenceItemModel] = Field(default_factory=list)
+
+
+class RecommendationFeedbackEventRequestModel(BaseModel):
+    event: str
+    place_id: str
+    item: Optional[str] = ""
+    user_id: Optional[str] = ""
+    session_id: Optional[str] = ""
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+
 
 
 def _friendly_rerun_validation_error(exc: Exception) -> Dict[str, Any]:
@@ -11239,6 +11347,79 @@ def gemini_detect_foods(image_bytes: bytes) -> List[Dict[str, Any]]:
     ]
 
 
+def _menu_scan_ocr_from_image(
+    image_bytes: bytes,
+    *,
+    request_id: str = "",
+    job_id: str = "",
+) -> Dict[str, Any]:
+    """
+    Best-effort OCR extraction for menu photos.
+    Fails open with low-confidence empty output so menu scan can degrade gracefully.
+    """
+    if not GEMINI_API_KEY:
+        return {"raw_text": "", "menu_lines": [], "ocr_confidence": 0.0}
+
+    try:
+        img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+    except Exception:
+        return {"raw_text": "", "menu_lines": [], "ocr_confidence": 0.0}
+
+    prompt = """
+You are an OCR + parser assistant for restaurant menus.
+Return ONLY valid JSON:
+{
+  "raw_text": "full OCR text",
+  "menu_lines": ["line1", "line2"],
+  "ocr_confidence": 0.0
+}
+
+Rules:
+- Extract likely menu item lines only where possible.
+- Keep lines short and readable.
+- Exclude obvious headers, prices-only lines, and decorative text when possible.
+- ocr_confidence must be 0..1.
+""".strip()
+
+    try:
+        text = _generate_scan_content(
+            [prompt, img],
+            purpose="menu_scan_ocr",
+            request_id=request_id,
+            job_id=job_id,
+        )
+    except Exception as e:
+        logger.warning("menu_scan_ocr failed request_id=%s err=%s", request_id, str(e)[:220])
+        return {"raw_text": "", "menu_lines": [], "ocr_confidence": 0.0}
+
+    parsed = coach_logic.extract_json_object(text)
+    if isinstance(parsed, dict):
+        raw_text = str(parsed.get("raw_text") or "").strip()
+        raw_lines = parsed.get("menu_lines")
+        menu_lines: List[str] = []
+        if isinstance(raw_lines, list):
+            menu_lines = [str(x or "").strip() for x in raw_lines if str(x or "").strip()][:50]
+        if not raw_text and menu_lines:
+            raw_text = "\n".join(menu_lines)
+        conf = _clamp01(parsed.get("ocr_confidence"), 0.58)
+        return {
+            "raw_text": raw_text,
+            "menu_lines": menu_lines,
+            "ocr_confidence": conf,
+        }
+
+    # Fallback: treat raw text response as OCR text.
+    plain = str(text or "").strip()
+    if not plain:
+        return {"raw_text": "", "menu_lines": [], "ocr_confidence": 0.0}
+    lines = [str(x or "").strip() for x in plain.splitlines() if str(x or "").strip()][:50]
+    return {
+        "raw_text": plain,
+        "menu_lines": lines,
+        "ocr_confidence": 0.45,
+    }
+
+
 def _compute_scan_nutrition(detected_items: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], Dict[str, float], Dict[str, float], List[Dict[str, Any]]]:
     results: List[Dict[str, Any]] = []
     total_kcal = 0.0
@@ -12311,105 +12492,591 @@ def supplement_report_issue(
 
 
 def compute_health_score(place: Dict[str, Any]) -> float:
-    payload = place if isinstance(place, dict) else {}
-    name = str(payload.get("name") or "").strip().lower()
-    types = payload.get("types") if isinstance(payload.get("types"), list) else []
-    address = str(payload.get("address") or payload.get("vicinity") or "").strip().lower()
-    cuisine = " ".join([name, address] + [str(x or "").strip().lower() for x in types])
-
-    score = 5.0
-    if any(token in cuisine for token in ("salad", "healthy", "protein bowl", "poke")):
-        score += 3.0
-    if any(token in cuisine for token in ("grill", "grilled", "mediterranean", "sushi", "thai")):
-        score += 2.0
-    if any(token in cuisine for token in ("burger", "pizza", "donut", "dessert", "fried chicken")):
-        score -= 3.0
-    if any(token in cuisine for token in ("fried", "fries", "deep fry")):
-        score -= 2.0
-
-    return round(max(1.0, min(10.0, score)), 1)
+    """Backward-compatible wrapper for legacy callers expecting only a float score."""
+    try:
+        scored = score_healthy_place(place)
+        return round(float(_safe_float(scored.get("health_score"), 5.0) or 5.0), 1)
+    except Exception:
+        return 5.0
 
 
 def _best_options_for_place(place: Dict[str, Any]) -> List[str]:
-    payload = place if isinstance(place, dict) else {}
-    name = str(payload.get("name") or "").strip().lower()
-    types = [str(x or "").strip().lower() for x in (payload.get("types") or [])]
-    text = " ".join([name] + types)
-    if any(token in text for token in ("salad", "healthy", "vegan")):
-        return ["Protein salad", "Veggie bowl"]
-    if any(token in text for token in ("sushi", "japanese")):
-        return ["Salmon sashimi", "Edamame + miso soup"]
-    if any(token in text for token in ("grill", "bbq")):
-        return ["Grilled chicken plate", "Lean protein + greens"]
-    if any(token in text for token in ("indian", "curry")):
-        return ["Tandoori chicken/paneer", "Dal + salad + roti"]
-    return ["Protein-forward meal", "Lower-oil whole-food option"]
+    """Backward-compatible wrapper for legacy callers expecting option suggestions list."""
+    try:
+        out = best_options_for_place(place)
+        return out if isinstance(out, list) and out else ["Protein-forward meal", "Lower-oil whole-food option"]
+    except Exception:
+        return ["Protein-forward meal", "Lower-oil whole-food option"]
 
 
 async def fetch_google_places(lat: float, lng: float, radius: int = 2000) -> List[Dict[str, Any]]:
     if not GOOGLE_PLACES_API_KEY:
         return []
-    radius_val = int(max(200, min(5000, int(_safe_float(radius, 2000) or 2000))))
-    params = {
-        "location": f"{float(lat):.6f},{float(lng):.6f}",
-        "radius": str(radius_val),
-        "type": "restaurant",
-        "key": GOOGLE_PLACES_API_KEY,
+
+    payload = build_nearby_search_payload(lat, lng, radius)
+    headers = {
+        "X-Goog-Api-Key": GOOGLE_PLACES_API_KEY,
+        "X-Goog-FieldMask": PLACES_NEARBY_FIELD_MASK,
+        "Content-Type": "application/json",
     }
+
     try:
         if httpx is not None:
             async with httpx.AsyncClient(timeout=6.0) as client:
-                r = await client.get(GOOGLE_PLACES_BASE, params=params)
-                body = r.json() if r.status_code == 200 else {}
+                r = await client.post(GOOGLE_PLACES_NEARBY_BASE, json=payload, headers=headers)
+                body = r.json() if 200 <= r.status_code < 300 else {}
+                if not body and r.status_code >= 300:
+                    logger.info(f"healthy places lookup failed: {r.status_code} {str(r.text)[:240]}")
         else:
-            r = requests.get(GOOGLE_PLACES_BASE, params=params, timeout=6.0)
-            body = r.json() if r.status_code == 200 else {}
+            r = requests.post(GOOGLE_PLACES_NEARBY_BASE, json=payload, headers=headers, timeout=6.0)
+            body = r.json() if 200 <= r.status_code < 300 else {}
+            if not body and r.status_code >= 300:
+                logger.info(f"healthy places lookup failed: {r.status_code} {str(getattr(r, 'text', ''))[:240]}")
     except Exception as e:
         logger.info(f"healthy places lookup failed: {e}")
         return []
 
-    results = body.get("results") if isinstance(body, dict) else []
-    out: List[Dict[str, Any]] = []
-    for item in (results or []):
-        if not isinstance(item, dict):
-            continue
-        geom = item.get("geometry") if isinstance(item.get("geometry"), dict) else {}
-        loc = geom.get("location") if isinstance(geom.get("location"), dict) else {}
-        out.append(
-            {
-                "name": str(item.get("name") or "").strip(),
-                "lat": float(_safe_float(loc.get("lat"), 0.0) or 0.0),
-                "lng": float(_safe_float(loc.get("lng"), 0.0) or 0.0),
-                "types": item.get("types") if isinstance(item.get("types"), list) else [],
-                "vicinity": str(item.get("vicinity") or "").strip(),
-                "rating": float(_safe_float(item.get("rating"), 0.0) or 0.0),
-                "user_ratings_total": int(_safe_float(item.get("user_ratings_total"), 0) or 0),
-            }
-        )
-    return out
+    return map_places_new_response(body if isinstance(body, dict) else {})
+
 
 
 @app.get("/places/healthy")
-async def healthy_places(lat: float, lng: float, radius: int = 2000):
+async def healthy_places(
+    lat: float,
+    lng: float,
+    radius: int = 2000,
+    cut_mode: bool = False,
+    goal: str = "",
+    remaining_calories: Optional[float] = None,
+    remaining_protein_g: Optional[float] = None,
+):
     places = await fetch_google_places(lat, lng, radius=radius)
+    nutrition_mode = NutritionMode.CUT if bool(cut_mode) else NutritionMode.DEFAULT
+    personalization_goal = normalize_personalization_goal(goal)
+    personalization_goal_value_str = personalization_goal_value(personalization_goal)
     scored: List[Dict[str, Any]] = []
     for p in places:
-        score = compute_health_score(p)
+        try:
+            scoring = score_healthy_place(p, mode=nutrition_mode)
+        except Exception:
+            scoring = {
+                "health_score": compute_health_score(p),
+                "best_options": _best_options_for_place(p),
+                "score_breakdown": None,
+                "fat_loss_friendly": False,
+                "recommended_badges": [],
+                "nutrition_data_available": False,
+                "scoring_version": HEALTHY_PLACE_SCORING_VERSION,
+                "cut_mode_active": bool(cut_mode),
+                "cut_friendly": False,
+                "cut_warning": "",
+            }
+
+        fallback_score = 5.0
+        score = float(_safe_float(scoring.get("health_score"), fallback_score) or fallback_score)
+        options = scoring.get("best_options") if isinstance(scoring.get("best_options"), list) else _best_options_for_place(p)
+
+        try:
+            order_suggestion = suggest_best_order_for_place(p, health_score=score, mode=nutrition_mode)
+        except Exception:
+            order_suggestion = {}
+
+        try:
+            menu_recommendations = recommend_menu_items_for_place(
+                p,
+                health_score=score,
+                mode=nutrition_mode,
+                personalization_goal=personalization_goal,
+            )
+        except Exception:
+            menu_recommendations = {
+                "menu_item_scoring_available": False,
+                "menu_items_source": "heuristic",
+                "top_menu_items": [],
+                "best_menu_items": [],
+                "top_menu_item": None,
+                "top_item": "",
+                "cut_mode_active": bool(cut_mode),
+            }
+
+        best_order = str(order_suggestion.get("best_order") or "Grilled protein bowl")
+        estimated_calories = int(_safe_float(order_suggestion.get("estimated_calories"), 520) or 520)
+        estimated_protein_g = int(_safe_float(order_suggestion.get("estimated_protein_g"), 32) or 32)
+        top_menu_item = menu_recommendations.get("top_menu_item") if isinstance(menu_recommendations.get("top_menu_item"), dict) else {}
+        decision_estimated_calories = int(
+            _safe_float(top_menu_item.get("estimated_calories"), estimated_calories) or estimated_calories
+        )
+        decision_estimated_protein_g = int(
+            _safe_float(top_menu_item.get("estimated_protein_g"), estimated_protein_g) or estimated_protein_g
+        )
+        short_reason = str(order_suggestion.get("short_reason") or "Balanced default when menu details are limited.")
+        order_strategy_tags = (
+            order_suggestion.get("order_strategy_tags")
+            if isinstance(order_suggestion.get("order_strategy_tags"), list)
+            else ["high_protein", "better_swap", "fat_loss_friendly"]
+        )
+        recommended_badges = (
+            scoring.get("recommended_badges")
+            if isinstance(scoring.get("recommended_badges"), list)
+            else []
+        )
+
+        personalized_health_score = None
+        personalized_best_order = ""
+        personalized_reason = ""
+
+        if personalization_goal:
+            try:
+                personalized_scoring = score_healthy_place(
+                    p,
+                    mode=nutrition_mode,
+                    personalization_goal=personalization_goal,
+                )
+                personalized_health_score = round(
+                    max(1.0, min(10.0, float(_safe_float(personalized_scoring.get("health_score"), score) or score))),
+                    1,
+                )
+            except Exception:
+                personalized_health_score = round(max(1.0, min(10.0, score)), 1)
+
+            try:
+                personalized_order = suggest_best_order_for_place(
+                    p,
+                    health_score=float(personalized_health_score),
+                    mode=nutrition_mode,
+                    personalization_goal=personalization_goal,
+                )
+                personalized_best_order = str(
+                    personalized_order.get("personalized_best_order")
+                    or personalized_order.get("best_order")
+                    or best_order
+                )
+                personalized_reason = str(
+                    personalized_order.get("personalized_reason")
+                    or get_personalized_reason(personalization_goal)
+                    or ""
+                )
+            except Exception:
+                personalized_best_order = best_order
+                personalized_reason = str(get_personalized_reason(personalization_goal) or "")
+
+        decision_today = evaluate_place_for_today(
+            estimated_calories=decision_estimated_calories,
+            estimated_protein_g=decision_estimated_protein_g,
+            remaining_calories=remaining_calories,
+            remaining_protein_g=remaining_protein_g,
+            health_score=score,
+        )
+
+        reality_check = build_restaurant_reality_check(
+            p,
+            recommended_order={
+                "item_name": str(top_menu_item.get("item_name") or order_suggestion.get("best_order") or best_order),
+                "estimated_calories": int(max(0, decision_estimated_calories)),
+                "estimated_protein_g": int(max(0, decision_estimated_protein_g)),
+                "confidence": float(
+                    _safe_float(
+                        top_menu_item.get("confidence"),
+                        _safe_float(order_suggestion.get("order_confidence"), 0.52),
+                    )
+                    or 0.52
+                ),
+            },
+            context={
+                "top_menu_item": top_menu_item,
+                "top_menu_items": (
+                    menu_recommendations.get("top_menu_items")
+                    if isinstance(menu_recommendations.get("top_menu_items"), list)
+                    else []
+                ),
+                "health_score": score,
+                "mode": nutrition_mode.value,
+                "goal": personalization_goal_value_str,
+            },
+        )
+
         scored.append(
             {
                 "name": p.get("name"),
                 "lat": p.get("lat"),
                 "lng": p.get("lng"),
-                "health_score": score,
-                "best_options": _best_options_for_place(p),
+                "health_score": round(max(1.0, min(10.0, score)), 1),
+                "best_options": options,
                 "address": p.get("vicinity"),
                 "rating": p.get("rating"),
+                # Optional backward-compatible enrichment fields for newer clients.
+                "score_breakdown": scoring.get("score_breakdown"),
+                "fat_loss_friendly": bool(scoring.get("fat_loss_friendly")),
+                "recommended_badges": recommended_badges,
+                "nutrition_data_available": bool(scoring.get("nutrition_data_available", False)),
+                "scoring_version": str(scoring.get("scoring_version") or HEALTHY_PLACE_SCORING_VERSION),
+                # Optional consumer-facing order guidance (v1 heuristic).
+                "best_order": best_order,
+                "better_swap": order_suggestion.get("better_swap", "Pick water and keep sauces on the side"),
+                "avoid_if_cutting": order_suggestion.get("avoid_if_cutting", "Large fried combo meals"),
+                "estimated_calories": estimated_calories,
+                "estimated_protein_g": estimated_protein_g,
+                "estimated_carbs_g": int(_safe_float(order_suggestion.get("estimated_carbs_g"), 45) or 45),
+                "estimated_fat_g": int(_safe_float(order_suggestion.get("estimated_fat_g"), 18) or 18),
+                "estimated_satiety": str(order_suggestion.get("estimated_satiety") or "medium"),
+                "macro_confidence": round(float(_safe_float(order_suggestion.get("macro_confidence"), 0.52) or 0.52), 2),
+                "macro_estimation_version": str(order_suggestion.get("macro_estimation_version") or "v1"),
+                "order_confidence": round(float(_safe_float(order_suggestion.get("order_confidence"), 0.46) or 0.46), 2),
+                "short_reason": short_reason,
+                "order_strategy_tags": order_strategy_tags,
+                "recommendation_version": str(order_suggestion.get("recommendation_version") or "v1"),
+                # Optional cut-mode enrichment fields (backward-compatible).
+                "cut_mode_active": bool(order_suggestion.get("cut_mode_active", bool(cut_mode))),
+                "cut_friendly": bool(order_suggestion.get("cut_friendly", scoring.get("cut_friendly", False))),
+                "cut_warning": str(order_suggestion.get("cut_warning") or scoring.get("cut_warning") or ""),
+                "best_order_for_cut": str(order_suggestion.get("best_order_for_cut") or order_suggestion.get("best_order") or "Grilled protein bowl"),
+                # Goal-based personalization (additive; baseline fields remain unchanged).
+                "personalization_goal": personalization_goal_value_str,
+                "personalized_health_score": personalized_health_score,
+                "personalized_best_order": personalized_best_order,
+                "personalized_reason": personalized_reason,
+                # New optional menu-item recommendations (v1 deterministic scoring).
+                "menu_item_scoring_available": bool(menu_recommendations.get("menu_item_scoring_available", False)),
+                "menu_items_source": str(menu_recommendations.get("menu_items_source") or "heuristic"),
+                "top_menu_items": menu_recommendations.get("top_menu_items") if isinstance(menu_recommendations.get("top_menu_items"), list) else [],
+                "best_menu_items": menu_recommendations.get("best_menu_items") if isinstance(menu_recommendations.get("best_menu_items"), list) else [],
+                "top_menu_item": menu_recommendations.get("top_menu_item") if isinstance(menu_recommendations.get("top_menu_item"), dict) else None,
+                "top_item": str(menu_recommendations.get("top_item") or ""),
+                # Optional daily fit decision layer (Can I Eat Here Today).
+                "decision_today": decision_today.get("decision_today"),
+                "decision_reason": str(decision_today.get("decision_reason") or ""),
+                "fits_remaining_calories": decision_today.get("fits_remaining_calories"),
+                "fits_remaining_protein": decision_today.get("fits_remaining_protein"),
+                "decision_confidence": decision_today.get("decision_confidence"),
+                "reality_check": reality_check,
+                "reality_check_share_card": (
+                    reality_check.get("share_card") if isinstance(reality_check.get("share_card"), dict) else None
+                ),
+                "share_card": build_best_order_share_card(
+                    place_name=p.get("name"),
+                    health_score=score,
+                    best_order=best_order,
+                    estimated_calories=estimated_calories,
+                    estimated_protein_g=estimated_protein_g,
+                    subtitle=short_reason,
+                    recommended_badges=recommended_badges,
+                    order_strategy_tags=order_strategy_tags,
+                    cut_friendly=bool(order_suggestion.get("cut_friendly", False)),
+                    fat_loss_friendly=bool(scoring.get("fat_loss_friendly", False)),
+                ),
             }
         )
-    scored.sort(key=lambda x: float(_safe_float(x.get("health_score"), 0.0) or 0.0), reverse=True)
-    return {"places": scored}
+
+    ranking_field = "personalized_health_score" if personalization_goal else "health_score"
+    scored.sort(
+        key=lambda x: float(_safe_float(x.get(ranking_field), x.get("health_score", 0.0)) or 0.0),
+        reverse=True,
+    )
+
+    # Add map-friendly metadata without breaking existing list clients.
+    scored = enrich_places_for_healthy_map(
+        scored,
+        origin_lat=float(_safe_float(lat, 0.0) or 0.0),
+        origin_lng=float(_safe_float(lng, 0.0) or 0.0),
+        goal=str(goal or "").strip(),
+        cut_mode=bool(cut_mode),
+        remaining_calories=remaining_calories,
+        remaining_protein_g=remaining_protein_g,
+    )
+
+    response = {"places": scored}
+    if scored and isinstance(scored[0].get("share_card"), dict):
+        response["top_share_card"] = scored[0]["share_card"]
+    if scored and isinstance(scored[0].get("reality_check_share_card"), dict):
+        response["top_reality_check_share_card"] = scored[0]["reality_check_share_card"]
+    return response
 
 
+@app.get("/places/healthy-map")
+async def healthy_places_map(
+    lat: float,
+    lng: float,
+    radius: int = 2000,
+    cut_mode: bool = False,
+    goal: str = "",
+    remaining_calories: Optional[float] = None,
+    remaining_protein_g: Optional[float] = None,
+    limit: int = 40,
+):
+    nearby_payload = await healthy_places(
+        lat=lat,
+        lng=lng,
+        radius=radius,
+        cut_mode=bool(cut_mode),
+        goal=goal,
+        remaining_calories=remaining_calories,
+        remaining_protein_g=remaining_protein_g,
+    )
+
+    places = nearby_payload.get("places") if isinstance(nearby_payload, dict) else []
+
+    return build_healthy_food_map_response(
+        places=places if isinstance(places, list) else [],
+        lat=float(_safe_float(lat, 0.0) or 0.0),
+        lng=float(_safe_float(lng, 0.0) or 0.0),
+        radius=int(max(200, min(5000, int(_safe_float(radius, 2000) or 2000)))),
+        goal=str(goal or "").strip(),
+        cut_mode=bool(cut_mode),
+        remaining_calories=remaining_calories,
+        remaining_protein_g=remaining_protein_g,
+        limit=max(1, min(80, int(_safe_float(limit, 40) or 40))),
+    )
+
+
+
+@app.get("/places/feed")
+async def places_feed(lat: float, lng: float, radius: int = 2000, limit_per_section: int = 6):
+    nearby_places = await fetch_google_places(lat, lng, radius=radius)
+    return build_healthy_nearby_feed(
+        nearby_places=nearby_places,
+        limit_per_section=max(1, min(12, int(_safe_float(limit_per_section, 6) or 6))),
+    )
+@app.get("/places/lunch-decision")
+async def places_lunch_decision(
+    lat: float,
+    lng: float,
+    radius: int = 2000,
+    remaining_calories: Optional[float] = None,
+    remaining_protein_g: Optional[float] = None,
+    target_calories: Optional[float] = None,
+    consumed_calories: Optional[float] = None,
+    target_protein_g: Optional[float] = None,
+    consumed_protein_g: Optional[float] = None,
+    current_hour: Optional[int] = None,
+    goal: str = "",
+    cut_mode: bool = False,
+):
+    nearby_places = await fetch_google_places(lat, lng, radius=radius)
+    return build_lunch_decision_response(
+        nearby_places=nearby_places,
+        origin_lat=float(_safe_float(lat, 0.0) or 0.0),
+        origin_lng=float(_safe_float(lng, 0.0) or 0.0),
+        remaining_calories=remaining_calories,
+        remaining_protein_g=remaining_protein_g,
+        target_calories=target_calories,
+        consumed_calories=consumed_calories,
+        target_protein_g=target_protein_g,
+        consumed_protein_g=consumed_protein_g,
+        current_hour=current_hour,
+        goal=goal,
+        cut_mode=bool(cut_mode),
+    )
+
+
+@app.get("/places/better-choice-nearby")
+async def better_choice_nearby(
+    lat: float,
+    lng: float,
+    selected_place_name: str = "",
+    selected_place_id: str = "",
+    radius: int = 2000,
+    min_score_delta: float = 1.2,
+    limit: int = 5,
+):
+    if not str(selected_place_name or "").strip() and not str(selected_place_id or "").strip():
+        raise HTTPException(status_code=400, detail="selected_place_name or selected_place_id is required")
+
+    nearby_places = await fetch_google_places(lat, lng, radius=radius)
+
+    return build_better_choice_nearby_response(
+        nearby_places=nearby_places,
+        selected_place_name=str(selected_place_name or "").strip(),
+        selected_place_id=str(selected_place_id or "").strip(),
+        origin_lat=float(_safe_float(lat, 0.0) or 0.0),
+        origin_lng=float(_safe_float(lng, 0.0) or 0.0),
+        min_score_delta=float(_safe_float(min_score_delta, 1.2) or 1.2),
+        limit=max(1, min(10, int(_safe_float(limit, 5) or 5))),
+    )
+
+
+@app.post("/places/daily-fatloss-coach")
+async def daily_fatloss_coach(payload: DailyFatLossCoachRequestModel):
+    radius = int(max(200, min(5000, int(_safe_float(payload.radius, 2000) or 2000))))
+    nearby_places = await fetch_google_places(payload.lat, payload.lng, radius=radius)
+
+    return build_daily_fatloss_coach_response(
+        nearby_places=nearby_places,
+        target_calories=float(_safe_float(payload.target_calories, 2000.0) or 2000.0),
+        consumed_calories=float(_safe_float(payload.consumed_calories, 0.0) or 0.0),
+        target_protein_g=float(_safe_float(payload.target_protein_g, 150.0) or 150.0),
+        consumed_protein_g=float(_safe_float(payload.consumed_protein_g, 0.0) or 0.0),
+        limit=max(1, min(10, int(_safe_float(payload.limit, 5) or 5))),
+    )
+
+
+
+@app.post("/coach/weekly-progress")
+def coach_weekly_progress(payload: WeeklyCoachRequestModel):
+    rows = [
+        row.model_dump(exclude_none=True)
+        for row in (payload.daily_rows or [])
+        if isinstance(row, WeeklyCoachDayRowModel)
+    ]
+    choices = [
+        row.model_dump(exclude_none=True)
+        for row in (payload.choices or [])
+        if isinstance(row, WeeklyCoachChoiceRowModel)
+    ]
+
+    weekly_payload = build_weekly_coach_payload(
+        days=rows,
+        choices=choices,
+        goal=str(payload.goal or "").strip(),
+        cut_mode=bool(payload.cut_mode),
+    )
+
+    return {
+        "week_start": str(payload.week_start or "").strip(),
+        "weekly_coach": weekly_payload,
+    }
+
+
+@app.post("/menu/scan")
+async def scan_menu_endpoint(
+    file: UploadFile = File(...),
+    user_id: Optional[str] = None,
+    restaurant_name: Optional[str] = Form(default=""),
+    place_id: Optional[str] = Form(default=""),
+    cuisine: Optional[str] = Form(default=""),
+    ocr_text: Optional[str] = Form(default=""),
+    remaining_calories: Optional[float] = Form(default=None),
+    remaining_protein_g: Optional[float] = Form(default=None),
+    goal: Optional[str] = Form(default=""),
+    cut_mode: Optional[bool] = Form(default=False),
+    x_user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
+):
+    uid = require_user_id(x_user_id, user_id)
+    require_ai_consent(uid)
+
+    image_bytes = await _read_valid_image_bytes(file, "file")
+    request_id = _new_request_id()
+
+    ocr_override = str(ocr_text or "").strip()
+    if ocr_override:
+        ocr_payload = {
+            "raw_text": ocr_override,
+            "menu_lines": [x.strip() for x in ocr_override.splitlines() if x.strip()][:50],
+            "ocr_confidence": 0.72,
+        }
+    else:
+        ocr_payload = _menu_scan_ocr_from_image(image_bytes, request_id=request_id)
+
+    menu_scan = build_menu_scan_response(
+        raw_menu_text=str(ocr_payload.get("raw_text") or ""),
+        ocr_lines=ocr_payload.get("menu_lines") if isinstance(ocr_payload.get("menu_lines"), list) else None,
+        ocr_confidence=float(_safe_float(ocr_payload.get("ocr_confidence"), 0.0) or 0.0),
+        restaurant_name=str(restaurant_name or "").strip(),
+        place_id=str(place_id or "").strip(),
+        cuisine=str(cuisine or "").strip(),
+        remaining_calories=float(_safe_float(remaining_calories, 0.0)) if remaining_calories is not None else None,
+        remaining_protein_g=float(_safe_float(remaining_protein_g, 0.0)) if remaining_protein_g is not None else None,
+        goal=str(goal or "").strip(),
+        cut_mode=bool(cut_mode),
+    )
+    menu_scan["request_id"] = request_id
+    menu_scan["ocr_confidence"] = round(float(_safe_float(ocr_payload.get("ocr_confidence"), 0.0) or 0.0), 2)
+
+    return {"menu_scan": menu_scan}
+
+
+@app.post("/places/menu-intelligence/ingest")
+def ingest_menu_intelligence_endpoint(payload: MenuIntelligenceIngestRequestModel):
+    place_id = str(payload.place_id or "").strip()
+    if not place_id:
+        raise HTTPException(status_code=400, detail="place_id is required")
+
+    items = [
+        item.model_dump(exclude_none=True)
+        for item in payload.menu_items
+        if str(item.item_name or "").strip()
+    ]
+    if not items:
+        raise HTTPException(status_code=400, detail="menu_items must include at least one item")
+
+    entry = ingest_menu_intelligence(
+        place_id=place_id,
+        restaurant_name=str(payload.restaurant_name or "").strip(),
+        cuisine=str(payload.cuisine or "").strip(),
+        menu_items=items,
+        source=str(payload.source or "user_scan").strip(),
+    )
+    if not isinstance(entry, dict):
+        raise HTTPException(status_code=500, detail="Failed to persist menu intelligence")
+
+    return {
+        "ok": True,
+        "place_id": place_id,
+        "restaurant_name": entry.get("restaurant_name", ""),
+        "cuisine": entry.get("cuisine", ""),
+        "menu_items_count": len(entry.get("menu_items") or []),
+        "confidence": entry.get("confidence"),
+        "last_updated": entry.get("last_updated"),
+        "menu_intelligence_version": entry.get("version", "v1"),
+    }
+
+
+@app.get("/places/menu-intelligence/{place_id}")
+def get_menu_intelligence_endpoint(place_id: str):
+    pid = str(place_id or "").strip()
+    if not pid:
+        raise HTTPException(status_code=400, detail="place_id is required")
+
+    entry = get_place_menu_intelligence(pid)
+    if not isinstance(entry, dict):
+        return {"found": False, "place_id": pid, "menu_items": []}
+
+    out = dict(entry)
+    out["found"] = True
+    return out
+
+
+@app.post("/places/recommendation-feedback")
+def log_recommendation_feedback(payload: RecommendationFeedbackEventRequestModel):
+    event_name = " ".join(str(payload.event or "").strip().lower().split())
+    place_id = str(payload.place_id or "").strip()
+    item_name = " ".join(str(payload.item or "").strip().split())
+
+    if not place_id:
+        raise HTTPException(status_code=400, detail="place_id is required")
+
+    if event_name not in ALLOWED_FEEDBACK_EVENTS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"event must be one of: {', '.join(sorted(ALLOWED_FEEDBACK_EVENTS))}",
+        )
+
+    logged = log_recommendation_feedback_event(
+        event=event_name,
+        place_id=place_id,
+        item=item_name,
+        user_id=str(payload.user_id or "").strip(),
+        session_id=str(payload.session_id or "").strip(),
+        metadata=payload.metadata if isinstance(payload.metadata, dict) else {},
+    )
+    if not isinstance(logged, dict):
+        raise HTTPException(status_code=500, detail="Failed to log recommendation feedback")
+
+    return {
+        "ok": True,
+        "event_id": str(logged.get("event_id") or ""),
+        "event": str(logged.get("event") or event_name),
+        "place_id": place_id,
+        "item": item_name,
+        "created_at": logged.get("created_at"),
+        "feedback_signal": get_place_item_feedback_signal(place_id, item_name),
+    }
+
+
+@app.get("/places/recommendation-feedback/summary")
+def recommendation_feedback_summary(place_id: str = "", item: str = ""):
+    pid = str(place_id or "").strip()
+    item_name = " ".join(str(item or "").strip().split())
+    return get_feedback_summary(place_id=pid, item=item_name)
 
 # -------------------- COACHING (PRO+) --------------------
 def clamp(x: float, lo: float, hi: float) -> float:

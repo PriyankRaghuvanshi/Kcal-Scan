@@ -1,0 +1,483 @@
+from __future__ import annotations
+
+import re
+from typing import Any, Dict, List, Optional
+
+from coach_messages import build_place_coach_message
+from menu_item_scoring import score_menu_item
+from nutrition_mode import NutritionMode
+from personalization_profiles import normalize_personalization_goal, personalization_goal_value
+from place_today_decision import evaluate_place_for_today
+from restaurant_reality_check import build_restaurant_reality_check
+
+
+MENU_SCAN_VERSION = "v1"
+
+_MENU_SECTION_TOKENS = {
+    "menu",
+    "starters",
+    "entrees",
+    "mains",
+    "main",
+    "desserts",
+    "drinks",
+    "beverages",
+    "sides",
+    "combos",
+    "specials",
+    "today",
+    "chef",
+}
+
+_DISH_HINT_TOKENS = (
+    "chicken",
+    "beef",
+    "fish",
+    "salmon",
+    "tuna",
+    "shrimp",
+    "prawn",
+    "bowl",
+    "salad",
+    "burger",
+    "wrap",
+    "sandwich",
+    "pizza",
+    "taco",
+    "burrito",
+    "nachos",
+    "curry",
+    "rice",
+    "noodles",
+    "steak",
+    "sashimi",
+    "sushi",
+    "paneer",
+    "tofu",
+    "dal",
+    "kebab",
+)
+
+_HEAVY_TOKENS = (
+    "loaded",
+    "double",
+    "large",
+    "family",
+    "fries",
+    "fried",
+    "crispy",
+    "extra cheese",
+    "nachos",
+    "combo",
+    "shake",
+    "soda",
+    "cream",
+    "butter",
+)
+
+_PRICE_RE = re.compile(r"[\s\-:]*([$€£₹]\s*)?\d{1,4}(?:[.,]\d{1,2})?\s*$")
+_NON_ALPHA_RE = re.compile(r"[^a-zA-Z]+")
+
+
+def _safe_float(value: Any, default: float = 0.0) -> float:
+    try:
+        return float(value)
+    except Exception:
+        return float(default)
+
+
+def _clamp(value: float, lo: float, hi: float) -> float:
+    return max(lo, min(hi, float(value)))
+
+
+def _normalized_token(value: Any) -> str:
+    return " ".join(str(value or "").strip().lower().split())
+
+
+def _strip_noise(line: str) -> str:
+    text = str(line or "").replace("\t", " ").strip()
+    text = re.sub(r"^[\-\*\u2022•\.\s]+", "", text)
+    text = _PRICE_RE.sub("", text).strip()
+    text = re.sub(r"\s{2,}", " ", text).strip(" -:")
+    return text
+
+
+def _is_heading_or_noise(line: str) -> bool:
+    text = _normalized_token(line)
+    if not text:
+        return True
+    if len(text) < 3:
+        return True
+    words = text.split()
+    if len(words) <= 2 and all(w in _MENU_SECTION_TOKENS for w in words):
+        return True
+    if text in _MENU_SECTION_TOKENS:
+        return True
+    letters = _NON_ALPHA_RE.sub("", text)
+    if not letters:
+        return True
+    digit_count = sum(ch.isdigit() for ch in text)
+    if digit_count > len(text) * 0.4:
+        return True
+    if len(words) == 1 and words[0] not in _DISH_HINT_TOKENS:
+        return True
+    return False
+
+
+def _line_confidence(line: str) -> float:
+    text = _normalized_token(line)
+    words = text.split()
+    conf = 0.56
+    if 2 <= len(words) <= 6:
+        conf += 0.14
+    if any(token in text for token in _DISH_HINT_TOKENS):
+        conf += 0.14
+    if any(ch.isdigit() for ch in text):
+        conf -= 0.10
+    if len(text) > 58:
+        conf -= 0.06
+    return round(_clamp(conf, 0.35, 0.94), 2)
+
+
+def parse_menu_items_from_text(
+    raw_text: str = "",
+    *,
+    ocr_lines: Optional[List[str]] = None,
+    max_items: int = 24,
+) -> List[Dict[str, Any]]:
+    source_lines: List[str] = []
+    if isinstance(ocr_lines, list) and ocr_lines:
+        source_lines = [str(x or "") for x in ocr_lines]
+    else:
+        source_lines = str(raw_text or "").splitlines()
+
+    out: List[Dict[str, Any]] = []
+    seen = set()
+    for row in source_lines:
+        cleaned = _strip_noise(row)
+        if _is_heading_or_noise(cleaned):
+            continue
+        key = _normalized_token(cleaned)
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(
+            {
+                "item_name": cleaned,
+                "confidence": _line_confidence(cleaned),
+            }
+        )
+        if len(out) >= max_items:
+            break
+    return out
+
+
+def _resolve_mode(goal: str, cut_mode: bool) -> NutritionMode:
+    goal_token = _normalized_token(goal)
+    if cut_mode or goal_token in {"fat_loss", "cut", "weight_loss"}:
+        return NutritionMode.CUT
+    return NutritionMode.DEFAULT
+
+
+def _place_context(
+    *,
+    restaurant_name: str,
+    place_id: str,
+    cuisine: str,
+    parsed_items: List[Dict[str, Any]],
+) -> Dict[str, Any]:
+    name = str(restaurant_name or "").strip() or "Restaurant menu"
+    cuisine_txt = str(cuisine or "").strip()
+    types = [cuisine_txt.lower().replace(" ", "_")] if cuisine_txt else []
+    return {
+        "name": name,
+        "place_id": str(place_id or "").strip(),
+        "primary_type": cuisine_txt.lower().replace(" ", "_") if cuisine_txt else "",
+        "types": types,
+        "menu_items": [{"item_name": str(x.get("item_name") or ""), "confidence": float(_safe_float(x.get("confidence"), 0.6))} for x in parsed_items],
+    }
+
+
+def _sort_scored_items(scored: List[Dict[str, Any]], mode: NutritionMode) -> List[Dict[str, Any]]:
+    if mode == NutritionMode.CUT:
+        return sorted(
+            scored,
+            key=lambda row: (
+                int(_safe_float(row.get("item_score"), 0.0)),
+                int(_safe_float((row.get("item_score_breakdown") or {}).get("calorie_control"), 0.0)),
+                int(_safe_float((row.get("item_score_breakdown") or {}).get("protein_density"), 0.0)),
+            ),
+            reverse=True,
+        )
+    return sorted(scored, key=lambda row: int(_safe_float(row.get("item_score"), 0.0)), reverse=True)
+
+
+def _score_menu_items(
+    *,
+    place: Dict[str, Any],
+    parsed_items: List[Dict[str, Any]],
+    mode: NutritionMode,
+    goal: str,
+) -> List[Dict[str, Any]]:
+    place_text = " ".join(
+        [
+            _normalized_token(place.get("name")),
+            _normalized_token(place.get("primary_type")),
+            _normalized_token(" ".join(place.get("types") or [])),
+        ]
+    ).strip()
+    scored: List[Dict[str, Any]] = []
+    for item in parsed_items:
+        out = score_menu_item(
+            {
+                "item_name": str(item.get("item_name") or "").strip(),
+                "confidence": _safe_float(item.get("confidence"), 0.6),
+            },
+            context={
+                "place": place,
+                "place_text": place_text,
+                "menu_source": "menu_scan_ocr",
+                "mode": mode.value,
+                "personalization_goal": goal,
+            },
+            mode=mode,
+            personalization_goal=goal,
+        )
+        scored.append(out)
+    return _sort_scored_items(scored, mode=mode)
+
+
+def _to_fit_bool(decision_token: Any) -> Optional[bool]:
+    token = str(decision_token or "").strip().upper()
+    if token == "YES":
+        return True
+    if token == "NO":
+        return False
+    return None
+
+
+def _attach_fit(
+    item: Dict[str, Any],
+    *,
+    remaining_calories: Optional[float],
+    remaining_protein_g: Optional[float],
+) -> Dict[str, Any]:
+    row = dict(item)
+    fit = evaluate_place_for_today(
+        estimated_calories=row.get("estimated_calories"),
+        estimated_protein_g=row.get("estimated_protein_g"),
+        remaining_calories=remaining_calories,
+        remaining_protein_g=remaining_protein_g,
+        health_score=min(10.0, max(1.0, _safe_float(row.get("item_score"), 60.0) / 10.0)),
+    )
+    row["fit_for_today"] = _to_fit_bool(fit.get("decision_today"))
+    row["decision_today"] = fit.get("decision_today")
+    row["decision_reason"] = str(fit.get("decision_reason") or "")
+    row["fits_remaining_calories"] = fit.get("fits_remaining_calories")
+    row["fits_remaining_protein"] = fit.get("fits_remaining_protein")
+    row["decision_confidence"] = fit.get("decision_confidence")
+    return row
+
+
+def _avoid_rank(item: Dict[str, Any]) -> float:
+    text = _normalized_token(item.get("item_name"))
+    calories = _safe_float(item.get("estimated_calories"), 520.0)
+    protein = _safe_float(item.get("estimated_protein_g"), 30.0)
+    score = _safe_float(item.get("item_score"), 60.0)
+    penalty = 0.0
+    penalty += max(0.0, calories - 700.0) / 110.0
+    penalty += max(0.0, 24.0 - protein) / 5.0
+    penalty += max(0.0, 70.0 - score) / 10.0
+    if any(token in text for token in _HEAVY_TOKENS):
+        penalty += 3.5
+    return penalty
+
+
+def _avoid_reason(item: Dict[str, Any]) -> str:
+    calories = int(_safe_float(item.get("estimated_calories"), 0.0))
+    if calories >= 950:
+        return "Very calorie-dense and difficult to fit on a cut."
+    if calories >= 760:
+        return "Harder to fit today unless portions stay very small."
+    return "Usually harder to fit when calories are tight."
+
+
+def _scan_confidence(
+    *,
+    parsed_items: List[Dict[str, Any]],
+    top_recommendations: List[Dict[str, Any]],
+    ocr_confidence: float,
+) -> float:
+    if not parsed_items:
+        return round(_clamp(max(0.2, ocr_confidence * 0.7), 0.2, 0.46), 2)
+    avg_parse = sum(_safe_float(x.get("confidence"), 0.5) for x in parsed_items) / max(1, len(parsed_items))
+    avg_top = (
+        sum(_safe_float(x.get("confidence"), 0.5) for x in top_recommendations) / max(1, len(top_recommendations))
+        if top_recommendations
+        else 0.5
+    )
+    density = min(1.0, len(parsed_items) / 10.0)
+    val = (avg_parse * 0.36) + (avg_top * 0.26) + (ocr_confidence * 0.22) + (density * 0.16)
+    return round(_clamp(val, 0.25, 0.95), 2)
+
+
+def build_menu_scan_response(
+    *,
+    raw_menu_text: str = "",
+    ocr_lines: Optional[List[str]] = None,
+    ocr_confidence: float = 0.0,
+    restaurant_name: str = "",
+    place_id: str = "",
+    cuisine: str = "",
+    remaining_calories: Optional[float] = None,
+    remaining_protein_g: Optional[float] = None,
+    goal: str = "",
+    cut_mode: bool = False,
+) -> Dict[str, Any]:
+    parsed = parse_menu_items_from_text(raw_menu_text, ocr_lines=ocr_lines)
+    goal_token = _normalized_token(goal)
+    mode = _resolve_mode(goal_token, bool(cut_mode))
+    goal_value = personalization_goal_value(normalize_personalization_goal(goal_token))
+
+    if len(parsed) < 2:
+        return {
+            "title": "Menu scan needs a clearer photo",
+            "subtitle": "We couldn't confidently read enough menu items yet.",
+            "parsed_menu_items": parsed[:8],
+            "top_recommendations": [],
+            "better_swap": None,
+            "avoid_if_cutting": None,
+            "coach_message": {
+                "headline": "Try a straighter photo with better lighting.",
+                "supporting_text": "Include item names clearly and avoid glare.",
+            },
+            "scan_confidence": _scan_confidence(parsed_items=parsed, top_recommendations=[], ocr_confidence=_safe_float(ocr_confidence, 0.0)),
+            "scan_version": MENU_SCAN_VERSION,
+        }
+
+    place = _place_context(
+        restaurant_name=restaurant_name,
+        place_id=place_id,
+        cuisine=cuisine,
+        parsed_items=parsed,
+    )
+    scored_items = _score_menu_items(place=place, parsed_items=parsed, mode=mode, goal=goal_token)
+    top_items = scored_items[:3]
+    enriched_top = [
+        _attach_fit(
+            row,
+            remaining_calories=remaining_calories,
+            remaining_protein_g=remaining_protein_g,
+        )
+        for row in top_items
+    ]
+
+    if not enriched_top:
+        return {
+            "title": "Menu scan needs a clearer photo",
+            "subtitle": "We couldn't score enough clear menu items from this photo.",
+            "parsed_menu_items": parsed[:8],
+            "top_recommendations": [],
+            "better_swap": None,
+            "avoid_if_cutting": None,
+            "coach_message": {
+                "headline": "Try another scan in brighter light.",
+                "supporting_text": "A clearer image helps us rank menu items accurately.",
+            },
+            "scan_confidence": _scan_confidence(parsed_items=parsed, top_recommendations=[], ocr_confidence=_safe_float(ocr_confidence, 0.0)),
+            "scan_version": MENU_SCAN_VERSION,
+        }
+
+    best = enriched_top[0]
+    better = enriched_top[1] if len(enriched_top) > 1 else None
+    avoid_src = max(scored_items, key=_avoid_rank) if scored_items else None
+    avoid = (
+        {
+            "item_name": str(avoid_src.get("item_name") or ""),
+            "estimated_calories": int(_safe_float(avoid_src.get("estimated_calories"), 0.0) or 0),
+            "short_reason": _avoid_reason(avoid_src),
+        }
+        if isinstance(avoid_src, dict)
+        else None
+    )
+
+    reality_place = dict(place)
+    reality_place["menu_items"] = [
+        {
+            "item_name": str(x.get("item_name") or ""),
+            "estimated_calories": int(_safe_float(x.get("estimated_calories"), 0.0) or 0),
+            "estimated_protein_g": int(_safe_float(x.get("estimated_protein_g"), 0.0) or 0),
+        }
+        for x in scored_items[:8]
+    ]
+    recommended_order = {
+        "item_name": str(best.get("item_name") or ""),
+        "estimated_calories": int(_safe_float(best.get("estimated_calories"), 520.0) or 520),
+        "estimated_protein_g": int(_safe_float(best.get("estimated_protein_g"), 30.0) or 30),
+    }
+    reality_check = build_restaurant_reality_check(
+        reality_place,
+        recommended_order=recommended_order,
+        context={"top_menu_item": best},
+    )
+
+    today_fit = {
+        "decision": best.get("decision_today"),
+        "decision_reason": best.get("decision_reason"),
+    }
+    coach_message = build_place_coach_message(
+        {
+            "name": place.get("name"),
+            "fit_for_today": best.get("fit_for_today"),
+            "decision_today": best.get("decision_today"),
+            "decision_reason": best.get("decision_reason"),
+            "health_score_100": int(_safe_float(best.get("item_score"), 0.0) or 0),
+            "personalization_goal": goal_value,
+            "cut_mode_active": bool(mode == NutritionMode.CUT),
+            "remaining_protein_g": remaining_protein_g,
+        },
+        top_menu_item=best,
+        today_fit=today_fit,
+        reality_check=reality_check,
+        context={
+            "goal": goal_value,
+            "cut_mode": bool(mode == NutritionMode.CUT),
+            "remaining_protein_g": remaining_protein_g,
+        },
+    )
+
+    response = {
+        "title": "Best Choice Here",
+        "subtitle": "AI analyzed this restaurant menu",
+        "best_choice_here": {
+            "item_name": str(best.get("item_name") or ""),
+            "item_score": int(_safe_float(best.get("item_score"), 0.0) or 0),
+            "estimated_calories": int(_safe_float(best.get("estimated_calories"), 0.0) or 0),
+            "estimated_protein_g": int(_safe_float(best.get("estimated_protein_g"), 0.0) or 0),
+            "fit_for_today": best.get("fit_for_today"),
+            "short_reason": str(best.get("short_reason") or ""),
+            "recommendation_tags": list(best.get("recommendation_tags") or []),
+        },
+        "parsed_menu_items": parsed[:18],
+        "top_recommendations": enriched_top,
+        "better_swap": (
+            {
+                "item_name": str(better.get("item_name") or ""),
+                "estimated_calories": int(_safe_float(better.get("estimated_calories"), 0.0) or 0),
+                "estimated_protein_g": int(_safe_float(better.get("estimated_protein_g"), 0.0) or 0),
+                "short_reason": str(better.get("short_reason") or "A solid lighter swap if calories are tight."),
+            }
+            if isinstance(better, dict)
+            else None
+        ),
+        "avoid_if_cutting": avoid,
+        "coach_message": coach_message,
+        "reality_check": reality_check,
+        "scan_confidence": _scan_confidence(
+            parsed_items=parsed,
+            top_recommendations=enriched_top,
+            ocr_confidence=_safe_float(ocr_confidence, 0.0),
+        ),
+        "scan_version": MENU_SCAN_VERSION,
+    }
+    return response
