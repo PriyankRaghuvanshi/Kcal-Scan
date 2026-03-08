@@ -21,6 +21,10 @@ class RestaurantRealityCheckTests(unittest.TestCase):
                 "estimated_calories": 560,
                 "estimated_protein_g": 38,
                 "order_confidence": 0.82,
+                "order_type": "exact",
+                "swap_suggestion": "Order this, skip fries, add side salad.",
+                "skip_items": ["fries"],
+                "add_items": ["side salad"],
             },
         )
 
@@ -28,6 +32,10 @@ class RestaurantRealityCheckTests(unittest.TestCase):
         self.assertEqual(out["place_name"], "McDonald's")
         self.assertGreaterEqual(int(out["calories_saved"]), 300)
         self.assertEqual(out["smarter_order"]["name"], "Grilled wrap + water")
+        self.assertEqual(out["smarter_order"].get("order_type"), "exact")
+        self.assertTrue(str(out["smarter_order"].get("swap_suggestion") or "").strip())
+        self.assertIsInstance(out["smarter_order"].get("skip_items"), list)
+        self.assertIsInstance(out["smarter_order"].get("add_items"), list)
         self.assertIn(out.get("copy_method"), {"deterministic", "llm"})
         self.assertGreaterEqual(float(out.get("copy_confidence", 0.0)), 0.0)
         self.assertIsInstance(out.get("share_card"), dict)

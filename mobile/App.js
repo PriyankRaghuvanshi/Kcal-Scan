@@ -4232,7 +4232,7 @@ async function openCamera(mode = "meal") {
           cut_mode: cutMode,
         });
       } else {
-        setLunchDecisionError("No strong lunch picks nearby right now. Try widening your map area.");
+        setLunchDecisionError("No strong next-meal picks nearby right now. Try widening your map area.");
       }
     } catch (e) {
       if (reqSeq !== lunchDecisionReqSeqRef.current) return;
@@ -4974,6 +4974,9 @@ async function openCamera(mode = "meal") {
   const lunchDayCoach = lunchDecision?.day_coach && typeof lunchDecision.day_coach === "object"
     ? lunchDecision.day_coach
     : null;
+  const dailyDecision = lunchDecision?.daily_decision && typeof lunchDecision.daily_decision === "object"
+    ? lunchDecision.daily_decision
+    : null;
   const healthyMapCenter = healthyMapFocusCoords || healthyPlaceCoords;
   const healthyMapPoints = buildHealthyMapPoints(
     healthyVisiblePlaces,
@@ -5003,7 +5006,7 @@ async function openCamera(mode = "meal") {
         lunchDecision.cards[0]
       : null;
     const bestPlace = String(bestCard?.place_name || "").trim();
-    if (bestPlace) return `Best lunch near you: ${bestPlace}`;
+    if (bestPlace) return `Best next meal near you: ${bestPlace}`;
 
     const remainingProtein = num(remainingToday?.protein_g);
     if (Number.isFinite(remainingProtein) && remainingProtein > 0) {
@@ -5031,7 +5034,7 @@ async function openCamera(mode = "meal") {
         <View style={styles.launcherCard}>
           <Text style={styles.launcherTitle}>CalorieClick AI</Text>
           <Text style={styles.launcherQuestion}>What should I eat right now?</Text>
-          <Text style={styles.launcherSubline}>Pick one action and we will guide the next move.</Text>
+          <Text style={styles.launcherSubline}>Pick one action and get your next best move.</Text>
 
           <View style={styles.launcherActions}>
             <TouchableOpacity
@@ -5070,7 +5073,7 @@ async function openCamera(mode = "meal") {
               <View style={{ flex: 1 }}>
                 <Text style={styles.launcherActionTitle}>Best Nearby</Text>
                 <Text style={styles.launcherActionSubtitle}>
-                  {lunchDecisionBusy ? "Finding your best nearby lunch..." : "See what fits your macros around you"}
+                  {lunchDecisionBusy ? "Finding your best next meal nearby..." : "See what fits your macros around you"}
                 </Text>
               </View>
             </TouchableOpacity>
@@ -6070,7 +6073,7 @@ async function openCamera(mode = "meal") {
               <Text style={styles.smallBtnText}>Back to Home</Text>
             </TouchableOpacity>
           </View>
-          <Text style={styles.p}>Your next meal, map, and menu scan in one place.</Text>
+          <Text style={styles.p}>Decide faster with your next meal, map, and menu scan.</Text>
           <View style={styles.nearbyPrimaryActions}>
             <TouchableOpacity
               style={[styles.primaryBtn, styles.nearbyPrimaryCta]}
@@ -6080,7 +6083,7 @@ async function openCamera(mode = "meal") {
               }}
               disabled={lunchDecisionBusy}
             >
-              <Text style={styles.btnText}>{lunchDecisionBusy ? "Deciding..." : "🎯 Decide My Meal"}</Text>
+              <Text style={styles.btnText}>{lunchDecisionBusy ? "Deciding..." : "🎯 Decide My Next Meal"}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.secondaryBtn, styles.menuScanBtn]}
@@ -6197,7 +6200,7 @@ async function openCamera(mode = "meal") {
         {healthyNearbyTab === "decision" ? (
         <View style={[styles.card, styles.healthyNearbySectionCard]}>
           <Text style={styles.nearbySectionHeader}>Decision</Text>
-          <Text style={styles.nearbySectionSubtle}>Coach + lunch picks</Text>
+          <Text style={styles.nearbySectionSubtle}>Coach + next meal picks</Text>
           {menuScanBusy && !menuScanResult ? (
             <View style={{ marginTop: 10 }}>
               <ActivityIndicator />
@@ -6345,9 +6348,98 @@ async function openCamera(mode = "meal") {
           {lunchDecision && Array.isArray(lunchDecision.cards) && lunchDecision.cards.length ? (
             <View style={styles.lunchDecisionWrap}>
               <Text style={styles.cardTitle}>{String(lunchDecision.title || "What should I eat right now?")}</Text>
-              <Text style={styles.p}>{String(lunchDecision.subtitle || "Best lunch near you")}</Text>
+              <Text style={styles.p}>{String(lunchDecision.subtitle || "Best next meal near you")}</Text>
               {!!String(lunchDecision?.summary_line || "").trim() ? (
                 <Text style={styles.lunchSummaryLine}>{String(lunchDecision.summary_line).trim()}</Text>
+              ) : null}
+              {dailyDecision ? (
+                (() => {
+                  const primary =
+                    dailyDecision?.primary_recommendation && typeof dailyDecision.primary_recommendation === "object"
+                      ? dailyDecision.primary_recommendation
+                      : null;
+                  const secondary = Array.isArray(dailyDecision?.secondary_recommendations)
+                    ? dailyDecision.secondary_recommendations.filter((x) => x && typeof x === "object").slice(0, 2)
+                    : [];
+                  const mealWindow = String(dailyDecision?.meal_window || "").trim();
+                  const goalLabel = String(dailyDecision?.decision_context?.goal || "").trim();
+                  const remainingCal = Number.isFinite(num(dailyDecision?.decision_context?.remaining_calories))
+                    ? Math.round(num(dailyDecision.decision_context.remaining_calories))
+                    : null;
+                  const remainingProtein = Number.isFinite(num(dailyDecision?.decision_context?.remaining_protein_g))
+                    ? Math.round(num(dailyDecision.decision_context.remaining_protein_g))
+                    : null;
+
+                  return (
+                    <View style={styles.dayCoachCard}>
+                      <Text style={styles.healthyPanelSectionTitle}>What should I eat next?</Text>
+                      <Text style={styles.mapCoachHeadline}>
+                        {String(dailyDecision?.subtitle || "Best option for your day right now")}
+                      </Text>
+                      {!!mealWindow ? (
+                        <Text style={styles.dayCoachProgressSubtle}>
+                          Meal window: {mealWindow.charAt(0).toUpperCase() + mealWindow.slice(1)}
+                          {!!goalLabel ? ` • Goal: ${goalLabel.replace(/_/g, " ")}` : ""}
+                        </Text>
+                      ) : null}
+                      {(remainingCal !== null || remainingProtein !== null) ? (
+                        <Text style={styles.dayCoachProgressSubtle}>
+                          {remainingCal !== null ? `${remainingCal} kcal left` : ""}
+                          {remainingCal !== null && remainingProtein !== null ? " • " : ""}
+                          {remainingProtein !== null ? `${remainingProtein}g protein left` : ""}
+                        </Text>
+                      ) : null}
+
+                      {primary ? (
+                        <View style={styles.dayCoachSection}>
+                          <Text style={styles.dayCoachSectionTitle}>
+                            {String(primary?.headline || "Best next meal").trim()}
+                          </Text>
+                          <Text style={styles.tiny}>
+                            {String(primary?.place_name || "Nearby option")}
+                            {String(primary?.recommended_order || "").trim()
+                              ? ` — ${String(primary.recommended_order).trim()}`
+                              : ""}
+                          </Text>
+                          {(Number.isFinite(num(primary?.estimated_calories)) || Number.isFinite(num(primary?.estimated_protein_g))) ? (
+                            <Text style={styles.tiny}>
+                              {Number.isFinite(num(primary?.estimated_calories)) ? `${Math.round(num(primary.estimated_calories))} kcal` : ""}
+                              {Number.isFinite(num(primary?.estimated_calories)) && Number.isFinite(num(primary?.estimated_protein_g)) ? " • " : ""}
+                              {Number.isFinite(num(primary?.estimated_protein_g)) ? `${Math.round(num(primary.estimated_protein_g))}g protein` : ""}
+                            </Text>
+                          ) : null}
+                          {!!String(primary?.why_this_works || "").trim() ? (
+                            <Text style={styles.tiny}>{String(primary.why_this_works).trim()}</Text>
+                          ) : null}
+                        </View>
+                      ) : null}
+
+                      {secondary.map((row, idx) => (
+                        <View key={`daily-secondary-${idx}`} style={styles.dayCoachSection}>
+                          <Text style={styles.dayCoachSectionTitle}>
+                            {String(row?.headline || "Next option").trim()}
+                          </Text>
+                          <Text style={styles.tiny}>
+                            {String(row?.place_name || "Nearby option")}
+                            {String(row?.recommended_order || "").trim()
+                              ? ` — ${String(row.recommended_order).trim()}`
+                              : ""}
+                          </Text>
+                          {(Number.isFinite(num(row?.estimated_calories)) || Number.isFinite(num(row?.estimated_protein_g))) ? (
+                            <Text style={styles.tiny}>
+                              {Number.isFinite(num(row?.estimated_calories)) ? `${Math.round(num(row.estimated_calories))} kcal` : ""}
+                              {Number.isFinite(num(row?.estimated_calories)) && Number.isFinite(num(row?.estimated_protein_g)) ? " • " : ""}
+                              {Number.isFinite(num(row?.estimated_protein_g)) ? `${Math.round(num(row.estimated_protein_g))}g protein` : ""}
+                            </Text>
+                          ) : null}
+                          {!!String(row?.why_this_works || "").trim() ? (
+                            <Text style={styles.tiny}>{String(row.why_this_works).trim()}</Text>
+                          ) : null}
+                        </View>
+                      ))}
+                    </View>
+                  );
+                })()
               ) : null}
               {lunchDayCoach ? (
                 (() => {
@@ -6472,7 +6564,7 @@ async function openCamera(mode = "meal") {
                     style={[styles.lunchDecisionCard, idx === 0 ? styles.lunchDecisionCardTop : null]}
                   >
                     <Text style={styles.lunchDecisionLabel}>{String(card?.label || "")}</Text>
-                    <Text style={styles.itemName}>
+                    <Text style={styles.itemName} numberOfLines={2}>
                       {String(card?.place_name || "Nearby option")}
                       {distanceLabel ? " (" + distanceLabel + ")" : ""}
                     </Text>
@@ -6527,7 +6619,9 @@ async function openCamera(mode = "meal") {
                             void handleLunchDecisionCTA(card);
                           }}
                         >
-                          <Text style={styles.btnText}>{cta}</Text>
+                          <Text style={styles.btnText} numberOfLines={1}>
+                            {cta}
+                          </Text>
                         </TouchableOpacity>
                       ) : null}
                       <TouchableOpacity
@@ -6790,8 +6884,12 @@ async function openCamera(mode = "meal") {
                         <Text style={styles.lunchDecisionLabel}>{String(decisionCard.label).trim()}</Text>
                       ) : null}
                       <View style={styles.placeHeader}>
-                        <Text style={styles.itemName}>{String(place?.place_name || place?.name || "Nearby place")}</Text>
-                        <Text style={[styles.placeScore, { color: tone.color }]}>Score {Math.round(num(place?.health_score_100 || num(place?.health_score) * 10 || 0))}</Text>
+                        <Text style={[styles.itemName, styles.placeNameText]} numberOfLines={2}>
+                          {String(place?.place_name || place?.name || "Nearby place")}
+                        </Text>
+                        <Text style={[styles.placeScore, { color: tone.color }]} numberOfLines={1}>
+                          Score {Math.round(num(place?.health_score_100 || num(place?.health_score) * 10 || 0))}
+                        </Text>
                       </View>
                       {!!distanceLabel ? <Text style={styles.tiny}>{distanceLabel}</Text> : null}
 
@@ -6823,8 +6921,12 @@ async function openCamera(mode = "meal") {
                       <View style={styles.healthyPanelSection}>
                         <Text style={styles.healthyPanelSectionTitle}>Fits Today</Text>
                         <View style={styles.mapDecisionRow}>
-                          <Text style={[styles.mapDecisionBadge, decisionBadgeStyle]}>{decisionText}</Text>
-                          <Text style={styles.tiny}>{decisionLabel}</Text>
+                          <Text style={[styles.mapDecisionBadge, decisionBadgeStyle]} numberOfLines={1}>
+                            {decisionText}
+                          </Text>
+                          <Text style={[styles.tiny, styles.mapDecisionLabel]} numberOfLines={1}>
+                            {decisionLabel}
+                          </Text>
                         </View>
                         <Text style={styles.tiny} numberOfLines={2}>{decisionReason}</Text>
                         {badges.length ? (
@@ -6868,7 +6970,9 @@ async function openCamera(mode = "meal") {
                             void openPlaceInMaps(place);
                           }}
                         >
-                          <Text style={styles.btnText}>{selectedCta || "Navigate"}</Text>
+                          <Text style={styles.btnText} numberOfLines={1}>
+                            {selectedCta || "Navigate"}
+                          </Text>
                         </TouchableOpacity>
 
                         <TouchableOpacity
@@ -6919,10 +7023,14 @@ async function openCamera(mode = "meal") {
                 );
                 return (
                   <View key={healthyPlaceStableId(place, idx)} style={styles.placeCard}>
-                    <View style={styles.placeHeader}>
-                      <Text style={styles.itemName}>{String(place?.place_name || place?.name || "Unknown place")}</Text>
-                      <Text style={[styles.placeScore, { color: tone.color }]}>Score {Math.round(num(place?.health_score_100 || num(place?.health_score) * 10 || 0))}</Text>
-                    </View>
+                      <View style={styles.placeHeader}>
+                        <Text style={[styles.itemName, styles.placeNameText]} numberOfLines={2}>
+                          {String(place?.place_name || place?.name || "Unknown place")}
+                        </Text>
+                        <Text style={[styles.placeScore, { color: tone.color }]} numberOfLines={1}>
+                          Score {Math.round(num(place?.health_score_100 || num(place?.health_score) * 10 || 0))}
+                        </Text>
+                      </View>
                     {!!String(place?.address || "").trim() ? (
                       <Text style={styles.tiny}>{String(place.address)}</Text>
                     ) : null}
@@ -7503,53 +7611,53 @@ async function openCamera(mode = "meal") {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: "#000", paddingBottom: 24 },
-  container: { padding: 16, gap: 12, paddingBottom: 32 },
-  h1: { fontSize: 24, fontWeight: "800", color: "#fff" },
-  p: { fontSize: 14, color: "#cfcfcf", lineHeight: 20 },
-  tiny: { fontSize: 12, color: "#8c8c8c", lineHeight: 18 },
-  muted: { fontSize: 12, color: "#bdbdbd", lineHeight: 18 },
-  plan: { color: "#fff", fontWeight: "700" },
+  container: { padding: 18, gap: 14, paddingBottom: 36 },
+  h1: { fontSize: 26, fontWeight: "900", color: "#fff", lineHeight: 31, letterSpacing: 0.2 },
+  p: { fontSize: 14, color: "#cfd7e3", lineHeight: 21 },
+  tiny: { fontSize: 12, color: "#92a0b3", lineHeight: 17 },
+  muted: { fontSize: 12, color: "#aab4c4", lineHeight: 17 },
+  plan: { color: "#fff", fontWeight: "800" },
 
-  topRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  row: { flexDirection: "row", gap: 10, marginTop: 10 },
-  rowWrap: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginTop: 10 },
+  topRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 10 },
+  row: { flexDirection: "row", gap: 10, marginTop: 12 },
+  rowWrap: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginTop: 12 },
 
   card: {
     backgroundColor: "#0b0b0b",
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: "#1c1c1c",
-    padding: 14,
-  },
-  launcherCard: {
-    backgroundColor: "#05070d",
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: "#1b2b45",
+    borderColor: "#1f2430",
     padding: 16,
-    gap: 10,
   },
-  launcherTitle: { color: "#dbeafe", fontSize: 14, fontWeight: "700", letterSpacing: 0.3 },
-  launcherQuestion: { color: "#fff", fontSize: 28, fontWeight: "900", lineHeight: 34 },
-  launcherSubline: { color: "#9bb0cf", fontSize: 13, lineHeight: 18 },
-  launcherActions: { gap: 10, marginTop: 6 },
+  launcherCard: {
+    backgroundColor: "#050a13",
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: "#263d62",
+    padding: 18,
+    gap: 12,
+  },
+  launcherTitle: { color: "#dbeafe", fontSize: 13, fontWeight: "800", letterSpacing: 0.6, textTransform: "uppercase" },
+  launcherQuestion: { color: "#fff", fontSize: 30, fontWeight: "900", lineHeight: 36, letterSpacing: 0.2 },
+  launcherSubline: { color: "#9fb5d4", fontSize: 14, lineHeight: 20 },
+  launcherActions: { gap: 11, marginTop: 8 },
   launcherActionCard: {
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-    borderRadius: 14,
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: "#22344f",
-    backgroundColor: "#0c1526",
-    paddingVertical: 12,
-    paddingHorizontal: 12,
+    borderColor: "#294268",
+    backgroundColor: "#0c182c",
+    paddingVertical: 13,
+    paddingHorizontal: 14,
   },
-  launcherActionIcon: { fontSize: 22 },
-  launcherActionTitle: { color: "#fff", fontSize: 16, fontWeight: "800" },
-  launcherActionSubtitle: { color: "#9bb0cf", fontSize: 13, marginTop: 2, lineHeight: 17 },
-  launcherCoachLine: { color: "#c3d5ef", fontSize: 12, lineHeight: 18, marginTop: 2 },
-  cardTitle: { color: "#fff", fontWeight: "800", fontSize: 16 },
-  big: { color: "#fff", fontWeight: "800", fontSize: 18, marginTop: 6 },
+  launcherActionIcon: { fontSize: 21 },
+  launcherActionTitle: { color: "#fff", fontSize: 17, fontWeight: "800", lineHeight: 21 },
+  launcherActionSubtitle: { color: "#aac0de", fontSize: 13, marginTop: 2, lineHeight: 18 },
+  launcherCoachLine: { color: "#c6daf6", fontSize: 12, lineHeight: 18, marginTop: 3 },
+  cardTitle: { color: "#fff", fontWeight: "800", fontSize: 18, lineHeight: 23, letterSpacing: 0.2 },
+  big: { color: "#fff", fontWeight: "800", fontSize: 20, lineHeight: 25, marginTop: 7 },
 
   input: {
     backgroundColor: "#111",
@@ -7564,14 +7672,18 @@ const styles = StyleSheet.create({
 
   primaryBtn: {
     backgroundColor: "#2563eb",
-    paddingVertical: 12,
-    paddingHorizontal: 14,
+    borderWidth: 1,
+    borderColor: "#3a7dff",
+    paddingVertical: 13,
+    paddingHorizontal: 16,
     borderRadius: 14,
     alignItems: "center",
     flex: 1,
   },
   secondaryBtn: {
-    backgroundColor: "#151515",
+    backgroundColor: "#121721",
+    borderWidth: 1,
+    borderColor: "#2a3445",
     paddingVertical: 12,
     paddingHorizontal: 14,
     borderRadius: 14,
@@ -7585,7 +7697,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  btnText: { color: "#fff", fontWeight: "800" },
+  btnText: { color: "#fff", fontWeight: "800", fontSize: 14, letterSpacing: 0.2 },
   label: { color: "#d7d7d7", marginTop: 8, fontSize: 13, fontWeight: "700" },
 
   // NEW: Google button
@@ -7622,7 +7734,9 @@ const styles = StyleSheet.create({
   dividerText: { color: "#8c8c8c", fontSize: 12, fontWeight: "700" },
 
   smallBtn: {
-    backgroundColor: "#151515",
+    backgroundColor: "#121721",
+    borderWidth: 1,
+    borderColor: "#2a3445",
     paddingVertical: 8,
     paddingHorizontal: 12,
     borderRadius: 12,
@@ -7644,7 +7758,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#8a1d1d",
   },
-  smallBtnText: { color: "#fff", fontWeight: "700" },
+  smallBtnText: { color: "#fff", fontWeight: "700", fontSize: 12, lineHeight: 16 },
 
   preview: { width: "100%", height: 220, borderRadius: 16, marginTop: 10 },
   previewEmpty: {
@@ -7809,29 +7923,29 @@ const styles = StyleSheet.create({
     backgroundColor: "#3a2a0e",
   },
   healthyNearbyHeroCard: {
-    borderColor: "#25406a",
-    backgroundColor: "#081427",
-    padding: 16,
-    gap: 10,
+    borderColor: "#294d7b",
+    backgroundColor: "#081729",
+    padding: 18,
+    gap: 12,
   },
   nearbyPrimaryActions: {
-    marginTop: 8,
-    gap: 8,
+    marginTop: 10,
+    gap: 10,
   },
   nearbyPrimaryCta: {
     borderWidth: 1,
-    borderColor: "#1f8f4d",
-    backgroundColor: "#0f3a22",
+    borderColor: "#23a259",
+    backgroundColor: "#0f4126",
   },
   nearbySecondaryActions: {
-    marginTop: 8,
+    marginTop: 10,
     flexDirection: "row",
     flexWrap: "wrap",
     alignItems: "center",
-    gap: 8,
+    gap: 10,
   },
   nearbyTabsRow: {
-    marginTop: 8,
+    marginTop: 12,
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
@@ -7839,57 +7953,58 @@ const styles = StyleSheet.create({
   nearbyTabPill: {
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: "#2f4461",
+    borderColor: "#365174",
     backgroundColor: "#0c1a2e",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingHorizontal: 13,
+    paddingVertical: 7,
   },
   nearbyTabPillActive: {
-    borderColor: "#22c55e",
+    borderColor: "#25d16b",
     backgroundColor: "#0d2c1a",
   },
   nearbyTabText: {
     color: "#cbd5e1",
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: "700",
   },
   nearbyTabTextActive: {
     color: "#dcfce7",
   },
   healthyNearbySectionCard: {
-    padding: 11,
-    gap: 6,
+    padding: 14,
+    gap: 8,
   },
   nearbySectionHeader: {
     color: "#f8fafc",
-    fontSize: 15,
+    fontSize: 18,
     fontWeight: "800",
+    lineHeight: 22,
   },
   nearbySectionSubtle: {
-    color: "#94a3b8",
-    fontSize: 12,
-    lineHeight: 17,
+    color: "#9badc5",
+    fontSize: 13,
+    lineHeight: 18,
   },
   nearbyLowPriorityHint: {
-    color: "#7b879a",
+    color: "#78879d",
   },
   lunchDecisionWrap: {
     marginTop: 12,
-    gap: 10,
+    gap: 12,
   },
   lunchSummaryLine: {
     color: "#86efac",
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: "700",
   },
   dayCoachCard: {
-    marginTop: 6,
-    borderRadius: 12,
+    marginTop: 8,
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: "#1f8f4d",
     backgroundColor: "#0a1a13",
-    padding: 10,
-    gap: 4,
+    padding: 12,
+    gap: 6,
   },
   dayCoachProgressLine: {
     color: "#dcfce7",
@@ -7898,22 +8013,23 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   dayCoachProgressSubtle: {
-    color: "#9ca3af",
+    color: "#a8b3c2",
     fontSize: 11,
+    lineHeight: 16,
   },
   dayCoachSection: {
-    marginTop: 6,
-    paddingTop: 6,
+    marginTop: 8,
+    paddingTop: 8,
     borderTopWidth: 1,
     borderTopColor: "#1b2d24",
-    gap: 2,
+    gap: 4,
   },
   dayCoachSectionTitle: {
     color: "#bbf7d0",
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: "800",
     textTransform: "uppercase",
-    letterSpacing: 0.2,
+    letterSpacing: 0.6,
   },
   dayCoachScoreLabel: {
     color: "#86efac",
@@ -7923,23 +8039,23 @@ const styles = StyleSheet.create({
   },
   weeklyCoachCard: {
     marginTop: 10,
-    borderRadius: 12,
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: "#2563eb",
     backgroundColor: "#0a1629",
-    padding: 10,
-    gap: 4,
+    padding: 11,
+    gap: 5,
   },
   weeklyCoachCardCompact: {
     marginTop: 8,
-    borderColor: "#2b3d56",
-    backgroundColor: "#0b1220",
-    padding: 8,
+    borderColor: "#27364a",
+    backgroundColor: "#090f1b",
+    padding: 10,
   },
   weeklyCoachSectionCard: {
-    borderColor: "#1f2f45",
-    backgroundColor: "#080e17",
-    paddingTop: 12,
+    borderColor: "#1b2738",
+    backgroundColor: "#060b13",
+    paddingTop: 14,
   },
   weeklyCoachSectionTopRow: {
     flexDirection: "row",
@@ -7954,22 +8070,23 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   weeklyCoachMeta: {
-    color: "#8aa9cf",
+    color: "#7f98b8",
     fontSize: 10,
     fontWeight: "700",
   },
   weeklyCoachHeadline: {
-    color: "#dce8fb",
+    color: "#d4deed",
     fontSize: 13,
     fontWeight: "800",
+    lineHeight: 18,
   },
   weeklyCoachSupport: {
-    color: "#9fb2ca",
+    color: "#9aaec7",
     fontSize: 11,
     lineHeight: 16,
   },
   weeklyCoachSummaryLine: {
-    color: "#bfd3ee",
+    color: "#b8cbe4",
     fontSize: 11,
     fontWeight: "700",
     marginTop: 2,
@@ -7977,11 +8094,11 @@ const styles = StyleSheet.create({
   weeklyCoachPrimaryInsight: {
     marginTop: 6,
     borderWidth: 1,
-    borderColor: "#24364f",
+    borderColor: "#1f2e44",
     borderRadius: 10,
     paddingHorizontal: 8,
     paddingVertical: 7,
-    gap: 2,
+    gap: 3,
   },
   weeklyCoachInsightsWrap: {
     marginTop: 6,
@@ -8002,30 +8119,30 @@ const styles = StyleSheet.create({
   weeklyCoachInsightTitle: {
     color: "#e2e8f0",
     fontSize: 12,
-    fontWeight: "800",
+    fontWeight: "700",
   },
   weeklyCoachToggleBtn: {
     alignSelf: "flex-start",
     marginTop: 6,
     borderWidth: 1,
-    borderColor: "#30455f",
-    backgroundColor: "#101827",
+    borderColor: "#2b3a52",
+    backgroundColor: "#0f1522",
   },
   menuScanCard: {
     marginTop: 10,
-    borderRadius: 12,
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: "#a16207",
     backgroundColor: "#22180a",
-    padding: 10,
-    gap: 3,
+    padding: 12,
+    gap: 5,
   },
   lunchDecisionCard: {
-    borderRadius: 12,
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: "#22543d",
     backgroundColor: "#081711",
-    padding: 10,
+    padding: 12,
   },
   lunchDecisionCardTop: {
     borderColor: "#34d399",
@@ -8033,9 +8150,10 @@ const styles = StyleSheet.create({
   },
   lunchDecisionLabel: {
     color: "#d1fae5",
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "800",
-    marginBottom: 4,
+    marginBottom: 6,
+    letterSpacing: 0.4,
   },
   lunchFitGood: {
     color: "#86efac",
@@ -8049,14 +8167,17 @@ const styles = StyleSheet.create({
   },
   realitySavedText: {
     color: "#fde68a",
-    marginTop: 4,
+    marginTop: 5,
     fontWeight: "800",
+    fontSize: 12,
   },
   lunchBadgeRow: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 6,
-    marginTop: 6,
+    gap: 7,
+    marginTop: 7,
+    alignItems: "flex-start",
+    maxWidth: "100%",
   },
   lunchBadge: {
     borderRadius: 999,
@@ -8068,18 +8189,21 @@ const styles = StyleSheet.create({
   },
   lunchBadgeText: {
     color: "#d1fae5",
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: "700",
   },
   lunchCardCtaBtn: {
     alignSelf: "flex-start",
+    flexShrink: 1,
+    maxWidth: "100%",
   },
   lunchCardActionsRow: {
-    marginTop: 8,
+    marginTop: 10,
     flexDirection: "row",
     flexWrap: "wrap",
     alignItems: "center",
-    gap: 8,
+    gap: 10,
+    maxWidth: "100%",
   },
   lunchShareBtn: {
     borderWidth: 1,
@@ -8087,28 +8211,28 @@ const styles = StyleSheet.create({
     backgroundColor: "#0a2316",
   },
   healthyViewToggleRow: {
-    marginTop: 12,
+    marginTop: 14,
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 10,
   },
   healthyViewToggleActive: {
     borderColor: "#22c55e",
     backgroundColor: "#0d2c1a",
   },
   healthyFilterRow: {
-    marginTop: 8,
+    marginTop: 10,
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 8,
+    gap: 9,
   },
   healthyFilterChip: {
     borderRadius: 999,
     borderWidth: 1,
     borderColor: "#334155",
     backgroundColor: "#0f172a",
-    paddingHorizontal: 10,
-    paddingVertical: 5,
+    paddingHorizontal: 11,
+    paddingVertical: 6,
   },
   healthyFilterChipActive: {
     borderColor: "#22c55e",
@@ -8120,36 +8244,47 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   placeCard: {
-    marginTop: 10,
-    borderRadius: 12,
+    marginTop: 12,
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: "#1f2937",
     backgroundColor: "#0b1118",
-    padding: 10,
+    padding: 12,
   },
   placeHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
+    alignItems: "flex-start",
     gap: 8,
+    width: "100%",
+    flexWrap: "nowrap",
+  },
+  placeNameText: {
+    flex: 1,
+    minWidth: 0,
+    paddingRight: 8,
   },
   placeScore: {
     fontSize: 12,
     fontWeight: "800",
+    flexShrink: 0,
+    textAlign: "right",
+    minWidth: 64,
+    maxWidth: 110,
   },
   placeMapCard: {
-    marginTop: 10,
-    borderRadius: 12,
+    marginTop: 12,
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: "#1f2937",
     backgroundColor: "#0b1118",
-    padding: 9,
+    padding: 12,
   },
   placeMapCanvas: {
-    marginTop: 8,
+    marginTop: 10,
     width: "100%",
     height: 210,
-    borderRadius: 12,
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: "#334155",
     backgroundColor: "#07101a",
@@ -8194,43 +8329,45 @@ const styles = StyleSheet.create({
     borderRadius: 999,
   },
   healthySelectedCard: {
-    marginTop: 10,
-    borderRadius: 12,
+    marginTop: 12,
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: "#24533b",
-    backgroundColor: "#07140f",
-    padding: 9,
+    borderColor: "#2a6448",
+    backgroundColor: "#081a13",
+    padding: 12,
   },
   healthyCoachSection: {
-    marginTop: 6,
-    paddingTop: 6,
+    marginTop: 8,
+    paddingTop: 8,
     borderTopWidth: 1,
     borderTopColor: "#1b2d24",
-    gap: 2,
+    gap: 4,
   },
   healthyPanelSection: {
-    marginTop: 6,
-    paddingTop: 6,
+    marginTop: 8,
+    paddingTop: 8,
     borderTopWidth: 1,
     borderTopColor: "#1b2d24",
-    gap: 2,
+    gap: 4,
   },
   healthyPanelSectionTitle: {
-    color: "#bbf7d0",
-    fontSize: 11,
+    color: "#b4e8c8",
+    fontSize: 10,
     fontWeight: "800",
     textTransform: "uppercase",
-    letterSpacing: 0.2,
+    letterSpacing: 0.6,
   },
   healthyPanelItemName: {
     color: "#f8fafc",
-    fontSize: 13,
-    fontWeight: "700",
+    fontSize: 16,
+    fontWeight: "800",
+    lineHeight: 21,
   },
   mapCoachHeadline: {
     color: "#dcfce7",
-    fontSize: 12,
+    fontSize: 15,
     fontWeight: "800",
+    lineHeight: 20,
   },
   mapCoachSupport: {
     color: "#cbd5e1",
@@ -8239,20 +8376,25 @@ const styles = StyleSheet.create({
   },
   mapCoachSupportCompact: {
     color: "#b5c3d6",
-    fontSize: 11,
-    lineHeight: 15,
+    fontSize: 12,
+    lineHeight: 17,
   },
   mapDecisionRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-    marginTop: 2,
+    gap: 8,
+    marginTop: 3,
+    flexWrap: "wrap",
+  },
+  mapDecisionLabel: {
+    flexShrink: 1,
+    minWidth: 0,
   },
   mapDecisionBadge: {
     borderRadius: 999,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    fontSize: 11,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    fontSize: 10,
     fontWeight: "800",
     overflow: "hidden",
   },
@@ -8320,8 +8462,8 @@ const styles = StyleSheet.create({
   },
 
   itemRow: { marginTop: 8, paddingBottom: 8, borderBottomWidth: 1, borderBottomColor: "#161616" },
-  itemName: { color: "#fff", fontWeight: "800" },
-  itemMeta: { color: "#9c9c9c", marginTop: 2, fontSize: 12 },
+  itemName: { color: "#fff", fontWeight: "800", fontSize: 16, lineHeight: 21 },
+  itemMeta: { color: "#9aa4b5", marginTop: 3, fontSize: 12, lineHeight: 17 },
 
   lockedBox: {
     marginTop: 10,

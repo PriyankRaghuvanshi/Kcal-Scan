@@ -8,6 +8,11 @@ from coach_messages import build_place_coach_message
 
 
 HEALTHY_FOOD_MAP_VERSION = "v1"
+LOCAL_RANKING_VERSION = "v1"
+
+DISTANCE_TIER_1_MAX_M = 800
+DISTANCE_TIER_2_MAX_M = 1500
+DISTANCE_TIER_3_MAX_M = 3000
 
 
 def _safe_float(value: Any, default: float = 0.0) -> float:
@@ -79,6 +84,46 @@ def _map_pin_hex(score_band: str) -> str:
     return "#ef4444"
 
 
+def _distance_tier(distance_meters: int) -> str:
+    dm = int(max(0, _safe_int(distance_meters, 0)))
+    if dm <= DISTANCE_TIER_1_MAX_M:
+        return "tier_1"
+    if dm <= DISTANCE_TIER_2_MAX_M:
+        return "tier_2"
+    if dm <= DISTANCE_TIER_3_MAX_M:
+        return "tier_3"
+    return "tier_4"
+
+
+def _distance_tier_index(distance_tier: str) -> int:
+    token = str(distance_tier or "").strip().lower()
+    if token == "tier_1":
+        return 1
+    if token == "tier_2":
+        return 2
+    if token == "tier_3":
+        return 3
+    return 4
+
+
+def _distance_weight(distance_meters: int) -> float:
+    dm = float(max(0, _safe_int(distance_meters, 0)))
+    if dm <= DISTANCE_TIER_1_MAX_M:
+        # 0-800m strongly preferred for practical walkability.
+        return _clamp(1.0 - ((dm / float(DISTANCE_TIER_1_MAX_M)) * 0.18), 0.82, 1.0)
+    if dm <= DISTANCE_TIER_2_MAX_M:
+        # 800m-1.5km still practical but clearly less convenient.
+        ratio = (dm - DISTANCE_TIER_1_MAX_M) / float(DISTANCE_TIER_2_MAX_M - DISTANCE_TIER_1_MAX_M)
+        return _clamp(0.82 - (ratio * 0.23), 0.59, 0.82)
+    if dm <= DISTANCE_TIER_3_MAX_M:
+        # 1.5km-3km keep available but with meaningful penalty.
+        ratio = (dm - DISTANCE_TIER_2_MAX_M) / float(DISTANCE_TIER_3_MAX_M - DISTANCE_TIER_2_MAX_M)
+        return _clamp(0.59 - (ratio * 0.31), 0.28, 0.59)
+    # Beyond 3km stays eligible for clearly superior options only.
+    tail = min(1.0, (dm - DISTANCE_TIER_3_MAX_M) / 2000.0)
+    return _clamp(0.28 - (tail * 0.12), 0.16, 0.28)
+
+
 def _fit_for_today(payload: Dict[str, Any]) -> Optional[bool]:
     if isinstance(payload.get("fit_for_today"), bool):
         return bool(payload.get("fit_for_today"))
@@ -100,6 +145,154 @@ def _decision_token(payload: Dict[str, Any], fit_for_today: Optional[bool]) -> s
     if fit_for_today is False:
         return "NO"
     return "MAYBE"
+
+
+def _fit_for_today_score(payload: Dict[str, Any], fit_for_today: Optional[bool]) -> float:
+    token = _decision_token(payload, fit_for_today)
+    score = 56.0
+    if token == "YES":
+        score = 100.0
+    elif token == "NO":
+        score = 20.0
+
+    if payload.get("fits_remaining_calories") is False:
+        score -= 12.0
+    if payload.get("fits_remaining_protein") is False:
+        score -= 8.0
+    return _clamp(score, 0.0, 100.0)
+
+
+def _top_item_score(payload: Dict[str, Any]) -> float:
+    top = payload.get("top_menu_item") if isinstance(payload.get("top_menu_item"), dict) else {}
+    direct = _safe_float(top.get("item_score"), -1.0)
+    if direct >= 0.0:
+        return _clamp(direct, 0.0, 100.0)
+
+    menu_distribution = _safe_float(payload.get("menu_distribution_score"), -1.0)
+    if menu_distribution >= 0.0:
+        return _clamp(menu_distribution * 10.0, 0.0, 100.0)
+
+    return _clamp(_score_to_100(payload.get("health_score")), 0.0, 100.0)
+
+
+def _restaurant_health_score(payload: Dict[str, Any], goal: str) -> float:
+    has_goal = bool(str(goal or "").strip())
+    preferred = payload.get("personalized_health_score") if has_goal else None
+    if preferred is not None:
+        return _clamp(_score_to_100(preferred), 0.0, 100.0)
+    return _clamp(_score_to_100(payload.get("health_score")), 0.0, 100.0)
+
+
+def _goal_relevance_score(
+    payload: Dict[str, Any],
+    *,
+    goal: str,
+    cut_mode: bool,
+    restaurant_health_score: float,
+) -> float:
+    score = float(restaurant_health_score)
+    goal_token = str(goal or payload.get("personalization_goal") or "").strip().lower()
+
+    if payload.get("personalized_health_score") is not None:
+        score = _clamp(_score_to_100(payload.get("personalized_health_score")), 0.0, 100.0)
+
+    if cut_mode or "fat" in goal_token or "cut" in goal_token:
+        if bool(payload.get("cut_friendly")):
+            score += 7.0
+        elif str(payload.get("cut_warning") or "").strip():
+            score -= 6.0
+        if bool(payload.get("fat_loss_friendly")):
+            score += 5.0
+
+    return _clamp(score, 0.0, 100.0)
+
+
+def _local_relevance_score(
+    payload: Dict[str, Any],
+    *,
+    fit_for_today: Optional[bool],
+    distance_weight: float,
+) -> float:
+    top = payload.get("top_menu_item") if isinstance(payload.get("top_menu_item"), dict) else {}
+    menu_confidence = _clamp(
+        _safe_float(
+            top.get("menu_item_confidence"),
+            _safe_float(payload.get("menu_confidence"), 0.0),
+        ),
+        0.0,
+        1.0,
+    )
+
+    source = _normalize_menu_source(
+        top.get("menu_item_source")
+        or payload.get("menu_source")
+        or payload.get("menu_items_source")
+    )
+    order_type = str(top.get("order_type") or payload.get("order_type") or "").strip().lower()
+
+    source_bonus = 4.0 if source == "real_menu" else 2.0 if source == "llm_inferred" else 1.0
+    orderability_bonus = 8.0 if order_type == "exact" else 4.0 if order_type == "likely" else 1.0
+    fit_bonus = 8.0 if fit_for_today is True else 3.0 if fit_for_today is None else 0.0
+
+    local_score = (
+        (distance_weight * 55.0)
+        + (menu_confidence * 25.0)
+        + source_bonus
+        + orderability_bonus
+        + fit_bonus
+    )
+    return _clamp(local_score, 0.0, 100.0)
+
+
+def _local_ranking_components(
+    payload: Dict[str, Any],
+    *,
+    distance_meters: int,
+    fit_for_today: Optional[bool],
+    goal: str,
+    cut_mode: bool,
+) -> Dict[str, Any]:
+    distance_tier = _distance_tier(distance_meters)
+    distance_weight = _distance_weight(distance_meters)
+    restaurant_health = _restaurant_health_score(payload, goal)
+    top_item = _top_item_score(payload)
+    fit_score = _fit_for_today_score(payload, fit_for_today)
+    goal_relevance = _goal_relevance_score(
+        payload,
+        goal=goal,
+        cut_mode=bool(cut_mode or payload.get("cut_mode_active")),
+        restaurant_health_score=restaurant_health,
+    )
+    local_relevance = _local_relevance_score(
+        payload,
+        fit_for_today=fit_for_today,
+        distance_weight=distance_weight,
+    )
+
+    quality_score = (
+        (restaurant_health * 0.40)
+        + (top_item * 0.28)
+        + (fit_score * 0.18)
+        + (goal_relevance * 0.14)
+    )
+    local_rank = (
+        (quality_score * 0.62)
+        + (local_relevance * 0.23)
+        + ((distance_weight * 100.0) * 0.15)
+    )
+
+    return {
+        "distance_tier": distance_tier,
+        "distance_tier_index": _distance_tier_index(distance_tier),
+        "distance_weight": round(_clamp(distance_weight, 0.0, 1.0), 3),
+        "restaurant_health_score": round(_clamp(restaurant_health, 0.0, 100.0), 1),
+        "top_item_score": round(_clamp(top_item, 0.0, 100.0), 1),
+        "fit_for_today_score": round(_clamp(fit_score, 0.0, 100.0), 1),
+        "goal_relevance_score": round(_clamp(goal_relevance, 0.0, 100.0), 1),
+        "local_relevance_score": round(_clamp(local_relevance, 0.0, 100.0), 1),
+        "local_ranking_score": round(_clamp(local_rank, 0.0, 100.0), 1),
+        "local_ranking_version": LOCAL_RANKING_VERSION,
+    }
 
 
 def _build_badges(payload: Dict[str, Any], fit_for_today: Optional[bool]) -> List[str]:
@@ -136,7 +329,17 @@ def _build_badges(payload: Dict[str, Any], fit_for_today: Optional[bool]) -> Lis
 
 def _normalize_menu_source(source: Any) -> str:
     token = str(source or "").strip().lower()
-    if token in {"real_menu", "menu_intelligence_store", "structured_menu", "scraped_menu", "user_scan"}:
+    if token in {
+        "real_menu",
+        "menu_intelligence_store",
+        "structured_menu",
+        "scraped_menu",
+        "user_scan",
+        "website_menu",
+        "website_text",
+        "review_text",
+        "ocr_menu",
+    }:
         return "real_menu"
     if token in {"llm_inferred", "llm"}:
         return "llm_inferred"
@@ -214,6 +417,23 @@ def _build_top_menu_item(payload: Dict[str, Any], fallback_reason: str) -> Dict[
         "display_label": display_label,
         "menu_item_source": source,
         "menu_item_confidence": round(confidence, 2),
+        "order_type": str((top or {}).get("order_type") or ("exact" if source == "real_menu" and confidence >= 0.72 else "likely" if confidence >= 0.56 else "estimated")),
+        "swap_suggestion": str((top or {}).get("swap_suggestion") or payload.get("swap_suggestion") or payload.get("better_swap") or "Skip heavy sides and add a lighter side."),
+        "skip_items": (
+            (top or {}).get("skip_items")
+            if isinstance((top or {}).get("skip_items"), list)
+            else payload.get("skip_items")
+            if isinstance(payload.get("skip_items"), list)
+            else []
+        ),
+        "add_items": (
+            (top or {}).get("add_items")
+            if isinstance((top or {}).get("add_items"), list)
+            else payload.get("add_items")
+            if isinstance(payload.get("add_items"), list)
+            else []
+        ),
+        "order_confidence": round(confidence, 2),
         "copy_method": str((top or {}).get("copy_method") or "deterministic"),
         "copy_confidence": round(
             _clamp(_safe_float((top or {}).get("copy_confidence"), confidence), 0.2, 0.95),
@@ -300,11 +520,12 @@ def _build_reality_check(payload: Dict[str, Any], top_menu_item: Dict[str, Any])
 
 
 def _sort_key(payload: Dict[str, Any]) -> tuple:
-    rank = _safe_float(payload.get("map_rank"), 10_000.0)
-    score_primary = _safe_float(payload.get("personalized_health_score"), _safe_float(payload.get("health_score"), 0.0))
-    fit = 1 if _fit_for_today(payload) is True else 0
+    local_rank = _safe_float(payload.get("local_ranking_score"), 0.0)
+    tier_idx = int(_safe_int(payload.get("distance_tier_index"), 4))
     distance = _safe_float(payload.get("distance_meters"), 10_000_000.0)
-    return (rank, -fit, -score_primary, distance)
+    fit_score = _safe_float(payload.get("fit_for_today_score"), 0.0)
+    health = _safe_float(payload.get("restaurant_health_score"), _safe_float(payload.get("health_score"), 0.0))
+    return (-local_rank, tier_idx, distance, -fit_score, -health)
 
 
 def enrich_places_for_healthy_map(
@@ -321,10 +542,8 @@ def enrich_places_for_healthy_map(
     if not src:
         return []
 
-    src.sort(key=_sort_key)
-
     out: List[Dict[str, Any]] = []
-    for idx, row in enumerate(src, start=1):
+    for row in src:
         score_value = row.get("personalized_health_score") if row.get("personalized_health_score") is not None else row.get("health_score")
         score_100 = _score_to_100(score_value)
         band = _score_band(score_100)
@@ -335,7 +554,8 @@ def enrich_places_for_healthy_map(
         distance_m = _haversine_meters(origin_lat, origin_lng, lat, lng)
         if distance_m is None:
             existing = _safe_float(row.get("distance_meters"), -1)
-            distance_m = int(existing) if existing >= 0 else 0
+            # Unknown coordinates should not get an accidental "closest place" boost.
+            distance_m = int(existing) if existing >= 0 else 3500
 
         place_name = str(row.get("place_name") or row.get("name") or "Nearby place").strip() or "Nearby place"
         place_id = str(row.get("place_id") or row.get("id") or "").strip()
@@ -368,6 +588,14 @@ def enrich_places_for_healthy_map(
             },
         )
 
+        ranking = _local_ranking_components(
+            row,
+            distance_meters=int(max(0, distance_m)),
+            fit_for_today=fit,
+            goal=str(goal or row.get("personalization_goal") or "").strip(),
+            cut_mode=bool(cut_mode or row.get("cut_mode_active")),
+        )
+
         enriched = dict(row)
         enriched.update(
             {
@@ -378,14 +606,15 @@ def enrich_places_for_healthy_map(
                 "score_band": band,
                 "map_pin_color": _map_pin_color(band),
                 "map_pin_hex": _map_pin_hex(band),
-                "map_rank": int(idx),
-                "map_priority": int(max(1, 100 - idx)),
+                "map_rank": int(_safe_int(row.get("map_rank"), 0)),
+                "map_priority": int(_safe_int(row.get("map_priority"), 1)),
                 "map_label": f"{place_name} • {int(score_100)}",
                 "fit_for_today": fit,
                 "decision_today": today_fit["decision"],
                 "badges": _build_badges(row, fit),
                 "why_this_works": why,
                 "cta_label": cta_label,
+                **ranking,
                 # Compact map intelligence blocks for selected-pin panel rendering.
                 "top_menu_item": top_menu_item,
                 "today_fit": today_fit,
@@ -400,6 +629,11 @@ def enrich_places_for_healthy_map(
             }
         )
         out.append(enriched)
+
+    out.sort(key=_sort_key)
+    for idx, row in enumerate(out, start=1):
+        row["map_rank"] = int(idx)
+        row["map_priority"] = int(max(1, 100 - idx))
 
     return out
 

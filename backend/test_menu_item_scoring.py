@@ -1,7 +1,11 @@
 import unittest
 from unittest.mock import patch
 
-from menu_item_scoring import recommend_menu_items_for_place, rank_menu_items_for_place
+from menu_item_scoring import (
+    recommend_menu_items_for_place,
+    rank_menu_items_for_place,
+    score_menu_item,
+)
 from nutrition_mode import NutritionMode
 
 
@@ -100,6 +104,32 @@ class MenuItemScoringTests(unittest.TestCase):
         self.assertLessEqual(float(top["confidence"]), 1.0)
         self.assertLessEqual(len(str(top["short_reason"])), 90)
 
+    def test_menu_item_breakdown_includes_new_penalty_dimensions(self):
+        place = {"name": "Fried Dessert Combo Spot", "types": ["restaurant", "fast_food"]}
+        ranked = rank_menu_items_for_place(
+            place,
+            [
+                {"item_name": "Crispy fried combo + shake", "estimated_calories": 980, "estimated_protein_g": 20},
+                {"item_name": "Grilled chicken salad", "estimated_calories": 470, "estimated_protein_g": 38},
+            ],
+            mode=NutritionMode.CUT,
+        )
+        self.assertGreaterEqual(len(ranked), 2)
+        heavy = [x for x in ranked if "fried combo" in str(x.get("raw_item_name") or "").lower()][0]
+        light = [x for x in ranked if "grilled chicken salad" in str(x.get("raw_item_name") or "").lower()][0]
+        breakdown = heavy.get("item_score_breakdown") or {}
+        self.assertIn("protein_density_score", breakdown)
+        self.assertIn("calorie_control_score", breakdown)
+        self.assertIn("fiber_satiety_score", breakdown)
+        self.assertIn("fat_loss_score", breakdown)
+        self.assertIn("processing_penalty", breakdown)
+        self.assertIn("fried_penalty", breakdown)
+        self.assertIn("sugar_penalty", breakdown)
+        self.assertGreater(int(breakdown.get("processing_penalty", 0)), 0)
+        self.assertGreater(int(breakdown.get("fried_penalty", 0)), 0)
+        self.assertGreater(int(breakdown.get("sugar_penalty", 0)), 0)
+        self.assertGreater(int(light.get("item_score", 0)), int(heavy.get("item_score", 0)))
+
     def test_rankings_differ_under_cut_mode(self):
         place = {"name": "Urban Fast Food Hub", "types": ["restaurant", "fast_food"]}
         menu_items = [
@@ -129,8 +159,8 @@ class MenuItemScoringTests(unittest.TestCase):
         self.assertGreaterEqual(len(default_ranked), 1)
         self.assertGreaterEqual(len(cut_ranked), 1)
         self.assertNotEqual(
-            [item["item_name"] for item in default_ranked],
-            [item["item_name"] for item in cut_ranked],
+            [item["item_score"] for item in default_ranked],
+            [item["item_score"] for item in cut_ranked],
         )
         self.assertTrue(cut_ranked[0].get("cut_mode_active"))
 
@@ -213,6 +243,110 @@ class MenuItemScoringTests(unittest.TestCase):
         self.assertTrue(str(top.get("item_name") or "").strip())
         self.assertNotIn("grilled protein bowl", str(top.get("item_name") or "").lower())
         self.assertIn(top.get("display_label"), {"Estimated Best Fit", "Needs Menu Check", "Suggested Lighter Option"})
+        self.assertEqual(top.get("order_type"), "estimated")
+        self.assertNotEqual(top.get("order_type"), "exact")
+        self.assertTrue(str(top.get("swap_suggestion") or "").strip())
+        self.assertIsInstance(top.get("skip_items"), list)
+        self.assertIsInstance(top.get("add_items"), list)
+
+    def test_high_confidence_real_menu_item_uses_exact_order_type(self):
+        scored = score_menu_item(
+            {
+                "item_name": "6\" Chicken Breast Sub, extra salad, no mayo",
+                "estimated_calories": 430,
+                "estimated_protein_g": 34,
+                "menu_source": "website_menu",
+                "menu_confidence": 0.92,
+                "confidence": 0.92,
+            },
+            context={
+                "place_text": "subway sandwich",
+                "cuisine_hint": "sandwich",
+                "menu_source": "website_menu",
+            },
+        )
+        self.assertEqual(scored.get("order_type"), "exact")
+        self.assertEqual(
+            scored.get("item_name"),
+            "6\" Chicken Breast Sub, extra salad, no mayo",
+        )
+        self.assertTrue(str(scored.get("swap_suggestion") or "").strip())
+
+    def test_medium_confidence_llm_inferred_item_uses_likely_order_type(self):
+        scored = score_menu_item(
+            {
+                "item_name": "Tandoori chicken-style plate with lighter sides",
+                "estimated_calories": 560,
+                "estimated_protein_g": 36,
+                "menu_source": "llm_inferred",
+                "menu_confidence": 0.62,
+                "confidence": 0.62,
+            },
+            context={
+                "place_text": "indian restaurant",
+                "cuisine_hint": "indian",
+                "menu_source": "llm_inferred",
+            },
+        )
+        self.assertEqual(scored.get("order_type"), "likely")
+        self.assertIn(
+            scored.get("display_label"),
+            {"Likely Better Choice", "Suggested Lighter Option"},
+        )
+
+    def test_real_menu_ingestion_is_prioritized_when_available(self):
+        place = {
+            "place_id": "real-menu-1",
+            "name": "Temple Canteen",
+            "types": ["restaurant", "canteen"],
+        }
+        ingested = {
+            "ingested": True,
+            "menu_items": [
+                {
+                    "item_name": "Idli + sambar",
+                    "confidence": 0.82,
+                    "menu_confidence": 0.82,
+                    "source": "website_menu",
+                    "menu_source": "website_menu",
+                    "source_url": "https://example.org/menu",
+                    "extraction_method": "menu_link_fetch",
+                    "parse_method": "deterministic",
+                    "raw_text_snippet": "Idli + sambar",
+                },
+                {
+                    "item_name": "Plain dosa",
+                    "confidence": 0.76,
+                    "menu_confidence": 0.76,
+                    "source": "website_menu",
+                    "menu_source": "website_menu",
+                    "source_url": "https://example.org/menu",
+                    "extraction_method": "menu_link_fetch",
+                    "parse_method": "deterministic",
+                    "raw_text_snippet": "Plain dosa",
+                },
+            ],
+            "menu_source": "website_menu",
+            "menu_confidence": 0.79,
+            "extraction_method": "menu_link_fetch",
+            "parse_method": "deterministic",
+            "source_url": "https://example.org/menu",
+            "menu_ingestion_version": "v1",
+        }
+
+        with patch("menu_item_scoring.ingest_real_menu_for_place", return_value=ingested):
+            out = recommend_menu_items_for_place(place)
+
+        self.assertEqual(out["menu_items_source"], "website_menu")
+        self.assertEqual(out["menu_source"], "website_menu")
+        self.assertEqual(out["source_url"], "https://example.org/menu")
+        self.assertTrue(str(out.get("top_item") or "").strip())
+        self.assertNotIn("grilled protein bowl", str(out.get("top_item") or "").lower())
+        top = out["top_menu_item"]
+        self.assertEqual(top.get("order_type"), "exact")
+        self.assertTrue(str(top.get("swap_suggestion") or "").strip())
+        self.assertIsInstance(top.get("skip_items"), list)
+        self.assertIsInstance(top.get("add_items"), list)
 
 
 if __name__ == "__main__":

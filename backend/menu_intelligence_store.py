@@ -14,11 +14,21 @@ SOURCE_SCRAPED_MENU = "scraped_menu"
 SOURCE_HEURISTIC = "heuristic_generation"
 SOURCE_USER_SCAN = "user_scan"
 SOURCE_LLM_INFERRED = "llm_inferred"
+SOURCE_WEBSITE_MENU = "website_menu"
+SOURCE_WEBSITE_TEXT = "website_text"
+SOURCE_REVIEW_TEXT = "review_text"
+SOURCE_OCR_MENU = "ocr_menu"
 
 _SOURCE_ALIASES = {
     "scraped_menu": SOURCE_SCRAPED_MENU,
     "scraped": SOURCE_SCRAPED_MENU,
     "menu_scrape": SOURCE_SCRAPED_MENU,
+    "website_menu": SOURCE_WEBSITE_MENU,
+    "website_text": SOURCE_WEBSITE_TEXT,
+    "review_text": SOURCE_REVIEW_TEXT,
+    "review": SOURCE_REVIEW_TEXT,
+    "ocr_menu": SOURCE_OCR_MENU,
+    "ocr_text": SOURCE_OCR_MENU,
     "heuristic": SOURCE_HEURISTIC,
     "heuristic_generation": SOURCE_HEURISTIC,
     "generated": SOURCE_HEURISTIC,
@@ -31,6 +41,10 @@ _SOURCE_ALIASES = {
 
 _SOURCE_CONFIDENCE_DEFAULT = {
     SOURCE_SCRAPED_MENU: 0.72,
+    SOURCE_WEBSITE_MENU: 0.88,
+    SOURCE_WEBSITE_TEXT: 0.74,
+    SOURCE_REVIEW_TEXT: 0.6,
+    SOURCE_OCR_MENU: 0.64,
     SOURCE_HEURISTIC: 0.48,
     SOURCE_LLM_INFERRED: 0.6,
     SOURCE_USER_SCAN: 0.82,
@@ -40,6 +54,10 @@ _SOURCE_PRIORITY = {
     SOURCE_HEURISTIC: 1,
     SOURCE_LLM_INFERRED: 2,
     SOURCE_SCRAPED_MENU: 2,
+    SOURCE_REVIEW_TEXT: 2,
+    SOURCE_OCR_MENU: 2,
+    SOURCE_WEBSITE_TEXT: 3,
+    SOURCE_WEBSITE_MENU: 4,
     SOURCE_USER_SCAN: 3,
 }
 
@@ -100,6 +118,7 @@ def _normalize_item(item: Dict[str, Any], source: str) -> Dict[str, Any] | None:
     if not item_name:
         return None
 
+    item_source = _normalize_source(payload.get("source") or payload.get("menu_source") or source)
     estimated_macros = payload.get("estimated_macros") if isinstance(payload.get("estimated_macros"), dict) else {}
 
     calories = int(
@@ -134,9 +153,9 @@ def _normalize_item(item: Dict[str, Any], source: str) -> Dict[str, Any] | None:
     confidence = float(
         _safe_float(
             payload.get("confidence"),
-            _SOURCE_CONFIDENCE_DEFAULT.get(source, 0.5),
+            _SOURCE_CONFIDENCE_DEFAULT.get(item_source, _SOURCE_CONFIDENCE_DEFAULT.get(source, 0.5)),
         )
-        or _SOURCE_CONFIDENCE_DEFAULT.get(source, 0.5)
+        or _SOURCE_CONFIDENCE_DEFAULT.get(item_source, _SOURCE_CONFIDENCE_DEFAULT.get(source, 0.5))
     )
     confidence = max(0.1, min(0.99, confidence))
 
@@ -154,7 +173,19 @@ def _normalize_item(item: Dict[str, Any], source: str) -> Dict[str, Any] | None:
             "fat_g": fat,
         },
         "confidence": round(confidence, 2),
-        "source": source,
+        "source": item_source,
+        "menu_source": item_source,
+        "menu_confidence": round(confidence, 2),
+        "source_url": str(payload.get("source_url") or "").strip(),
+        "extraction_method": str(payload.get("extraction_method") or "").strip(),
+        "parse_method": str(payload.get("parse_method") or "").strip(),
+        "parsed_via": str(payload.get("parsed_via") or "").strip(),
+        "raw_text_snippet": str(payload.get("raw_text_snippet") or "").strip()[:180],
+        "category": str(payload.get("category") or "").strip(),
+        "likely_protein": str(payload.get("likely_protein") or "").strip(),
+        "likely_carbs": payload.get("likely_carbs") if isinstance(payload.get("likely_carbs"), list) else [],
+        "likely_fats": payload.get("likely_fats") if isinstance(payload.get("likely_fats"), list) else [],
+        "health_signals": payload.get("health_signals") if isinstance(payload.get("health_signals"), list) else [],
         "last_updated": _now_iso(),
     }
 

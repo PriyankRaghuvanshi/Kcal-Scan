@@ -214,7 +214,10 @@ def _place_profile(
     protein_density = _clamp((estimated_protein_g / max(1.0, float(estimated_calories))) * 1400.0, 20.0, 100.0)
     decision_multiplier = {"YES": 1.0, "MAYBE": 0.66, "NO": 0.26}.get(decision_today, 0.62)
     order_confidence = float(
-        _safe_float(top_item.get("confidence"), _safe_float(order.get("order_confidence"), 0.52))
+        _safe_float(
+            top_item.get("order_confidence"),
+            _safe_float(top_item.get("confidence"), _safe_float(order.get("order_confidence"), 0.52)),
+        )
         or 0.52
     )
     menu_item_source = str(top_item.get("menu_item_source") or "heuristic").strip().lower() or "heuristic"
@@ -267,6 +270,34 @@ def _place_profile(
         or order.get("best_order_for_cut")
         or order.get("best_order")
         or "Lighter menu option"
+    )
+    order_type = str(top_item.get("order_type") or order.get("order_type") or "").strip().lower()
+    if order_type not in {"exact", "likely", "estimated"}:
+        if menu_item_source == "real_menu" and menu_item_confidence >= 0.72:
+            order_type = "exact"
+        elif menu_item_confidence >= 0.56:
+            order_type = "likely"
+        else:
+            order_type = "estimated"
+    swap_suggestion = str(
+        top_item.get("swap_suggestion")
+        or order.get("swap_suggestion")
+        or order.get("better_swap")
+        or "Skip heavy sides and add a lighter side."
+    )
+    skip_items = (
+        top_item.get("skip_items")
+        if isinstance(top_item.get("skip_items"), list)
+        else order.get("skip_items")
+        if isinstance(order.get("skip_items"), list)
+        else []
+    )
+    add_items = (
+        top_item.get("add_items")
+        if isinstance(top_item.get("add_items"), list)
+        else order.get("add_items")
+        if isinstance(order.get("add_items"), list)
+        else []
     )
     recommended_order_label = str(top_item.get("display_label") or "").strip() or "Estimated Best Fit"
 
@@ -325,6 +356,10 @@ def _place_profile(
         "health_score_10pt": round(health_score_10pt, 1),
         "recommended_order": recommended_order,
         "recommended_order_label": recommended_order_label,
+        "order_type": order_type,
+        "swap_suggestion": swap_suggestion,
+        "skip_items": skip_items if isinstance(skip_items, list) else [],
+        "add_items": add_items if isinstance(add_items, list) else [],
         "estimated_calories": int(max(0, estimated_calories)),
         "estimated_protein_g": int(max(0, estimated_protein_g)),
         "short_reason": short_reason,

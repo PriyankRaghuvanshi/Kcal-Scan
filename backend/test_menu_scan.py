@@ -41,8 +41,17 @@ class MenuScanTests(unittest.TestCase):
 
         self.assertEqual(out.get("title"), "Best Choice Here")
         self.assertTrue(len(out.get("top_recommendations") or []) >= 1)
+        self.assertTrue(len(out.get("top_choices") or []) >= 1)
+        self.assertIsInstance(out.get("best_high_protein_choice"), dict)
+        top_choice = (out.get("top_choices") or [{}])[0]
+        self.assertIn("item_name", top_choice)
+        self.assertIn("estimated_calories", top_choice)
+        self.assertIn("estimated_protein_g", top_choice)
+        self.assertIn("why", top_choice)
         self.assertIsInstance(out.get("better_swap"), (dict, type(None)))
         self.assertIsInstance(out.get("avoid_if_cutting"), dict)
+        self.assertIsInstance(out.get("avoid_if_cutting_items"), list)
+        self.assertIsInstance(out.get("smart_swaps"), list)
         avoid_name = str((out.get("avoid_if_cutting") or {}).get("item_name") or "").lower()
         self.assertTrue("nachos" in avoid_name or "burger" in avoid_name)
 
@@ -56,6 +65,10 @@ class MenuScanTests(unittest.TestCase):
         out = build_menu_scan_response(raw_menu_text=raw, ocr_confidence=0.32)
         self.assertIn("clearer photo", str(out.get("title") or "").lower())
         self.assertEqual(len(out.get("top_recommendations") or []), 0)
+        self.assertEqual(len(out.get("top_choices") or []), 0)
+        self.assertIsNone(out.get("best_high_protein_choice"))
+        self.assertEqual(len(out.get("smart_swaps") or []), 0)
+        self.assertEqual(len(out.get("avoid_if_cutting_items") or []), 0)
         self.assertLessEqual(float(out.get("scan_confidence") or 0.0), 0.5)
 
     def test_daily_context_fit_enrichment(self):
@@ -91,6 +104,30 @@ class MenuScanTests(unittest.TestCase):
         top = (out.get("top_recommendations") or [{}])[0]
         self.assertIsNone(top.get("fit_for_today"))
         self.assertIn("coach_message", out)
+
+    def test_best_high_protein_choice_prefers_higher_protein_item(self):
+        raw = """
+        Chicken tikka
+        Grilled paneer salad
+        Loaded fries
+        """
+        out = build_menu_scan_response(
+            raw_menu_text=raw,
+            ocr_confidence=0.78,
+            restaurant_name="Indian Grill",
+            cuisine="indian",
+            goal="fat_loss",
+            cut_mode=True,
+        )
+        best_hp = out.get("best_high_protein_choice") or {}
+        top_protein = max(
+            int(float((item or {}).get("estimated_protein_g") or 0))
+            for item in (out.get("top_recommendations") or [{}])
+        )
+        self.assertEqual(
+            int(float(best_hp.get("estimated_protein_g") or 0)),
+            top_protein,
+        )
 
     def test_parse_metadata_fields_are_present(self):
         raw = """

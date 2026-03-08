@@ -322,6 +322,102 @@ def _scan_confidence(
     return round(_clamp(val, 0.25, 0.95), 2)
 
 
+def _mobile_why(item: Dict[str, Any], rank: int) -> str:
+    protein = int(_safe_float(item.get("estimated_protein_g"), 0.0) or 0)
+    calories = int(_safe_float(item.get("estimated_calories"), 0.0) or 0)
+    text = str(item.get("short_reason") or "").strip()
+
+    if rank == 1 and protein >= 35 and calories <= 620:
+        return "Best protein-to-calorie choice on this menu."
+    if protein >= 35:
+        return "High protein with manageable calories."
+    if calories <= 560:
+        return "Lighter calories and easier to fit today."
+    if text:
+        return text[:96]
+    return "Balanced lighter option for this menu."
+
+
+def _top_choices_payload(top_recommendations: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    out: List[Dict[str, Any]] = []
+    for idx, row in enumerate(top_recommendations[:3], start=1):
+        if not isinstance(row, dict):
+            continue
+        item_name = str(row.get("item_name") or "").strip()
+        if not item_name:
+            continue
+        out.append(
+            {
+                "item_name": item_name,
+                "estimated_calories": int(_safe_float(row.get("estimated_calories"), 0.0) or 0),
+                "estimated_protein_g": int(_safe_float(row.get("estimated_protein_g"), 0.0) or 0),
+                "why": _mobile_why(row, idx),
+            }
+        )
+    return out
+
+
+def _best_high_protein_choice(top_recommendations: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    candidates = [row for row in (top_recommendations or []) if isinstance(row, dict) and str(row.get("item_name") or "").strip()]
+    if not candidates:
+        return None
+    candidates.sort(
+        key=lambda row: (
+            int(_safe_float(row.get("estimated_protein_g"), 0.0) or 0),
+            -int(_safe_float(row.get("estimated_calories"), 9999.0) or 9999),
+            int(_safe_float(row.get("item_score"), 0.0) or 0),
+        ),
+        reverse=True,
+    )
+    best = candidates[0]
+    return {
+        "item_name": str(best.get("item_name") or "").strip(),
+        "estimated_calories": int(_safe_float(best.get("estimated_calories"), 0.0) or 0),
+        "estimated_protein_g": int(_safe_float(best.get("estimated_protein_g"), 0.0) or 0),
+        "why": "Highest protein option with practical calories.",
+    }
+
+
+def _smart_swaps(
+    *,
+    top_recommendations: List[Dict[str, Any]],
+    better_swap: Optional[Dict[str, Any]],
+    avoid_if_cutting: Optional[Dict[str, Any]],
+) -> List[str]:
+    out: List[str] = []
+
+    avoid_name = str((avoid_if_cutting or {}).get("item_name") or "").strip()
+    if better_swap and isinstance(better_swap, dict):
+        swap_name = str(better_swap.get("item_name") or "").strip()
+        if swap_name and avoid_name:
+            out.append(f"Choose {swap_name} instead of {avoid_name}")
+        elif swap_name:
+            out.append(f"Choose {swap_name} as a lighter swap")
+        else:
+            swap_reason = str(better_swap.get("short_reason") or "").strip()
+            if swap_reason:
+                out.append(swap_reason)
+
+    for row in top_recommendations[:3]:
+        if not isinstance(row, dict):
+            continue
+        swap_hint = str(row.get("swap_suggestion") or "").strip()
+        if swap_hint:
+            out.append(swap_hint)
+
+    deduped: List[str] = []
+    seen = set()
+    for row in out:
+        key = _normalized_token(row)
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        deduped.append(row[:110])
+        if len(deduped) >= 3:
+            break
+    return deduped
+
+
 def build_menu_scan_response(
     *,
     raw_menu_text: str = "",
@@ -369,8 +465,12 @@ def build_menu_scan_response(
             "parsed_menu_items": parsed[:8],
             "parsed_menu_items_structured": structured_parsed[:8],
             "top_recommendations": [],
+            "top_choices": [],
+            "best_high_protein_choice": None,
             "better_swap": None,
             "avoid_if_cutting": None,
+            "avoid_if_cutting_items": [],
+            "smart_swaps": [],
             "coach_message": {
                 "headline": "Try a straighter photo with better lighting.",
                 "supporting_text": "Include item names clearly and avoid glare.",
@@ -411,8 +511,12 @@ def build_menu_scan_response(
             "parsed_menu_items": parsed[:8],
             "parsed_menu_items_structured": structured_parsed[:8],
             "top_recommendations": [],
+            "top_choices": [],
+            "best_high_protein_choice": None,
             "better_swap": None,
             "avoid_if_cutting": None,
+            "avoid_if_cutting_items": [],
+            "smart_swaps": [],
             "coach_message": {
                 "headline": "Try another scan in brighter light.",
                 "supporting_text": "A clearer image helps us rank menu items accurately.",
@@ -440,6 +544,22 @@ def build_menu_scan_response(
         }
         if isinstance(avoid_src, dict)
         else None
+    )
+    top_choices = _top_choices_payload(enriched_top)
+    best_high_protein = _best_high_protein_choice(enriched_top)
+    smart_swaps = _smart_swaps(
+        top_recommendations=enriched_top,
+        better_swap=(
+            {
+                "item_name": str(better.get("item_name") or ""),
+                "estimated_calories": int(_safe_float(better.get("estimated_calories"), 0.0) or 0),
+                "estimated_protein_g": int(_safe_float(better.get("estimated_protein_g"), 0.0) or 0),
+                "short_reason": str(better.get("short_reason") or "A solid lighter swap if calories are tight."),
+            }
+            if isinstance(better, dict)
+            else None
+        ),
+        avoid_if_cutting=avoid,
     )
 
     reality_place = dict(place)
@@ -502,6 +622,8 @@ def build_menu_scan_response(
         "parsed_menu_items": parsed[:18],
         "parsed_menu_items_structured": structured_parsed[:18],
         "top_recommendations": enriched_top,
+        "top_choices": top_choices,
+        "best_high_protein_choice": best_high_protein,
         "better_swap": (
             {
                 "item_name": str(better.get("item_name") or ""),
@@ -513,6 +635,8 @@ def build_menu_scan_response(
             else None
         ),
         "avoid_if_cutting": avoid,
+        "avoid_if_cutting_items": [str(avoid.get("item_name") or "").strip()] if isinstance(avoid, dict) and str(avoid.get("item_name") or "").strip() else [],
+        "smart_swaps": smart_swaps,
         "coach_message": coach_message,
         "reality_check": reality_check,
         "parse_method": parse_method,

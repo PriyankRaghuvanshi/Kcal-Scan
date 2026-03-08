@@ -20,10 +20,15 @@ from llm_menu_parser import infer_place_menu_items_with_optional_llm
 from menu_intelligence_store import (
     SOURCE_HEURISTIC,
     SOURCE_LLM_INFERRED,
+    SOURCE_OCR_MENU,
+    SOURCE_REVIEW_TEXT,
     SOURCE_SCRAPED_MENU,
+    SOURCE_WEBSITE_MENU,
+    SOURCE_WEBSITE_TEXT,
     get_menu_items_by_place_id,
     ingest_menu_intelligence,
 )
+from menu_ingestion import ingest_real_menu_for_place
 from recommendation_feedback_store import get_place_item_feedback_signal
 
 
@@ -141,6 +146,75 @@ FALLBACK_ITEMS: List[Dict[str, Any]] = [
     {"item_name": "Lower-fried option with water", "estimated_calories": 540, "estimated_protein_g": 26},
 ]
 
+# Centralized menu-item penalty weights by mode. These are additive penalties subtracted
+# from the base nutrition score so high-protein, lower-calorie meals dominate ranking.
+MENU_ITEM_PENALTY_WEIGHTS_BY_MODE: Dict[NutritionMode, Dict[str, float]] = {
+    NutritionMode.DEFAULT: {
+        "processing_penalty": 0.10,
+        "fried_penalty": 0.07,
+        "sugar_penalty": 0.05,
+    },
+    NutritionMode.CUT: {
+        "processing_penalty": 0.13,
+        "fried_penalty": 0.10,
+        "sugar_penalty": 0.08,
+    },
+}
+
+_FIBER_SATIETY_POSITIVE_TOKENS = (
+    "salad",
+    "vegetable",
+    "veggie",
+    "lentil",
+    "dal",
+    "bean",
+    "chickpea",
+    "brown rice",
+    "quinoa",
+    "wholegrain",
+    "whole grain",
+    "oats",
+    "idli",
+    "dosa",
+    "sambar",
+)
+
+_ULTRA_PROCESSED_TOKENS = (
+    "loaded",
+    "double",
+    "triple",
+    "combo",
+    "bucket",
+    "family",
+    "ultra",
+    "processed",
+    "frozen",
+    "instant",
+    "cheesy",
+)
+
+_FRIED_TOKENS = (
+    "fried",
+    "deep fried",
+    "crispy",
+    "tempura",
+    "fries",
+    "nuggets",
+)
+
+_SUGAR_TOKENS = (
+    "shake",
+    "soda",
+    "cola",
+    "sweet",
+    "dessert",
+    "pastry",
+    "cake",
+    "ice cream",
+    "brownie",
+    "muffin",
+)
+
 
 def _clamp(x: float, lo: float, hi: float) -> float:
     return max(lo, min(hi, float(x)))
@@ -188,7 +262,16 @@ def _infer_cuisine(place: Dict[str, Any]) -> str:
 
 def _menu_item_source_from_menu_source(menu_source: Any) -> str:
     token = str(menu_source or "").strip().lower()
-    if token in {"structured_menu", "menu_intelligence_store"}:
+    if token in {
+        "structured_menu",
+        "menu_intelligence_store",
+        "scraped_menu",
+        "website_menu",
+        "website_text",
+        "review_text",
+        "ocr_menu",
+        "real_menu",
+    }:
         return "real_menu"
     if token == "llm_inferred":
         return "llm_inferred"
@@ -261,6 +344,87 @@ def _final_item_name(
     return text
 
 
+def _order_type_for_item(source: str, confidence: float) -> str:
+    conf = _clamp(_safe_float(confidence, 0.5), 0.0, 1.0)
+    if source == "real_menu" and conf >= 0.72:
+        return "exact"
+    if conf >= 0.56:
+        return "likely"
+    return "estimated"
+
+
+def _build_swap_plan(
+    *,
+    item_name: str,
+    cuisine_hint: str,
+    source: str,
+    confidence: float,
+    calories: int,
+) -> Dict[str, Any]:
+    text = str(item_name or "").strip().lower()
+    cuisine = str(cuisine_hint or "").strip().lower()
+    skip_items: List[str] = []
+    add_items: List[str] = []
+
+    if any(token in text for token in ("fries", "fried", "crispy", "combo", "bucket")):
+        skip_items.append("fried sides")
+    if any(token in text for token in ("shake", "soda", "cola", "dessert", "pastry")):
+        skip_items.append("sugary drinks or desserts")
+    if any(token in cuisine for token in ("indian", "south indian", "canteen", "temple")):
+        skip_items.append("creamy or deep-fried extras")
+        add_items.append("salad or dal-based side")
+    if any(token in cuisine for token in ("burger", "fast food", "fast_food")):
+        skip_items.append("fries and sugary drinks")
+        add_items.append("extra salad or lean protein")
+    if "pizza" in cuisine or "pizza" in text:
+        skip_items.append("cheesy dips")
+        add_items.append("side salad")
+    if any(token in cuisine for token in ("cafe", "bakery", "coffee")):
+        skip_items.append("pastries")
+        add_items.append("water or unsweetened drink")
+
+    if calories >= 700 and "large portion" not in skip_items:
+        skip_items.append("large portions")
+    if not add_items:
+        add_items.append("extra vegetables")
+    if not skip_items:
+        skip_items.append("heavy sauces")
+
+    # Deduplicate while preserving order.
+    seen_skip = set()
+    dedup_skip: List[str] = []
+    for item in skip_items:
+        token = str(item or "").strip().lower()
+        if not token or token in seen_skip:
+            continue
+        seen_skip.add(token)
+        dedup_skip.append(str(item).strip())
+
+    seen_add = set()
+    dedup_add: List[str] = []
+    for item in add_items:
+        token = str(item or "").strip().lower()
+        if not token or token in seen_add:
+            continue
+        seen_add.add(token)
+        dedup_add.append(str(item).strip())
+
+    order_type = _order_type_for_item(source, confidence)
+    if order_type == "exact":
+        swap_suggestion = f"Order this, skip {dedup_skip[0]}, add {dedup_add[0]}."
+    elif order_type == "likely":
+        swap_suggestion = f"Likely best move: pick this style, skip {dedup_skip[0]}."
+    else:
+        swap_suggestion = f"Suggested lighter option: avoid {dedup_skip[0]} and add {dedup_add[0]}."
+
+    return {
+        "order_type": order_type,
+        "swap_suggestion": swap_suggestion,
+        "skip_items": dedup_skip[:3],
+        "add_items": dedup_add[:3],
+    }
+
+
 def _ingest_menu_snapshot(
     place: Dict[str, Any],
     menu_items: List[Dict[str, Any]],
@@ -315,6 +479,19 @@ def _menu_source_items(place: Dict[str, Any]) -> Tuple[List[Dict[str, Any]], boo
                 "estimated_fat_g": int(_safe_float(item.get("estimated_fat_g", item.get("fat_g")), 0) or 0),
                 "estimated_satiety": str(item.get("estimated_satiety") or "").strip().lower(),
                 "confidence": float(_safe_float(item.get("confidence"), 0.0) or 0.0),
+                "menu_confidence": float(_safe_float(item.get("menu_confidence", item.get("confidence")), 0.0) or 0.0),
+                "source": str(item.get("source") or item.get("menu_source") or "").strip().lower(),
+                "menu_source": str(item.get("menu_source") or item.get("source") or "").strip().lower(),
+                "source_url": str(item.get("source_url") or "").strip(),
+                "extraction_method": str(item.get("extraction_method") or "").strip(),
+                "parse_method": str(item.get("parse_method") or "").strip(),
+                "parsed_via": str(item.get("parsed_via") or "").strip(),
+                "raw_text_snippet": str(item.get("raw_text_snippet") or "").strip()[:180],
+                "category": str(item.get("category") or "").strip(),
+                "likely_protein": str(item.get("likely_protein") or "").strip(),
+                "likely_carbs": item.get("likely_carbs") if isinstance(item.get("likely_carbs"), list) else [],
+                "likely_fats": item.get("likely_fats") if isinstance(item.get("likely_fats"), list) else [],
+                "health_signals": item.get("health_signals") if isinstance(item.get("health_signals"), list) else [],
             }
         )
 
@@ -370,6 +547,63 @@ def _satiety_label(calories: int, protein_g: int, requested_label: str | None = 
     return "low"
 
 
+def _fiber_satiety_score(
+    *,
+    item_text: str,
+    satiety_label: str,
+    health_signals: List[str],
+    calories: int,
+    protein_g: int,
+) -> float:
+    score = 50.0
+    if satiety_label == "high":
+        score += 24.0
+    elif satiety_label == "medium":
+        score += 12.0
+    if any(token in item_text for token in _FIBER_SATIETY_POSITIVE_TOKENS):
+        score += 12.0
+    if "high_fiber" in health_signals:
+        score += 10.0
+    if "fried" in health_signals or "deep_fried" in health_signals:
+        score -= 10.0
+    if calories <= 620 and protein_g >= 30:
+        score += 6.0
+    return _clamp(score, 20.0, 100.0)
+
+
+def _penalty_scores(item_text: str, health_signals: List[str]) -> Dict[str, float]:
+    processing_penalty = 0.0
+    fried_penalty = 0.0
+    sugar_penalty = 0.0
+
+    if any(token in item_text for token in _ULTRA_PROCESSED_TOKENS):
+        processing_penalty += 32.0
+    if "calorie_dense" in health_signals:
+        processing_penalty += 20.0
+    if "creamy_sauce" in health_signals:
+        processing_penalty += 14.0
+    if "sugary_drink" in health_signals:
+        processing_penalty += 10.0
+
+    if any(token in item_text for token in _FRIED_TOKENS):
+        fried_penalty += 36.0
+    if "fried" in health_signals:
+        fried_penalty += 24.0
+    if "deep_fried" in health_signals:
+        fried_penalty += 20.0
+
+    if any(token in item_text for token in _SUGAR_TOKENS):
+        sugar_penalty += 34.0
+    if "sugary_drink" in health_signals:
+        sugar_penalty += 28.0
+
+    return {
+        "processing_penalty": _clamp(processing_penalty, 0.0, 100.0),
+        "fried_penalty": _clamp(fried_penalty, 0.0, 100.0),
+        "sugar_penalty": _clamp(sugar_penalty, 0.0, 100.0),
+    }
+
+
 def _sorted_scored_items(scored_items: List[Dict[str, Any]], mode: NutritionMode | str) -> List[Dict[str, Any]]:
     resolved_mode = normalize_nutrition_mode(mode)
 
@@ -408,19 +642,40 @@ def score_menu_item(
     raw_item_name = item_name
     raw_item_source = str(
         payload.get("menu_item_source")
+        or payload.get("menu_source")
         or payload.get("source")
         or _menu_item_source_from_menu_source(context_payload.get("menu_source"))
     ).strip().lower()
-    if raw_item_source in {"real_menu", "structured_menu", "menu_intelligence_store", "scraped_menu", "user_scan"}:
+    if raw_item_source in {
+        "real_menu",
+        "structured_menu",
+        "menu_intelligence_store",
+        "scraped_menu",
+        "user_scan",
+        "website_menu",
+        "website_text",
+        "review_text",
+        "ocr_menu",
+    }:
         menu_item_source = "real_menu"
     elif raw_item_source in {"llm_inferred", "llm"}:
         menu_item_source = "llm_inferred"
     else:
         menu_item_source = "heuristic"
     source_confidence = _safe_float(
-        payload.get("menu_item_confidence", payload.get("confidence")),
+        payload.get("menu_item_confidence", payload.get("menu_confidence", payload.get("confidence"))),
         0.0,
     )
+    source_url = str(payload.get("source_url") or "").strip()
+    extraction_method = str(payload.get("extraction_method") or "").strip()
+    parse_method = str(payload.get("parse_method") or "").strip()
+    parsed_via = str(payload.get("parsed_via") or "").strip()
+    raw_text_snippet = str(payload.get("raw_text_snippet") or "").strip()[:180]
+    category = str(payload.get("category") or "").strip()
+    likely_protein = str(payload.get("likely_protein") or "").strip()
+    likely_carbs = payload.get("likely_carbs") if isinstance(payload.get("likely_carbs"), list) else []
+    likely_fats = payload.get("likely_fats") if isinstance(payload.get("likely_fats"), list) else []
+    health_signals = payload.get("health_signals") if isinstance(payload.get("health_signals"), list) else []
 
     input_calories = int(_safe_float(payload.get("estimated_calories", payload.get("calories")), 0) or 0)
     input_protein = int(_safe_float(payload.get("estimated_protein_g", payload.get("protein_g")), 0) or 0)
@@ -441,25 +696,41 @@ def score_menu_item(
     nutrition_conf = float(_safe_float(macro_estimate.get("macro_confidence"), 0.56) or 0.56)
     macro_estimation_version = str(macro_estimate.get("macro_estimation_version") or "v1")
 
-    protein_density = _clamp((protein_g / max(1.0, calories)) * 1400.0, 25.0, 100.0)
-    calorie_control = _clamp(100.0 - abs(float(calories) - 520.0) / 4.8, 20.0, 100.0)
+    protein_density = _clamp((protein_g / max(1.0, calories)) * 1450.0, 20.0, 100.0)
+    calorie_control = _clamp(100.0 - abs(float(calories) - 500.0) / 4.6, 14.0, 100.0)
     satiety = _satiety_label(calories, protein_g, satiety)
-    satiety_score = 92.0 if satiety == "high" else 72.0 if satiety == "medium" else 48.0
-
     text = item_name.lower()
-    fat_loss = (protein_density * 0.44) + (calorie_control * 0.34) + (satiety_score * 0.22)
+    health_signals = [str(x).strip().lower() for x in (health_signals or []) if str(x).strip()]
+    fiber_satiety = _fiber_satiety_score(
+        item_text=text,
+        satiety_label=satiety,
+        health_signals=health_signals,
+        calories=calories,
+        protein_g=protein_g,
+    )
+
+    fat_loss_score = (protein_density * 0.46) + (calorie_control * 0.30) + (fiber_satiety * 0.24)
     if any(token in text for token in ("fried", "crispy", "loaded", "creamy", "double", "extra cheese", "shake")):
-        fat_loss -= 16.0
+        fat_loss_score -= 16.0
     if any(token in text for token in ("grilled", "salad", "bowl", "sashimi", "tandoori", "stir-fry", "lean")):
-        fat_loss += 8.0
-    fat_loss = _clamp(fat_loss, 10.0, 100.0)
+        fat_loss_score += 8.0
+    fat_loss_score = _clamp(fat_loss_score, 10.0, 100.0)
+
+    penalty_weights = MENU_ITEM_PENALTY_WEIGHTS_BY_MODE.get(resolved_mode, MENU_ITEM_PENALTY_WEIGHTS_BY_MODE[NutritionMode.DEFAULT])
+    penalties = _penalty_scores(text, health_signals)
+    weighted_penalty = (
+        penalties["processing_penalty"] * penalty_weights["processing_penalty"]
+        + penalties["fried_penalty"] * penalty_weights["fried_penalty"]
+        + penalties["sugar_penalty"] * penalty_weights["sugar_penalty"]
+    )
 
     item_score = (
         protein_density * weights["protein_density"]
         + calorie_control * weights["calorie_control"]
-        + satiety_score * weights["satiety"]
-        + fat_loss * weights["fat_loss_friendliness"]
+        + fiber_satiety * weights["satiety"]
+        + fat_loss_score * weights["fat_loss_friendliness"]
     )
+    item_score -= weighted_penalty
 
     # Cut mode applies stricter calorie guardrails while still rewarding high protein.
     if cut_mode_active:
@@ -505,7 +776,7 @@ def score_menu_item(
 
     fat_loss_threshold = 74 if cut_mode_active else 70
     fat_loss_signal_threshold = 68 if cut_mode_active else 65
-    fat_loss_friendly = bool(item_score >= fat_loss_threshold and fat_loss >= fat_loss_signal_threshold)
+    fat_loss_friendly = bool(item_score >= fat_loss_threshold and fat_loss_score >= fat_loss_signal_threshold)
 
     cut_friendly = bool(
         cut_mode_active
@@ -521,8 +792,12 @@ def score_menu_item(
         tags.append("calorie_control")
     if satiety == "high":
         tags.append("high_satiety")
+    if fiber_satiety >= 72:
+        tags.append("fiber_satiety")
     if fat_loss_friendly:
         tags.append("fat_loss_friendly")
+    if penalties["processing_penalty"] >= 25 or penalties["fried_penalty"] >= 25 or penalties["sugar_penalty"] >= 25:
+        tags.append("processed_penalty")
     if cut_mode_active:
         tags.append("cut_mode")
     if cut_friendly:
@@ -543,6 +818,8 @@ def score_menu_item(
         short_reason = "Decent fallback; watch portion and sauces."
     elif calorie_control < 60:
         short_reason = "Strong protein, but portion control matters."
+    elif fiber_satiety >= 72:
+        short_reason = "High protein with better satiety for fewer calories."
 
     cut_warning = ""
     if cut_mode_active:
@@ -574,10 +851,16 @@ def score_menu_item(
             confidence -= 0.08
 
     confidence = round(_clamp(confidence, 0.35, 0.93), 2)
-    menu_item_confidence = round(
-        _clamp((confidence * 0.72) + ((source_confidence or confidence) * 0.28), 0.25, 0.97),
-        2,
-    )
+    source_anchor = source_confidence if source_confidence > 0 else confidence
+    if menu_item_source == "real_menu":
+        # Real extracted menu evidence should dominate confidence so exact order labels are possible.
+        blended_confidence = (confidence * 0.25) + (source_anchor * 0.75)
+    elif menu_item_source == "llm_inferred":
+        blended_confidence = (confidence * 0.64) + (source_anchor * 0.36)
+    else:
+        blended_confidence = (confidence * 0.72) + (source_anchor * 0.28)
+
+    menu_item_confidence = round(_clamp(blended_confidence, 0.25, 0.97), 2)
     cuisine_hint = str(context_payload.get("cuisine_hint") or context_payload.get("place_text") or "")
     display_label = _display_label_for_menu_item(menu_item_source, menu_item_confidence)
     item_name = _final_item_name(
@@ -585,6 +868,13 @@ def score_menu_item(
         source=menu_item_source,
         confidence=menu_item_confidence,
         cuisine_hint=cuisine_hint,
+    )
+    swap_plan = _build_swap_plan(
+        item_name=item_name,
+        cuisine_hint=cuisine_hint,
+        source=menu_item_source,
+        confidence=menu_item_confidence,
+        calories=calories,
     )
     place_ctx = context_payload.get("place") if isinstance(context_payload.get("place"), dict) else {}
     place_name = str(place_ctx.get("name") or "").strip()
@@ -614,8 +904,16 @@ def score_menu_item(
         "item_score_breakdown": {
             "protein_density": int(round(_clamp(protein_density, 0.0, 100.0))),
             "calorie_control": int(round(_clamp(calorie_control, 0.0, 100.0))),
-            "satiety": int(round(_clamp(satiety_score, 0.0, 100.0))),
-            "fat_loss_friendliness": int(round(_clamp(fat_loss, 0.0, 100.0))),
+            "satiety": int(round(_clamp(fiber_satiety, 0.0, 100.0))),
+            "fat_loss_friendliness": int(round(_clamp(fat_loss_score, 0.0, 100.0))),
+            # v2 explicit dimensions (keeps legacy keys above for compatibility)
+            "protein_density_score": int(round(_clamp(protein_density, 0.0, 100.0))),
+            "calorie_control_score": int(round(_clamp(calorie_control, 0.0, 100.0))),
+            "fiber_satiety_score": int(round(_clamp(fiber_satiety, 0.0, 100.0))),
+            "fat_loss_score": int(round(_clamp(fat_loss_score, 0.0, 100.0))),
+            "processing_penalty": int(round(_clamp(penalties["processing_penalty"], 0.0, 100.0))),
+            "fried_penalty": int(round(_clamp(penalties["fried_penalty"], 0.0, 100.0))),
+            "sugar_penalty": int(round(_clamp(penalties["sugar_penalty"], 0.0, 100.0))),
         },
         "estimated_calories": int(calories),
         "estimated_protein_g": int(protein_g),
@@ -628,8 +926,25 @@ def score_menu_item(
         "short_reason": short_reason,
         "why_this_works": why_this_works,
         "confidence": confidence,
+        "order_confidence": menu_item_confidence,
         "menu_item_source": menu_item_source,
         "menu_item_confidence": menu_item_confidence,
+        "menu_source": menu_item_source,
+        "menu_confidence": menu_item_confidence,
+        "order_type": swap_plan["order_type"],
+        "swap_suggestion": swap_plan["swap_suggestion"],
+        "skip_items": swap_plan["skip_items"],
+        "add_items": swap_plan["add_items"],
+        "source_url": source_url,
+        "extraction_method": extraction_method,
+        "parse_method": parse_method,
+        "parsed_via": parsed_via,
+        "raw_text_snippet": raw_text_snippet,
+        "category": category,
+        "likely_protein": likely_protein,
+        "likely_carbs": likely_carbs[:4],
+        "likely_fats": likely_fats[:4],
+        "health_signals": health_signals[:6],
         "display_label": display_label,
         "copy_method": copy_method,
         "copy_confidence": copy_confidence,
@@ -699,14 +1014,46 @@ def recommend_menu_items_for_place(
 
     place_id = _place_id(place)
     stored_items = get_menu_items_by_place_id(place_id) if place_id and not has_structured_menu else []
+    stored_has_real_menu = any(
+        str((row or {}).get("source") or (row or {}).get("menu_source") or "").strip().lower()
+        in {
+            "real_menu",
+            "structured_menu",
+            "menu_intelligence_store",
+            "scraped_menu",
+            "user_scan",
+            SOURCE_WEBSITE_MENU,
+            SOURCE_WEBSITE_TEXT,
+            SOURCE_REVIEW_TEXT,
+            SOURCE_OCR_MENU,
+        }
+        for row in stored_items
+        if isinstance(row, dict)
+    )
 
-    if stored_items:
-        menu_source = "menu_intelligence_store"
-        menu_items = stored_items
-    elif has_structured_menu:
+    ingestion_bundle: Dict[str, Any] = {}
+    if not has_structured_menu and (not stored_items or not stored_has_real_menu):
+        try:
+            ingestion_bundle = ingest_real_menu_for_place(place, max_items=12)
+        except Exception:
+            ingestion_bundle = {}
+
+    ingested_items = (
+        ingestion_bundle.get("menu_items")
+        if isinstance(ingestion_bundle.get("menu_items"), list)
+        else []
+    )
+
+    if has_structured_menu:
         menu_source = "structured_menu"
         menu_items = source_items
         _ingest_menu_snapshot(place, menu_items, SOURCE_SCRAPED_MENU)
+    elif ingested_items:
+        menu_source = str(ingestion_bundle.get("menu_source") or SOURCE_WEBSITE_TEXT)
+        menu_items = ingested_items
+    elif stored_items:
+        menu_source = "menu_intelligence_store"
+        menu_items = stored_items
     else:
         heuristic_items = _heuristic_menu_items(place)
         llm_bundle = infer_place_menu_items_with_optional_llm(
@@ -755,10 +1102,44 @@ def recommend_menu_items_for_place(
     scored_items = _sorted_scored_items(scored_items, mode=resolved_mode)
     top_items = scored_items[:3]
     top_item = top_items[0] if top_items else None
+    menu_confidence = round(
+        _safe_float(
+            ingestion_bundle.get("menu_confidence"),
+            _safe_float(
+                (top_item or {}).get("menu_item_confidence"),
+                _safe_float((top_item or {}).get("confidence"), 0.0),
+            ),
+        ),
+        2,
+    )
+    extraction_method = str(
+        ingestion_bundle.get("extraction_method")
+        or ((top_item or {}).get("extraction_method") if isinstance(top_item, dict) else "")
+        or ""
+    ).strip()
+    parse_method = str(
+        ingestion_bundle.get("parse_method")
+        or ((top_item or {}).get("parse_method") if isinstance(top_item, dict) else "")
+        or ""
+    ).strip()
+    source_url = str(
+        ingestion_bundle.get("source_url")
+        or ((top_item or {}).get("source_url") if isinstance(top_item, dict) else "")
+        or ""
+    ).strip()
 
     return {
         "menu_item_scoring_available": bool(top_items),
         "menu_items_source": menu_source,
+        "menu_source": menu_source,
+        "menu_confidence": menu_confidence,
+        "extraction_method": extraction_method,
+        "parse_method": parse_method,
+        "source_url": source_url,
+        "menu_ingestion_version": str(
+            ingestion_bundle.get("menu_ingestion_version")
+            or MENU_RECOMMENDATION_VERSION
+        ),
         "menu_intelligence_place_id": place_id,
         "menu_intelligence_available": bool(place_id),
         "top_menu_items": top_items,

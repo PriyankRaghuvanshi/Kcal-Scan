@@ -57,7 +57,17 @@ def _menu_source_token(top_menu_item: Dict[str, Any], place: Dict[str, Any]) -> 
         or place.get("menu_items_source")
         or "heuristic"
     ).strip().lower()
-    if token in {"real_menu", "menu_intelligence_store", "structured_menu", "scraped_menu", "user_scan"}:
+    if token in {
+        "real_menu",
+        "menu_intelligence_store",
+        "structured_menu",
+        "scraped_menu",
+        "user_scan",
+        "website_menu",
+        "website_text",
+        "review_text",
+        "ocr_menu",
+    }:
         return "real_menu"
     if token in {"llm_inferred", "llm"}:
         return "llm_inferred"

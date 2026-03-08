@@ -333,6 +333,10 @@ def _infer_smarter_order(
     if rec_name:
         out = _with_macro_estimate(rec_name, place, rec_cal, rec_protein)
         out["confidence"] = round(_clamp(max(out["confidence"], rec_conf or 0.0), 0.4, 0.93), 2)
+        out["order_type"] = str(rec.get("order_type") or "likely").strip().lower() or "likely"
+        out["swap_suggestion"] = str(rec.get("swap_suggestion") or rec.get("better_swap") or "")
+        out["skip_items"] = rec.get("skip_items") if isinstance(rec.get("skip_items"), list) else []
+        out["add_items"] = rec.get("add_items") if isinstance(rec.get("add_items"), list) else []
         return out
 
     ctx_top_item = ctx.get("top_menu_item") if isinstance(ctx.get("top_menu_item"), dict) else {}
@@ -353,6 +357,10 @@ def _infer_smarter_order(
             _clamp(max(out["confidence"], float(_safe_float(ctx_top_item.get("confidence"), 0.68))), 0.4, 0.93),
             2,
         )
+        out["order_type"] = str(ctx_top_item.get("order_type") or "likely").strip().lower() or "likely"
+        out["swap_suggestion"] = str(ctx_top_item.get("swap_suggestion") or "")
+        out["skip_items"] = ctx_top_item.get("skip_items") if isinstance(ctx_top_item.get("skip_items"), list) else []
+        out["add_items"] = ctx_top_item.get("add_items") if isinstance(ctx_top_item.get("add_items"), list) else []
         return out
 
     if menu_items:
@@ -372,6 +380,10 @@ def _infer_smarter_order(
         ranked.sort(key=lambda pair: pair[0], reverse=True)
         smart = ranked[0][1]
         smart["confidence"] = round(_clamp(smart.get("confidence", 0.58) + (0.08 if len(menu_items) >= 2 else 0.04), 0.4, 0.92), 2)
+        smart["order_type"] = "likely"
+        smart["swap_suggestion"] = "Pick this style and skip heavier sides."
+        smart["skip_items"] = ["fried sides"]
+        smart["add_items"] = ["extra vegetables"]
         return smart
 
     rule, _ = _best_rule(place)
@@ -382,6 +394,10 @@ def _infer_smarter_order(
         protein_g=_safe_int(rule.get("smarter_protein_g"), 34),
     )
     smart["confidence"] = round(_clamp(smart.get("confidence", 0.56) + 0.02, 0.38, 0.9), 2)
+    smart["order_type"] = "estimated"
+    smart["swap_suggestion"] = "Use lighter swaps and skip calorie-dense extras."
+    smart["skip_items"] = ["calorie-dense extras"]
+    smart["add_items"] = ["lighter side"]
     return smart
 
 
@@ -463,6 +479,14 @@ def build_restaurant_reality_check(
     typical_protein = int(max(6, _safe_int(typical.get("estimated_protein_g"), 26)))
     smart_cal = int(max(120, _safe_int(smart.get("estimated_calories"), 560)))
     smart_protein = int(max(6, _safe_int(smart.get("estimated_protein_g"), 34)))
+    smart_order_type = str(smart.get("order_type") or "").strip().lower()
+    if smart_order_type not in {"exact", "likely", "estimated"}:
+        smart_order_type = "likely" if float(_safe_float(smart.get("confidence"), 0.0)) >= 0.56 else "estimated"
+    smart_swap_suggestion = str(
+        smart.get("swap_suggestion") or "Pick this style and skip heavier extras."
+    ).strip()
+    smart_skip_items = smart.get("skip_items") if isinstance(smart.get("skip_items"), list) else []
+    smart_add_items = smart.get("add_items") if isinstance(smart.get("add_items"), list) else []
 
     calories_saved = int(max(0, typical_cal - smart_cal))
     protein_diff = int(smart_protein - typical_protein)
@@ -519,6 +543,10 @@ def build_restaurant_reality_check(
             "name": _clip(smart.get("name"), 72, "Lighter menu option"),
             "estimated_calories": smart_cal,
             "estimated_protein_g": smart_protein,
+            "order_type": smart_order_type,
+            "swap_suggestion": _clip(smart_swap_suggestion, 92, "Skip heavier extras and add a lighter side."),
+            "skip_items": smart_skip_items[:3],
+            "add_items": smart_add_items[:3],
         },
         "calories_saved": calories_saved,
         "protein_difference_g": protein_diff,

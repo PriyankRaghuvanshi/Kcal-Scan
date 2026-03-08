@@ -225,6 +225,68 @@ def _best_order_for_cut(best_order: str) -> str:
     return f"{str(best_order).strip()} (light sauce)"
 
 
+def _order_type_from_confidence(confidence: float) -> str:
+    conf = _clamp(_safe_float(confidence, 0.46), 0.0, 1.0)
+    if conf >= 0.62:
+        return "likely"
+    return "estimated"
+
+
+def _swap_details(best_order: str, better_swap: str, place_text: str) -> Dict[str, Any]:
+    text = str(best_order or "").strip().lower()
+    place = str(place_text or "").strip().lower()
+    skip_items: List[str] = []
+    add_items: List[str] = []
+
+    if any(token in text for token in ("fried", "crispy", "combo", "fries", "bucket")) or "skip fries" in better_swap.lower():
+        skip_items.append("fried sides")
+    if any(token in text for token in ("shake", "soda", "cola", "dessert", "pastry")):
+        skip_items.append("sugary drinks or desserts")
+    if any(token in place for token in ("indian", "south indian", "temple", "canteen")):
+        skip_items.append("creamy or fried extras")
+        add_items.append("salad or dal-based side")
+    if any(token in place for token in ("burger", "fast food", "fast_food")):
+        skip_items.append("fries and sugary drinks")
+        add_items.append("extra salad")
+    if "pizza" in place:
+        skip_items.append("cheesy dips")
+        add_items.append("side salad")
+
+    if "sauce" in better_swap.lower() and "heavy sauces" not in skip_items:
+        skip_items.append("heavy sauces")
+    if "water" in better_swap.lower():
+        add_items.append("water or zero-sugar drink")
+    if not add_items:
+        add_items.append("extra vegetables")
+    if not skip_items:
+        skip_items.append("calorie-dense extras")
+
+    dedup_skip: List[str] = []
+    seen_skip = set()
+    for row in skip_items:
+        token = str(row or "").strip().lower()
+        if not token or token in seen_skip:
+            continue
+        seen_skip.add(token)
+        dedup_skip.append(str(row).strip())
+
+    dedup_add: List[str] = []
+    seen_add = set()
+    for row in add_items:
+        token = str(row or "").strip().lower()
+        if not token or token in seen_add:
+            continue
+        seen_add.add(token)
+        dedup_add.append(str(row).strip())
+
+    swap_suggestion = f"Skip {dedup_skip[0]}, add {dedup_add[0]}."
+    return {
+        "swap_suggestion": swap_suggestion,
+        "skip_items": dedup_skip[:3],
+        "add_items": dedup_add[:3],
+    }
+
+
 def _fallback_best_order_for_place(place: Dict[str, Any] | None) -> str:
     place_text = _place_text(place if isinstance(place, dict) else {})
     if any(token in place_text for token in ("south indian", "idli", "dosa", "udupi", "temple", "canteen")):
@@ -253,6 +315,7 @@ def _fallback_recommendation(
     goal_value = personalization_goal_value(resolved_goal)
     cut_mode_active = is_cut_mode(resolved_mode)
     best_order = _fallback_best_order_for_place(place)
+    place_text = _place_text(place if isinstance(place, dict) else {})
 
     macro = estimate_restaurant_macros(
         item_name=best_order,
@@ -285,6 +348,7 @@ def _fallback_recommendation(
         "personalized_best_order": "",
         "personalized_reason": "",
     }
+    out["order_type"] = "estimated"
 
     if cut_mode_active:
         out["cut_friendly"] = True
@@ -295,6 +359,11 @@ def _fallback_recommendation(
     if resolved_goal:
         out["personalized_best_order"] = personalize_order_for_goal(out["best_order"], resolved_goal)
         out["personalized_reason"] = get_personalized_reason(resolved_goal)
+
+    swap_details = _swap_details(out["best_order"], out["better_swap"], place_text)
+    out["swap_suggestion"] = swap_details["swap_suggestion"]
+    out["skip_items"] = swap_details["skip_items"]
+    out["add_items"] = swap_details["add_items"]
 
     rewritten = maybe_rewrite_explanation_copy(
         place_name=str((place or {}).get("name") or "Nearby place").strip(),
@@ -400,9 +469,16 @@ def suggest_best_order_for_place(
 
     confidence = round(_clamp(confidence, 0.35, 0.93), 2)
 
+    order_type = _order_type_from_confidence(confidence)
+    swap_details = _swap_details(str(rule["best_order"]), better_swap, place_text)
+
     result = {
         "best_order": str(rule["best_order"]),
         "better_swap": better_swap,
+        "swap_suggestion": swap_details["swap_suggestion"],
+        "skip_items": swap_details["skip_items"],
+        "add_items": swap_details["add_items"],
+        "order_type": order_type,
         "avoid_if_cutting": str(rule["avoid_if_cutting"]),
         "estimated_calories": estimated_calories,
         "estimated_protein_g": estimated_protein_g,

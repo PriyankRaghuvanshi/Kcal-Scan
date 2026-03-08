@@ -29,6 +29,10 @@ class HealthyOrderRecommenderTests(unittest.TestCase):
         self.assertTrue("skip fries" in out["better_swap"].lower() or "water" in out["better_swap"].lower())
         self.assertIn("combo", out["avoid_if_cutting"].lower())
         self.assertLessEqual(float(out["order_confidence"]), 0.8)
+        self.assertEqual(out.get("order_type"), "likely")
+        self.assertTrue(str(out.get("swap_suggestion") or "").strip())
+        self.assertIsInstance(out.get("skip_items"), list)
+        self.assertIsInstance(out.get("add_items"), list)
 
     def test_ambiguous_place_fallback_does_not_fail(self):
         out = suggest_best_order_for_place({})
@@ -57,6 +61,10 @@ class HealthyOrderRecommenderTests(unittest.TestCase):
         self.assertIn(out["estimated_satiety"], {"high", "medium", "low"})
         self.assertGreaterEqual(float(out["order_confidence"]), 0.0)
         self.assertLessEqual(float(out["order_confidence"]), 1.0)
+        self.assertEqual(out.get("order_type"), "estimated")
+        self.assertTrue(str(out.get("swap_suggestion") or "").strip())
+        self.assertIsInstance(out.get("skip_items"), list)
+        self.assertIsInstance(out.get("add_items"), list)
 
     def test_cut_mode_adds_cut_specific_wording_and_flags(self):
         place = {

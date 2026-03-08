@@ -110,7 +110,17 @@ def _extract_json(text: str) -> Dict[str, Any] | None:
 
 def _source_token(source: Any) -> str:
     token = _normalized(source).lower().replace("-", "_")
-    if token in {"real_menu", "menu_intelligence_store", "structured_menu", "scraped_menu", "user_scan"}:
+    if token in {
+        "real_menu",
+        "menu_intelligence_store",
+        "structured_menu",
+        "scraped_menu",
+        "user_scan",
+        "website_menu",
+        "website_text",
+        "review_text",
+        "ocr_menu",
+    }:
         return "real_menu"
     if token in {"llm_inferred", "llm"}:
         return "llm_inferred"
