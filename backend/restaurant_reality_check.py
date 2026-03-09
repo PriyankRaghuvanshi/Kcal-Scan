@@ -3,7 +3,16 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional, Tuple
 
 from llm_explanation_copy import maybe_rewrite_explanation_copy
-from llm_menu_reasoning import candidate_item_name, candidate_calories, candidate_protein
+from llm_menu_reasoning import (
+    CONF_EXACT_ITEM,
+    CONF_SOFT_ITEM,
+    CONF_REASONING_USE,
+    CONF_REALITY_CALORIE_DIFF,
+    candidate_item_name,
+    candidate_calories,
+    candidate_protein,
+    reality_check_candidates_valid,
+)
 from restaurant_macro_estimator import estimate_restaurant_macros
 
 
@@ -289,9 +298,11 @@ def _infer_typical_order(
 
     # Prefer LLM reasoning typical_order when available — it comes from actual
     # menu text and represents a real item, not a cuisine stereotype.
+    # Uses CONF_SOFT_ITEM (0.55): typical_order is the baseline for comparison,
+    # so a softer threshold is acceptable (it doesn't need to be an exact recommendation).
     llm_candidates = ctx.get("llm_reasoning_candidates") if isinstance(ctx.get("llm_reasoning_candidates"), dict) else {}
     llm_typical = llm_candidates.get("typical_order") if isinstance(llm_candidates.get("typical_order"), dict) else {}
-    llm_typical_name = candidate_item_name(llm_typical, min_confidence=0.55) if llm_typical else ""
+    llm_typical_name = candidate_item_name(llm_typical, min_confidence=CONF_SOFT_ITEM) if llm_typical else ""
     if llm_typical_name:
         cal = candidate_calories(llm_typical) or 0
         return _with_macro_estimate(
@@ -497,15 +508,22 @@ def build_restaurant_reality_check(
 
     # When LLM reasoning produced a best_choice_here that is distinct from the
     # typical order, prefer it as the smarter order so the comparison is meaningful.
+    # Uses CONF_EXACT_ITEM (0.65) — consistent with the prompt rule and card output.
+    # Also validates with reality_check_candidates_valid to ensure a meaningful
+    # calorie difference exists before injecting the LLM smarter order.
     llm_candidates = ctx.get("llm_reasoning_candidates") if isinstance(ctx.get("llm_reasoning_candidates"), dict) else {}
     llm_best = llm_candidates.get("best_choice_here") if isinstance(llm_candidates.get("best_choice_here"), dict) else {}
-    llm_best_name = candidate_item_name(llm_best, min_confidence=0.60) if llm_best else ""
+    llm_best_name = candidate_item_name(llm_best, min_confidence=CONF_EXACT_ITEM) if llm_best else ""
     llm_typical_name = str(typical.get("name") or "").strip()
+    llm_reasoning_confidence = float(
+        _safe_float((llm_candidates.get("reasoning_confidence") if isinstance(llm_candidates, dict) else None), 0.0)
+    )
 
     enriched_recommended_order = dict(recommended_order) if isinstance(recommended_order, dict) else {}
     if (
         llm_best_name
         and llm_best_name.lower() != llm_typical_name.lower()
+        and llm_reasoning_confidence >= CONF_REASONING_USE
         and not str(enriched_recommended_order.get("item_name") or "").strip()
     ):
         enriched_recommended_order["item_name"] = llm_best_name
@@ -594,7 +612,13 @@ def build_restaurant_reality_check(
         },
         "calories_saved": calories_saved,
         "protein_difference_g": protein_diff,
-        "wow_line": f"You saved {calories_saved} calories." if calories_saved > 0 else "Smarter order for better control.",
+        "wow_line": (
+            f"You saved {calories_saved} calories."
+            if calories_saved >= CONF_REALITY_CALORIE_DIFF
+            else "Smarter order for better control."
+            if calories_saved > 0
+            else "Choosing this keeps calories more predictable."
+        ),
         "why_this_works": why_this_works,
         "short_reason": short_reason,
         "confidence": round(float(confidence), 2),

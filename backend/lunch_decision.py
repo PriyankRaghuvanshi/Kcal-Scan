@@ -8,7 +8,13 @@ from day_coach import build_day_coach_payload
 from healthy_order_recommender import suggest_best_order_for_place
 from healthy_place_scoring import score_healthy_place
 from llm_explanation_copy import maybe_rewrite_explanation_copy
-from llm_menu_reasoning import candidate_item_name, candidate_calories, candidate_protein
+from llm_menu_reasoning import (
+    CONF_EXACT_ITEM,
+    CONF_REASONING_FULL,
+    candidate_item_name,
+    candidate_calories,
+    candidate_protein,
+)
 from menu_item_scoring import recommend_menu_items_for_place
 from recommendation_safety import has_strong_menu_evidence, sanitize_recommended_item
 from nutrition_mode import NutritionMode
@@ -332,7 +338,9 @@ def _place_profile(
     llm_swap = llm_candidates.get("better_swap") if isinstance(llm_candidates.get("better_swap"), dict) else {}
 
     # Use LLM reasoning best_choice as final fallback before the generic label.
-    llm_best_name = candidate_item_name(llm_best, min_confidence=0.60) if llm_best else ""
+    # Apply CONF_EXACT_ITEM (0.65) to stay consistent with the prompt rule and
+    # with the menu_scan.py best_choice threshold.
+    llm_best_name = candidate_item_name(llm_best, min_confidence=CONF_EXACT_ITEM) if llm_best else ""
 
     recommended_order = str(
         top_item.get("item_name")
@@ -347,7 +355,7 @@ def _place_profile(
     if order_type not in {"exact", "likely", "estimated"}:
         if menu_item_source == "real_menu" and menu_item_confidence >= 0.72:
             order_type = "exact"
-        elif menu_item_source == "llm_reasoning" and menu_item_confidence >= 0.65:
+        elif menu_item_source == "llm_reasoning" and menu_item_confidence >= CONF_EXACT_ITEM:
             order_type = "likely"
         elif menu_item_confidence >= 0.56:
             order_type = "likely"

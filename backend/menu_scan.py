@@ -6,6 +6,10 @@ from typing import Any, Dict, List, Optional
 from coach_messages import build_place_coach_message
 from llm_menu_parser import parse_menu_items_with_optional_llm
 from llm_menu_reasoning import (
+    CONF_EXACT_ITEM,
+    CONF_SOFT_ITEM,
+    CONF_REASONING_FULL,
+    CONF_REASONING_USE,
     reason_over_menu,
     candidate_item_name,
     candidate_calories,
@@ -564,8 +568,11 @@ def build_menu_scan_response(
     # Override scored best_choice_here with LLM candidate when confidence is high
     # enough and the LLM picked a more specific menu item name.
     llm_best_candidate = llm_reasoning.get("best_choice_here") if isinstance(llm_reasoning.get("best_choice_here"), dict) else {}
-    llm_best_name = candidate_item_name(llm_best_candidate, min_confidence=0.65) if llm_best_candidate else ""
-    if llm_used and llm_best_name and llm_conf >= 0.60:
+    # Apply centralized confidence policy:
+    #   CONF_EXACT_ITEM (0.65) — per-candidate minimum for exact item name
+    #   CONF_REASONING_FULL (0.65) — overall minimum to fully promote best_choice
+    llm_best_name = candidate_item_name(llm_best_candidate, min_confidence=CONF_EXACT_ITEM) if llm_best_candidate else ""
+    if llm_used and llm_best_name and llm_conf >= CONF_REASONING_FULL:
         best_choice_item_name = llm_best_name
         best_choice_calories = candidate_calories(llm_best_candidate) or int(_safe_float(best.get("estimated_calories"), 0.0) or 0)
         best_choice_protein = candidate_protein(llm_best_candidate) or int(_safe_float(best.get("estimated_protein_g"), 0.0) or 0)
@@ -577,9 +584,10 @@ def build_menu_scan_response(
         best_choice_why = str(best.get("short_reason") or "")
 
     # Build better_swap from LLM candidate when available and distinct.
+    # Uses CONF_EXACT_ITEM for per-candidate name, CONF_REASONING_USE for overall gate.
     llm_swap_candidate = llm_reasoning.get("better_swap") if isinstance(llm_reasoning.get("better_swap"), dict) else {}
-    llm_swap_name = candidate_item_name(llm_swap_candidate, min_confidence=0.60) if llm_swap_candidate else ""
-    if llm_used and llm_swap_name and llm_conf >= 0.55 and llm_swap_name != best_choice_item_name:
+    llm_swap_name = candidate_item_name(llm_swap_candidate, min_confidence=CONF_EXACT_ITEM) if llm_swap_candidate else ""
+    if llm_used and llm_swap_name and llm_conf >= CONF_REASONING_USE and llm_swap_name != best_choice_item_name:
         better_swap_item = {
             "item_name": llm_swap_name,
             "estimated_calories": candidate_calories(llm_swap_candidate) or (int(_safe_float(better.get("estimated_calories"), 0.0) or 0) if better else 0),
@@ -600,10 +608,11 @@ def build_menu_scan_response(
         )
 
     # Build avoid_if_cutting from LLM candidate when available.
+    # Uses CONF_EXACT_ITEM for name, CONF_REASONING_USE for overall gate.
     llm_avoid_candidate = llm_reasoning.get("avoid_if_cutting") if isinstance(llm_reasoning.get("avoid_if_cutting"), dict) else {}
-    llm_avoid_name = candidate_item_name(llm_avoid_candidate, min_confidence=0.60) if llm_avoid_candidate else ""
+    llm_avoid_name = candidate_item_name(llm_avoid_candidate, min_confidence=CONF_EXACT_ITEM) if llm_avoid_candidate else ""
     avoid_src = max(scored_items, key=_avoid_rank) if scored_items else None
-    if llm_used and llm_avoid_name and llm_conf >= 0.55:
+    if llm_used and llm_avoid_name and llm_conf >= CONF_REASONING_USE:
         avoid = {
             "item_name": llm_avoid_name,
             "estimated_calories": candidate_calories(llm_avoid_candidate) or (int(_safe_float(avoid_src.get("estimated_calories"), 0.0) or 0) if avoid_src else 0),

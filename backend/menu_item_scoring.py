@@ -18,6 +18,10 @@ from restaurant_macro_estimator import estimate_restaurant_macros
 from llm_explanation_copy import maybe_rewrite_explanation_copy
 from llm_menu_parser import infer_place_menu_items_with_optional_llm
 from llm_menu_reasoning import (
+    CONF_EXACT_ITEM,
+    CONF_SOFT_ITEM,
+    CONF_REASONING_FULL,
+    CONF_REASONING_USE,
     reason_over_menu,
     extract_menu_text_for_reasoning,
     candidate_item_name,
@@ -439,12 +443,13 @@ def _final_item_name(
         return text
 
     # LLM reasoning items come from actual live menu text — allow exact names
-    # at a moderate confidence threshold without cuisine-based suppression.
+    # at the centralized CONF_EXACT_ITEM threshold without cuisine-based suppression.
     if source == "llm_reasoning":
-        if _safe_float(confidence, 0.0) >= 0.60:
+        conf = _safe_float(confidence, 0.0)
+        if conf >= CONF_EXACT_ITEM:
             return text
-        if _safe_float(confidence, 0.0) >= 0.50:
-            return text  # still use the menu-derived name but caller sees lower label
+        if conf >= CONF_SOFT_ITEM:
+            return text  # menu-derived name, caller sees "Likely Better Choice" label
         return _coarse_item_name_for_context(cuisine_hint)
 
     lower_item = text.lower()
@@ -471,7 +476,7 @@ def _order_type_for_item(source: str, confidence: float) -> str:
     conf = _clamp(_safe_float(confidence, 0.5), 0.0, 1.0)
     if token in {"real_menu", "user_scan"} and conf >= 0.72:
         return "exact"
-    if token == "llm_reasoning" and conf >= 0.65:
+    if token == "llm_reasoning" and conf >= CONF_EXACT_ITEM:
         return "likely"
     if token == "llm_inferred" and conf >= 0.62:
         return "likely"
@@ -1449,7 +1454,7 @@ def recommend_menu_items_for_place(
     is_heuristic_quality = resolved_source in {"heuristic", "llm_inferred"} or not top_items
     is_low_quality_real = (
         resolved_source in {"website_text", "review_text"}
-        and menu_confidence < 0.65
+        and menu_confidence < CONF_REASONING_FULL
     )
     should_run_reasoning = bool(
         raw_menu_text_for_reasoning
@@ -1468,11 +1473,11 @@ def recommend_menu_items_for_place(
             # the best_choice_here candidate to the top of scored_items.
             if (
                 llm_reasoning_candidates.get("llm_reasoning_used")
-                and float(_safe_float(llm_reasoning_candidates.get("reasoning_confidence"), 0.0)) >= 0.55
+                and float(_safe_float(llm_reasoning_candidates.get("reasoning_confidence"), 0.0)) >= CONF_REASONING_USE
                 and is_heuristic_quality
             ):
                 best_candidate = llm_reasoning_candidates.get("best_choice_here")
-                best_name = candidate_item_name(best_candidate, min_confidence=0.55)
+                best_name = candidate_item_name(best_candidate, min_confidence=CONF_SOFT_ITEM)
                 if best_name:
                     best_conf = float(_safe_float((best_candidate or {}).get("confidence"), 0.70))
                     reasoning_raw_item: Dict[str, Any] = {
