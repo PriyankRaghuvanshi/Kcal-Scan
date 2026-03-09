@@ -12,7 +12,7 @@
       "distribution": "internal"
     },
     "production": {
-      "autoIncrement": "buildNumber",
+      "autoIncrement": true,
       "env": {
         "EXPO_PUBLIC_SUPABASE_URL": "https://mgrwrthvhjpmbrvmvkeo.supabase.co",
         "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1ncndydGh2aGpwbWJydm12a2VvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjgwOTcyNzEsImV4cCI6MjA4MzY3MzI3MX0.Zvzgq3zZv00_3flUniLIk2ZLckylO-SphsKFwZbkTPA"
@@ -24,6 +24,11 @@
   },
   "submit": {
     "production": {
+      "ios": {
+        "ascAppId": "6757768893"
+      }
+    },
+    "production_auto_submit": {
       "ios": {
         "ascAppId": "6757768893"
       }
