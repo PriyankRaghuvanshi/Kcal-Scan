@@ -133,7 +133,7 @@ const SUPPLEMENT_PROCESSING_CHECKS = [
 ];
 const SUPPLEMENT_LEGAL_NOTE =
   "This authenticity confidence score is based on structural and pattern analysis. It is not a definitive determination of product genuineness. For confirmation, contact the manufacturer.";
-const DEFAULT_HEALTHY_RADIUS_M = 2000;
+const DEFAULT_HEALTHY_RADIUS_M = 3000;
 const SUPPLEMENT_REPORT_REASONS = [
   { key: "packaging_differs", label: "Packaging looks different" },
   { key: "taste_texture_unusual", label: "Taste/texture unusual" },
@@ -423,11 +423,12 @@ function filterHealthyPlacesForMap(places, filterKey) {
   if (key === "fits_today") return rows.filter((x) => x?.fit_for_today === true || String(x?.decision_today || "").toUpperCase() === "YES");
   if (key === "cut_friendly") return rows.filter((x) => Boolean(x?.cut_friendly || x?.fat_loss_friendly));
   if (key === "best_right_now") {
-    return rows.filter((x) => {
+    const scored = rows.filter((x) => {
       const rank = num(x?.map_rank);
       const score100 = Number.isFinite(num(x?.health_score_100)) ? num(x?.health_score_100) : num(x?.health_score) * 10;
-      return (Number.isFinite(rank) && rank <= 3) || score100 >= 80;
+      return (Number.isFinite(rank) && rank <= 5) || score100 >= 60;
     });
+    return scored.length ? scored : rows.slice(0, 5);
   }
   return rows;
 }
@@ -3989,7 +3990,12 @@ async function openCamera(mode = "meal") {
       }
 
       if (!list.length) {
-        setHealthyPlacesError("No nearby places found right now.");
+        const noResultsReason = String(data?._no_results_reason || "").trim();
+        if (noResultsReason === "places_api_key_not_configured") {
+          setHealthyPlacesError("Places search is not configured on this server. Contact support.");
+        } else {
+          setHealthyPlacesError("No food places found nearby. Try moving to a more central location.");
+        }
       }
     } catch (e) {
       if (reqSeq !== healthyPlacesReqSeqRef.current) return;
@@ -4253,6 +4259,17 @@ async function openCamera(mode = "meal") {
       });
       void fetchWeeklyCoachProgress(false);
 
+      const preferredCard =
+        bestCard ||
+        (selectedPlaceId
+          ? {
+              place_id: selectedPlaceId,
+              place_name: selectedPlaceName,
+              place_lat: Number.isFinite(selectedPlaceLat) ? selectedPlaceLat : null,
+              place_lng: Number.isFinite(selectedPlaceLng) ? selectedPlaceLng : null,
+            }
+          : null);
+
       if (cards.length) {
         setHealthyViewMode("map");
         cards.slice(0, 3).forEach((card, idx) => {
@@ -4261,29 +4278,25 @@ async function openCamera(mode = "meal") {
             generated_at: String(payload?.generated_at || ""),
           });
         });
-
-        const preferredCard =
-          bestCard ||
-          (selectedPlaceId
-            ? {
-                place_id: selectedPlaceId,
-                place_name: selectedPlaceName,
-                place_lat: Number.isFinite(selectedPlaceLat) ? selectedPlaceLat : null,
-                place_lng: Number.isFinite(selectedPlaceLng) ? selectedPlaceLng : null,
-              }
-            : null);
-
-        await loadHealthyPlacesNearby({
-          coords: { lat, lng },
-          preferredCard,
-          remaining_calories: remainingCalories,
-          remaining_protein_g: remainingProtein,
-          goal,
-          cut_mode: cutMode,
-        });
       } else {
-        setLunchDecisionError("No strong next-meal picks nearby right now. Try widening your map area.");
+        const noResultsReason = String(payload?._no_results_reason || "").trim();
+        if (noResultsReason === "places_api_key_not_configured") {
+          setLunchDecisionError("Places search is not configured on this server. Contact support.");
+        } else if (noResultsReason === "no_places_returned_by_api") {
+          setLunchDecisionError("No food places found nearby. Try moving to a more central location or check location permissions.");
+        } else {
+          setLunchDecisionError("No strong macro-fit picks found. Showing best available options — check the Map tab.");
+        }
       }
+
+      await loadHealthyPlacesNearby({
+        coords: { lat, lng },
+        preferredCard,
+        remaining_calories: remainingCalories,
+        remaining_protein_g: remainingProtein,
+        goal,
+        cut_mode: cutMode,
+      });
     } catch (e) {
       if (reqSeq !== lunchDecisionReqSeqRef.current) return;
       const msg = String((e && e.message) || e || "").trim() || "Could not decide your meal right now.";
@@ -5081,6 +5094,7 @@ async function openCamera(mode = "meal") {
           </TouchableOpacity>
         </View>
 
+        {activeScreen !== "healthy_nearby" ? (
         <View style={styles.launcherCard}>
           <Text style={styles.launcherTitle}>CalorieClick AI</Text>
           <Text style={styles.launcherQuestion}>What should I eat right now?</Text>
@@ -5131,6 +5145,7 @@ async function openCamera(mode = "meal") {
 
           <Text style={styles.launcherCoachLine}>{homeCoachLine}</Text>
         </View>
+        ) : null}
 
         {activeScreen !== "healthy_nearby" ? (
         <>
@@ -6251,6 +6266,25 @@ async function openCamera(mode = "meal") {
         <View style={[styles.card, styles.healthyNearbySectionCard]}>
           <Text style={styles.nearbySectionHeader}>Decision</Text>
           <Text style={styles.nearbySectionSubtle}>Coach + next meal picks</Text>
+          {(lunchDecisionBusy || (healthyPlacesBusy && !lunchDecision)) ? (
+            <View style={{ marginTop: 10 }}>
+              <ActivityIndicator />
+              <Text style={[styles.tiny, { marginTop: 6, textAlign: "center", color: "#94a3b8" }]}>
+                Finding best options nearby...
+              </Text>
+            </View>
+          ) : null}
+          {!lunchDecision && !lunchDecisionBusy && !lunchDecisionError ? (
+            <View style={{ marginTop: 14, alignItems: "center" }}>
+              <TouchableOpacity
+                style={styles.primaryBtn}
+                onPress={() => void loadLunchDecision()}
+                disabled={lunchDecisionBusy}
+              >
+                <Text style={styles.btnText}>Find My Best Meal Now</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
           {menuScanBusy && !menuScanResult ? (
             <View style={{ marginTop: 10 }}>
               <ActivityIndicator />
@@ -6394,6 +6428,27 @@ async function openCamera(mode = "meal") {
                 </View>
               );
             })()
+          ) : null}
+          {lunchDecision && Array.isArray(lunchDecision.cards) && !lunchDecision.cards.length && !lunchDecisionBusy ? (
+            <View style={{ marginTop: 14, paddingVertical: 12, paddingHorizontal: 4 }}>
+              <Text style={[styles.p, { color: "#94a3b8", textAlign: "center" }]}>
+                No exact macro-fit picks found nearby.
+              </Text>
+              <Text style={[styles.tiny, { color: "#64748b", textAlign: "center", marginTop: 4 }]}>
+                Nearby places may still have good options — check the Map tab.
+              </Text>
+              <TouchableOpacity
+                style={[styles.secondaryBtn, { marginTop: 10, alignSelf: "center" }]}
+                onPress={() => {
+                  setHealthyNearbyTab("map");
+                  if (!(healthyPlaces || []).length && !healthyPlacesBusy) {
+                    void loadHealthyPlacesNearby();
+                  }
+                }}
+              >
+                <Text style={styles.btnText}>See Nearby Options on Map</Text>
+              </TouchableOpacity>
+            </View>
           ) : null}
           {lunchDecision && Array.isArray(lunchDecision.cards) && lunchDecision.cards.length ? (
             <View style={styles.lunchDecisionWrap}>
@@ -6800,7 +6855,17 @@ async function openCamera(mode = "meal") {
                   })}
                 </View>
               ) : (
-                <Text style={[styles.tiny, { marginTop: 8 }]}>No places match this filter right now.</Text>
+                <View style={{ marginTop: 8, alignItems: "center" }}>
+                  <Text style={styles.tiny}>No places match this filter right now.</Text>
+                  {healthyMapFilter !== "all" ? (
+                    <TouchableOpacity
+                      style={[styles.smallBtn, { marginTop: 6 }]}
+                      onPress={() => setHealthyMapFilter("all")}
+                    >
+                      <Text style={styles.smallBtnText}>Show all nearby places</Text>
+                    </TouchableOpacity>
+                  ) : null}
+                </View>
               )}
 
               {healthySelectedPlace ? (
