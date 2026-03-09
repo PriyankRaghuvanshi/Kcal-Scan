@@ -6,6 +6,8 @@ from typing import Any, Dict, List
 DEFAULT_PLACES_NEARBY_URL = "https://places.googleapis.com/v1/places:searchNearby"
 
 # Keep field mask minimal for Healthy Nearby cost/speed.
+# websiteUri is included so menu_ingestion can fetch real menu text from the
+# restaurant's website — this enables LLM menu reasoning for non-chain venues.
 PLACES_NEARBY_FIELD_MASK_FIELDS = (
     "id",
     "displayName",
@@ -16,6 +18,7 @@ PLACES_NEARBY_FIELD_MASK_FIELDS = (
     "primaryType",
     "types",
     "businessStatus",
+    "websiteUri",
 )
 PLACES_NEARBY_FIELD_MASK = ",".join(f"places.{field}" for field in PLACES_NEARBY_FIELD_MASK_FIELDS)
 
@@ -97,6 +100,8 @@ def map_places_new_response(body: Dict[str, Any]) -> List[Dict[str, Any]]:
                 "place_id": str(item.get("id") or "").strip(),
                 "primary_type": str(item.get("primaryType") or "").strip(),
                 "business_status": str(item.get("businessStatus") or "").strip(),
+                # Website URL — enables menu ingestion + LLM reasoning for non-chain venues.
+                "website": str(item.get("websiteUri") or "").strip(),
             }
         )
 

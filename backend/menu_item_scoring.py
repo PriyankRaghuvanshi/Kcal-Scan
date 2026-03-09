@@ -20,9 +20,13 @@ from llm_menu_parser import infer_place_menu_items_with_optional_llm
 from llm_menu_reasoning import (
     CONF_EXACT_ITEM,
     CONF_SOFT_ITEM,
+    CONF_MIN_ITEM,
     CONF_REASONING_FULL,
     CONF_REASONING_USE,
+    CONF_REASONING_MIN,
     reason_over_menu,
+    reason_from_place_context,
+    build_place_context_text,
     extract_menu_text_for_reasoning,
     candidate_item_name,
     candidate_calories,
@@ -464,14 +468,23 @@ def _final_item_name(
     if source in {"real_menu", "user_scan"}:
         return text
 
-    # LLM reasoning items come from actual live menu text — allow exact names
-    # at the centralized CONF_EXACT_ITEM threshold without cuisine-based suppression.
+    # LLM reasoning items — tiered by confidence:
+    #   >= CONF_EXACT_ITEM (0.65): real menu item, exact name, "Best Menu Item" label
+    #   >= CONF_SOFT_ITEM  (0.55): real menu item, softer label "Likely Better Choice"
+    #   >= CONF_MIN_ITEM   (0.45): context-based category guess (no real menu) —
+    #                              allow non-generic names, shows as "Estimated Best Fit"
+    #   <  CONF_MIN_ITEM         : discard → coarse fallback
     if source == "llm_reasoning":
         conf = _safe_float(confidence, 0.0)
         if conf >= CONF_EXACT_ITEM:
             return text
         if conf >= CONF_SOFT_ITEM:
-            return text  # menu-derived name, caller sees "Likely Better Choice" label
+            return text
+        if conf >= CONF_MIN_ITEM:
+            # Category-level guess (e.g. "Tandoori Chicken" for Indian restaurant).
+            # Allow through only if not a known generic placeholder.
+            if not any(token in text.lower() for token in _GENERIC_FALLBACK_NAME_TOKENS):
+                return text
         return _coarse_item_name_for_context(cuisine_hint)
 
     lower_item = text.lower()
@@ -1540,6 +1553,67 @@ def recommend_menu_items_for_place(
                     top_items = scored_items[:3]
                     top_item = top_items[0] if top_items else top_item
         except Exception as _llm_exc:
+            pass
+
+    # Option B: No real menu text available — try LLM reasoning from place metadata.
+    # Produces low-confidence (0.40–0.55) category-appropriate candidates that are
+    # more specific than pure keyword heuristics (e.g. "Tandoori Chicken" instead of
+    # "Lighter menu option" for an Indian restaurant).
+    # Only runs when:  (a) Option A reasoning didn't fire/succeed AND
+    #                  (b) we are still on heuristic/llm_inferred quality items.
+    if not llm_reasoning_candidates.get("llm_reasoning_used") and is_heuristic_quality:
+        try:
+            context_result = reason_from_place_context(
+                place=place,
+                goal=goal_value,
+                cut_mode=cut_mode_active,
+            )
+            if context_result.get("llm_reasoning_used"):
+                llm_reasoning_candidates = context_result
+                ctx_conf = float(_safe_float(context_result.get("reasoning_confidence"), 0.0))
+                # Only promote to scored items if overall confidence meets the minimum.
+                if ctx_conf >= CONF_REASONING_MIN:
+                    best_candidate = context_result.get("best_choice_here")
+                    # Use CONF_MIN_ITEM (0.45) — context guesses are lower confidence
+                    best_name = candidate_item_name(best_candidate, min_confidence=CONF_MIN_ITEM)
+                    if best_name:
+                        ctx_item_conf = float(_safe_float((best_candidate or {}).get("confidence"), CONF_MIN_ITEM))
+                        context_raw_item: Dict[str, Any] = {
+                            "item_name": best_name,
+                            "menu_item_source": "llm_reasoning",
+                            "source": "llm_reasoning",
+                            "confidence": ctx_item_conf,
+                            "menu_item_confidence": ctx_item_conf,
+                            "estimated_calories": candidate_calories(best_candidate) or 520,
+                            "estimated_protein_g": candidate_protein(best_candidate) or 32,
+                            "short_reason": str(
+                                (best_candidate or {}).get("why")
+                                or "Best category-appropriate choice for this restaurant type."
+                            ),
+                            # Slightly lower source weight for context-based items
+                            "source_rank_weight": round(SOURCE_RANK_WEIGHTS["llm_reasoning"] * 0.85, 2),
+                            "raw_text_snippet": best_name,
+                        }
+                        context_scored = score_menu_item(
+                            context_raw_item,
+                            context={
+                                "place_text": place_text,
+                                "cuisine_hint": cuisine_hint,
+                                "menu_source": "llm_reasoning",
+                                "mode": resolved_mode.value,
+                                "place": place,
+                                "personalization_goal": personalization_goal,
+                            },
+                            mode=resolved_mode,
+                            personalization_goal=personalization_goal,
+                        )
+                        scored_items = [context_scored] + [
+                            x for x in scored_items
+                            if str(x.get("item_name") or "").strip().lower() != best_name.lower()
+                        ]
+                        top_items = scored_items[:3]
+                        top_item = top_items[0] if top_items else top_item
+        except Exception:
             pass
 
     return {

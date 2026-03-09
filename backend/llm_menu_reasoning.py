@@ -1150,6 +1150,276 @@ def reality_check_candidates_valid(
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# OPTION B — PLACE CONTEXT REASONING  (no real menu text available)
+# ─────────────────────────────────────────────────────────────────────────────
+# When no menu text can be retrieved (no website, no OCR, no chain match),
+# the LLM can still produce category-appropriate low-confidence candidates
+# from the restaurant's name and type.  These are better than pure keyword
+# heuristics because the model can reason about what dishes are typical for
+# that restaurant category.
+#
+# Confidence is intentionally capped at 0.55 so:
+#  - candidates never show as "Best Menu Item" (requires CONF_EXACT_ITEM 0.65)
+#  - candidates show as "Estimated Best Fit" — honest about the uncertainty
+#  - items are still specific (e.g. "Tandoori Chicken") not generic ("Lighter option")
+#
+# Cached by (context_text_hash, goal, cut_mode) — same mechanism as real menu.
+
+_PLACE_CONTEXT_PROMPT = """\
+You are a nutrition analyst helping a health-conscious user decide what to eat.
+No menu is available for this restaurant — only its name and type are known.
+Make reasonable, category-appropriate suggestions based on what is typically
+served at this style of restaurant.
+
+Restaurant context:
+{place_context}
+
+User goal: {goal}
+Strict cut mode (low-calorie priority): {cut_mode}
+
+Return ONLY valid JSON with this structure. All fields optional — omit what
+you cannot support from the restaurant type alone:
+
+{{
+  "menu_summary": "One sentence: what kind of food does this restaurant typically serve?",
+  "reasoning_confidence": 0.48,
+  "best_choice_here": {{
+    "name": "Well-known dish name typical for this restaurant type",
+    "why": "Why this style of dish is usually the best macro-fit here",
+    "estimated_calories": 440,
+    "estimated_protein_g": 32,
+    "confidence": 0.50
+  }},
+  "better_swap": {{
+    "name": "Lighter variant or smarter customisation for this restaurant type",
+    "swap_tip": "Specific tip that applies to this kind of restaurant",
+    "why": "Why this swap helps",
+    "confidence": 0.47
+  }},
+  "avoid_if_cutting": {{
+    "name": "Typically heaviest / most calorie-dense order at this type of place",
+    "why": "Why it is hard to fit when the user is cutting",
+    "estimated_calories": 880,
+    "confidence": 0.46
+  }},
+  "typical_order": {{
+    "name": "What most customers probably order at this kind of restaurant",
+    "estimated_calories": 720,
+    "confidence": 0.44
+  }},
+  "ranked_candidates": [
+    {{
+      "name": "Best protein option typical for this restaurant type",
+      "estimated_calories": 440,
+      "estimated_protein_g": 34,
+      "notes": "highest protein",
+      "confidence": 0.50
+    }},
+    {{
+      "name": "Lowest calorie option typical for this restaurant type",
+      "estimated_calories": 280,
+      "estimated_protein_g": 14,
+      "notes": "lowest calorie",
+      "confidence": 0.48
+    }}
+  ]
+}}
+
+STRICT RULES:
+- reasoning_confidence MUST be between 0.40 and 0.55 (no real menu — honest uncertainty)
+- All candidate confidence values MUST be between 0.40 and 0.55
+- Use well-known dish CATEGORY names that are genuinely typical for this restaurant type
+  e.g. Indian → "Tandoori Chicken", "Dal Makhani", "Butter Chicken"
+       Sushi  → "Salmon Sashimi Set", "Edamame + Miso Soup"
+       Subway → "6-inch Chicken Sub", "Veggie Delite"
+       Cafe   → "Eggs on Toast", "Chicken and Avocado Wrap"
+- Do NOT use generic labels: "Lighter menu option", "Protein bowl", "Healthy option", "Best choice"
+- Do NOT fabricate unique restaurant-specific dish names that may not exist
+- Include estimated_calories and estimated_protein_g where known for the category
+- ranked_candidates: include 3–5 typical items covering protein-rich and lighter options
+- Return ONLY valid JSON — no markdown fences, no prose before or after
+"""
+
+# Generic type tokens that add no cuisine signal — skip when building context
+_SKIP_PLACE_TYPES = frozenset(
+    {
+        "restaurant",
+        "food",
+        "point of interest",
+        "establishment",
+        "store",
+        "local business",
+        "meal takeaway",
+        "meal delivery",
+    }
+)
+
+
+def build_place_context_text(place: Dict[str, Any]) -> str:
+    """Build a minimal restaurant identity string for metadata-based LLM reasoning.
+
+    Used by reason_from_place_context() when no real menu text is available.
+    Returns a short multi-line string like:
+        Restaurant name: Curry Palace
+        Type: indian restaurant
+        Location: Wentworthville NSW
+    """
+    payload = place if isinstance(place, dict) else {}
+
+    name = str(payload.get("name") or "").strip()
+    primary = (
+        str(payload.get("primary_type") or payload.get("primaryType") or "")
+        .strip()
+        .replace("_", " ")
+    )
+    types = payload.get("types") if isinstance(payload.get("types"), list) else []
+    cuisine_types = [
+        str(t or "").replace("_", " ").strip()
+        for t in types
+        if str(t or "").replace("_", " ").strip().lower() not in _SKIP_PLACE_TYPES
+    ]
+    vicinity = str(payload.get("vicinity") or payload.get("address") or "").strip()
+
+    parts: List[str] = []
+    if name:
+        parts.append(f"Restaurant name: {name}")
+    if primary and primary.lower() not in _SKIP_PLACE_TYPES:
+        parts.append(f"Type: {primary}")
+    elif cuisine_types:
+        parts.append(f"Type: {', '.join(cuisine_types[:3])}")
+    if vicinity:
+        parts.append(f"Location: {vicinity}")
+
+    return "\n".join(parts)
+
+
+def reason_from_place_context(
+    place: Dict[str, Any],
+    *,
+    goal: str = "",
+    cut_mode: bool = False,
+) -> Dict[str, Any]:
+    """Option B: LLM reasoning from place metadata when no menu text exists.
+
+    Returns low-confidence (0.40–0.55) but category-appropriate candidates.
+    These are better than pure keyword heuristics because the LLM can reason
+    about what dishes are typical for the restaurant type.
+
+    Confidence is capped at 0.55 so items show as "Estimated Best Fit"
+    (not "Best Menu Item") — accurate about the uncertainty.
+
+    Results are cached by (context_text_hash, goal, cut_mode) using the same
+    in-process LRU cache as real menu reasoning.
+    """
+    if not _is_enabled():
+        return _empty_result("disabled", reasoning_source="disabled")
+
+    context_text = build_place_context_text(place)
+    if len(context_text) < 20:
+        return _empty_result("insufficient_place_context", reasoning_source="error")
+
+    api_key = os.getenv("GEMINI_API_KEY", "").strip()
+    if not api_key:
+        return _empty_result("no_api_key", reasoning_source="error")
+
+    try:
+        import google.generativeai as genai  # type: ignore[import]
+    except Exception:
+        return _empty_result("genai_unavailable", reasoning_source="error")
+
+    cache_key = _make_cache_key(context_text, goal, cut_mode)
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        hit = dict(cached)
+        hit["cache_hit"] = True
+        hit["reasoning_source"] = "cache_context"
+        return hit
+
+    goal_str = (
+        str(goal or "general healthy eating").strip().replace("_", " ")
+        or "general healthy eating"
+    )
+    prompt = _PLACE_CONTEXT_PROMPT.format(
+        place_context=context_text,
+        goal=goal_str,
+        cut_mode=str(bool(cut_mode)),
+    )
+
+    try:
+        genai.configure(api_key=api_key)
+        model = genai.GenerativeModel(
+            model_name=_get_model_name(),
+            generation_config=genai.GenerationConfig(
+                temperature=0.2,
+                response_mime_type="application/json",
+            ),
+        )
+        response = model.generate_content(
+            prompt,
+            request_options={"timeout": min(_get_timeout_sec(), 10.0)},
+        )
+        raw_text = str(getattr(response, "text", "") or "").strip()
+        if not raw_text:
+            return _empty_result("empty_llm_response", reasoning_source="error")
+
+        parsed = json.loads(raw_text)
+        if not isinstance(parsed, dict):
+            return _empty_result("invalid_json_structure", reasoning_source="error")
+
+        result = _empty_result()
+        result["llm_reasoning_used"] = True
+        result["reasoning_source"] = "live_llm_context"
+        result["cache_hit"] = False
+        result["menu_summary"] = str(parsed.get("menu_summary") or "").strip()
+
+        # Clamp to the metadata-only confidence range.
+        raw_conf = _safe_float(parsed.get("reasoning_confidence"), 0.48)
+        result["reasoning_confidence"] = float(_clamp(raw_conf, 0.40, 0.55))
+
+        def _clamp_candidate_conf(c: Dict[str, Any]) -> Dict[str, Any]:
+            c["confidence"] = float(_clamp(_safe_float(c.get("confidence"), 0.48), 0.40, 0.55))
+            return c
+
+        for key in ("best_choice_here", "better_swap", "avoid_if_cutting", "typical_order"):
+            cleaned = _clean_candidate(parsed.get(key))
+            if cleaned is not None:
+                result[key] = _clamp_candidate_conf(cleaned)
+
+        raw_ranked = parsed.get("ranked_candidates")
+        if isinstance(raw_ranked, list):
+            pre_cleaned = [_clean_ranked_candidate(c) for c in raw_ranked if isinstance(c, dict)]
+            pre_cleaned = [c for c in pre_cleaned if c is not None]
+            main_names = [
+                str((result.get(k) or {}).get("name") or "")
+                for k in ("best_choice_here", "better_swap", "avoid_if_cutting", "typical_order")
+                if result.get(k)
+            ]
+            validated, _ = _validate_and_repair_ranked_candidates(
+                raw_candidates=pre_cleaned,
+                all_named_candidates=main_names,
+                reasoning_confidence=result["reasoning_confidence"],
+            )
+            for c in validated:
+                c["confidence"] = float(_clamp(_safe_float(c.get("confidence"), 0.48), 0.40, 0.55))
+            result["ranked_candidates"] = validated
+
+        _seed_ranked_from_main_candidates(result)
+
+        if result["llm_reasoning_used"]:
+            _cache_put(cache_key, dict(result))
+
+        return result
+
+    except Exception as exc:
+        logger.info(
+            "reason_from_place_context failed for %s: %s",
+            str(place.get("name") or "?")[:40],
+            str(exc)[:120],
+        )
+        return _empty_result(str(exc or "context_reasoning_failed")[:120], reasoning_source="error")
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # TEXT EXTRACTION HELPER
 # ─────────────────────────────────────────────────────────────────────────────
 
