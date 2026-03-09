@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from nutrition_mode import (
     NutritionMode,
@@ -17,6 +17,13 @@ from personalization_profiles import (
 from restaurant_macro_estimator import estimate_restaurant_macros
 from llm_explanation_copy import maybe_rewrite_explanation_copy
 from llm_menu_parser import infer_place_menu_items_with_optional_llm
+from llm_menu_reasoning import (
+    reason_over_menu,
+    extract_menu_text_for_reasoning,
+    candidate_item_name,
+    candidate_calories,
+    candidate_protein,
+)
 from recommendation_safety import (
     has_strong_menu_evidence,
     sanitize_recommended_item,
@@ -154,6 +161,7 @@ FALLBACK_ITEMS: List[Dict[str, Any]] = [
 SOURCE_RANK_WEIGHTS: Dict[str, float] = {
     "real_menu": 1.00,
     "user_scan": 0.95,
+    "llm_reasoning": 0.85,
     "llm_inferred": 0.80,
     "heuristic": 0.65,
 }
@@ -341,6 +349,12 @@ def _display_label_for_menu_item(source: str, confidence: float) -> str:
     conf = _clamp(_safe_float(confidence, 0.5), 0.0, 1.0)
     if source in {"real_menu", "user_scan"}:
         return "Best Menu Item" if conf >= 0.72 else "Likely Better Choice"
+    if source == "llm_reasoning":
+        if conf >= 0.70:
+            return "Best Menu Item"
+        if conf >= 0.58:
+            return "Likely Better Choice"
+        return "Estimated Best Fit"
     if source == "llm_inferred":
         if conf >= 0.75:
             return "Likely Better Choice"
@@ -387,6 +401,8 @@ def _source_rank_weight(source: str, raw_source_token: str) -> float:
         return SOURCE_RANK_WEIGHTS["user_scan"]
     if source == "real_menu":
         return SOURCE_RANK_WEIGHTS["real_menu"]
+    if source == "llm_reasoning":
+        return SOURCE_RANK_WEIGHTS["llm_reasoning"]
     if source == "llm_inferred":
         return SOURCE_RANK_WEIGHTS["llm_inferred"]
     return SOURCE_RANK_WEIGHTS["heuristic"]
@@ -422,6 +438,15 @@ def _final_item_name(
     if source in {"real_menu", "user_scan"}:
         return text
 
+    # LLM reasoning items come from actual live menu text — allow exact names
+    # at a moderate confidence threshold without cuisine-based suppression.
+    if source == "llm_reasoning":
+        if _safe_float(confidence, 0.0) >= 0.60:
+            return text
+        if _safe_float(confidence, 0.0) >= 0.50:
+            return text  # still use the menu-derived name but caller sees lower label
+        return _coarse_item_name_for_context(cuisine_hint)
+
     lower_item = text.lower()
     lower_cuisine = str(cuisine_hint or "").lower()
     if _is_cuisine_inappropriate_generic(lower_item, lower_cuisine):
@@ -446,6 +471,8 @@ def _order_type_for_item(source: str, confidence: float) -> str:
     conf = _clamp(_safe_float(confidence, 0.5), 0.0, 1.0)
     if token in {"real_menu", "user_scan"} and conf >= 0.72:
         return "exact"
+    if token == "llm_reasoning" and conf >= 0.65:
+        return "likely"
     if token == "llm_inferred" and conf >= 0.62:
         return "likely"
     if conf >= 0.62:
@@ -1413,6 +1440,75 @@ def recommend_menu_items_for_place(
         2,
     )
 
+    # Run LLM reasoning when real menu text exists.
+    # This replaces heuristic items with menu-aware candidates and provides
+    # structured candidates (typical_order, best_choice_here, etc.) for the
+    # reality check and lunch decision card builders.
+    llm_reasoning_candidates: Dict[str, Any] = {}
+    raw_menu_text_for_reasoning = extract_menu_text_for_reasoning(place, ingestion_bundle)
+    is_heuristic_quality = resolved_source in {"heuristic", "llm_inferred"} or not top_items
+    is_low_quality_real = (
+        resolved_source in {"website_text", "review_text"}
+        and menu_confidence < 0.65
+    )
+    should_run_reasoning = bool(
+        raw_menu_text_for_reasoning
+        and len(raw_menu_text_for_reasoning) >= 80
+        and (is_heuristic_quality or is_low_quality_real)
+    )
+    if should_run_reasoning:
+        try:
+            llm_reasoning_candidates = reason_over_menu(
+                menu_text=raw_menu_text_for_reasoning,
+                place_name=str(place.get("name") or "").strip(),
+                goal=goal_value,
+                cut_mode=cut_mode_active,
+            )
+            # When reasoning succeeds and we're stuck with heuristics, promote
+            # the best_choice_here candidate to the top of scored_items.
+            if (
+                llm_reasoning_candidates.get("llm_reasoning_used")
+                and float(_safe_float(llm_reasoning_candidates.get("reasoning_confidence"), 0.0)) >= 0.55
+                and is_heuristic_quality
+            ):
+                best_candidate = llm_reasoning_candidates.get("best_choice_here")
+                best_name = candidate_item_name(best_candidate, min_confidence=0.55)
+                if best_name:
+                    best_conf = float(_safe_float((best_candidate or {}).get("confidence"), 0.70))
+                    reasoning_raw_item: Dict[str, Any] = {
+                        "item_name": best_name,
+                        "menu_item_source": "llm_reasoning",
+                        "source": "llm_reasoning",
+                        "confidence": best_conf,
+                        "menu_item_confidence": best_conf,
+                        "estimated_calories": candidate_calories(best_candidate) or 520,
+                        "estimated_protein_g": candidate_protein(best_candidate) or 32,
+                        "short_reason": str((best_candidate or {}).get("why") or "Best macro-fit pick from this menu."),
+                        "source_rank_weight": SOURCE_RANK_WEIGHTS["llm_reasoning"],
+                        "raw_text_snippet": best_name,
+                    }
+                    reasoning_scored = score_menu_item(
+                        reasoning_raw_item,
+                        context={
+                            "place_text": place_text,
+                            "cuisine_hint": cuisine_hint,
+                            "menu_source": "llm_reasoning",
+                            "mode": resolved_mode.value,
+                            "place": place,
+                            "personalization_goal": personalization_goal,
+                        },
+                        mode=resolved_mode,
+                        personalization_goal=personalization_goal,
+                    )
+                    scored_items = [reasoning_scored] + [
+                        x for x in scored_items
+                        if str(x.get("item_name") or "").strip().lower() != best_name.lower()
+                    ]
+                    top_items = scored_items[:3]
+                    top_item = top_items[0] if top_items else top_item
+        except Exception as _llm_exc:
+            pass
+
     return {
         "menu_item_scoring_available": bool(top_items),
         "menu_items_source": menu_source,
@@ -1453,4 +1549,5 @@ def recommend_menu_items_for_place(
         ),
         "cut_mode_active": cut_mode_active,
         "personalization_goal": goal_value,
+        "llm_reasoning_candidates": llm_reasoning_candidates,
     }

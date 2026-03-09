@@ -8,6 +8,7 @@ from day_coach import build_day_coach_payload
 from healthy_order_recommender import suggest_best_order_for_place
 from healthy_place_scoring import score_healthy_place
 from llm_explanation_copy import maybe_rewrite_explanation_copy
+from llm_menu_reasoning import candidate_item_name, candidate_calories, candidate_protein
 from menu_item_scoring import recommend_menu_items_for_place
 from recommendation_safety import has_strong_menu_evidence, sanitize_recommended_item
 from nutrition_mode import NutritionMode
@@ -320,11 +321,25 @@ def _place_profile(
         )
     )
 
+    # Extract LLM reasoning candidates from the menu bundle (populated when
+    # real menu text was available and LLM reasoning is enabled).
+    llm_candidates = (
+        menu.get("llm_reasoning_candidates")
+        if isinstance(menu.get("llm_reasoning_candidates"), dict)
+        else {}
+    )
+    llm_best = llm_candidates.get("best_choice_here") if isinstance(llm_candidates.get("best_choice_here"), dict) else {}
+    llm_swap = llm_candidates.get("better_swap") if isinstance(llm_candidates.get("better_swap"), dict) else {}
+
+    # Use LLM reasoning best_choice as final fallback before the generic label.
+    llm_best_name = candidate_item_name(llm_best, min_confidence=0.60) if llm_best else ""
+
     recommended_order = str(
         top_item.get("item_name")
         or order.get("personalized_best_order")
         or order.get("best_order_for_cut")
         or order.get("best_order")
+        or llm_best_name
         or "Lighter menu option"
     )
     top_item["item_name"] = recommended_order
@@ -332,14 +347,20 @@ def _place_profile(
     if order_type not in {"exact", "likely", "estimated"}:
         if menu_item_source == "real_menu" and menu_item_confidence >= 0.72:
             order_type = "exact"
+        elif menu_item_source == "llm_reasoning" and menu_item_confidence >= 0.65:
+            order_type = "likely"
         elif menu_item_confidence >= 0.56:
             order_type = "likely"
         else:
             order_type = "estimated"
+
+    # Use LLM reasoning swap_tip when the heuristic swap is generic.
+    llm_swap_tip = str(llm_swap.get("swap_tip") or "").strip() if llm_swap else ""
     swap_suggestion = str(
         top_item.get("swap_suggestion")
         or order.get("swap_suggestion")
         or order.get("better_swap")
+        or llm_swap_tip
         or "Skip heavy sides and add a lighter side."
     )
     skip_items = (
@@ -396,6 +417,7 @@ def _place_profile(
             "mode": mode.value,
             "fit_for_today": fit_for_today,
             "goal": goal_value,
+            "llm_reasoning_candidates": llm_candidates,
         },
     )
 

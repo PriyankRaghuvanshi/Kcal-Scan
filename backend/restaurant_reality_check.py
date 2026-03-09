@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from llm_explanation_copy import maybe_rewrite_explanation_copy
+from llm_menu_reasoning import candidate_item_name, candidate_calories, candidate_protein
 from restaurant_macro_estimator import estimate_restaurant_macros
 
 
@@ -279,7 +280,27 @@ def _best_rule(place: Dict[str, Any]) -> Tuple[Dict[str, Any], int]:
     }, 0
 
 
-def _infer_typical_order(place: Dict[str, Any], menu_items: List[Dict[str, Any]]) -> Dict[str, Any]:
+def _infer_typical_order(
+    place: Dict[str, Any],
+    menu_items: List[Dict[str, Any]],
+    context: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    ctx = context if isinstance(context, dict) else {}
+
+    # Prefer LLM reasoning typical_order when available — it comes from actual
+    # menu text and represents a real item, not a cuisine stereotype.
+    llm_candidates = ctx.get("llm_reasoning_candidates") if isinstance(ctx.get("llm_reasoning_candidates"), dict) else {}
+    llm_typical = llm_candidates.get("typical_order") if isinstance(llm_candidates.get("typical_order"), dict) else {}
+    llm_typical_name = candidate_item_name(llm_typical, min_confidence=0.55) if llm_typical else ""
+    if llm_typical_name:
+        cal = candidate_calories(llm_typical) or 0
+        return _with_macro_estimate(
+            item_name=llm_typical_name,
+            place=place,
+            calories=cal,
+            protein_g=candidate_protein(llm_typical) or 0,
+        )
+
     if menu_items:
         ranked: List[Tuple[float, Dict[str, Any]]] = []
         for item in menu_items:
@@ -472,8 +493,31 @@ def build_restaurant_reality_check(
     place_name = str(payload.get("name") or "Nearby place").strip() or "Nearby place"
     menu_items = _extract_menu_items(payload)
 
-    typical = _infer_typical_order(payload, menu_items)
-    smart = _infer_smarter_order(payload, menu_items, recommended_order or {}, ctx)
+    typical = _infer_typical_order(payload, menu_items, context=ctx)
+
+    # When LLM reasoning produced a best_choice_here that is distinct from the
+    # typical order, prefer it as the smarter order so the comparison is meaningful.
+    llm_candidates = ctx.get("llm_reasoning_candidates") if isinstance(ctx.get("llm_reasoning_candidates"), dict) else {}
+    llm_best = llm_candidates.get("best_choice_here") if isinstance(llm_candidates.get("best_choice_here"), dict) else {}
+    llm_best_name = candidate_item_name(llm_best, min_confidence=0.60) if llm_best else ""
+    llm_typical_name = str(typical.get("name") or "").strip()
+
+    enriched_recommended_order = dict(recommended_order) if isinstance(recommended_order, dict) else {}
+    if (
+        llm_best_name
+        and llm_best_name.lower() != llm_typical_name.lower()
+        and not str(enriched_recommended_order.get("item_name") or "").strip()
+    ):
+        enriched_recommended_order["item_name"] = llm_best_name
+        if candidate_calories(llm_best):
+            enriched_recommended_order.setdefault("estimated_calories", candidate_calories(llm_best))
+        if candidate_protein(llm_best):
+            enriched_recommended_order.setdefault("estimated_protein_g", candidate_protein(llm_best))
+        swap_key = llm_candidates.get("better_swap") if isinstance(llm_candidates.get("better_swap"), dict) else {}
+        if isinstance(swap_key, dict) and swap_key.get("swap_tip"):
+            enriched_recommended_order.setdefault("swap_suggestion", str(swap_key["swap_tip"]).strip())
+
+    smart = _infer_smarter_order(payload, menu_items, enriched_recommended_order, ctx)
 
     typical_cal = int(max(120, _safe_int(typical.get("estimated_calories"), 860)))
     typical_protein = int(max(6, _safe_int(typical.get("estimated_protein_g"), 26)))

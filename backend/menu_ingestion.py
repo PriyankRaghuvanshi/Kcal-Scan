@@ -537,6 +537,7 @@ def ingest_real_menu_for_place(
     extraction_methods = set()
     source_urls = set()
     source_tokens = set()
+    raw_texts_collected: List[str] = []
 
     for record in source_records:
         menu_source = str(record.get("menu_source") or SOURCE_WEBSITE_TEXT).strip()
@@ -545,6 +546,7 @@ def ingest_real_menu_for_place(
         raw_text = str(record.get("raw_text") or "").strip()
         if not raw_text:
             continue
+        raw_texts_collected.append(raw_text[:4000])
 
         deterministic = _deterministic_menu_items(raw_text, max_items=max_items)
         llm_bundle = parse_menu_items_with_optional_llm(
@@ -655,6 +657,7 @@ def ingest_real_menu_for_place(
             pass
 
     avg_conf = sum(_safe_float(row.get("menu_confidence"), 0.0) for row in merged_items) / max(1, len(merged_items))
+    combined_raw_text = "\n\n".join(raw_texts_collected)[:8000]
     return {
         "ingested": True,
         "menu_items": merged_items,
@@ -667,5 +670,6 @@ def ingest_real_menu_for_place(
         "extraction_method": ",".join(sorted(extraction_methods))[:120],
         "parse_method": "llm" if "llm" in parse_methods else "deterministic",
         "source_url": next(iter(source_urls), ""),
+        "raw_menu_text": combined_raw_text,
         "menu_ingestion_version": MENU_INGESTION_VERSION,
     }

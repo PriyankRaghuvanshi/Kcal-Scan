@@ -400,7 +400,7 @@ def maybe_rewrite_explanation_copy(
         "copy_fallback_reason": "",
     }
 
-    if not _env_bool("ENABLE_LLM_EXPLANATION_COPY", default=False):
+    if not _env_bool("ENABLE_LLM_EXPLANATION_COPY", default=True):
         return out
 
     if not _llm_available():

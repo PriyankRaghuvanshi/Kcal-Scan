@@ -515,7 +515,7 @@ def parse_menu_items_with_optional_llm(
     fallback_items = deterministic_items if isinstance(deterministic_items, list) else []
     fallback_structured = _fallback_structured_items(fallback_items, max_items=max_items)
 
-    llm_enabled = _env_bool("ENABLE_LLM_MENU_PARSING", default=False)
+    llm_enabled = _env_bool("ENABLE_LLM_MENU_PARSING", default=True)
     llm_attempted = False
     llm_error = ""
     parse_method = "deterministic"
@@ -681,7 +681,7 @@ def infer_place_menu_items_with_optional_llm(
             }
         )
 
-    llm_enabled = _env_bool("ENABLE_LLM_MENU_PARSING", default=False)
+    llm_enabled = _env_bool("ENABLE_LLM_MENU_PARSING", default=True)
     llm_attempted = False
     llm_error = ""
     parse_method = "heuristic"

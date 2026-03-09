@@ -5,6 +5,12 @@ from typing import Any, Dict, List, Optional
 
 from coach_messages import build_place_coach_message
 from llm_menu_parser import parse_menu_items_with_optional_llm
+from llm_menu_reasoning import (
+    reason_over_menu,
+    candidate_item_name,
+    candidate_calories,
+    candidate_protein,
+)
 from menu_item_scoring import score_menu_item
 from nutrition_mode import NutritionMode
 from personalization_profiles import normalize_personalization_goal, personalization_goal_value
@@ -535,21 +541,54 @@ def build_menu_scan_response(
 
     best = enriched_top[0]
     better = enriched_top[1] if len(enriched_top) > 1 else None
-    avoid_src = max(scored_items, key=_avoid_rank) if scored_items else None
-    avoid = (
-        {
-            "item_name": str(avoid_src.get("item_name") or ""),
-            "estimated_calories": int(_safe_float(avoid_src.get("estimated_calories"), 0.0) or 0),
-            "short_reason": _avoid_reason(avoid_src),
+
+    # Run LLM reasoning over the real OCR text to get structured candidates.
+    # This is the highest-value call in the scan flow — the model sees the actual
+    # menu and returns specific item names, not cuisine stereotypes.
+    llm_reasoning: Dict[str, Any] = {}
+    try:
+        llm_reasoning = reason_over_menu(
+            menu_text=raw_menu_text,
+            place_name=str(place.get("name") or restaurant_name or "").strip(),
+            goal=goal_token,
+            cut_mode=bool(mode == NutritionMode.CUT),
+            remaining_calories=remaining_calories,
+            remaining_protein_g=remaining_protein_g,
+        )
+    except Exception:
+        llm_reasoning = {}
+
+    llm_used = bool(llm_reasoning.get("llm_reasoning_used"))
+    llm_conf = float(_safe_float(llm_reasoning.get("reasoning_confidence"), 0.0))
+
+    # Override scored best_choice_here with LLM candidate when confidence is high
+    # enough and the LLM picked a more specific menu item name.
+    llm_best_candidate = llm_reasoning.get("best_choice_here") if isinstance(llm_reasoning.get("best_choice_here"), dict) else {}
+    llm_best_name = candidate_item_name(llm_best_candidate, min_confidence=0.65) if llm_best_candidate else ""
+    if llm_used and llm_best_name and llm_conf >= 0.60:
+        best_choice_item_name = llm_best_name
+        best_choice_calories = candidate_calories(llm_best_candidate) or int(_safe_float(best.get("estimated_calories"), 0.0) or 0)
+        best_choice_protein = candidate_protein(llm_best_candidate) or int(_safe_float(best.get("estimated_protein_g"), 0.0) or 0)
+        best_choice_why = str(llm_best_candidate.get("why") or best.get("short_reason") or "")
+    else:
+        best_choice_item_name = str(best.get("item_name") or "")
+        best_choice_calories = int(_safe_float(best.get("estimated_calories"), 0.0) or 0)
+        best_choice_protein = int(_safe_float(best.get("estimated_protein_g"), 0.0) or 0)
+        best_choice_why = str(best.get("short_reason") or "")
+
+    # Build better_swap from LLM candidate when available and distinct.
+    llm_swap_candidate = llm_reasoning.get("better_swap") if isinstance(llm_reasoning.get("better_swap"), dict) else {}
+    llm_swap_name = candidate_item_name(llm_swap_candidate, min_confidence=0.60) if llm_swap_candidate else ""
+    if llm_used and llm_swap_name and llm_conf >= 0.55 and llm_swap_name != best_choice_item_name:
+        better_swap_item = {
+            "item_name": llm_swap_name,
+            "estimated_calories": candidate_calories(llm_swap_candidate) or (int(_safe_float(better.get("estimated_calories"), 0.0) or 0) if better else 0),
+            "estimated_protein_g": candidate_protein(llm_swap_candidate) or (int(_safe_float(better.get("estimated_protein_g"), 0.0) or 0) if better else 0),
+            "short_reason": str(llm_swap_candidate.get("why") or (better.get("short_reason") if better else "") or "A lighter alternative from this menu."),
+            "swap_tip": str(llm_swap_candidate.get("swap_tip") or ""),
         }
-        if isinstance(avoid_src, dict)
-        else None
-    )
-    top_choices = _top_choices_payload(enriched_top)
-    best_high_protein = _best_high_protein_choice(enriched_top)
-    smart_swaps = _smart_swaps(
-        top_recommendations=enriched_top,
-        better_swap=(
+    else:
+        better_swap_item = (
             {
                 "item_name": str(better.get("item_name") or ""),
                 "estimated_calories": int(_safe_float(better.get("estimated_calories"), 0.0) or 0),
@@ -558,7 +597,34 @@ def build_menu_scan_response(
             }
             if isinstance(better, dict)
             else None
-        ),
+        )
+
+    # Build avoid_if_cutting from LLM candidate when available.
+    llm_avoid_candidate = llm_reasoning.get("avoid_if_cutting") if isinstance(llm_reasoning.get("avoid_if_cutting"), dict) else {}
+    llm_avoid_name = candidate_item_name(llm_avoid_candidate, min_confidence=0.60) if llm_avoid_candidate else ""
+    avoid_src = max(scored_items, key=_avoid_rank) if scored_items else None
+    if llm_used and llm_avoid_name and llm_conf >= 0.55:
+        avoid = {
+            "item_name": llm_avoid_name,
+            "estimated_calories": candidate_calories(llm_avoid_candidate) or (int(_safe_float(avoid_src.get("estimated_calories"), 0.0) or 0) if avoid_src else 0),
+            "short_reason": str(llm_avoid_candidate.get("why") or "Highest calorie density on this menu."),
+        }
+    else:
+        avoid = (
+            {
+                "item_name": str(avoid_src.get("item_name") or ""),
+                "estimated_calories": int(_safe_float(avoid_src.get("estimated_calories"), 0.0) or 0),
+                "short_reason": _avoid_reason(avoid_src),
+            }
+            if isinstance(avoid_src, dict)
+            else None
+        )
+
+    top_choices = _top_choices_payload(enriched_top)
+    best_high_protein = _best_high_protein_choice(enriched_top)
+    smart_swaps = _smart_swaps(
+        top_recommendations=enriched_top,
+        better_swap=better_swap_item,
         avoid_if_cutting=avoid,
     )
 
@@ -572,14 +638,17 @@ def build_menu_scan_response(
         for x in scored_items[:8]
     ]
     recommended_order = {
-        "item_name": str(best.get("item_name") or ""),
-        "estimated_calories": int(_safe_float(best.get("estimated_calories"), 520.0) or 520),
-        "estimated_protein_g": int(_safe_float(best.get("estimated_protein_g"), 30.0) or 30),
+        "item_name": best_choice_item_name or str(best.get("item_name") or ""),
+        "estimated_calories": best_choice_calories or int(_safe_float(best.get("estimated_calories"), 520.0) or 520),
+        "estimated_protein_g": best_choice_protein or int(_safe_float(best.get("estimated_protein_g"), 30.0) or 30),
     }
     reality_check = build_restaurant_reality_check(
         reality_place,
         recommended_order=recommended_order,
-        context={"top_menu_item": best},
+        context={
+            "top_menu_item": best,
+            "llm_reasoning_candidates": llm_reasoning,
+        },
     )
 
     today_fit = {
@@ -611,29 +680,22 @@ def build_menu_scan_response(
         "title": "Best Choice Here",
         "subtitle": "AI analyzed this restaurant menu",
         "best_choice_here": {
-            "item_name": str(best.get("item_name") or ""),
+            "item_name": best_choice_item_name or str(best.get("item_name") or ""),
             "item_score": int(_safe_float(best.get("item_score"), 0.0) or 0),
-            "estimated_calories": int(_safe_float(best.get("estimated_calories"), 0.0) or 0),
-            "estimated_protein_g": int(_safe_float(best.get("estimated_protein_g"), 0.0) or 0),
+            "estimated_calories": best_choice_calories or int(_safe_float(best.get("estimated_calories"), 0.0) or 0),
+            "estimated_protein_g": best_choice_protein or int(_safe_float(best.get("estimated_protein_g"), 0.0) or 0),
             "fit_for_today": best.get("fit_for_today"),
-            "short_reason": str(best.get("short_reason") or ""),
+            "short_reason": best_choice_why or str(best.get("short_reason") or ""),
             "recommendation_tags": list(best.get("recommendation_tags") or []),
+            "llm_reasoning_used": llm_used,
         },
+        "menu_summary": str(llm_reasoning.get("menu_summary") or "") if llm_used else "",
         "parsed_menu_items": parsed[:18],
         "parsed_menu_items_structured": structured_parsed[:18],
         "top_recommendations": enriched_top,
         "top_choices": top_choices,
         "best_high_protein_choice": best_high_protein,
-        "better_swap": (
-            {
-                "item_name": str(better.get("item_name") or ""),
-                "estimated_calories": int(_safe_float(better.get("estimated_calories"), 0.0) or 0),
-                "estimated_protein_g": int(_safe_float(better.get("estimated_protein_g"), 0.0) or 0),
-                "short_reason": str(better.get("short_reason") or "A solid lighter swap if calories are tight."),
-            }
-            if isinstance(better, dict)
-            else None
-        ),
+        "better_swap": better_swap_item,
         "avoid_if_cutting": avoid,
         "avoid_if_cutting_items": [str(avoid.get("item_name") or "").strip()] if isinstance(avoid, dict) and str(avoid.get("item_name") or "").strip() else [],
         "smart_swaps": smart_swaps,
@@ -644,6 +706,8 @@ def build_menu_scan_response(
         "parser_confidence": parser_confidence,
         "llm_parser_used": bool(parse_method == "llm"),
         "llm_parser_attempted": llm_attempted,
+        "llm_reasoning_used": llm_used,
+        "llm_reasoning_confidence": round(llm_conf, 2),
         "scan_confidence": _scan_confidence(
             parsed_items=parsed,
             top_recommendations=enriched_top,
