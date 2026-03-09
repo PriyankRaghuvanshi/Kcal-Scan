@@ -4374,11 +4374,24 @@ async function openCamera(mode = "meal") {
       }
       setMenuScanResult(payload);
       setMenuScanPhotoUri(sourceUri);
+      // Always show the scan result in Healthy Nearby Decision tab.
+      // If called from Home, this takes the user straight there.
+      // If already in Healthy Nearby, it ensures the Decision tab is active.
+      setActiveScreen("healthy_nearby");
+      setHealthyNearbyTab("decision");
+      _scrollToTop();
     } catch (e) {
       const msg =
         String((e && e.message) || e || "").trim() || "Could not scan this menu right now.";
       setMenuScanError(msg.slice(0, 220));
       setMenuScanResult(null);
+      // On error: if the user was on Home, take them to Healthy Nearby so
+      // the error message is visible in context.
+      if (activeScreen !== "healthy_nearby") {
+        setActiveScreen("healthy_nearby");
+        setHealthyNearbyTab("decision");
+        _scrollToTop();
+      }
     } finally {
       setMenuScanBusy(false);
     }
@@ -6242,17 +6255,30 @@ async function openCamera(mode = "meal") {
               Using location: {round1(healthyPlaceCoords.lat)}, {round1(healthyPlaceCoords.lng)}
             </Text>
           ) : null}
-          {healthyPlacesError ? (
-            <Text style={[styles.tiny, { marginTop: 8, color: "#fca5a5" }]}>{healthyPlacesError}</Text>
-          ) : null}
-          {lunchDecisionError ? (
-            <Text style={[styles.tiny, { marginTop: 8, color: "#fca5a5" }]}>{lunchDecisionError}</Text>
+          {(healthyPlacesError || lunchDecisionError) ? (
+            <View style={styles.nearbyErrorBlock}>
+              <Text style={styles.nearbyErrorText}>
+                {healthyPlacesError || lunchDecisionError}
+              </Text>
+              <TouchableOpacity
+                style={styles.nearbyRetryBtn}
+                onPress={() => {
+                  setHealthyNearbyTab("decision");
+                  void loadLunchDecision();
+                }}
+                disabled={lunchDecisionBusy || healthyPlacesBusy}
+              >
+                <Text style={styles.nearbyRetryBtnText}>
+                  {lunchDecisionBusy || healthyPlacesBusy ? "Searching..." : "↺ Retry"}
+                </Text>
+              </TouchableOpacity>
+            </View>
           ) : null}
           {menuScanError ? (
-            <Text style={[styles.tiny, { marginTop: 8, color: "#fca5a5" }]}>{menuScanError}</Text>
+            <Text style={[styles.tiny, { marginTop: 6, color: "#fca5a5" }]}>{menuScanError}</Text>
           ) : null}
           {weeklyCoachError ? (
-            <Text style={[styles.tiny, { marginTop: 8, color: "#fca5a5" }]}>{weeklyCoachError}</Text>
+            <Text style={[styles.tiny, { marginTop: 6, color: "#fca5a5" }]}>{weeklyCoachError}</Text>
           ) : null}
         </View>
 
@@ -6276,6 +6302,18 @@ async function openCamera(mode = "meal") {
                 disabled={lunchDecisionBusy}
               >
                 <Text style={styles.btnText}>Find My Best Meal Now</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
+          {!lunchDecision && !lunchDecisionBusy && lunchDecisionError ? (
+            <View style={styles.nearbyErrorBlock}>
+              <Text style={styles.nearbyErrorText}>{lunchDecisionError}</Text>
+              <TouchableOpacity
+                style={styles.nearbyRetryBtn}
+                onPress={() => void loadLunchDecision()}
+                disabled={lunchDecisionBusy}
+              >
+                <Text style={styles.nearbyRetryBtnText}>↺ Try again</Text>
               </TouchableOpacity>
             </View>
           ) : null}
@@ -8145,6 +8183,38 @@ const styles = StyleSheet.create({
     color: "#94b8d9",
     fontSize: 12,
     fontWeight: "600",
+  },
+  // ── Empty state / error block ─────────────────────────────────────────────
+  nearbyErrorBlock: {
+    marginTop: 6,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    backgroundColor: "#1a0a0a",
+    borderWidth: 1,
+    borderColor: "#5b2121",
+    gap: 8,
+    alignItems: "flex-start",
+  },
+  nearbyErrorText: {
+    color: "#fca5a5",
+    fontSize: 13,
+    lineHeight: 19,
+    fontWeight: "500",
+  },
+  nearbyRetryBtn: {
+    paddingVertical: 6,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    backgroundColor: "#2a0f0f",
+    borderWidth: 1,
+    borderColor: "#8b2020",
+    alignSelf: "flex-start",
+  },
+  nearbyRetryBtnText: {
+    color: "#fca5a5",
+    fontSize: 13,
+    fontWeight: "700",
   },
   nearbySecondaryActions: {
     flexDirection: "row",
