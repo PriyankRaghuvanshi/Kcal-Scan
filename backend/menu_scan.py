@@ -440,6 +440,8 @@ def build_menu_scan_response(
     remaining_protein_g: Optional[float] = None,
     goal: str = "",
     cut_mode: bool = False,
+    current_hour: Optional[int] = None,
+    meal_window: str = "",
 ) -> Dict[str, Any]:
     deterministic_parsed = parse_menu_items_from_text(raw_menu_text, ocr_lines=ocr_lines)
     parse_bundle = parse_menu_items_with_optional_llm(
@@ -558,6 +560,8 @@ def build_menu_scan_response(
             cut_mode=bool(mode == NutritionMode.CUT),
             remaining_calories=remaining_calories,
             remaining_protein_g=remaining_protein_g,
+            meal_window=meal_window,
+            current_hour=current_hour,
         )
     except Exception:
         llm_reasoning = {}
@@ -685,6 +689,10 @@ def build_menu_scan_response(
         },
     )
 
+    # Expose contextual overlay fields from LLM reasoning result
+    protein_catchup = llm_reasoning.get("protein_catchup_option") if isinstance(llm_reasoning.get("protein_catchup_option"), dict) else None
+    lighter_recovery = llm_reasoning.get("lighter_recovery_option") if isinstance(llm_reasoning.get("lighter_recovery_option"), dict) else None
+
     response = {
         "title": "Best Choice Here",
         "subtitle": "AI analyzed this restaurant menu",
@@ -699,6 +707,8 @@ def build_menu_scan_response(
             "llm_reasoning_used": llm_used,
         },
         "menu_summary": str(llm_reasoning.get("menu_summary") or "") if llm_used else "",
+        "protein_catchup_option": protein_catchup,
+        "lighter_recovery_option": lighter_recovery,
         "parsed_menu_items": parsed[:18],
         "parsed_menu_items_structured": structured_parsed[:18],
         "top_recommendations": enriched_top,
@@ -717,6 +727,9 @@ def build_menu_scan_response(
         "llm_parser_attempted": llm_attempted,
         "llm_reasoning_used": llm_used,
         "llm_reasoning_confidence": round(llm_conf, 2),
+        "llm_reasoning_source": str(llm_reasoning.get("reasoning_source") or ""),
+        "llm_cache_hit": bool(llm_reasoning.get("cache_hit")),
+        "contextual_overlay_applied": bool(llm_reasoning.get("contextual_overlay_applied")),
         "scan_confidence": _scan_confidence(
             parsed_items=parsed,
             top_recommendations=enriched_top,

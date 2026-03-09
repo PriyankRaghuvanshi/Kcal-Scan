@@ -11,6 +11,7 @@ from llm_explanation_copy import maybe_rewrite_explanation_copy
 from llm_menu_reasoning import (
     CONF_EXACT_ITEM,
     CONF_REASONING_FULL,
+    apply_contextual_overlay,
     candidate_item_name,
     candidate_calories,
     candidate_protein,
@@ -170,6 +171,7 @@ def _place_profile(
     personalization_goal: Any,
     remaining_calories: Any,
     remaining_protein_g: Any,
+    current_hour: Optional[int] = None,
 ) -> Dict[str, Any]:
     goal_value = personalization_goal_value(personalization_goal)
     scoring = score_healthy_place(place, mode=mode, personalization_goal=personalization_goal)
@@ -327,13 +329,25 @@ def _place_profile(
         )
     )
 
-    # Extract LLM reasoning candidates from the menu bundle (populated when
-    # real menu text was available and LLM reasoning is enabled).
+    # Extract LLM reasoning candidates from the menu bundle (structural, cached).
+    # Then apply the contextual overlay with the current user's macro state so that
+    # protein_catchup_option and lighter_recovery_option are user-specific, not cached.
     llm_candidates = (
         menu.get("llm_reasoning_candidates")
         if isinstance(menu.get("llm_reasoning_candidates"), dict)
         else {}
     )
+    if llm_candidates.get("llm_reasoning_used") and not llm_candidates.get("contextual_overlay_applied"):
+        try:
+            llm_candidates = apply_contextual_overlay(
+                llm_candidates,
+                remaining_calories=_safe_optional_float(remaining_calories),
+                remaining_protein_g=_safe_optional_float(remaining_protein_g),
+                cut_mode=(mode == NutritionMode.CUT),
+                current_hour=current_hour,
+            )
+        except Exception:
+            pass
     llm_best = llm_candidates.get("best_choice_here") if isinstance(llm_candidates.get("best_choice_here"), dict) else {}
     llm_swap = llm_candidates.get("better_swap") if isinstance(llm_candidates.get("better_swap"), dict) else {}
 
@@ -817,6 +831,7 @@ def build_lunch_decision_response(
     remaining_cal = _safe_optional_float(remaining_calories)
     remaining_protein = _safe_optional_float(remaining_protein_g)
 
+    resolved_hour = int(current_hour) if current_hour is not None and str(current_hour).strip().lstrip("-").isdigit() else None
     profiles = [
         _place_profile(
             place,
@@ -826,6 +841,7 @@ def build_lunch_decision_response(
             personalization_goal=resolved_goal,
             remaining_calories=remaining_cal,
             remaining_protein_g=remaining_protein,
+            current_hour=resolved_hour,
         )
         for place in (nearby_places or [])
         if isinstance(place, dict)

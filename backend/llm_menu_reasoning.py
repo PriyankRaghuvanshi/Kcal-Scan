@@ -6,29 +6,66 @@ cafe, pizza, Mexican, fried chicken, local independent, dessert, etc. —
 by letting the model identify actual menu items and reason about their
 macro fit, rather than matching cuisine keywords against static rule tables.
 
-The output feeds into the existing scoring engine and card builders; it
-does NOT replace scoring but enriches it with menu-aware structured
-candidates that the heuristic pipeline cannot produce reliably.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ARCHITECTURE: STRUCTURAL vs CONTEXTUAL
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+The pipeline is intentionally split into two stages:
+
+  Stage 1 — Structural menu reasoning (LLM, cached)
+  ─────────────────────────────────────────────────
+  Input : menu text + place_name + goal + cut_mode
+  Output: stable, menu-level candidates that are the same for every user
+          visiting the same restaurant with the same goal:
+            menu_summary, reasoning_confidence,
+            best_choice_here, better_swap, avoid_if_cutting,
+            typical_order, ranked_candidates
+
+  Cache key: (menu_text_hash, goal, cut_mode)
+  remaining_calories / remaining_protein_g are deliberately excluded from
+  the cache key AND from the structural prompt because the menu's best
+  macro choices do not change based on an individual user's daily totals.
+
+  Stage 2 — Contextual decision overlay (deterministic, never cached)
+  ────────────────────────────────────────────────────────────────────
+  Input : structural result + remaining_calories + remaining_protein_g
+          + cut_mode + meal_window + current_hour
+  Output: user-specific picks derived from the cached ranked_candidates:
+            protein_catchup_option — highest-protein candidate when user
+                                     still needs significant protein today
+            lighter_recovery_option — lowest-calorie candidate when user
+                                      is low on calories
+
+  This stage is deterministic: no LLM call, no caching needed.
+  Different users seeing the same menu at different macro states get
+  genuinely different protein_catchup / lighter_recovery outputs.
+
+Public API:
+  reason_over_menu(menu_text, place_name, goal, cut_mode,
+                   remaining_calories, remaining_protein_g)
+      → calls Stage 1 (cached) then Stage 2 (live)
+      → returns combined result
+
+  apply_contextual_overlay(structural_result, remaining_calories,
+                           remaining_protein_g, cut_mode, meal_window,
+                           current_hour)
+      → Stage 2 only — useful when structural result is already in hand
 
 Integration points:
-  - menu_scan.py        : called after OCR to get structured candidates
+  - menu_scan.py        : called after OCR; passes remaining macros
   - menu_item_scoring.py: called when ingested menu text is available
   - lunch_decision.py   : candidates passed through to reality check
   - restaurant_reality_check.py: uses typical_order / best_choice_here
 
-Controlled by ENABLE_LLM_MENU_REASONING env var (default: True when
-GEMINI_API_KEY is configured).
-
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 CENTRALIZED CONFIDENCE POLICY
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-All confidence thresholds for LLM reasoning output live here so that
-every consumer — menu scan, lunch decision, reality check, scoring —
-uses the same rules. Import the constants rather than hard-coding floats.
+All confidence thresholds live here. Import the constants in consumers
+rather than hardcoding floats.
 
 Per-candidate confidence (candidate["confidence"]):
   CONF_EXACT_ITEM     = 0.65  → exact item name allowed (matches prompt rule)
-  CONF_SOFT_ITEM      = 0.55  → soft/menu-aware name allowed (typical_order)
+  CONF_SOFT_ITEM      = 0.55  → soft/menu-aware name allowed
   CONF_MIN_ITEM       = 0.45  → absolute floor — discard below this
 
 Overall reasoning_confidence gate (result["reasoning_confidence"]):
@@ -38,13 +75,6 @@ Overall reasoning_confidence gate (result["reasoning_confidence"]):
 
 Reality check distinction minimum:
   CONF_REALITY_CALORIE_DIFF = 80  → min kcal difference for a meaningful comparison
-
-Cache:
-  Results are cached in-process keyed on (menu_text_hash, goal, cut_mode).
-  remaining_calories / remaining_protein_g are intentionally excluded from the
-  cache key because they change per user session while the menu does not.
-  The structural candidates (best_choice, swap, avoid, typical_order) are
-  independent of per-session macro totals.
 """
 
 from __future__ import annotations
@@ -75,11 +105,17 @@ CONF_REASONING_MIN: float = 0.45    # Absolute minimum: only typical_order
 # Reality check: minimum kcal gap to show a meaningful "You saved X kcal" line
 CONF_REALITY_CALORIE_DIFF: int = 80
 
+# Contextual overlay thresholds (deterministic, no LLM)
+# Remaining protein >= this value → show protein_catchup_option
+_PROTEIN_CATCHUP_THRESHOLD_G: float = 30.0
+# Remaining calories <= this value → show lighter_recovery_option
+_LIGHTER_RECOVERY_THRESHOLD_KCAL: float = 500.0
+
 # ─────────────────────────────────────────────────────────────────────────────
 # INTERNAL CONSTANTS
 # ─────────────────────────────────────────────────────────────────────────────
 
-_REASONING_VERSION = "v2"
+_REASONING_VERSION = "v3"
 _TRUE_VALUES = {"1", "true", "yes", "y", "on"}
 _MAX_MENU_TEXT_CHARS = 4000
 _CACHE_MAX_ENTRIES = 256
@@ -125,20 +161,12 @@ def _get_timeout_sec() -> float:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# IN-PROCESS LRU CACHE
+# IN-PROCESS LRU CACHE  (structural results only)
 # ─────────────────────────────────────────────────────────────────────────────
-# Keyed on (menu_text_hash, goal, cut_mode).
-# remaining_calories / remaining_protein_g are deliberately excluded: they vary
-# per session while the menu's structural candidates do not. The cache stores
-# the full result; callers may still use the remaining-macro context for
-# post-processing (e.g. choosing protein_catchup vs lighter_recovery).
-#
-# Only successful results (llm_reasoning_used=True) are cached. Failures are
-# never cached so transient API errors do not poison future calls.
 
 _cache: Dict[tuple, Dict[str, Any]] = {}
 _cache_lock = threading.Lock()
-_cache_order: List[tuple] = []  # insertion-order list for eviction
+_cache_order: List[tuple] = []
 
 
 def _menu_text_hash(text: str) -> str:
@@ -165,7 +193,6 @@ def _cache_put(key: tuple, result: Dict[str, Any]) -> None:
             _cache[key] = result
             return
         if len(_cache) >= _CACHE_MAX_ENTRIES:
-            # Evict the oldest entry
             if _cache_order:
                 oldest = _cache_order.pop(0)
                 _cache.pop(oldest, None)
@@ -174,7 +201,7 @@ def _cache_put(key: tuple, result: Dict[str, Any]) -> None:
 
 
 def clear_reasoning_cache() -> None:
-    """Clear the in-process reasoning cache. Useful for testing."""
+    """Clear the in-process structural reasoning cache. Useful for testing."""
     with _cache_lock:
         _cache.clear()
         _cache_order.clear()
@@ -187,10 +214,10 @@ def reasoning_cache_stats() -> Dict[str, Any]:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# LLM PROMPT
+# STRUCTURAL PROMPT  (no per-user macro context — stable for caching)
 # ─────────────────────────────────────────────────────────────────────────────
 
-_REASONING_PROMPT = """\
+_STRUCTURAL_PROMPT = """\
 You are a menu nutrition analyst. Given real restaurant menu text, reason \
 over the actual items and return structured recommendations as JSON.
 
@@ -200,8 +227,6 @@ Do NOT use cuisine stereotypes — reason from the actual menu text provided.
 
 Restaurant: {place_name}
 User goal: {goal}
-Remaining calories today: {remaining_calories_str}
-Remaining protein today: {remaining_protein_str}
 Strict cut mode (low-calorie priority): {cut_mode}
 
 MENU TEXT:
@@ -209,8 +234,8 @@ MENU TEXT:
 {menu_text}
 ---
 
-Return ONLY valid JSON with this exact structure. All candidate fields are \
-optional — omit any you cannot support from the menu text:
+Return ONLY valid JSON with this exact structure. All fields are optional \
+— omit any you cannot support from the menu text:
 
 {{
   "menu_summary": "One-sentence description of this restaurant's menu type",
@@ -232,7 +257,7 @@ optional — omit any you cannot support from the menu text:
   }},
   "avoid_if_cutting": {{
     "name": "The highest-calorie or least macro-efficient item on this menu",
-    "why": "Why it is hard to fit when the user is cutting",
+    "why": "Why it is hard to fit when cutting",
     "estimated_calories": 980,
     "confidence": 0.80
   }},
@@ -241,25 +266,22 @@ optional — omit any you cannot support from the menu text:
     "estimated_calories": 860,
     "confidence": 0.68
   }},
-  "protein_catchup_option": {{
-    "name": "Best item if the user still needs a lot of protein today",
-    "why": "Highest usable protein on this specific menu",
-    "estimated_protein_g": 45,
-    "confidence": 0.82
-  }},
-  "lighter_recovery_option": {{
-    "name": "Best item when the user's calories are already tight",
-    "why": "Lowest calorie density while still filling on this menu",
-    "estimated_calories": 380,
-    "confidence": 0.72
-  }}
+  "ranked_candidates": [
+    {{
+      "name": "Item name exactly as on menu",
+      "estimated_calories": 320,
+      "estimated_protein_g": 35,
+      "notes": "e.g. high protein, lowest calorie, balanced, etc.",
+      "confidence": 0.85
+    }}
+  ]
 }}
 
-Confidence rules — follow strictly:
-- Use EXACT item names (as written in the menu) when confidence >= 0.65
-- Use category-aware but still menu-informed wording when confidence is 0.55-0.64
-- Use generic wording only when confidence < 0.55 or menu is unreadable
-- Do NOT fabricate calorie/protein numbers unless strongly supported
+Rules for ranked_candidates:
+- Include up to 6 notable items from the menu (more is better for personalization)
+- Order by overall macro quality (best macro balance first)
+- Include at least the highest-protein item and the lowest-calorie item if distinct
+- Confidence rules apply: exact names at confidence >= 0.65, softer wording below
 - Make best_choice_here, better_swap, and avoid_if_cutting DISTINCT from each other
 - If the menu has fewer than 3 readable items, set reasoning_confidence < 0.50
 - Return ONLY valid JSON — no markdown fences, no prose before or after
@@ -281,6 +303,7 @@ def _empty_result(
         "better_swap": None,
         "avoid_if_cutting": None,
         "typical_order": None,
+        "ranked_candidates": [],
         "protein_catchup_option": None,
         "lighter_recovery_option": None,
         "llm_reasoning_used": False,
@@ -304,62 +327,41 @@ def _clean_candidate(candidate: Any) -> Optional[Dict[str, Any]]:
     return {k: v for k, v in candidate.items() if k != "name"} | {"name": name}
 
 
+def _clean_ranked_candidate(candidate: Any) -> Optional[Dict[str, Any]]:
+    """Validate and clean a ranked_candidates list item — slightly more permissive
+    than _clean_candidate since these are building blocks for the overlay."""
+    if not isinstance(candidate, dict):
+        return None
+    name = str(candidate.get("name") or "").strip()
+    if not name:
+        return None
+    conf = float(_safe_float(candidate.get("confidence"), 0.0))
+    # Ranked candidates use a slightly lower floor: they're internal building
+    # blocks for the contextual overlay, not shown directly on cards.
+    if conf < CONF_MIN_ITEM:
+        return None
+    return {k: v for k, v in candidate.items() if k != "name"} | {"name": name}
+
+
 # ─────────────────────────────────────────────────────────────────────────────
-# MAIN PUBLIC API
+# STAGE 1 — STRUCTURAL REASONING  (LLM, cached)
 # ─────────────────────────────────────────────────────────────────────────────
 
-def reason_over_menu(
+def _structural_reason_over_menu(
     *,
-    menu_text: str,
-    place_name: str = "",
-    goal: str = "",
-    cut_mode: bool = False,
-    remaining_calories: Optional[float] = None,
-    remaining_protein_g: Optional[float] = None,
+    text_clean: str,
+    place_name: str,
+    goal: str,
+    cut_mode: bool,
+    api_key: str,
 ) -> Dict[str, Any]:
-    """Use an LLM to reason over real menu text and return structured candidates.
+    """Internal: run structural LLM reasoning and cache the result.
 
-    This is the core of the general menu intelligence pipeline. It works across
-    any restaurant category without relying on cuisine-specific keyword rules.
-
-    Results are cached in-process keyed on (menu_text_hash, goal, cut_mode).
-    remaining_calories / remaining_protein_g are used in the prompt for context
-    but are intentionally excluded from the cache key (they vary per session;
-    the menu's structural candidates do not).
-
-    Returns a dict with keys:
-      menu_summary, reasoning_confidence,
-      best_choice_here, better_swap, avoid_if_cutting, typical_order,
-      protein_catchup_option, lighter_recovery_option,
-      llm_reasoning_used, llm_reasoning_error, reasoning_source, cache_hit,
-      reasoning_version.
-
-    Check llm_reasoning_used before trusting the candidates. When False,
-    fall back to the existing heuristic pipeline.
-
-    reasoning_source values:
-      "live_llm"  — fresh call to the LLM
-      "cache"     — returned from in-process cache
-      "disabled"  — feature flag off
-      "error"     — LLM call failed
+    Only called by reason_over_menu(). Returns the cached structural result
+    which includes ranked_candidates for downstream contextual overlay.
+    Does NOT include protein_catchup_option or lighter_recovery_option —
+    those are derived contextually in apply_contextual_overlay().
     """
-    if not _is_enabled():
-        return _empty_result("disabled", reasoning_source="disabled")
-
-    text_clean = str(menu_text or "").strip()
-    if len(text_clean) < 20:
-        return _empty_result("menu_text_too_short", reasoning_source="error")
-
-    try:
-        import google.generativeai as genai  # type: ignore[import]
-    except Exception:
-        return _empty_result("genai_unavailable", reasoning_source="error")
-
-    api_key = os.getenv("GEMINI_API_KEY", "").strip()
-    if not api_key:
-        return _empty_result("no_api_key", reasoning_source="error")
-
-    # ── Cache lookup ─────────────────────────────────────────────────────────
     cache_key = _make_cache_key(text_clean, goal, cut_mode)
     cached = _cache_get(cache_key)
     if cached is not None:
@@ -368,33 +370,25 @@ def reason_over_menu(
         hit["reasoning_source"] = "cache"
         return hit
 
-    # ── Build prompt ─────────────────────────────────────────────────────────
     text_truncated = text_clean[:_MAX_MENU_TEXT_CHARS]
     if len(text_clean) > _MAX_MENU_TEXT_CHARS:
         text_truncated += "\n... (menu continues)"
 
-    remaining_calories_str = (
-        f"{int(remaining_calories)} kcal" if remaining_calories is not None else "unknown"
-    )
-    remaining_protein_str = (
-        f"{int(remaining_protein_g)}g" if remaining_protein_g is not None else "unknown"
-    )
     goal_str = (
         str(goal or "general healthy eating").strip().replace("_", " ")
         or "general healthy eating"
     )
 
-    prompt = _REASONING_PROMPT.format(
+    prompt = _STRUCTURAL_PROMPT.format(
         place_name=str(place_name or "this restaurant").strip() or "this restaurant",
         goal=goal_str,
-        remaining_calories_str=remaining_calories_str,
-        remaining_protein_str=remaining_protein_str,
         cut_mode=str(bool(cut_mode)),
         menu_text=text_truncated,
     )
 
-    # ── LLM call ─────────────────────────────────────────────────────────────
     try:
+        import google.generativeai as genai  # type: ignore[import]
+
         genai.configure(api_key=api_key)
         model = genai.GenerativeModel(
             model_name=_get_model_name(),
@@ -424,19 +418,24 @@ def reason_over_menu(
             _clamp(_safe_float(parsed.get("reasoning_confidence"), 0.6), 0.0, 1.0)
         )
 
-        for key in (
-            "best_choice_here",
-            "better_swap",
-            "avoid_if_cutting",
-            "typical_order",
-            "protein_catchup_option",
-            "lighter_recovery_option",
-        ):
+        for key in ("best_choice_here", "better_swap", "avoid_if_cutting", "typical_order"):
             cleaned = _clean_candidate(parsed.get(key))
             if cleaned is not None:
                 result[key] = cleaned
 
-        # Only cache successful results
+        raw_ranked = parsed.get("ranked_candidates")
+        if isinstance(raw_ranked, list):
+            cleaned_ranked = [
+                _clean_ranked_candidate(c) for c in raw_ranked if isinstance(c, dict)
+            ]
+            result["ranked_candidates"] = [c for c in cleaned_ranked if c is not None]
+
+        # Seed ranked_candidates with the main candidates when sparse,
+        # so the contextual overlay always has something to work with.
+        if len(result["ranked_candidates"]) < 2:
+            _seed_ranked_from_main_candidates(result)
+
+        # Cache only successful structural results
         if result["llm_reasoning_used"]:
             _cache_put(cache_key, dict(result))
 
@@ -444,11 +443,325 @@ def reason_over_menu(
 
     except Exception as exc:
         logger.info(
-            "llm_menu_reasoning failed for %s: %s",
+            "llm_menu_reasoning (structural) failed for %s: %s",
             place_name or "?",
             str(exc)[:160],
         )
-        return _empty_result(str(exc or "llm_reasoning_failed")[:160], reasoning_source="error")
+        return _empty_result(str(exc or "llm_structural_failed")[:160], reasoning_source="error")
+
+
+def _seed_ranked_from_main_candidates(result: Dict[str, Any]) -> None:
+    """Backfill ranked_candidates from the main named candidates if the LLM
+    did not return a ranked list. This ensures the contextual overlay always
+    has material to work with."""
+    seen: set = set()
+    seeded: List[Dict[str, Any]] = list(result.get("ranked_candidates") or [])
+
+    for src_key in ("best_choice_here", "better_swap", "avoid_if_cutting", "typical_order"):
+        c = result.get(src_key)
+        if not isinstance(c, dict):
+            continue
+        name = str(c.get("name") or "").strip()
+        if not name or name.lower() in seen:
+            continue
+        seen.add(name.lower())
+        row: Dict[str, Any] = {"name": name}
+        if c.get("estimated_calories") is not None:
+            row["estimated_calories"] = c["estimated_calories"]
+        if c.get("estimated_protein_g") is not None:
+            row["estimated_protein_g"] = c["estimated_protein_g"]
+        row["confidence"] = float(_safe_float(c.get("confidence"), CONF_SOFT_ITEM))
+        seeded.append(row)
+
+    result["ranked_candidates"] = seeded
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# STAGE 2 — CONTEXTUAL DECISION OVERLAY  (deterministic, never cached)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def apply_contextual_overlay(
+    structural: Dict[str, Any],
+    *,
+    remaining_calories: Optional[float] = None,
+    remaining_protein_g: Optional[float] = None,
+    cut_mode: bool = False,
+    meal_window: str = "",
+    current_hour: Optional[int] = None,
+) -> Dict[str, Any]:
+    """Derive user-specific contextual outputs from cached structural candidates.
+
+    This is a pure deterministic function — no LLM call, no caching.
+    It selects protein_catchup_option and lighter_recovery_option from the
+    structural ranked_candidates based on the current user macro state.
+
+    Different users (or the same user at different times of day) will get
+    genuinely different outputs from the same cached structural result.
+
+    Parameters
+    ----------
+    structural:
+        Result from _structural_reason_over_menu() (cached or live).
+    remaining_calories:
+        Kcal the user can still eat today. If <= _LIGHTER_RECOVERY_THRESHOLD_KCAL
+        (500 kcal), a lighter option is selected.
+    remaining_protein_g:
+        Grams of protein the user still needs today. If >= _PROTEIN_CATCHUP_THRESHOLD_G
+        (30g), the highest-protein ranked candidate is selected.
+    cut_mode:
+        Whether the user is in a strict cut. Tightens lighter-recovery logic.
+    meal_window:
+        One of "breakfast", "lunch", "snack", "dinner". Used for framing copy.
+    current_hour:
+        Current local hour (0-23). Used to infer meal_window when not provided.
+
+    Returns a copy of `structural` with protein_catchup_option and
+    lighter_recovery_option populated (or None if not applicable).
+    """
+    result = dict(structural)
+    # Ensure these keys exist in the output
+    result.setdefault("protein_catchup_option", None)
+    result.setdefault("lighter_recovery_option", None)
+
+    if not structural.get("llm_reasoning_used"):
+        return result
+
+    candidates: List[Dict[str, Any]] = [
+        c for c in (result.get("ranked_candidates") or [])
+        if isinstance(c, dict) and str(c.get("name") or "").strip()
+    ]
+    if not candidates:
+        return result
+
+    window = _resolve_meal_window(meal_window, current_hour)
+    best_choice_name = str((result.get("best_choice_here") or {}).get("name") or "").strip().lower()
+
+    # ── protein_catchup_option ────────────────────────────────────────────────
+    rem_protein = float(_safe_float(remaining_protein_g, -1.0))
+    if rem_protein >= _PROTEIN_CATCHUP_THRESHOLD_G:
+        # Find the globally highest-protein candidate (may be best_choice itself).
+        # If best_choice IS the top-protein item, we reinforce it with protein
+        # framing rather than pointing to a weaker alternative.
+        protein_candidate = _pick_highest_protein_candidate(candidates)
+        if protein_candidate is not None:
+            prot_g = candidate_protein(protein_candidate) or 0
+            conf = float(_safe_float(protein_candidate.get("confidence"), CONF_SOFT_ITEM))
+            name = candidate_item_name(protein_candidate, min_confidence=CONF_SOFT_ITEM)
+            if name:
+                why = _protein_catchup_why(
+                    item_name=name,
+                    estimated_protein_g=prot_g,
+                    remaining_protein_g=int(rem_protein),
+                    meal_window=window,
+                )
+                result["protein_catchup_option"] = {
+                    "name": name,
+                    "why": why,
+                    "estimated_protein_g": prot_g,
+                    "estimated_calories": candidate_calories(protein_candidate),
+                    "confidence": round(_clamp(conf, CONF_MIN_ITEM, 0.97), 2),
+                    "derived_from": "contextual_overlay",
+                }
+
+    # ── lighter_recovery_option ───────────────────────────────────────────────
+    rem_cal = float(_safe_float(remaining_calories, -1.0))
+    # Show lighter option when: calories are tight OR cut_mode is active with
+    # meaningful macro state data.
+    low_cal_state = (rem_cal >= 0 and rem_cal <= _LIGHTER_RECOVERY_THRESHOLD_KCAL)
+    cut_mode_tight = (cut_mode and rem_cal >= 0 and rem_cal <= 700)
+    if low_cal_state or cut_mode_tight:
+        light_candidate = _pick_lowest_calorie_candidate(
+            candidates, exclude_name=best_choice_name
+        )
+        if light_candidate is None:
+            light_candidate = _pick_lowest_calorie_candidate(candidates)
+        if light_candidate is not None:
+            cal = candidate_calories(light_candidate) or 0
+            conf = float(_safe_float(light_candidate.get("confidence"), CONF_SOFT_ITEM))
+            name = candidate_item_name(light_candidate, min_confidence=CONF_SOFT_ITEM)
+            if name:
+                why = _lighter_recovery_why(
+                    item_name=name,
+                    estimated_calories=cal,
+                    remaining_calories=int(rem_cal) if rem_cal >= 0 else None,
+                    meal_window=window,
+                    cut_mode=cut_mode,
+                )
+                result["lighter_recovery_option"] = {
+                    "name": name,
+                    "why": why,
+                    "estimated_calories": cal,
+                    "estimated_protein_g": candidate_protein(light_candidate),
+                    "confidence": round(_clamp(conf, CONF_MIN_ITEM, 0.97), 2),
+                    "derived_from": "contextual_overlay",
+                }
+
+    result["contextual_overlay_applied"] = True
+    return result
+
+
+# ─── overlay helpers ────────────────────────────────────────────────────────
+
+def _resolve_meal_window(meal_window: str, current_hour: Optional[int]) -> str:
+    token = str(meal_window or "").strip().lower()
+    if token in {"breakfast", "lunch", "snack", "dinner"}:
+        return token
+    if current_hour is not None:
+        h = int(max(0, min(23, int(current_hour))))
+        if 5 <= h <= 10:
+            return "breakfast"
+        if 11 <= h <= 14:
+            return "lunch"
+        if 15 <= h <= 17:
+            return "snack"
+        if 18 <= h <= 22:
+            return "dinner"
+    return ""
+
+
+def _pick_highest_protein_candidate(
+    candidates: List[Dict[str, Any]],
+    exclude_name: str = "",
+) -> Optional[Dict[str, Any]]:
+    pool = [
+        c for c in candidates
+        if str(c.get("name") or "").strip().lower() != exclude_name.lower()
+        and float(_safe_float(c.get("estimated_protein_g"), 0.0)) > 0
+    ]
+    if not pool:
+        return None
+    return max(pool, key=lambda c: float(_safe_float(c.get("estimated_protein_g"), 0.0)))
+
+
+def _pick_lowest_calorie_candidate(
+    candidates: List[Dict[str, Any]],
+    exclude_name: str = "",
+) -> Optional[Dict[str, Any]]:
+    pool = [
+        c for c in candidates
+        if str(c.get("name") or "").strip().lower() != exclude_name.lower()
+        and float(_safe_float(c.get("estimated_calories"), 0.0)) > 0
+    ]
+    if not pool:
+        return None
+    return min(pool, key=lambda c: float(_safe_float(c.get("estimated_calories"), 9999.0)))
+
+
+def _protein_catchup_why(
+    *,
+    item_name: str,
+    estimated_protein_g: int,
+    remaining_protein_g: int,
+    meal_window: str,
+) -> str:
+    protein_str = f"{estimated_protein_g}g protein" if estimated_protein_g > 0 else "strong protein content"
+    gap_str = f"you still need {remaining_protein_g}g today" if remaining_protein_g > 0 else "you have a protein gap today"
+    window_prefix = {
+        "breakfast": "Good protein start",
+        "lunch": "Best protein option for lunch",
+        "dinner": "Strong protein option for dinner",
+        "snack": "Best protein snack here",
+    }.get(meal_window, "Best protein pick here")
+    return f"{window_prefix} — {protein_str} on this menu, and {gap_str}."
+
+
+def _lighter_recovery_why(
+    *,
+    item_name: str,
+    estimated_calories: int,
+    remaining_calories: Optional[int],
+    meal_window: str,
+    cut_mode: bool,
+) -> str:
+    cal_str = f"{estimated_calories} kcal" if estimated_calories > 0 else "lowest calorie option"
+    if remaining_calories is not None and remaining_calories >= 0:
+        budget_str = f"you have about {remaining_calories} kcal left today"
+    elif cut_mode:
+        budget_str = "you are in cut mode"
+    else:
+        budget_str = "calories are tight"
+    window_prefix = {
+        "snack": "Lightest snack option",
+        "breakfast": "Light breakfast option",
+        "dinner": "Lighter dinner choice",
+        "lunch": "Lighter lunch option",
+    }.get(meal_window, "Lightest option here")
+    return f"{window_prefix} — {cal_str} on this menu, and {budget_str}."
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# MAIN PUBLIC API
+# ─────────────────────────────────────────────────────────────────────────────
+
+def reason_over_menu(
+    *,
+    menu_text: str,
+    place_name: str = "",
+    goal: str = "",
+    cut_mode: bool = False,
+    remaining_calories: Optional[float] = None,
+    remaining_protein_g: Optional[float] = None,
+    meal_window: str = "",
+    current_hour: Optional[int] = None,
+) -> Dict[str, Any]:
+    """Use an LLM to reason over real menu text and return structured candidates.
+
+    Combines Stage 1 (structural, cached) with Stage 2 (contextual, live):
+
+    Stage 1 — LLM structural reasoning (cached per menu_text + goal + cut_mode):
+      Returns menu_summary, reasoning_confidence, best_choice_here, better_swap,
+      avoid_if_cutting, typical_order, ranked_candidates.
+
+    Stage 2 — Deterministic contextual overlay (never cached):
+      Derives protein_catchup_option and lighter_recovery_option from the
+      structural ranked_candidates using the current user macro state.
+      Different users or different macro states produce different outputs.
+
+    Returns a combined dict with all fields.
+
+    reasoning_source values:
+      "live_llm"  — fresh LLM call for structural part
+      "cache"     — structural part served from in-process cache
+      "disabled"  — feature flag off
+      "error"     — LLM call failed
+    """
+    if not _is_enabled():
+        return _empty_result("disabled", reasoning_source="disabled")
+
+    text_clean = str(menu_text or "").strip()
+    if len(text_clean) < 20:
+        return _empty_result("menu_text_too_short", reasoning_source="error")
+
+    api_key = os.getenv("GEMINI_API_KEY", "").strip()
+    if not api_key:
+        return _empty_result("no_api_key", reasoning_source="error")
+
+    try:
+        import google.generativeai as genai  # type: ignore[import] # noqa: F401
+    except Exception:
+        return _empty_result("genai_unavailable", reasoning_source="error")
+
+    # Stage 1: structural (cached)
+    structural = _structural_reason_over_menu(
+        text_clean=text_clean,
+        place_name=place_name,
+        goal=goal,
+        cut_mode=cut_mode,
+        api_key=api_key,
+    )
+
+    if not structural.get("llm_reasoning_used"):
+        return structural
+
+    # Stage 2: contextual overlay (live, deterministic)
+    return apply_contextual_overlay(
+        structural,
+        remaining_calories=remaining_calories,
+        remaining_protein_g=remaining_protein_g,
+        cut_mode=cut_mode,
+        meal_window=meal_window,
+        current_hour=current_hour,
+    )
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -533,34 +846,20 @@ def extract_menu_text_for_reasoning(
     place: Dict[str, Any],
     ingestion_bundle: Optional[Dict[str, Any]] = None,
 ) -> str:
-    """Extract the best available menu text from a place dict and/or ingestion bundle.
-
-    Prefers explicit raw text from the ingestion bundle (fetched from web/chain),
-    falls back to embedded text on the place dict, then reconstructs from item
-    name + snippet fields stored by the ingestion pipeline.
-    """
+    """Extract the best available menu text from a place dict and/or ingestion bundle."""
     payload = place if isinstance(place, dict) else {}
     bundle = ingestion_bundle if isinstance(ingestion_bundle, dict) else {}
 
-    # Ingestion bundle raw text (highest quality — actual fetched content)
     for key in ("raw_menu_text", "raw_text", "menu_raw_text"):
         text = str(bundle.get(key) or "").strip()
         if len(text) >= 40:
             return text
 
-    # Embedded text directly on the place dict
-    for key in (
-        "menu_text",
-        "menuText",
-        "raw_menu_text",
-        "menu_description",
-        "menuDescription",
-    ):
+    for key in ("menu_text", "menuText", "raw_menu_text", "menu_description", "menuDescription"):
         text = str(payload.get(key) or "").strip()
         if len(text) >= 40:
             return text
 
-    # Reconstruct from ingested item names + raw_text_snippet fields
     items: List[Dict[str, Any]] = []
     for src in (bundle, payload):
         candidate = src.get("menu_items") if isinstance(src.get("menu_items"), list) else []
