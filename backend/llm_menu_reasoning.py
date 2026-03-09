@@ -83,8 +83,9 @@ import hashlib
 import json
 import logging
 import os
+import re
 import threading
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -115,10 +116,62 @@ _LIGHTER_RECOVERY_THRESHOLD_KCAL: float = 500.0
 # INTERNAL CONSTANTS
 # ─────────────────────────────────────────────────────────────────────────────
 
-_REASONING_VERSION = "v3"
+_REASONING_VERSION = "v4"
 _TRUE_VALUES = {"1", "true", "yes", "y", "on"}
 _MAX_MENU_TEXT_CHARS = 4000
 _CACHE_MAX_ENTRIES = 256
+
+# ── ranked_candidates validation constants ───────────────────────────────────
+# Plausible per-item calorie range.  Drinks (e.g. espresso = 5 kcal) and large
+# combo plates (2200 kcal) are genuine outliers; use a generous but not infinite
+# window so we catch nonsensical LLM fabrications like "10 kcal burger".
+_CAND_CALORIE_MIN = 30
+_CAND_CALORIE_MAX = 2500
+_CAND_PROTEIN_MIN = 0
+_CAND_PROTEIN_MAX = 160
+
+# Minimum word overlap fraction to consider two candidate names near-duplicates.
+_NEAR_DUP_WORD_OVERLAP = 0.75
+
+# Generic fallback names the LLM may hallucinate — these are banned from
+# appearing in ranked_candidates because they provide no useful signal for
+# contextual overlay selection.
+_BANNED_GENERIC_NAMES: frozenset = frozenset(
+    {
+        "lighter menu option",
+        "lighter option",
+        "lighter meal",
+        "lighter choice",
+        "light option",
+        "protein bowl",
+        "grilled protein bowl",
+        "protein plate",
+        "lean wrap",
+        "protein wrap",
+        "suggested lighter option",
+        "healthier option",
+        "balanced meal",
+        "healthy option",
+        "best menu item",
+        "better choice",
+        "smart choice",
+        "smart order",
+        "meal option",
+        "menu item",
+        "typical meal",
+        "lighter item",
+        "lighter pick",
+        "high protein option",
+        "high protein item",
+        "low calorie option",
+        "low calorie item",
+        "recommended item",
+        "recommended option",
+        "best choice",
+        "best option",
+        "better option",
+    }
+)
 
 
 def _safe_float(v: Any, default: float = 0.0) -> float:
@@ -234,8 +287,7 @@ MENU TEXT:
 {menu_text}
 ---
 
-Return ONLY valid JSON with this exact structure. All fields are optional \
-— omit any you cannot support from the menu text:
+Return ONLY valid JSON matching this exact structure:
 
 {{
   "menu_summary": "One-sentence description of this restaurant's menu type",
@@ -248,7 +300,7 @@ Return ONLY valid JSON with this exact structure. All fields are optional \
     "confidence": 0.85
   }},
   "better_swap": {{
-    "name": "A different item OR a lighter variant of the most popular choice",
+    "name": "A DIFFERENT item from best_choice_here — lighter or macro-friendlier",
     "swap_tip": "Specific actionable swap or customisation tip for this item",
     "why": "Why this swap improves calorie or protein balance here",
     "estimated_calories": 460,
@@ -262,29 +314,64 @@ Return ONLY valid JSON with this exact structure. All fields are optional \
     "confidence": 0.80
   }},
   "typical_order": {{
-    "name": "What most customers probably order here (not the healthiest pick)",
+    "name": "What most customers probably order here (NOT the healthiest pick)",
     "estimated_calories": 860,
     "confidence": 0.68
   }},
   "ranked_candidates": [
     {{
-      "name": "Item name exactly as on menu",
+      "name": "Item name exactly as written in the menu above",
       "estimated_calories": 320,
       "estimated_protein_g": 35,
-      "notes": "e.g. high protein, lowest calorie, balanced, etc.",
+      "notes": "highest protein on this menu",
       "confidence": 0.85
+    }},
+    {{
+      "name": "Second distinct item name from the menu",
+      "estimated_calories": 180,
+      "estimated_protein_g": 8,
+      "notes": "lowest calorie option",
+      "confidence": 0.82
     }}
   ]
 }}
 
-Rules for ranked_candidates:
-- Include up to 6 notable items from the menu (more is better for personalization)
-- Order by overall macro quality (best macro balance first)
-- Include at least the highest-protein item and the lowest-calorie item if distinct
-- Confidence rules apply: exact names at confidence >= 0.65, softer wording below
-- Make best_choice_here, better_swap, and avoid_if_cutting DISTINCT from each other
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+RANKED CANDIDATES RULES — follow carefully
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ranked_candidates is REQUIRED. Include between 4 and 6 items.
+
+REQUIRED COVERAGE (include all of these if the menu supports them):
+  1. The item with the most protein — notes: "highest protein"
+  2. The item with the fewest calories — notes: "lowest calorie"
+  3. A balanced moderate-calorie item — notes: "balanced choice"
+  4. The item most customers would typically order — notes: "typical popular order"
+  5. One or two additional notable items if the menu has them
+
+MANDATORY RULES:
+- Every item in ranked_candidates must come from the actual menu text above
+- estimated_calories and estimated_protein_g are REQUIRED for each candidate
+  (estimate if not stated — typical ranges: calories 100–2000, protein 0–120g)
+- No item name may appear more than once anywhere in the entire output
+- No generic fallback labels such as "Lighter menu option", "Protein bowl",
+  "Best choice", "Healthy option", "Recommended item" — use actual item names
+- Candidates must be DISTINCT — do not list the same item under different slots
+- notes must identify the candidate's nutritional role (e.g. "highest protein",
+  "lowest calorie", "balanced", "popular combo", "vegetarian option")
+
+CONFIDENCE RULES (apply to all candidates including ranked_candidates):
+- confidence >= 0.65 → use exact item name as written in the menu
+- confidence 0.55–0.64 → use menu-informed but slightly softer phrasing
+- confidence < 0.55 → generic category wording only; do not fabricate names
 - If the menu has fewer than 3 readable items, set reasoning_confidence < 0.50
-- Return ONLY valid JSON — no markdown fences, no prose before or after
+
+DISTINCTNESS RULES:
+- best_choice_here, better_swap, avoid_if_cutting, and typical_order must all
+  be different items
+- ranked_candidates should not repeat any of the named items above unless there
+  are genuinely fewer distinct items on the menu
+
+Return ONLY valid JSON — no markdown fences, no prose before or after.
 """
 
 
@@ -304,8 +391,13 @@ def _empty_result(
         "avoid_if_cutting": None,
         "typical_order": None,
         "ranked_candidates": [],
+        "ranked_candidates_count": 0,
+        "ranked_candidates_raw_count": 0,
+        "ranked_candidates_macros_identical": False,
+        "used_seeded_ranked_candidates": False,
         "protein_catchup_option": None,
         "lighter_recovery_option": None,
+        "contextual_overlay_applied": False,
         "llm_reasoning_used": False,
         "llm_reasoning_error": error,
         "reasoning_source": reasoning_source,
@@ -327,18 +419,180 @@ def _clean_candidate(candidate: Any) -> Optional[Dict[str, Any]]:
     return {k: v for k, v in candidate.items() if k != "name"} | {"name": name}
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# CANDIDATE VALIDATION HELPERS
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _norm_name(name: str) -> str:
+    """Normalize a candidate name for comparison (lowercase, collapse whitespace,
+    strip punctuation)."""
+    return " ".join(re.sub(r"[^\w\s]", " ", str(name or "").lower()).split())
+
+
+def _is_banned_generic(name: str) -> bool:
+    """Return True if the name is a known generic placeholder that the LLM uses
+    as a fallback when it cannot identify a real menu item."""
+    norm = _norm_name(name)
+    # Exact match
+    if norm in _BANNED_GENERIC_NAMES:
+        return True
+    # Prefix match — e.g. "lighter menu option with water"
+    for banned in _BANNED_GENERIC_NAMES:
+        if norm.startswith(banned):
+            return True
+    return False
+
+
+def _are_near_duplicates(a: str, b: str) -> bool:
+    """Return True if two candidate names refer to the same item (exact match,
+    one is a substring of the other, or they share >= 75 % of words)."""
+    na, nb = _norm_name(a), _norm_name(b)
+    if not na or not nb:
+        return False
+    if na == nb:
+        return True
+    # Substring containment (e.g. "Protein Shake" vs "Large Protein Shake")
+    if na in nb or nb in na:
+        return True
+    words_a = set(na.split())
+    words_b = set(nb.split())
+    if not words_a or not words_b:
+        return False
+    overlap = len(words_a & words_b) / max(len(words_a), len(words_b))
+    return overlap >= _NEAR_DUP_WORD_OVERLAP
+
+
+def _macros_plausible(candidate: Dict[str, Any]) -> bool:
+    """Return True if estimated_calories and estimated_protein_g (when present)
+    fall within a plausible range for a single menu item."""
+    cal = candidate.get("estimated_calories")
+    prot = candidate.get("estimated_protein_g")
+    if cal is not None:
+        try:
+            v = float(cal)
+            if not (_CAND_CALORIE_MIN <= v <= _CAND_CALORIE_MAX):
+                return False
+        except (TypeError, ValueError):
+            return False
+    if prot is not None:
+        try:
+            v = float(prot)
+            if not (_CAND_PROTEIN_MIN <= v <= _CAND_PROTEIN_MAX):
+                return False
+        except (TypeError, ValueError):
+            return False
+    return True
+
+
+def _all_macros_identical(candidates: List[Dict[str, Any]]) -> bool:
+    """Return True if ≥ 3 candidates share identical non-zero calorie OR protein
+    values, which suggests the LLM fabricated macros uniformly."""
+    if len(candidates) < 3:
+        return False
+    cals = [c.get("estimated_calories") for c in candidates if c.get("estimated_calories") is not None]
+    prots = [c.get("estimated_protein_g") for c in candidates if c.get("estimated_protein_g") is not None]
+    if len(cals) >= 3 and len(set(cals)) == 1:
+        return True
+    if len(prots) >= 3 and len(set(prots)) == 1:
+        return True
+    return False
+
+
+def _validate_and_repair_ranked_candidates(
+    raw_candidates: List[Any],
+    all_named_candidates: List[str],
+    reasoning_confidence: float,
+) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+    """Validate, deduplicate, sanity-check, and repair the raw ranked_candidates
+    list returned by the LLM.
+
+    Returns
+    -------
+    (validated_list, diagnostics_dict)
+        validated_list : cleaned, deduplicated, trust-safe candidates
+        diagnostics_dict : {raw_count, valid_count, rejected_reasons: [str]}
+    """
+    diagnostics: Dict[str, Any] = {
+        "raw_count": 0,
+        "valid_count": 0,
+        "rejected_reasons": [],
+        "macros_identical_penalty": False,
+    }
+
+    if not isinstance(raw_candidates, list):
+        return [], diagnostics
+
+    diagnostics["raw_count"] = len(raw_candidates)
+
+    # First pass: per-item validation
+    stage1: List[Dict[str, Any]] = []
+    for raw in raw_candidates:
+        if not isinstance(raw, dict):
+            diagnostics["rejected_reasons"].append("not_a_dict")
+            continue
+        name = str(raw.get("name") or "").strip()
+        if not name:
+            diagnostics["rejected_reasons"].append("empty_name")
+            continue
+        if _is_banned_generic(name):
+            diagnostics["rejected_reasons"].append(f"banned_generic:{name[:40]}")
+            continue
+        conf = float(_safe_float(raw.get("confidence"), 0.0))
+        if conf < CONF_MIN_ITEM:
+            diagnostics["rejected_reasons"].append(f"low_confidence:{conf:.2f}:{name[:30]}")
+            continue
+        if not _macros_plausible(raw):
+            # Repair: strip implausible macro values rather than discarding
+            repaired = {k: v for k, v in raw.items() if k not in ("estimated_calories", "estimated_protein_g")}
+            repaired["name"] = name
+            repaired["confidence"] = round(_clamp(conf * 0.85, CONF_MIN_ITEM, 0.95), 2)
+            repaired["_macro_repaired"] = True
+            diagnostics["rejected_reasons"].append(f"implausible_macros_repaired:{name[:30]}")
+            stage1.append(repaired)
+        else:
+            row = {k: v for k, v in raw.items() if k != "name"} | {"name": name}
+            stage1.append(row)
+
+    # Second pass: deduplication (exact + near-duplicate + cross-field)
+    seen_names: List[str] = list(all_named_candidates)  # already-committed names
+    stage2: List[Dict[str, Any]] = []
+    for item in stage1:
+        name = str(item.get("name") or "").strip()
+        is_dup = any(_are_near_duplicates(name, s) for s in seen_names)
+        if is_dup:
+            diagnostics["rejected_reasons"].append(f"near_duplicate:{name[:40]}")
+            continue
+        seen_names.append(name)
+        stage2.append(item)
+
+    # Third pass: penalise if all macros are suspiciously identical
+    if _all_macros_identical(stage2):
+        diagnostics["macros_identical_penalty"] = True
+        for item in stage2:
+            item["confidence"] = round(_clamp(
+                float(_safe_float(item.get("confidence"), CONF_SOFT_ITEM)) * 0.80,
+                CONF_MIN_ITEM, 0.92,
+            ), 2)
+
+    # If overall reasoning_confidence is low, cap individual candidate confidence
+    if reasoning_confidence < CONF_REASONING_USE:
+        for item in stage2:
+            item["confidence"] = round(min(
+                float(_safe_float(item.get("confidence"), CONF_SOFT_ITEM)),
+                reasoning_confidence + 0.10,
+            ), 2)
+
+    diagnostics["valid_count"] = len(stage2)
+    return stage2, diagnostics
+
+
 def _clean_ranked_candidate(candidate: Any) -> Optional[Dict[str, Any]]:
-    """Validate and clean a ranked_candidates list item — slightly more permissive
-    than _clean_candidate since these are building blocks for the overlay."""
+    """Light per-candidate clean used before the batch validation pass.
+    Full quality checking is done in _validate_and_repair_ranked_candidates()."""
     if not isinstance(candidate, dict):
         return None
     name = str(candidate.get("name") or "").strip()
     if not name:
-        return None
-    conf = float(_safe_float(candidate.get("confidence"), 0.0))
-    # Ranked candidates use a slightly lower floor: they're internal building
-    # blocks for the contextual overlay, not shown directly on cards.
-    if conf < CONF_MIN_ITEM:
         return None
     return {k: v for k, v in candidate.items() if k != "name"} | {"name": name}
 
@@ -423,17 +677,39 @@ def _structural_reason_over_menu(
             if cleaned is not None:
                 result[key] = cleaned
 
-        raw_ranked = parsed.get("ranked_candidates")
-        if isinstance(raw_ranked, list):
-            cleaned_ranked = [
-                _clean_ranked_candidate(c) for c in raw_ranked if isinstance(c, dict)
-            ]
-            result["ranked_candidates"] = [c for c in cleaned_ranked if c is not None]
+        # ── ranked_candidates: validate, deduplicate, repair ──────────────────
+        # Collect names already committed to main named slots so the validator
+        # can detect cross-field near-duplicates.
+        main_candidate_names: List[str] = [
+            str((result.get(k) or {}).get("name") or "")
+            for k in ("best_choice_here", "better_swap", "avoid_if_cutting", "typical_order")
+            if result.get(k) and str((result.get(k) or {}).get("name") or "").strip()
+        ]
 
-        # Seed ranked_candidates with the main candidates when sparse,
-        # so the contextual overlay always has something to work with.
-        if len(result["ranked_candidates"]) < 2:
-            _seed_ranked_from_main_candidates(result)
+        raw_ranked = parsed.get("ranked_candidates")
+        pre_cleaned = (
+            [_clean_ranked_candidate(c) for c in raw_ranked if isinstance(c, dict)]
+            if isinstance(raw_ranked, list) else []
+        )
+        pre_cleaned = [c for c in pre_cleaned if c is not None]
+
+        validated, diag = _validate_and_repair_ranked_candidates(
+            raw_candidates=pre_cleaned,
+            all_named_candidates=main_candidate_names,
+            reasoning_confidence=result["reasoning_confidence"],
+        )
+        result["ranked_candidates"] = validated
+        result["ranked_candidates_count"] = diag["valid_count"]
+        result["ranked_candidates_raw_count"] = diag["raw_count"]
+        result["ranked_candidates_macros_identical"] = diag["macros_identical_penalty"]
+
+        # Seed from main named candidates when the validated set is too sparse
+        # to provide meaningful protein/calorie diversity for the overlay.
+        seeded_before = len(result["ranked_candidates"])
+        _seed_ranked_from_main_candidates(result)
+        result["used_seeded_ranked_candidates"] = (
+            len(result["ranked_candidates"]) > seeded_before
+        )
 
         # Cache only successful structural results
         if result["llm_reasoning_used"]:
@@ -451,26 +727,61 @@ def _structural_reason_over_menu(
 
 
 def _seed_ranked_from_main_candidates(result: Dict[str, Any]) -> None:
-    """Backfill ranked_candidates from the main named candidates if the LLM
-    did not return a ranked list. This ensures the contextual overlay always
-    has material to work with."""
-    seen: set = set()
-    seeded: List[Dict[str, Any]] = list(result.get("ranked_candidates") or [])
+    """Backfill ranked_candidates from the main named candidates when the
+    validated set is too sparse for the contextual overlay.
 
-    for src_key in ("best_choice_here", "better_swap", "avoid_if_cutting", "typical_order"):
+    Seeding is additive: items already present in ranked_candidates are never
+    duplicated. Near-duplicate matching prevents cross-field pollution.
+
+    Strategy:
+    - Always try to seed from best_choice_here and better_swap first
+      (these are highest-quality structural picks)
+    - Avoid seeding from avoid_if_cutting unless the set is very sparse (< 2)
+      since avoid candidates have high calories and would distort protein/calorie
+      selection in the contextual overlay
+    """
+    existing = list(result.get("ranked_candidates") or [])
+    existing_names = [str(c.get("name") or "").strip() for c in existing]
+
+    def _already_present(name: str) -> bool:
+        return any(_are_near_duplicates(name, n) for n in existing_names)
+
+    seeded = list(existing)
+
+    # Priority seed order: best macro picks first; avoid calorie-dense "avoid" slot
+    seed_keys = ["best_choice_here", "better_swap", "typical_order"]
+    if len(seeded) < 2:
+        seed_keys.append("avoid_if_cutting")
+
+    for src_key in seed_keys:
         c = result.get(src_key)
         if not isinstance(c, dict):
             continue
         name = str(c.get("name") or "").strip()
-        if not name or name.lower() in seen:
+        if not name:
             continue
-        seen.add(name.lower())
+        if _is_banned_generic(name):
+            continue
+        if _already_present(name):
+            continue
         row: Dict[str, Any] = {"name": name}
         if c.get("estimated_calories") is not None:
             row["estimated_calories"] = c["estimated_calories"]
         if c.get("estimated_protein_g") is not None:
             row["estimated_protein_g"] = c["estimated_protein_g"]
-        row["confidence"] = float(_safe_float(c.get("confidence"), CONF_SOFT_ITEM))
+        # Lower confidence for seeded entries since they lack notes/roles
+        row["confidence"] = round(
+            _clamp(float(_safe_float(c.get("confidence"), CONF_SOFT_ITEM)) * 0.90, CONF_MIN_ITEM, 0.92),
+            2,
+        )
+        row["notes"] = {
+            "best_choice_here": "best macro-fit choice",
+            "better_swap": "lighter or macro-friendlier swap",
+            "typical_order": "typical popular order",
+            "avoid_if_cutting": "higher calorie option",
+        }.get(src_key, "")
+        row["_seeded"] = True
+        existing_names.append(name)
         seeded.append(row)
 
     result["ranked_candidates"] = seeded
