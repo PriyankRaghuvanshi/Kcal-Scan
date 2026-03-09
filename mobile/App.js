@@ -5082,6 +5082,7 @@ async function openCamera(mode = "meal") {
   return (
     <SafeAreaView style={styles.safe}>
       <ScrollView contentContainerStyle={styles.container}>
+        {activeScreen !== "healthy_nearby" ? (
         <View style={styles.topRow}>
           <View>
             <Text style={styles.h1}>CalorieClick.ai</Text>
@@ -5093,6 +5094,19 @@ async function openCamera(mode = "meal") {
             <Text style={styles.smallBtnText}>Logout</Text>
           </TouchableOpacity>
         </View>
+        ) : (
+        <View style={styles.nearbyScreenHeader}>
+          <TouchableOpacity
+            style={styles.nearbyBackBtn}
+            onPress={() => setActiveScreen("home")}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          >
+            <Text style={styles.nearbyBackBtnText}>‹ Back</Text>
+          </TouchableOpacity>
+          <Text style={styles.nearbyScreenTitle}>Healthy Nearby</Text>
+          <View style={{ width: 60 }} />
+        </View>
+        )}
 
         {activeScreen !== "healthy_nearby" ? (
         <View style={styles.launcherCard}>
@@ -6127,82 +6141,13 @@ async function openCamera(mode = "meal") {
         {activeScreen === "healthy_nearby" ? (
         <>
         <View style={[styles.card, styles.healthyNearbyHeroCard]}>
-          <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-            <Text style={styles.cardTitle}>Healthy Nearby</Text>
-            <TouchableOpacity
-              style={styles.smallBtn}
-              onPress={() => {
-                setActiveScreen("home");
-              }}
-            >
-              <Text style={styles.smallBtnText}>Back to Home</Text>
-            </TouchableOpacity>
-          </View>
-          <Text style={styles.p}>Decide faster with your next meal, map, and menu scan.</Text>
-          <View style={styles.nearbyPrimaryActions}>
-            <TouchableOpacity
-              style={[styles.primaryBtn, styles.nearbyPrimaryCta]}
-              onPress={() => {
-                setHealthyNearbyTab("decision");
-                void loadLunchDecision();
-              }}
-              disabled={lunchDecisionBusy}
-            >
-              <Text style={styles.btnText}>{lunchDecisionBusy ? "Deciding..." : "🎯 Decide My Next Meal"}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.secondaryBtn, styles.menuScanBtn]}
-              onPress={async () => {
-                setHealthyNearbyTab("map");
-                await loadHealthyPlacesNearby();
-                setHealthyViewMode("map");
-              }}
-              disabled={healthyPlacesBusy}
-            >
-              <Text style={styles.btnText}>{healthyPlacesBusy ? "Loading..." : "Healthy Food Map"}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.secondaryBtn, styles.menuScanBtn]}
-              onPress={() => {
-                setHealthyNearbyTab("decision");
-                void openCamera("menu_scan");
-              }}
-              disabled={menuScanBusy}
-            >
-              <Text style={styles.btnText}>{menuScanBusy ? "Scanning..." : "📸 Scan Menu"}</Text>
-            </TouchableOpacity>
-          </View>
-          <View style={styles.nearbySecondaryActions}>
-            <TouchableOpacity
-              style={[styles.smallBtn, styles.weeklyCoachBtn]}
-              onPress={() => {
-                setHealthyNearbyTab("coach");
-                setWeeklyCoachExpanded(false);
-                void fetchWeeklyCoachProgress(true);
-              }}
-              disabled={weeklyCoachBusy}
-            >
-              <Text style={styles.smallBtnText}>{weeklyCoachBusy ? "Loading..." : "Weekly Coach"}</Text>
-            </TouchableOpacity>
-            {healthyPlaceCoords ? (
-              <TouchableOpacity style={styles.smallBtn} onPress={openHealthyAreaMap}>
-                <Text style={styles.smallBtnText}>Open Area Map</Text>
-              </TouchableOpacity>
-            ) : null}
-          </View>
-          <View style={styles.nearbyTabsRow}>
+          <Text style={styles.nearbyScreenSubtitle}>Find the best meal near you right now.</Text>
+          <View style={styles.nearbyTabsRowTop}>
             <TouchableOpacity
               style={[styles.nearbyTabPill, healthyNearbyTab === "decision" ? styles.nearbyTabPillActive : null]}
-              onPress={() => {
-                setHealthyNearbyTab("decision");
-              }}
+              onPress={() => setHealthyNearbyTab("decision")}
             >
-              <Text
-                style={[
-                  styles.nearbyTabText,
-                  healthyNearbyTab === "decision" ? styles.nearbyTabTextActive : null,
-                ]}
-              >
+              <Text style={[styles.nearbyTabText, healthyNearbyTab === "decision" ? styles.nearbyTabTextActive : null]}>
                 Decision
               </Text>
             </TouchableOpacity>
@@ -6215,12 +6160,7 @@ async function openCamera(mode = "meal") {
                 }
               }}
             >
-              <Text
-                style={[
-                  styles.nearbyTabText,
-                  healthyNearbyTab === "map" ? styles.nearbyTabTextActive : null,
-                ]}
-              >
+              <Text style={[styles.nearbyTabText, healthyNearbyTab === "map" ? styles.nearbyTabTextActive : null]}>
                 Map
               </Text>
             </TouchableOpacity>
@@ -6233,15 +6173,63 @@ async function openCamera(mode = "meal") {
                 }
               }}
             >
-              <Text
-                style={[
-                  styles.nearbyTabText,
-                  healthyNearbyTab === "coach" ? styles.nearbyTabTextActive : null,
-                ]}
-              >
+              <Text style={[styles.nearbyTabText, healthyNearbyTab === "coach" ? styles.nearbyTabTextActive : null]}>
                 Coach
               </Text>
             </TouchableOpacity>
+          </View>
+          <View style={styles.nearbyPrimaryActions}>
+            <TouchableOpacity
+              style={[styles.primaryBtn, styles.nearbyPrimaryCta]}
+              onPress={() => {
+                setHealthyNearbyTab("decision");
+                void loadLunchDecision();
+              }}
+              disabled={lunchDecisionBusy}
+            >
+              <Text style={styles.btnText}>{lunchDecisionBusy ? "Deciding..." : "🎯 Decide My Next Meal"}</Text>
+            </TouchableOpacity>
+            <View style={styles.nearbySecondaryActionsRow}>
+              <TouchableOpacity
+                style={[styles.secondaryBtn, { flex: 1 }]}
+                onPress={async () => {
+                  setHealthyNearbyTab("map");
+                  await loadHealthyPlacesNearby();
+                  setHealthyViewMode("map");
+                }}
+                disabled={healthyPlacesBusy}
+              >
+                <Text style={styles.btnText}>{healthyPlacesBusy ? "Loading..." : "🗺 Food Map"}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.secondaryBtn, { flex: 1 }]}
+                onPress={() => {
+                  setHealthyNearbyTab("decision");
+                  void openCamera("menu_scan");
+                }}
+                disabled={menuScanBusy}
+              >
+                <Text style={styles.btnText}>{menuScanBusy ? "Scanning..." : "📸 Scan Menu"}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+          <View style={styles.nearbyExtrasRow}>
+            <TouchableOpacity
+              style={styles.nearbyExtraBtn}
+              onPress={() => {
+                setHealthyNearbyTab("coach");
+                setWeeklyCoachExpanded(false);
+                void fetchWeeklyCoachProgress(true);
+              }}
+              disabled={weeklyCoachBusy}
+            >
+              <Text style={styles.nearbyExtraBtnText}>{weeklyCoachBusy ? "Loading..." : "📅 Weekly Coach"}</Text>
+            </TouchableOpacity>
+            {healthyPlaceCoords ? (
+              <TouchableOpacity style={styles.nearbyExtraBtn} onPress={openHealthyAreaMap}>
+                <Text style={styles.nearbyExtraBtnText}>📍 Area Map</Text>
+              </TouchableOpacity>
+            ) : null}
           </View>
           {healthyPlaceCoords ? (
             <Text style={[styles.tiny, { marginTop: 8 }]}>
@@ -8071,14 +8059,60 @@ const styles = StyleSheet.create({
     borderColor: "#f59e0b",
     backgroundColor: "#3a2a0e",
   },
+  // ── Healthy Nearby dedicated screen header ──────────────────────────────
+  nearbyScreenHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 4,
+    paddingVertical: 10,
+    marginBottom: 2,
+  },
+  nearbyBackBtn: {
+    paddingVertical: 7,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    backgroundColor: "#0c182c",
+    borderWidth: 1,
+    borderColor: "#294268",
+    minWidth: 64,
+    alignItems: "center",
+  },
+  nearbyBackBtnText: {
+    color: "#93c5fd",
+    fontSize: 15,
+    fontWeight: "700",
+    letterSpacing: 0.2,
+  },
+  nearbyScreenTitle: {
+    color: "#ffffff",
+    fontSize: 20,
+    fontWeight: "900",
+    letterSpacing: 0.1,
+  },
+  nearbyScreenSubtitle: {
+    color: "#7b93b4",
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: "500",
+  },
+  // ── Hero card ────────────────────────────────────────────────────────────
   healthyNearbyHeroCard: {
-    borderColor: "#294d7b",
-    backgroundColor: "#081729",
-    padding: 18,
-    gap: 12,
+    borderColor: "#1e3a5f",
+    backgroundColor: "#060e1c",
+    padding: 16,
+    gap: 14,
+  },
+  nearbyTabsRowTop: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
   },
   nearbyPrimaryActions: {
-    marginTop: 10,
+    gap: 10,
+  },
+  nearbySecondaryActionsRow: {
+    flexDirection: "row",
     gap: 10,
   },
   nearbyPrimaryCta: {
@@ -8086,8 +8120,26 @@ const styles = StyleSheet.create({
     borderColor: "#23a259",
     backgroundColor: "#0f4126",
   },
+  nearbyExtrasRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    alignItems: "center",
+  },
+  nearbyExtraBtn: {
+    paddingVertical: 5,
+    paddingHorizontal: 11,
+    borderRadius: 10,
+    backgroundColor: "#0c1a2e",
+    borderWidth: 1,
+    borderColor: "#274869",
+  },
+  nearbyExtraBtnText: {
+    color: "#94b8d9",
+    fontSize: 12,
+    fontWeight: "600",
+  },
   nearbySecondaryActions: {
-    marginTop: 10,
     flexDirection: "row",
     flexWrap: "wrap",
     alignItems: "center",
