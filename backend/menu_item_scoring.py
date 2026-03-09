@@ -92,6 +92,15 @@ PLACE_MENU_RULES: List[Dict[str, Any]] = [
         ],
     },
     {
+        "rule_id": "sandwich_sub",
+        "tokens": ("subway", "sub", "footlong", "deli", "sub sandwich"),
+        "items": [
+            {"item_name": "6-inch chicken or turkey sub, extra salad, light sauce", "estimated_calories": 390, "estimated_protein_g": 30},
+            {"item_name": "Roast chicken salad bowl (no bread)", "estimated_calories": 310, "estimated_protein_g": 34},
+            {"item_name": "6-inch turkey sub, extra salad", "estimated_calories": 350, "estimated_protein_g": 26},
+        ],
+    },
+    {
         "rule_id": "burger_fast_food",
         "tokens": ("burger", "fast_food", "fast food", "sandwich", "drive"),
         "items": [
@@ -184,6 +193,19 @@ _GENERIC_FALLBACK_NAME_TOKENS: Tuple[str, ...] = (
     "protein plate",
     "lean wrap",
     "protein wrap",
+    # Additional generic placeholders from LLM hallucination patterns
+    "healthy option",
+    "lighter option",
+    "lighter menu option",
+    "balanced meal",
+    "smart choice",
+    "recommended item",
+    "best menu item",
+    "better choice",
+    "low calorie option",
+    "high protein option",
+    "lighter choice",
+    "lighter meal",
 )
 
 _INDIAN_CONTEXT_TOKENS: Tuple[str, ...] = (
@@ -454,13 +476,19 @@ def _final_item_name(
 
     lower_item = text.lower()
     lower_cuisine = str(cuisine_hint or "").lower()
+
+    # Reject generic placeholder names regardless of cuisine or source.
+    # These appear when the LLM or heuristic cannot identify a real menu item.
+    if any(token in lower_item for token in _GENERIC_FALLBACK_NAME_TOKENS):
+        return _coarse_item_name_for_context(cuisine_hint)
+
     if _is_cuisine_inappropriate_generic(lower_item, lower_cuisine):
         return _coarse_item_name_for_context(cuisine_hint)
 
     if any(token in lower_cuisine for token in _DESSERT_CONTEXT_TOKENS) and source != "real_menu":
         return _coarse_item_name_for_context(cuisine_hint)
 
-    # Heuristic-only names should remain soft and category-level for trust.
+    # Heuristic-only names remain soft and category-level for trust.
     if source == "heuristic":
         return _coarse_item_name_for_context(cuisine_hint)
 

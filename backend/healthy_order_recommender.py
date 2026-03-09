@@ -68,6 +68,20 @@ CUISINE_ORDER_RULES: List[Dict[str, Any]] = [
         "short_reason": "Bowl format keeps protein high and calories easier to manage.",
     },
     {
+        "rule_id": "sandwich_sub",
+        "tokens": ("subway", "sub", "footlong", "deli", "sub sandwich", "sandwich bar"),
+        "best_order": "6-inch chicken or turkey sub, extra salad, light sauce",
+        "better_swap": "Ask for extra salad, skip cheese and mayo, choose 6-inch over footlong",
+        "avoid_if_cutting": "Footlong with meatball, extra cheese and regular sauces",
+        "estimated_calories": 390,
+        "estimated_protein_g": 30,
+        "estimated_carbs_g": 44,
+        "estimated_fat_g": 8,
+        "estimated_satiety": "high",
+        "order_strategy_tags": ["high_protein", "portion_control", "better_swap"],
+        "short_reason": "6-inch chicken or turkey sub hits strong protein with controlled calories — better than burger combos.",
+    },
+    {
         "rule_id": "burger_fast_food",
         "tokens": ("burger", "fast_food", "fast food", "drive", "sandwich"),
         "best_order": "Single grilled chicken burger",
@@ -160,6 +174,7 @@ RULE_PRIORITY: Dict[str, int] = {
     "sushi_japanese": 7,
     "mexican": 7,
     "thai_chinese": 7,
+    "sandwich_sub": 7,  # beats burger_fast_food for Subway-type places
     "pizza": 6,
     "burger_fast_food": 6,
     "fried_chicken": 6,

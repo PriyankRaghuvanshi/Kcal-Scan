@@ -64,6 +64,7 @@ _COMPONENT_KEYWORDS: Dict[str, Dict[str, Tuple[str, ...]]] = {
             "bbq",
             "kebab",
             "chicken",
+            "turkey",
             "fish",
             "seafood",
             "sushi",
@@ -73,6 +74,11 @@ _COMPONENT_KEYWORDS: Dict[str, Dict[str, Tuple[str, ...]]] = {
             "lentil",
             "dal",
             "egg",
+            # Sandwich/sub venues reliably provide lean protein fillings
+            "subway",
+            "sub",
+            "sandwich",
+            "deli",
         ),
         "negative": (
             "dessert",
@@ -97,6 +103,11 @@ _COMPONENT_KEYWORDS: Dict[str, Dict[str, Tuple[str, ...]]] = {
             "thai",
             "vegetarian",
             "vegan",
+            # Sub/sandwich bars offer customisable, portionable options
+            "subway",
+            "sub",
+            "sandwich",
+            "deli",
         ),
         "negative": (
             "fried",
@@ -107,6 +118,7 @@ _COMPONENT_KEYWORDS: Dict[str, Dict[str, Tuple[str, ...]]] = {
             "buffet",
             "dessert",
             "pastry",
+            # fast_food remains a mild negative but sandwich-specific tokens above offset it
             "fast_food",
         ),
     },
@@ -124,6 +136,11 @@ _COMPONENT_KEYWORDS: Dict[str, Dict[str, Tuple[str, ...]]] = {
             "tofu",
             "paneer",
             "soup",
+            # Sub sandwiches with bread + lean protein are genuinely filling
+            "sub",
+            "subway",
+            "sandwich",
+            "deli",
         ),
         "negative": (
             "dessert",
@@ -150,6 +167,11 @@ _COMPONENT_KEYWORDS: Dict[str, Dict[str, Tuple[str, ...]]] = {
             "thai",
             "vegetarian",
             "vegan",
+            # Subway-style customisable subs score well: build-your-own, skip sauces
+            "subway",
+            "sub",
+            "sandwich",
+            "deli",
         ),
         "negative": (
             "fried",
