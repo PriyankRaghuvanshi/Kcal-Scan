@@ -1541,6 +1541,7 @@ export default function App() {
   const lunchDecisionReqSeqRef = useRef(0);
   const lunchDecisionInFlightRef = useRef(false);
   const rerunReqSeqRef = useRef(0);
+  const mainScrollRef = useRef(null);
   const analyzeCancelRef = useRef(false);
 
   // ===== Camera Modal =====
@@ -4451,10 +4452,15 @@ async function openCamera(mode = "meal") {
     }
   }
 
+  function _scrollToTop() {
+    try { mainScrollRef.current?.scrollTo({ y: 0, animated: false }); } catch (_) {}
+  }
+
   async function openHealthyNearbyScreen(target = "overview") {
     const mode = String(target || "overview").trim().toLowerCase();
     setActiveScreen("healthy_nearby");
     setWeeklyCoachExpanded(false);
+    _scrollToTop();
 
     if (mode === "decide") {
       setHealthyNearbyTab("decision");
@@ -5080,8 +5086,8 @@ async function openCamera(mode = "meal") {
   })();
 
   return (
-    <SafeAreaView style={styles.safe}>
-      <ScrollView contentContainerStyle={styles.container}>
+    <SafeAreaView style={[styles.safe, activeScreen === "healthy_nearby" ? styles.nearbyScreenBg : null]}>
+      <ScrollView ref={mainScrollRef} contentContainerStyle={styles.container}>
         {activeScreen !== "healthy_nearby" ? (
         <View style={styles.topRow}>
           <View>
@@ -5098,7 +5104,7 @@ async function openCamera(mode = "meal") {
         <View style={styles.nearbyScreenHeader}>
           <TouchableOpacity
             style={styles.nearbyBackBtn}
-            onPress={() => setActiveScreen("home")}
+            onPress={() => { setActiveScreen("home"); _scrollToTop(); }}
             hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
           >
             <Text style={styles.nearbyBackBtnText}>‹ Back</Text>
@@ -7748,6 +7754,7 @@ async function openCamera(mode = "meal") {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: "#000", paddingBottom: 24 },
+  nearbyScreenBg: { backgroundColor: "#03080f" },
   container: { padding: 18, gap: 14, paddingBottom: 36 },
   h1: { fontSize: 26, fontWeight: "900", color: "#fff", lineHeight: 31, letterSpacing: 0.2 },
   p: { fontSize: 14, color: "#cfd7e3", lineHeight: 21 },
