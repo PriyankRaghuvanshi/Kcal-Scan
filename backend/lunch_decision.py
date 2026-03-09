@@ -9,6 +9,7 @@ from healthy_order_recommender import suggest_best_order_for_place
 from healthy_place_scoring import score_healthy_place
 from llm_explanation_copy import maybe_rewrite_explanation_copy
 from menu_item_scoring import recommend_menu_items_for_place
+from recommendation_safety import has_strong_menu_evidence, sanitize_recommended_item
 from nutrition_mode import NutritionMode
 from personalization_profiles import (
     normalize_personalization_goal,
@@ -17,6 +18,7 @@ from personalization_profiles import (
 from place_today_decision import evaluate_place_for_today
 from restaurant_reality_check import build_restaurant_reality_check
 from share_card_formatter import build_best_order_share_card
+from swap_intelligence import build_swap_suggestions
 
 
 LUNCH_DECISION_VERSION = "v1"
@@ -179,7 +181,52 @@ def _place_profile(
         mode=mode,
         personalization_goal=personalization_goal,
     )
-    top_item = _menu_item(menu)
+    top_item = dict(_menu_item(menu))
+    menu_context_text = " ".join(
+        [
+            _cuisine_hint_from_place(place),
+            str(place.get("name") or ""),
+            " ".join(str(t or "") for t in (place.get("types") if isinstance(place.get("types"), list) else [])),
+        ]
+    ).strip()
+
+    top_item_source = str(
+        top_item.get("menu_item_source")
+        or menu.get("menu_source_resolved")
+        or menu.get("menu_items_source_resolved")
+        or menu.get("menu_source")
+        or ""
+    ).strip().lower()
+    top_item_conf = float(_safe_float(top_item.get("menu_item_confidence"), top_item.get("confidence")) or 0.0)
+    top_item_evidence = has_strong_menu_evidence(
+        menu_item_source=top_item_source,
+        menu_item_confidence=top_item_conf,
+        source_url=top_item.get("source_url"),
+        extraction_method=top_item.get("extraction_method"),
+        parse_method=top_item.get("parse_method"),
+        raw_text_snippet=top_item.get("raw_text_snippet"),
+    )
+    top_item_safety = sanitize_recommended_item(
+        item_name=top_item.get("item_name"),
+        context_text=menu_context_text,
+        menu_item_source=top_item_source or "heuristic",
+        menu_item_confidence=top_item_conf if top_item_conf > 0 else 0.45,
+        strong_menu_evidence=top_item_evidence,
+        display_label=top_item.get("display_label"),
+        order_type=top_item.get("order_type"),
+    )
+    if top_item:
+        top_item["item_name"] = str(top_item_safety.get("item_name") or top_item.get("item_name") or "")
+        top_item["menu_item_source"] = str(top_item_safety.get("menu_item_source") or top_item_source or "heuristic")
+        top_item["menu_item_confidence"] = round(
+            _clamp(_safe_float(top_item_safety.get("menu_item_confidence"), top_item_conf), 0.2, 0.97),
+            2,
+        )
+        if str(top_item_safety.get("display_label") or "").strip():
+            top_item["display_label"] = str(top_item_safety.get("display_label"))
+        if str(top_item_safety.get("order_type") or "").strip():
+            top_item["order_type"] = str(top_item_safety.get("order_type"))
+        top_item["menu_item_safety_reason"] = str(top_item_safety.get("safety_reason") or "")
 
     estimated_calories = int(
         _safe_float(top_item.get("estimated_calories"), _safe_float(order.get("estimated_calories"), 520))
@@ -222,14 +269,23 @@ def _place_profile(
     )
     menu_item_source = str(top_item.get("menu_item_source") or "heuristic").strip().lower() or "heuristic"
     menu_item_confidence = float(_safe_float(top_item.get("menu_item_confidence"), order_confidence) or order_confidence)
+    source_rank_weight = float(
+        _safe_float(top_item.get("source_rank_weight"), 1.0 if menu_item_source == "real_menu" else 0.95 if menu_item_source == "user_scan" else 0.8 if menu_item_source == "llm_inferred" else 0.65)
+        or 0.65
+    )
 
     fit_score = (
         (health_score * 0.46)
         + (protein_density * 0.23)
         + (decision_multiplier * 26.0)
         + (order_confidence * 14.0)
+        + (source_rank_weight * 10.0)
         - min(8.0, distance_meters / 420.0)
     )
+    if menu_item_source == "heuristic":
+        fit_score -= 8.0
+    elif menu_item_source == "llm_inferred":
+        fit_score -= 3.0
 
     if mode == NutritionMode.CUT:
         if estimated_calories <= 600 and estimated_protein_g >= 32:
@@ -271,6 +327,7 @@ def _place_profile(
         or order.get("best_order")
         or "Lighter menu option"
     )
+    top_item["item_name"] = recommended_order
     order_type = str(top_item.get("order_type") or order.get("order_type") or "").strip().lower()
     if order_type not in {"exact", "likely", "estimated"}:
         if menu_item_source == "real_menu" and menu_item_confidence >= 0.72:
@@ -299,12 +356,47 @@ def _place_profile(
         if isinstance(order.get("add_items"), list)
         else []
     )
+    swap_suggestions = build_swap_suggestions(
+        swap_suggestion=swap_suggestion,
+        skip_items=skip_items,
+        add_items=add_items,
+        better_swap=order.get("better_swap"),
+        place_context=" ".join(
+            [
+                place_name,
+                str(place.get("vicinity") or place.get("address") or ""),
+                str(place.get("primary_type") or place.get("primaryType") or ""),
+                " ".join(str(t or "") for t in (place.get("types") if isinstance(place.get("types"), list) else [])),
+            ]
+        ),
+        menu_item_source=menu_item_source,
+        menu_item_confidence=menu_item_confidence,
+        max_items=3,
+    )
     recommended_order_label = str(top_item.get("display_label") or "").strip() or "Estimated Best Fit"
 
     short_reason = str(
         top_item.get("short_reason")
         or order.get("short_reason")
         or "Balanced choice for your lunch goals."
+    )
+
+    reality_check = build_restaurant_reality_check(
+        place,
+        recommended_order={
+            "item_name": str(top_item.get("item_name") or recommended_order),
+            "estimated_calories": int(max(0, estimated_calories)),
+            "estimated_protein_g": int(max(0, estimated_protein_g)),
+            "confidence": float(_safe_float(top_item.get("confidence"), order_confidence) or order_confidence),
+        },
+        context={
+            "top_menu_item": top_item,
+            "top_menu_items": menu.get("top_menu_items") if isinstance(menu.get("top_menu_items"), list) else [],
+            "health_score": health_score,
+            "mode": mode.value,
+            "fit_for_today": fit_for_today,
+            "goal": goal_value,
+        },
     )
 
     share_card = build_best_order_share_card(
@@ -326,24 +418,7 @@ def _place_profile(
         ),
         cut_friendly=bool(top_item.get("cut_friendly") or order.get("cut_friendly")),
         fat_loss_friendly=bool(scoring.get("fat_loss_friendly", False)),
-    )
-
-    reality_check = build_restaurant_reality_check(
-        place,
-        recommended_order={
-            "item_name": str(top_item.get("item_name") or recommended_order),
-            "estimated_calories": int(max(0, estimated_calories)),
-            "estimated_protein_g": int(max(0, estimated_protein_g)),
-            "confidence": float(_safe_float(top_item.get("confidence"), order_confidence) or order_confidence),
-        },
-        context={
-            "top_menu_item": top_item,
-            "top_menu_items": menu.get("top_menu_items") if isinstance(menu.get("top_menu_items"), list) else [],
-            "health_score": health_score,
-            "mode": mode.value,
-            "fit_for_today": fit_for_today,
-            "goal": goal_value,
-        },
+        calories_saved=reality_check.get("calories_saved") if isinstance(reality_check, dict) else None,
     )
 
     return {
@@ -358,6 +433,7 @@ def _place_profile(
         "recommended_order_label": recommended_order_label,
         "order_type": order_type,
         "swap_suggestion": swap_suggestion,
+        "swap_suggestions": swap_suggestions,
         "skip_items": skip_items if isinstance(skip_items, list) else [],
         "add_items": add_items if isinstance(add_items, list) else [],
         "estimated_calories": int(max(0, estimated_calories)),
@@ -374,6 +450,8 @@ def _place_profile(
         "order_confidence": float(_clamp(order_confidence, 0.35, 0.95)),
         "menu_item_source": menu_item_source,
         "menu_item_confidence": round(_clamp(menu_item_confidence, 0.2, 0.95), 2),
+        "source_rank_weight": round(_clamp(source_rank_weight, 0.0, 1.1), 2),
+        "menu_item_safety_reason": str(top_item.get("menu_item_safety_reason") or ""),
         "fit_score": float(round(_clamp(fit_score, 0.0, 100.0), 2)),
         "weak_option": bool(weak_option),
         "top_menu_items": menu.get("top_menu_items") if isinstance(menu.get("top_menu_items"), list) else [],
@@ -392,6 +470,7 @@ def _pick_best(profiles: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
         profiles,
         key=lambda row: (
             1 if row.get("fit_for_today") is True else 0,
+            float(_safe_float(row.get("source_rank_weight"), 0.65) or 0.65),
             float(_safe_float(row.get("fit_score"), 0.0) or 0.0),
             float(_safe_float(row.get("decision_confidence"), 0.0) or 0.0),
             float(_safe_float(row.get("health_score"), 0.0) or 0.0),
@@ -416,6 +495,7 @@ def _pick_better_alternative(profiles: List[Dict[str, Any]], best: Dict[str, Any
     candidates.sort(
         key=lambda row: (
             1 if row.get("fit_for_today") is True else 0,
+            float(_safe_float(row.get("source_rank_weight"), 0.65) or 0.65),
             float(_safe_float(row.get("health_score"), 0.0) or 0.0),
             float(_safe_float(row.get("daily_fit_score"), 0.0) or 0.0),
             -float(_safe_float(row.get("distance_meters"), 0.0) or 0.0),
@@ -517,6 +597,10 @@ def _build_best_card(profile: Dict[str, Any]) -> Dict[str, Any]:
         "distance_meters": int(_safe_float(profile.get("distance_meters"), 0.0) or 0),
         "recommended_order": recommended_order,
         "recommended_order_label": str(profile.get("recommended_order_label") or "Estimated Best Fit"),
+        "swap_suggestion": str(profile.get("swap_suggestion") or ""),
+        "swap_suggestions": (
+            profile.get("swap_suggestions") if isinstance(profile.get("swap_suggestions"), list) else []
+        )[:3],
         "estimated_calories": int(_safe_float(profile.get("estimated_calories"), 0.0) or 0),
         "estimated_protein_g": int(_safe_float(profile.get("estimated_protein_g"), 0.0) or 0),
         "fit_for_today": profile.get("fit_for_today"),
@@ -579,6 +663,10 @@ def _build_better_card(profile: Dict[str, Any]) -> Dict[str, Any]:
         "distance_meters": int(_safe_float(profile.get("distance_meters"), 0.0) or 0),
         "recommended_order": recommended_order,
         "recommended_order_label": str(profile.get("recommended_order_label") or "Suggested Lighter Option"),
+        "swap_suggestion": str(profile.get("swap_suggestion") or ""),
+        "swap_suggestions": (
+            profile.get("swap_suggestions") if isinstance(profile.get("swap_suggestions"), list) else []
+        )[:3],
         "estimated_calories": int(_safe_float(profile.get("estimated_calories"), 0.0) or 0),
         "estimated_protein_g": int(_safe_float(profile.get("estimated_protein_g"), 0.0) or 0),
         "fit_for_today": profile.get("fit_for_today"),
@@ -638,6 +726,10 @@ def _build_hard_card(profile: Dict[str, Any], remaining_calories: Optional[float
         "typical_calorie_range": _typical_calorie_range(profile),
         "remaining_calories": None if remaining_calories is None else int(max(0.0, remaining_calories)),
         "recommended_order": recommended_order,
+        "swap_suggestion": str(profile.get("swap_suggestion") or ""),
+        "swap_suggestions": (
+            profile.get("swap_suggestions") if isinstance(profile.get("swap_suggestions"), list) else []
+        )[:3],
         "estimated_calories": int(_safe_float(profile.get("estimated_calories"), 0.0) or 0),
         "estimated_protein_g": int(_safe_float(profile.get("estimated_protein_g"), 0.0) or 0),
         "fit_for_today": False,

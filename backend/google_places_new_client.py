@@ -19,6 +19,13 @@ PLACES_NEARBY_FIELD_MASK_FIELDS = (
 )
 PLACES_NEARBY_FIELD_MASK = ",".join(f"places.{field}" for field in PLACES_NEARBY_FIELD_MASK_FIELDS)
 
+HEALTHY_NEARBY_INCLUDED_TYPES = (
+    "restaurant",
+    "meal_takeaway",
+    "fast_food",
+    "cafe",
+)
+
 
 def _safe_float(v: Any, default: float = 0.0) -> float:
     try:
@@ -35,12 +42,24 @@ def resolve_nearby_base(candidate_url: str | None) -> str:
     return DEFAULT_PLACES_NEARBY_URL
 
 
-def build_nearby_search_payload(lat: float, lng: float, radius_m: int) -> Dict[str, Any]:
-    # API allows up to 50; we keep 20 for speed and stable UI rendering.
+def build_nearby_search_payload(
+    lat: float,
+    lng: float,
+    radius_m: int,
+    *,
+    max_result_count: int = 40,
+    rank_preference: str = "DISTANCE",
+) -> Dict[str, Any]:
+    # API allows up to 50; we use a higher cap to avoid dropping the user's current place.
     radius_val = float(max(200, min(5000, int(_safe_float(radius_m, 2000) or 2000))))
+    result_cap = int(max(1, min(50, int(_safe_float(max_result_count, 40) or 40))))
+    rank_value = str(rank_preference or "").strip().upper()
+    if rank_value not in {"DISTANCE", "POPULARITY"}:
+        rank_value = "DISTANCE"
     return {
-        "includedTypes": ["restaurant"],
-        "maxResultCount": 20,
+        "includedTypes": list(HEALTHY_NEARBY_INCLUDED_TYPES),
+        "maxResultCount": result_cap,
+        "rankPreference": rank_value,
         "locationRestriction": {
             "circle": {
                 "center": {

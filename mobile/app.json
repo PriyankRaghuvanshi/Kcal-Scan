@@ -16,16 +16,14 @@
     "ios": {
       "icon": "./assets/CalorieClick.png",
       "bundleIdentifier": "com.priyank.calorieclick",
+      "buildNumber": "117",
       "supportsTablet": true,
       "infoPlist": {
         "NSCameraUsageDescription": "We need camera access to scan meals and barcodes.",
         "NSPhotoLibraryUsageDescription": "We need access to your photos if you choose an existing image to analyze.",
         "NSPhotoLibraryAddUsageDescription": "We need permission to save images if you export or save results.",
         "NSLocationWhenInUseUsageDescription": "We use your location to find healthy food places near you.",
-        "ITSAppUsesNonExemptEncryption": false,
-        "NSAppTransportSecurity": {
-          "NSAllowsArbitraryLoads": true
-        }
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
@@ -74,4 +72,3 @@
     ]
   }
 }
-

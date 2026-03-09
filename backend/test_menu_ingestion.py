@@ -148,6 +148,28 @@ class MenuIngestionTests(unittest.TestCase):
         self.assertEqual(out.get("menu_items"), [])
         self.assertEqual(out.get("menu_source"), "none")
 
+    def test_chain_registry_backfill_for_subway_au(self):
+        out = ingest_real_menu_for_place(
+            {
+                "place_id": "subway-live-1",
+                "name": "Subway Wentworthville",
+                "address": "Wentworthville NSW Australia",
+                "country_code": "AU",
+            },
+            max_items=4,
+        )
+        self.assertTrue(out.get("ingested"))
+        self.assertTrue(out.get("chain_match"))
+        self.assertEqual(out.get("chain_key"), "subway")
+        self.assertEqual(out.get("menu_source"), "website_menu")
+        self.assertEqual(out.get("extraction_method"), "chain_registry_official_menu")
+        self.assertTrue(str(out.get("matched_alias") or "").strip())
+        self.assertIn(str(out.get("chain_source_used") or "").strip(), {"country_chain_registry", "global_chain_registry"})
+        items = out.get("menu_items") or []
+        self.assertGreaterEqual(len(items), 2)
+        self.assertTrue(all(str(row.get("menu_source") or "") == "website_menu" for row in items))
+        self.assertTrue(any("sub" in str(row.get("item_name") or "").lower() for row in items))
+
 
 if __name__ == "__main__":
     unittest.main()

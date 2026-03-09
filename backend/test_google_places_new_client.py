@@ -20,6 +20,10 @@ class GooglePlacesNewClientTests(unittest.TestCase):
         self.assertIn("locationRestriction", payload)
         self.assertIn("circle", payload["locationRestriction"])
         self.assertIn("restaurant", payload["includedTypes"])
+        self.assertIn("fast_food", payload["includedTypes"])
+        self.assertIn("cafe", payload["includedTypes"])
+        self.assertEqual(payload.get("rankPreference"), "DISTANCE")
+        self.assertGreaterEqual(int(payload.get("maxResultCount") or 0), 40)
 
     def test_map_places_response_keeps_internal_shape(self):
         body = {

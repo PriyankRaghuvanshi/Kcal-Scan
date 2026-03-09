@@ -4020,6 +4020,50 @@ async function openCamera(mode = "meal") {
     return Math.round(meters) + " m away";
   }
 
+  function extractSwapSuggestions(...sources) {
+    const out = [];
+    const seen = new Set();
+
+    function pushLine(raw) {
+      const text = String(raw || "").trim().replace(/\s+/g, " ");
+      if (!text) return;
+      const key = text.toLowerCase();
+      if (seen.has(key)) return;
+      seen.add(key);
+      out.push(text);
+    }
+
+    function asSkipLine(raw) {
+      const text = String(raw || "").trim();
+      if (!text) return "";
+      return /^skip\s+/i.test(text) ? text : `Skip ${text}`;
+    }
+
+    function asAddLine(raw) {
+      const text = String(raw || "").trim();
+      if (!text) return "";
+      return /^(add|choose|pick|go for)\s+/i.test(text) ? text : `Add ${text}`;
+    }
+
+    for (const src of sources) {
+      if (!src || typeof src !== "object") continue;
+      const swaps = Array.isArray(src?.swap_suggestions) ? src.swap_suggestions : [];
+      swaps.forEach((row) => pushLine(row));
+
+      if (Array.isArray(src?.skip_items)) {
+        src.skip_items.forEach((row) => pushLine(asSkipLine(row)));
+      }
+      if (Array.isArray(src?.add_items)) {
+        src.add_items.forEach((row) => pushLine(asAddLine(row)));
+      }
+
+      pushLine(src?.swap_suggestion);
+      pushLine(src?.better_swap);
+    }
+
+    return out.slice(0, 3);
+  }
+
   function normalizeFeedbackPlaceId(card) {
     const raw = String(card?.place_id || card?.tracking?.place_id || "").trim();
     if (raw) return raw;
@@ -4067,14 +4111,23 @@ async function openCamera(mode = "meal") {
     const realityShare =
       realityCheck?.share_card && typeof realityCheck.share_card === "object" ? realityCheck.share_card : {};
 
-    const activeCard = Object.keys(realityShare).length ? realityShare : shareCard;
+    const activeCard = Object.keys(shareCard).length ? shareCard : realityShare;
 
-    const title = String(activeCard?.title || "Best Order Near Me").trim();
-    const place = String(activeCard?.place_name || payload?.place_name || "Nearby pick").trim();
-    const score = Number.isFinite(num(activeCard?.health_score)) ? Math.round(num(activeCard.health_score)) : null;
-    const order = String(activeCard?.best_order || activeCard?.smarter_order || payload?.recommended_order || "Smart high-protein pick").trim();
+    const title = String(activeCard?.title || "Smarter Order").trim();
+    const place = String(
+      activeCard?.restaurant_name || activeCard?.place_name || payload?.place_name || "Nearby pick"
+    ).trim();
+    const order = String(
+      activeCard?.order_name ||
+        activeCard?.best_order ||
+        activeCard?.smarter_order ||
+        payload?.recommended_order ||
+        "Lighter menu option"
+    ).trim();
     const calories = Number.isFinite(num(activeCard?.estimated_calories))
       ? Math.round(num(activeCard.estimated_calories))
+      : Number.isFinite(num(realityShare?.smarter_calories))
+      ? Math.round(num(realityShare.smarter_calories))
       : Number.isFinite(num(payload?.estimated_calories))
       ? Math.round(num(payload.estimated_calories))
       : null;
@@ -4083,34 +4136,31 @@ async function openCamera(mode = "meal") {
       : Number.isFinite(num(payload?.estimated_protein_g))
       ? Math.round(num(payload.estimated_protein_g))
       : null;
-
-    const typicalCalories = Number.isFinite(num(realityShare?.typical_calories))
-      ? Math.round(num(realityShare.typical_calories))
-      : Number.isFinite(num(realityCheck?.typical_order?.estimated_calories))
-      ? Math.round(num(realityCheck.typical_order.estimated_calories))
-      : null;
-    const smarterCalories = Number.isFinite(num(realityShare?.smarter_calories))
-      ? Math.round(num(realityShare.smarter_calories))
-      : calories;
-    const caloriesSaved = Number.isFinite(num(realityShare?.calories_saved))
+    const caloriesSaved = Number.isFinite(num(activeCard?.calories_saved))
+      ? Math.max(0, Math.round(num(activeCard.calories_saved)))
+      : Number.isFinite(num(realityShare?.calories_saved))
       ? Math.max(0, Math.round(num(realityShare.calories_saved)))
       : Number.isFinite(num(realityCheck?.calories_saved))
       ? Math.max(0, Math.round(num(realityCheck.calories_saved)))
       : null;
-
-    const subtitle = String(
-      activeCard?.subtitle || payload?.why_this_works || "High protein and better calorie control for your goal."
+    const heroLine =
+      String(activeCard?.hero_line || "").trim() ||
+      (caloriesSaved !== null && caloriesSaved > 0 ? "You saved " + caloriesSaved + " calories" : "");
+    const badge = String(
+      activeCard?.badge ||
+        (Array.isArray(activeCard?.badges) && activeCard.badges[0]) ||
+        (Array.isArray(shareCard?.badges) && shareCard.badges[0]) ||
+        ""
     ).trim();
+    const subtitle = String(activeCard?.subtitle || payload?.why_this_works || "").trim();
 
-    const lines = [title, "", place];
-    if (score !== null) lines.push("🔥 Fat Loss Score: " + score);
-    if (caloriesSaved !== null && caloriesSaved > 0) lines.push("", "You saved " + caloriesSaved + " calories");
-    if (typicalCalories !== null) lines.push("Typical: ~" + typicalCalories + " kcal");
-    if (smarterCalories !== null) lines.push("Smarter: ~" + smarterCalories + " kcal");
-    lines.push("", "Best Order:", order);
-    if (calories !== null) lines.push("Calories: " + calories);
+    const lines = [title, "", "Restaurant: " + place, "Order: " + order];
+    if (calories !== null) lines.push("Calories: " + calories + " kcal");
     if (protein !== null) lines.push("Protein: " + protein + "g");
-    lines.push("", subtitle, "", "CalorieClick AI");
+    if (heroLine) lines.push("", heroLine);
+    if (badge) lines.push("Badge: " + badge);
+    if (subtitle) lines.push("", subtitle);
+    lines.push("", "CalorieClick AI");
     return lines.join("\n");
   }
 
@@ -6408,6 +6458,14 @@ async function openCamera(mode = "meal") {
                               {Number.isFinite(num(primary?.estimated_protein_g)) ? `${Math.round(num(primary.estimated_protein_g))}g protein` : ""}
                             </Text>
                           ) : null}
+                          {(() => {
+                            const swaps = extractSwapSuggestions(primary);
+                            return swaps.length ? (
+                              <Text style={styles.swapHintText} numberOfLines={2}>
+                                Better swap: {swaps[0]}
+                              </Text>
+                            ) : null;
+                          })()}
                           {!!String(primary?.why_this_works || "").trim() ? (
                             <Text style={styles.tiny}>{String(primary.why_this_works).trim()}</Text>
                           ) : null}
@@ -6432,6 +6490,14 @@ async function openCamera(mode = "meal") {
                               {Number.isFinite(num(row?.estimated_protein_g)) ? `${Math.round(num(row.estimated_protein_g))}g protein` : ""}
                             </Text>
                           ) : null}
+                          {(() => {
+                            const swaps = extractSwapSuggestions(row);
+                            return swaps.length ? (
+                              <Text style={styles.swapHintText} numberOfLines={2}>
+                                Better swap: {swaps[0]}
+                              </Text>
+                            ) : null;
+                          })()}
                           {!!String(row?.why_this_works || "").trim() ? (
                             <Text style={styles.tiny}>{String(row.why_this_works).trim()}</Text>
                           ) : null}
@@ -6550,6 +6616,7 @@ async function openCamera(mode = "meal") {
               {lunchDecision.cards.slice(0, 3).map((card, idx) => {
                 const distanceLabel = formatDistanceFromMeters(card?.distance_meters);
                 const badges = Array.isArray(card?.badges) ? card.badges.filter(Boolean).slice(0, 2) : [];
+                const cardSwaps = extractSwapSuggestions(card);
                 const cta = String(card?.cta_label || "").trim();
                 const orderLabel = String(card?.recommended_order_label || "").trim();
                 const fitForToday = card?.fit_for_today;
@@ -6579,6 +6646,11 @@ async function openCamera(mode = "meal") {
                     ) : null}
                     {Number.isFinite(num(card?.estimated_protein_g)) ? (
                       <Text style={styles.tiny}>Protein: {Math.round(num(card?.estimated_protein_g))}g</Text>
+                    ) : null}
+                    {cardSwaps.length ? (
+                      <Text style={styles.swapHintText} numberOfLines={2}>
+                        Better swap: {cardSwaps[0]}
+                      </Text>
                     ) : null}
                     {!!String(card?.typical_calorie_range || "").trim() ? (
                       <Text style={styles.tiny}>Typical meals: {String(card.typical_calorie_range)}</Text>
@@ -6793,6 +6865,7 @@ async function openCamera(mode = "meal") {
                     : null;
                   const topItemReason = String(topMenuItem?.short_reason || why).trim();
                   const topItemLabel = String(topMenuItem?.display_label || "Best Menu Item").trim();
+                  const topItemSwaps = extractSwapSuggestions(topMenuItem, decisionCard, place).slice(0, 2);
                   const topItemSource = String(topMenuItem?.menu_item_source || place?.menu_items_source || "heuristic")
                     .trim()
                     .toLowerCase();
@@ -6913,6 +6986,11 @@ async function openCamera(mode = "meal") {
                           </Text>
                         ) : null}
                         {!!topItemReason ? <Text style={styles.tiny} numberOfLines={2}>{topItemReason}</Text> : null}
+                        {topItemSwaps.length ? (
+                          <Text style={styles.swapHintText} numberOfLines={2}>
+                            Better swap: {topItemSwaps[0]}
+                          </Text>
+                        ) : null}
                         {!!lowConfidenceHint ? (
                           <Text style={[styles.tiny, styles.nearbyLowPriorityHint]} numberOfLines={1}>{lowConfidenceHint}</Text>
                         ) : null}
@@ -7015,6 +7093,7 @@ async function openCamera(mode = "meal") {
             ? (healthyVisiblePlaces || []).slice(0, 8).map((place, idx) => {
                 const tone = healthyMapPinTone(place);
                 const opts = Array.isArray(place?.best_options) ? place.best_options.filter(Boolean).slice(0, 2) : [];
+                const placeSwaps = extractSwapSuggestions(place).slice(0, 1);
                 const distanceKm = haversineKm(
                   healthyPlaceCoords?.lat,
                   healthyPlaceCoords?.lng,
@@ -7039,6 +7118,11 @@ async function openCamera(mode = "meal") {
                     ) : null}
                     {!!String(place?.best_order || "").trim() ? (
                       <Text style={[styles.tiny, { marginTop: 4 }]}>Best order: {String(place.best_order)}</Text>
+                    ) : null}
+                    {placeSwaps.length ? (
+                      <Text style={[styles.swapHintText, { marginTop: 4 }]} numberOfLines={2}>
+                        Better swap: {placeSwaps[0]}
+                      </Text>
                     ) : null}
                     {opts.length ? (
                       <View style={{ marginTop: 6 }}>
@@ -8164,6 +8248,12 @@ const styles = StyleSheet.create({
     color: "#fca5a5",
     marginTop: 4,
     fontWeight: "700",
+  },
+  swapHintText: {
+    color: "#bfdbfe",
+    fontSize: 11,
+    lineHeight: 16,
+    marginTop: 4,
   },
   realitySavedText: {
     color: "#fde68a",

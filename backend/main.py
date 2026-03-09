@@ -64,8 +64,10 @@ from daily_food_decision import build_daily_decision_response
 from lunch_decision import build_lunch_decision_response
 from nearby_feed import build_healthy_nearby_feed
 from place_today_decision import evaluate_place_for_today
+from recommendation_safety import has_strong_menu_evidence, sanitize_recommended_item
 from restaurant_reality_check import build_restaurant_reality_check
 from share_card_formatter import build_best_order_share_card
+from swap_intelligence import build_swap_suggestions
 from weekly_coach import build_weekly_coach_payload
 from personalization_profiles import (
     get_personalized_reason,
@@ -12514,7 +12516,13 @@ async def fetch_google_places(lat: float, lng: float, radius: int = 2000) -> Lis
     if not GOOGLE_PLACES_API_KEY:
         return []
 
-    payload = build_nearby_search_payload(lat, lng, radius)
+    payload = build_nearby_search_payload(
+        lat,
+        lng,
+        radius,
+        max_result_count=40,
+        rank_preference="DISTANCE",
+    )
     headers = {
         "X-Goog-Api-Key": GOOGLE_PLACES_API_KEY,
         "X-Goog-FieldMask": PLACES_NEARBY_FIELD_MASK,
@@ -12612,9 +12620,11 @@ async def healthy_places(
         best_order = str(order_suggestion.get("best_order") or "Lighter menu option")
         estimated_calories = int(_safe_float(order_suggestion.get("estimated_calories"), 520) or 520)
         estimated_protein_g = int(_safe_float(order_suggestion.get("estimated_protein_g"), 32) or 32)
-        top_menu_item = menu_recommendations.get("top_menu_item") if isinstance(menu_recommendations.get("top_menu_item"), dict) else {}
+        top_menu_item = dict(menu_recommendations.get("top_menu_item")) if isinstance(menu_recommendations.get("top_menu_item"), dict) else {}
         top_menu_source = str(
             top_menu_item.get("menu_item_source")
+            or menu_recommendations.get("menu_source_resolved")
+            or menu_recommendations.get("menu_items_source_resolved")
             or menu_recommendations.get("menu_source")
             or menu_recommendations.get("menu_items_source")
             or "heuristic"
@@ -12626,6 +12636,58 @@ async def healthy_places(
             )
             or 0.0
         )
+        menu_context_text = " ".join(
+            [
+                str(p.get("name") or ""),
+                str(p.get("vicinity") or p.get("address") or ""),
+                " ".join(str(t or "") for t in (p.get("types") if isinstance(p.get("types"), list) else [])),
+            ]
+        ).strip()
+        top_menu_evidence = has_strong_menu_evidence(
+            menu_item_source=top_menu_source,
+            menu_item_confidence=top_menu_conf,
+            source_url=top_menu_item.get("source_url") or menu_recommendations.get("source_url"),
+            extraction_method=top_menu_item.get("extraction_method") or menu_recommendations.get("extraction_method"),
+            parse_method=top_menu_item.get("parse_method") or menu_recommendations.get("parse_method"),
+            raw_text_snippet=top_menu_item.get("raw_text_snippet"),
+        )
+        top_menu_safety = sanitize_recommended_item(
+            item_name=top_menu_item.get("item_name"),
+            context_text=menu_context_text,
+            menu_item_source=top_menu_source,
+            menu_item_confidence=top_menu_conf if top_menu_conf > 0 else 0.45,
+            strong_menu_evidence=top_menu_evidence,
+            display_label=top_menu_item.get("display_label"),
+            order_type=top_menu_item.get("order_type"),
+        )
+        if top_menu_item:
+            top_menu_item["item_name"] = str(top_menu_safety.get("item_name") or top_menu_item.get("item_name") or "")
+            top_menu_item["menu_item_source"] = str(top_menu_safety.get("menu_item_source") or top_menu_source or "heuristic")
+            top_menu_item["menu_item_confidence"] = round(
+                _safe_float(top_menu_safety.get("menu_item_confidence"), top_menu_conf),
+                2,
+            )
+            top_menu_item["display_label"] = str(top_menu_safety.get("display_label") or top_menu_item.get("display_label") or "")
+            top_menu_item["order_type"] = str(top_menu_safety.get("order_type") or top_menu_item.get("order_type") or "")
+            top_menu_item["menu_item_safety_reason"] = str(top_menu_safety.get("safety_reason") or "")
+            top_menu_item["menu_item_strong_evidence"] = bool(top_menu_evidence)
+        top_menu_source = str(top_menu_item.get("menu_item_source") or top_menu_source or "heuristic").strip().lower()
+        top_menu_conf = float(
+            _safe_float(
+                top_menu_item.get("menu_item_confidence"),
+                top_menu_conf,
+            )
+            or 0.0
+        )
+        top_menu_source_weight = float(
+            _safe_float(
+                top_menu_item.get("source_rank_weight"),
+                1.0 if top_menu_source == "real_menu" else 0.95 if top_menu_source == "user_scan" else 0.8 if top_menu_source == "llm_inferred" else 0.65,
+            )
+            or 0.65
+        )
+        if top_menu_item and not top_menu_item.get("source_rank_weight"):
+            top_menu_item["source_rank_weight"] = round(_safe_float(top_menu_source_weight, 0.65), 2)
         top_menu_order_type = str(top_menu_item.get("order_type") or "").strip().lower()
         if top_menu_order_type not in {"exact", "likely", "estimated"}:
             if top_menu_source in {
@@ -12645,25 +12707,32 @@ async def healthy_places(
             else:
                 top_menu_order_type = "estimated"
         top_menu_name = str(top_menu_item.get("item_name") or "").strip()
+        strong_real_menu = bool(
+            top_menu_name
+            and top_menu_source in {
+                "real_menu",
+                "menu_intelligence_store",
+                "structured_menu",
+                "scraped_menu",
+                "website_menu",
+                "website_text",
+                "review_text",
+                "ocr_menu",
+                "user_scan",
+            }
+            and top_menu_conf >= 0.45
+        )
+        strong_inferred_menu = bool(
+            top_menu_name
+            and top_menu_source == "llm_inferred"
+            and top_menu_conf >= 0.76
+            and top_menu_order_type in {"likely", "exact"}
+        )
         use_menu_order = bool(
             top_menu_name
             and (
-                top_menu_order_type in {"exact", "likely"}
-                or (
-                    top_menu_source
-                    in {
-                        "real_menu",
-                        "menu_intelligence_store",
-                        "structured_menu",
-                        "scraped_menu",
-                        "website_menu",
-                        "website_text",
-                        "review_text",
-                        "ocr_menu",
-                        "user_scan",
-                    }
-                    and top_menu_conf >= 0.60
-                )
+                strong_real_menu
+                or strong_inferred_menu
             )
         )
         if use_menu_order:
@@ -12702,6 +12771,33 @@ async def healthy_places(
             else order_suggestion.get("add_items")
             if isinstance(order_suggestion.get("add_items"), list)
             else []
+        )
+        swap_suggestions = build_swap_suggestions(
+            swap_suggestion=swap_suggestion,
+            skip_items=skip_items if isinstance(skip_items, list) else [],
+            add_items=add_items if isinstance(add_items, list) else [],
+            better_swap=order_suggestion.get("better_swap"),
+            place_context=" ".join(
+                [
+                    str(p.get("name") or ""),
+                    str(p.get("vicinity") or p.get("address") or ""),
+                    " ".join(str(t or "") for t in (p.get("types") if isinstance(p.get("types"), list) else [])),
+                ]
+            ),
+            menu_item_source=(
+                top_menu_item.get("menu_item_source")
+                or menu_recommendations.get("menu_source_resolved")
+                or menu_recommendations.get("menu_items_source_resolved")
+                or menu_recommendations.get("menu_source")
+                or menu_recommendations.get("menu_items_source")
+                or "heuristic"
+            ),
+            menu_item_confidence=(
+                top_menu_item.get("menu_item_confidence")
+                or top_menu_item.get("confidence")
+                or final_order_confidence
+            ),
+            max_items=3,
         )
         decision_estimated_calories = int(
             _safe_float(top_menu_item.get("estimated_calories"), estimated_calories) or estimated_calories
@@ -12800,6 +12896,7 @@ async def healthy_places(
                 ),
                 "order_type": order_type,
                 "swap_suggestion": swap_suggestion,
+                "swap_suggestions": swap_suggestions,
                 "skip_items": skip_items if isinstance(skip_items, list) else [],
                 "add_items": add_items if isinstance(add_items, list) else [],
             },
@@ -12842,6 +12939,7 @@ async def healthy_places(
                     or "Pick water and keep sauces on the side"
                 ),
                 "swap_suggestion": swap_suggestion,
+                "swap_suggestions": swap_suggestions,
                 "skip_items": skip_items if isinstance(skip_items, list) else [],
                 "add_items": add_items if isinstance(add_items, list) else [],
                 "order_type": order_type,
@@ -12871,7 +12969,26 @@ async def healthy_places(
                 "menu_item_scoring_available": bool(menu_recommendations.get("menu_item_scoring_available", False)),
                 "menu_items_source": str(menu_recommendations.get("menu_items_source") or "heuristic"),
                 "menu_source": str(menu_recommendations.get("menu_source") or menu_recommendations.get("menu_items_source") or "heuristic"),
+                "menu_items_source_resolved": str(
+                    menu_recommendations.get("menu_items_source_resolved")
+                    or menu_recommendations.get("menu_source_resolved")
+                    or menu_recommendations.get("menu_items_source")
+                    or "heuristic"
+                ),
+                "menu_source_resolved": str(
+                    menu_recommendations.get("menu_source_resolved")
+                    or menu_recommendations.get("menu_items_source_resolved")
+                    or menu_recommendations.get("menu_source")
+                    or menu_recommendations.get("menu_items_source")
+                    or "heuristic"
+                ),
+                "menu_source_priority": int(_safe_float(menu_recommendations.get("menu_source_priority"), 1) or 1),
                 "menu_confidence": float(_safe_float(menu_recommendations.get("menu_confidence"), 0.0) or 0.0),
+                "menu_item_source": str(top_menu_item.get("menu_item_source") or ""),
+                "menu_item_confidence": float(_safe_float(top_menu_item.get("menu_item_confidence"), 0.0) or 0.0),
+                "source_rank_weight": float(_safe_float(top_menu_item.get("source_rank_weight"), 0.0) or 0.0),
+                "menu_item_safety_reason": str(top_menu_item.get("menu_item_safety_reason") or ""),
+                "restaurant_rank_reason": "",
                 "extraction_method": str(menu_recommendations.get("extraction_method") or ""),
                 "parse_method": str(menu_recommendations.get("parse_method") or ""),
                 "source_url": str(menu_recommendations.get("source_url") or ""),
@@ -12900,17 +13017,14 @@ async def healthy_places(
                     order_strategy_tags=order_strategy_tags,
                     cut_friendly=bool(order_suggestion.get("cut_friendly", False)),
                     fat_loss_friendly=bool(scoring.get("fat_loss_friendly", False)),
+                    calories_saved=(
+                        reality_check.get("calories_saved") if isinstance(reality_check, dict) else None
+                    ),
                 ),
             }
         )
 
-    ranking_field = "personalized_health_score" if personalization_goal else "health_score"
-    scored.sort(
-        key=lambda x: float(_safe_float(x.get(ranking_field), x.get("health_score", 0.0)) or 0.0),
-        reverse=True,
-    )
-
-    # Add map-friendly metadata without breaking existing list clients.
+    # Add map-friendly metadata and local-first ranking without breaking list clients.
     scored = enrich_places_for_healthy_map(
         scored,
         origin_lat=float(_safe_float(lat, 0.0) or 0.0),
@@ -12919,6 +13033,16 @@ async def healthy_places(
         cut_mode=bool(cut_mode),
         remaining_calories=remaining_calories,
         remaining_protein_g=remaining_protein_g,
+    )
+    scored.sort(
+        key=lambda x: (
+            1.0 if bool(x.get("is_current_place") or x.get("current_place_priority")) else 0.0,
+            float(_safe_float(x.get("final_rank_score"), _safe_float(x.get("local_ranking_score"), 0.0)) or 0.0),
+            float(_safe_float(x.get("local_priority_score"), 0.0) or 0.0),
+            float(_safe_float(x.get("source_rank_weight"), 0.0) or 0.0),
+            float(_safe_float(x.get("restaurant_health_score"), x.get("health_score", 0.0)) or 0.0),
+        ),
+        reverse=True,
     )
 
     response = {"places": scored}

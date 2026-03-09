@@ -76,6 +76,7 @@ class MenuItemScoringTests(unittest.TestCase):
         required_fields = {
             "item_name",
             "item_score",
+            "rank_adjusted_item_score",
             "item_score_breakdown",
             "estimated_calories",
             "estimated_protein_g",
@@ -89,7 +90,9 @@ class MenuItemScoringTests(unittest.TestCase):
             "why_this_works",
             "confidence",
             "menu_item_source",
+            "menu_item_source_raw",
             "menu_item_confidence",
+            "source_rank_weight",
             "display_label",
             "copy_method",
             "copy_confidence",
@@ -103,6 +106,9 @@ class MenuItemScoringTests(unittest.TestCase):
         self.assertGreaterEqual(float(top["confidence"]), 0.0)
         self.assertLessEqual(float(top["confidence"]), 1.0)
         self.assertLessEqual(len(str(top["short_reason"])), 90)
+        self.assertIn("menu_source_resolved", out)
+        self.assertIn("menu_items_source_resolved", out)
+        self.assertIn("menu_source_priority", out)
 
     def test_menu_item_breakdown_includes_new_penalty_dimensions(self):
         place = {"name": "Fried Dessert Combo Spot", "types": ["restaurant", "fast_food"]}
@@ -199,6 +205,178 @@ class MenuItemScoringTests(unittest.TestCase):
         self.assertNotIn("grilled protein bowl", str(top.get("item_name") or "").lower())
         self.assertIn(top.get("display_label"), {"Estimated Best Fit", "Suggested Lighter Option", "Needs Menu Check"})
 
+    def test_indian_context_blocks_generic_protein_bowl_even_with_high_confidence(self):
+        scored = score_menu_item(
+            {
+                "item_name": "Greek yogurt protein bowl",
+                "estimated_calories": 430,
+                "estimated_protein_g": 28,
+                "menu_source": "llm_inferred",
+                "menu_confidence": 0.86,
+                "confidence": 0.86,
+            },
+            context={
+                "place_text": "Local Indian curry and biryani house",
+                "cuisine_hint": "indian biryani",
+                "menu_source": "llm_inferred",
+            },
+        )
+        output_name = str(scored.get("item_name") or "").lower()
+        self.assertNotIn("greek yogurt protein bowl", output_name)
+        self.assertNotIn("protein bowl", output_name)
+        self.assertTrue(any(token in output_name for token in ("tandoori", "kebab", "dal")))
+
+    def test_patisserie_sparse_place_uses_honest_non_generic_name(self):
+        out = recommend_menu_items_for_place(
+            {"name": "La Petite Patisserie", "types": ["restaurant", "bakery", "dessert_shop", "patisserie"]}
+        )
+        top = out["top_menu_item"]
+        item_name = str(top.get("item_name") or "").lower()
+        self.assertNotIn("protein bowl", item_name)
+        self.assertNotIn("lean wrap", item_name)
+        self.assertIn(top.get("display_label"), {"Suggested Lighter Option", "Estimated Best Fit", "Needs Menu Check"})
+
+    def test_real_menu_source_weight_beats_heuristic_with_same_base_score(self):
+        real = score_menu_item(
+            {
+                "item_name": "Chicken breast sub",
+                "estimated_calories": 430,
+                "estimated_protein_g": 36,
+                "menu_source": "website_menu",
+                "menu_confidence": 0.86,
+            },
+            context={"menu_source": "website_menu", "cuisine_hint": "sandwich"},
+        )
+        heuristic = score_menu_item(
+            {
+                "item_name": "Chicken breast sub",
+                "estimated_calories": 430,
+                "estimated_protein_g": 36,
+                "menu_source": "heuristic",
+                "menu_confidence": 0.45,
+            },
+            context={"menu_source": "heuristic", "cuisine_hint": "sandwich"},
+        )
+        self.assertGreater(float(real.get("source_rank_weight", 0.0)), float(heuristic.get("source_rank_weight", 0.0)))
+        self.assertGreater(
+            int(real.get("rank_adjusted_item_score", 0)),
+            int(heuristic.get("rank_adjusted_item_score", 0)),
+        )
+
+    def test_real_menu_item_is_preferred_over_heuristic_even_if_heuristic_scores_higher(self):
+        place = {
+            "name": "Mixed Menu Venue",
+            "types": ["restaurant", "meal_takeaway"],
+            "menu_items": [
+                {
+                    "item_name": "6\" chicken breast sub, no mayo, extra salad",
+                    "estimated_calories": 430,
+                    "estimated_protein_g": 36,
+                    "menu_source": "website_menu",
+                    "source": "website_menu",
+                    "confidence": 0.88,
+                },
+                {
+                    "item_name": "Super healthy archetype meal",
+                    "estimated_calories": 300,
+                    "estimated_protein_g": 45,
+                    "menu_source": "heuristic_generation",
+                    "source": "heuristic_generation",
+                    "confidence": 0.9,
+                },
+            ],
+        }
+        out = recommend_menu_items_for_place(place, health_score=8.0)
+        top = out["top_menu_item"]
+        self.assertEqual(top.get("menu_item_source"), "real_menu")
+        self.assertIn("chicken breast sub", str(top.get("item_name") or "").lower())
+
+    def test_chain_menu_coverage_drives_live_recommendation_for_subway(self):
+        out = recommend_menu_items_for_place(
+            {
+                "name": "Subway Wentworthville",
+                "types": ["restaurant", "sandwich_shop"],
+                "address": "Wentworthville NSW Australia",
+                "country_code": "AU",
+            },
+            health_score=8.4,
+        )
+        top = out.get("top_menu_item") or {}
+        self.assertEqual(out.get("menu_source_resolved"), "real_menu")
+        self.assertEqual(str(top.get("menu_item_source") or "").strip().lower(), "real_menu")
+        self.assertTrue(str(out.get("chain_key") or "").strip().lower() == "subway")
+        self.assertIn("sub", str(top.get("item_name") or "").lower())
+        self.assertIn(str(top.get("order_type") or "").strip().lower(), {"exact", "likely"})
+        self.assertTrue(str(out.get("matched_alias") or "").strip())
+        self.assertIn(str(out.get("chain_source_used") or "").strip(), {"country_chain_registry", "global_chain_registry"})
+
+    def test_heuristic_item_never_uses_exact_or_likely_order_type(self):
+        scored = score_menu_item(
+            {
+                "item_name": "Lighter grilled option",
+                "estimated_calories": 420,
+                "estimated_protein_g": 32,
+                "menu_source": "heuristic",
+                "menu_confidence": 0.92,
+                "confidence": 0.92,
+            },
+            context={
+                "place_text": "generic food venue",
+                "cuisine_hint": "restaurant",
+                "menu_source": "heuristic",
+            },
+        )
+        self.assertEqual(scored.get("menu_item_source"), "heuristic")
+        self.assertEqual(scored.get("order_type"), "estimated")
+
+    def test_real_menu_generic_name_without_strong_evidence_downgrades_to_safe_fallback(self):
+        scored = score_menu_item(
+            {
+                "item_name": "Greek yogurt protein bowl",
+                "estimated_calories": 410,
+                "estimated_protein_g": 26,
+                "menu_source": "real_menu",
+                "menu_confidence": 0.64,
+                "confidence": 0.64,
+                "source_url": "",
+                "raw_text_snippet": "",
+            },
+            context={
+                "place_text": "Temple canteen south indian",
+                "cuisine_hint": "south indian temple canteen",
+                "menu_source": "real_menu",
+            },
+        )
+        self.assertNotIn("greek yogurt protein bowl", str(scored.get("item_name") or "").lower())
+        self.assertEqual(scored.get("menu_item_source"), "heuristic")
+        self.assertEqual(scored.get("order_type"), "estimated")
+        self.assertIn(scored.get("display_label"), {"Needs Menu Check", "Suggested Lighter Option"})
+        self.assertTrue(str(scored.get("menu_item_safety_reason") or "").strip())
+
+    def test_real_menu_generic_name_with_strong_evidence_can_stay_specific(self):
+        scored = score_menu_item(
+            {
+                "item_name": "Greek yogurt protein bowl",
+                "estimated_calories": 410,
+                "estimated_protein_g": 26,
+                "menu_source": "real_menu",
+                "menu_confidence": 0.9,
+                "confidence": 0.9,
+                "source_url": "https://example.com/menu",
+                "extraction_method": "menu_link_fetch",
+                "parse_method": "deterministic",
+                "raw_text_snippet": "Greek yogurt protein bowl 12.90",
+            },
+            context={
+                "place_text": "cafe brunch",
+                "cuisine_hint": "cafe",
+                "menu_source": "real_menu",
+            },
+        )
+        self.assertEqual(scored.get("item_name"), "Greek yogurt protein bowl")
+        self.assertEqual(scored.get("menu_item_source"), "real_menu")
+        self.assertTrue(bool(scored.get("menu_item_strong_evidence")))
+
     def test_llm_inferred_source_is_exposed_in_output(self):
         place = {"name": "Generic Cafe & Snacks", "types": ["restaurant", "cafe"]}
         mocked_bundle = {
@@ -288,7 +466,7 @@ class MenuItemScoringTests(unittest.TestCase):
                 "menu_source": "llm_inferred",
             },
         )
-        self.assertEqual(scored.get("order_type"), "likely")
+        self.assertIn(scored.get("order_type"), {"likely", "estimated"})
         self.assertIn(
             scored.get("display_label"),
             {"Likely Better Choice", "Suggested Lighter Option"},

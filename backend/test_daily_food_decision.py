@@ -64,6 +64,8 @@ class DailyFoodDecisionTests(unittest.TestCase):
         self.assertEqual(out.get("meal_window"), "lunch")
         self.assertIsInstance(out.get("primary_recommendation"), dict)
         self.assertIn("lunch", str(out["primary_recommendation"].get("headline") or "").lower())
+        self.assertIsInstance(out["primary_recommendation"].get("swap_suggestions"), list)
+        self.assertGreaterEqual(len(out["primary_recommendation"].get("swap_suggestions") or []), 1)
 
     def test_dinner_context_returns_dinner_headline(self):
         out = build_daily_decision_response(
@@ -121,6 +123,7 @@ class DailyFoodDecisionTests(unittest.TestCase):
         )
         self.assertIsInstance(out.get("lighter_recovery_option"), dict)
         self.assertIn("lighter", str(out["lighter_recovery_option"].get("headline") or "").lower())
+        self.assertIsInstance(out["lighter_recovery_option"].get("swap_suggestions"), list)
 
     def test_low_protein_context_includes_protein_catchup(self):
         out = build_daily_decision_response(
@@ -136,6 +139,7 @@ class DailyFoodDecisionTests(unittest.TestCase):
         self.assertIsInstance(out.get("protein_catchup_option"), dict)
         protein = int(float((out.get("protein_catchup_option") or {}).get("estimated_protein_g") or 0))
         self.assertGreaterEqual(protein, 35)
+        self.assertIsInstance((out.get("protein_catchup_option") or {}).get("swap_suggestions"), list)
 
     def test_sparse_fallback_is_safe(self):
         out = build_daily_decision_response(
@@ -149,6 +153,71 @@ class DailyFoodDecisionTests(unittest.TestCase):
         self.assertIn("meal_window", out)
         self.assertIn("primary_recommendation", out)
         self.assertTrue(str((out.get("primary_recommendation") or {}).get("recommended_order") or "").strip())
+
+    def test_calorie_overshot_context_prioritizes_recovery(self):
+        out = build_daily_decision_response(
+            nearby_places=self._sample_places(),
+            origin_lat=-33.8070,
+            origin_lng=150.9670,
+            current_hour=20,
+            target_calories=2000,
+            consumed_calories=2420,
+            remaining_protein_g=45,
+            goal="fat_loss",
+            cut_mode=True,
+        )
+        primary = out.get("primary_recommendation") or {}
+        self.assertEqual(primary.get("decision_type"), "lighter_recovery")
+        self.assertIn("recovery", str(primary.get("headline") or "").lower())
+
+    def test_nearby_real_menu_subway_outranks_far_weaker_option(self):
+        places = [
+            {
+                "name": "Subway Wentworthville",
+                "place_id": "sub-near",
+                "lat": -33.8048,
+                "lng": 150.9659,
+                "types": ["restaurant", "sandwich_shop"],
+                "menu_items": [
+                    {
+                        "item_name": "6\" Chicken Breast Sub, extra salad, no mayo",
+                        "estimated_calories": 430,
+                        "estimated_protein_g": 38,
+                        "menu_source": "website_menu",
+                        "menu_confidence": 0.92,
+                        "source_url": "https://subway.example/menu",
+                    }
+                ],
+            },
+            {
+                "name": "Far Weak Venue",
+                "place_id": "far-weak",
+                "lat": -33.8165,
+                "lng": 150.9790,
+                "types": ["restaurant", "indian", "biryani"],
+                "menu_items": [
+                    {
+                        "item_name": "Suggested lighter option",
+                        "estimated_calories": 650,
+                        "estimated_protein_g": 22,
+                        "menu_source": "heuristic",
+                        "menu_confidence": 0.42,
+                    }
+                ],
+            },
+        ]
+        out = build_daily_decision_response(
+            nearby_places=places,
+            origin_lat=-33.8070,
+            origin_lng=150.9670,
+            current_hour=13,
+            remaining_calories=1200,
+            remaining_protein_g=70,
+            goal="fat_loss",
+            cut_mode=True,
+        )
+        primary = out.get("primary_recommendation") or {}
+        self.assertEqual(primary.get("place_name"), "Subway Wentworthville")
 
 
 if __name__ == "__main__":

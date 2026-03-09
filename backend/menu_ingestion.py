@@ -19,6 +19,7 @@ from menu_intelligence_store import (
     SOURCE_WEBSITE_TEXT,
     ingest_menu_intelligence,
 )
+from chain_menu_registry import resolve_chain_menu_for_place
 
 
 MENU_INGESTION_VERSION = "v1"
@@ -474,6 +475,49 @@ def ingest_real_menu_for_place(
     place_id = str(payload.get("place_id") or payload.get("id") or "").strip()
     restaurant_name = str(payload.get("name") or "").strip()
     cuisine = str(payload.get("primary_type") or payload.get("primaryType") or "").strip().replace("_", " ")
+
+    # Chain coverage is an Australia-first real-menu backfill path, with global fallback.
+    # It keeps recommendations orderable even when a specific location has sparse menu fields.
+    chain_bundle = resolve_chain_menu_for_place(payload, max_items=max_items)
+    chain_items = chain_bundle.get("menu_items") if isinstance(chain_bundle.get("menu_items"), list) else []
+    if chain_items:
+        if place_id:
+            try:
+                ingest_menu_intelligence(
+                    place_id=place_id,
+                    restaurant_name=restaurant_name,
+                    cuisine=cuisine,
+                    menu_items=chain_items,
+                    source=SOURCE_WEBSITE_MENU,
+                )
+            except Exception:
+                pass
+        return {
+            "ingested": True,
+            "menu_items": chain_items,
+            "menu_source": str(chain_bundle.get("menu_source") or SOURCE_WEBSITE_MENU),
+            "menu_confidence": round(_safe_float(chain_bundle.get("menu_confidence"), 0.86), 2),
+            "extraction_method": str(chain_bundle.get("extraction_method") or "chain_registry_official_menu"),
+            "parse_method": str(chain_bundle.get("parse_method") or "chain_registry_seed"),
+            "source_url": str(chain_bundle.get("source_url") or ""),
+            "chain_match": bool(chain_bundle.get("chain_match")),
+            "chain_match_confidence": round(_safe_float(chain_bundle.get("chain_match_confidence"), 0.0), 2),
+            "chain_id": str(chain_bundle.get("chain_id") or ""),
+            "chain_key": str(chain_bundle.get("chain_key") or ""),
+            "chain_name": str(chain_bundle.get("chain_name") or ""),
+            "canonical_name": str(chain_bundle.get("canonical_name") or chain_bundle.get("chain_name") or ""),
+            "chain_name_resolved": str(chain_bundle.get("chain_name_resolved") or chain_bundle.get("chain_name") or ""),
+            "country_code": str(chain_bundle.get("country_code") or ""),
+            "matched_alias": str(chain_bundle.get("matched_alias") or ""),
+            "matched_place_name": str(chain_bundle.get("matched_place_name") or ""),
+            "chain_source_used": str(chain_bundle.get("chain_source_used") or ""),
+            "chain_match_detail": chain_bundle.get("chain_match_detail") if isinstance(chain_bundle.get("chain_match_detail"), dict) else {},
+            "source_type": str(chain_bundle.get("source_type") or ""),
+            "official_menu_source_url": str(chain_bundle.get("official_menu_source_url") or ""),
+            "menu_last_updated": str(chain_bundle.get("menu_last_updated") or ""),
+            "chain_registry_version": str(chain_bundle.get("chain_registry_version") or "v1"),
+            "menu_ingestion_version": MENU_INGESTION_VERSION,
+        }
 
     source_records = _build_source_records(payload)
     if not source_records:

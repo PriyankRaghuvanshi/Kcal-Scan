@@ -19,6 +19,10 @@ class HealthyPlaceScoringTests(unittest.TestCase):
             self.assertIn(component, breakdown)
             self.assertIn("score", breakdown[component])
             self.assertIn("weight", breakdown[component])
+        self.assertIn("base_score", scored)
+        self.assertIn("modifier_score", scored)
+        self.assertIn("final_score", scored)
+        self.assertIn("modifier_breakdown", scored)
 
     def test_positive_venue_outscores_negative_venue(self):
         positive = score_healthy_place(
@@ -90,6 +94,51 @@ class HealthyPlaceScoringTests(unittest.TestCase):
         )
         self.assertGreater(float(subway["health_score"]), float(heavy["health_score"]))
         self.assertTrue(bool(subway.get("nutrition_data_available")))
+        self.assertGreaterEqual(int(subway.get("healthy_item_count", 0)), 2)
+        self.assertGreater(float(subway.get("menu_fit_ratio", 0.0)), float(heavy.get("menu_fit_ratio", 0.0)))
+
+    def test_real_menu_source_scores_above_heuristic_for_same_items(self):
+        shared_items = [
+            {"item_name": "Chicken breast sub", "item_score": 84, "rank_adjusted_item_score": 84, "estimated_calories": 430, "estimated_protein_g": 36, "cut_friendly": True, "source_rank_weight": 1.0},
+            {"item_name": "Turkey salad sub", "item_score": 80, "rank_adjusted_item_score": 80, "estimated_calories": 460, "estimated_protein_g": 33, "fat_loss_friendly": True, "source_rank_weight": 1.0},
+            {"item_name": "Veggie + chicken wrap", "item_score": 76, "rank_adjusted_item_score": 76, "estimated_calories": 510, "estimated_protein_g": 30, "source_rank_weight": 1.0},
+        ]
+        real_menu = score_healthy_place(
+            {"name": "Nearby Subway", "types": ["restaurant", "sandwich_shop"]},
+            mode=NutritionMode.CUT,
+            menu_payload={"menu_source": "real_menu", "menu_confidence": 0.9, "top_menu_items": shared_items},
+        )
+        heuristic_menu = score_healthy_place(
+            {"name": "Nearby Subway", "types": ["restaurant", "sandwich_shop"]},
+            mode=NutritionMode.CUT,
+            menu_payload={"menu_source": "heuristic", "menu_confidence": 0.55, "top_menu_items": shared_items},
+        )
+        self.assertGreater(float(real_menu["menu_dominance"]), float(heuristic_menu["menu_dominance"]))
+        self.assertGreater(float(real_menu["health_score"]), float(heuristic_menu["health_score"]))
+
+    def test_user_scan_source_scores_between_real_and_llm_inferred(self):
+        shared_items = [
+            {"item_name": "Chicken sub", "item_score": 82, "rank_adjusted_item_score": 82, "estimated_calories": 440, "estimated_protein_g": 34, "source_rank_weight": 0.95},
+            {"item_name": "Turkey sub", "item_score": 79, "rank_adjusted_item_score": 79, "estimated_calories": 470, "estimated_protein_g": 32, "source_rank_weight": 0.95},
+            {"item_name": "Veg + chicken", "item_score": 75, "rank_adjusted_item_score": 75, "estimated_calories": 500, "estimated_protein_g": 30, "source_rank_weight": 0.95},
+        ]
+        real_menu = score_healthy_place(
+            {"name": "Subway", "types": ["restaurant", "sandwich_shop"]},
+            mode=NutritionMode.CUT,
+            menu_payload={"menu_source": "real_menu", "menu_confidence": 0.9, "top_menu_items": shared_items},
+        )
+        user_scan = score_healthy_place(
+            {"name": "Subway", "types": ["restaurant", "sandwich_shop"]},
+            mode=NutritionMode.CUT,
+            menu_payload={"menu_source": "user_scan", "menu_confidence": 0.85, "top_menu_items": shared_items},
+        )
+        llm_inferred = score_healthy_place(
+            {"name": "Subway", "types": ["restaurant", "sandwich_shop"]},
+            mode=NutritionMode.CUT,
+            menu_payload={"menu_source": "llm_inferred", "menu_confidence": 0.7, "top_menu_items": shared_items},
+        )
+        self.assertGreaterEqual(float(real_menu["health_score"]), float(user_scan["health_score"]))
+        self.assertGreater(float(user_scan["health_score"]), float(llm_inferred["health_score"]))
 
     def test_indian_heavy_menu_ranks_lower_than_tandoori_lean_menu(self):
         heavy_indian = {
@@ -147,6 +196,34 @@ class HealthyPlaceScoringTests(unittest.TestCase):
         self.assertGreaterEqual(float(scored["health_score"]), 1.0)
         self.assertLessEqual(float(scored["health_score"]), 10.0)
         self.assertIn("recommended_badges", scored)
+
+    def test_modifier_layer_is_conservative_for_place_scoring(self):
+        scored = score_healthy_place(
+            {"name": "Near Subway", "types": ["restaurant", "sandwich_shop"]},
+            mode=NutritionMode.CUT,
+            menu_payload={
+                "menu_source": "real_menu",
+                "menu_confidence": 0.9,
+                "top_menu_items": [
+                    {
+                        "item_name": "6\" Chicken Breast Sub",
+                        "item_score": 86,
+                        "rank_adjusted_item_score": 86,
+                        "estimated_calories": 430,
+                        "estimated_protein_g": 38,
+                        "cut_friendly": True,
+                        "menu_item_source": "real_menu",
+                        "menu_item_confidence": 0.92,
+                        "order_type": "exact",
+                    }
+                ],
+            },
+        )
+        self.assertLessEqual(abs(float(scored.get("modifier_score", 0.0))), 3.5)
+        self.assertLessEqual(
+            abs(float(scored.get("final_score", 0.0)) - float(scored.get("base_score", 0.0))),
+            3.5,
+        )
 
 
 if __name__ == "__main__":

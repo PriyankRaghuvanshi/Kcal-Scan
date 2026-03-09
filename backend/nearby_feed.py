@@ -6,6 +6,7 @@ from healthy_order_recommender import suggest_best_order_for_place
 from healthy_place_scoring import score_healthy_place
 from menu_item_scoring import recommend_menu_items_for_place
 from nutrition_mode import NutritionMode, normalize_nutrition_mode
+from recommendation_safety import has_strong_menu_evidence, sanitize_recommended_item
 
 
 NEARBY_FEED_VERSION = "v1"
@@ -52,6 +53,29 @@ def _normalize_place_card(place: Dict[str, Any], mode: NutritionMode | str = Nut
         menu = {"top_menu_item": None, "menu_item_scoring_available": False}
 
     top_menu_item = menu.get("top_menu_item") if isinstance(menu.get("top_menu_item"), dict) else {}
+    menu_source = str(top_menu_item.get("menu_item_source") or menu.get("menu_source") or "heuristic").strip().lower()
+    menu_conf = float(_safe_float(top_menu_item.get("menu_item_confidence"), _safe_float(top_menu_item.get("confidence"), 0.0)) or 0.0)
+    context_text = " ".join(
+        [
+            str(payload.get("name") or ""),
+            str(payload.get("vicinity") or payload.get("address") or ""),
+            " ".join(str(t or "") for t in (payload.get("types") if isinstance(payload.get("types"), list) else [])),
+        ]
+    ).strip()
+    safety = sanitize_recommended_item(
+        item_name=top_menu_item.get("item_name") or order.get("best_order") or "Lighter menu option",
+        context_text=context_text,
+        menu_item_source=menu_source,
+        menu_item_confidence=menu_conf if menu_conf > 0 else _safe_float(order.get("order_confidence"), 0.45),
+        strong_menu_evidence=has_strong_menu_evidence(
+            menu_item_source=menu_source,
+            menu_item_confidence=menu_conf,
+            source_url=top_menu_item.get("source_url"),
+            extraction_method=top_menu_item.get("extraction_method"),
+            parse_method=top_menu_item.get("parse_method"),
+            raw_text_snippet=top_menu_item.get("raw_text_snippet"),
+        ),
+    )
 
     estimated_calories = int(
         _safe_float(top_menu_item.get("estimated_calories"), _safe_float(order.get("estimated_calories"), 520))
@@ -70,7 +94,7 @@ def _normalize_place_card(place: Dict[str, Any], mode: NutritionMode | str = Nut
         "address": str(payload.get("address") or payload.get("vicinity") or "").strip(),
         "rating": float(_safe_float(payload.get("rating"), 0.0) or 0.0),
         "health_score": health_score_10pt,
-        "best_order": str(top_menu_item.get("item_name") or order.get("best_order") or "Lighter menu option"),
+        "best_order": str(safety.get("item_name") or top_menu_item.get("item_name") or order.get("best_order") or "Lighter menu option"),
         "estimated_calories": max(0, estimated_calories),
         "estimated_protein_g": max(0, estimated_protein_g),
         "estimated_satiety": str(

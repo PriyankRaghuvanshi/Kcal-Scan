@@ -20,16 +20,22 @@ class ShareCardFormatterTests(unittest.TestCase):
 
         required = {
             "title",
+            "restaurant_name",
             "place_name",
             "health_score",
+            "order_name",
             "best_order",
             "estimated_calories",
             "estimated_protein_g",
+            "calories_saved",
+            "hero_line",
+            "badge",
             "subtitle",
             "badges",
             "share_card_version",
         }
         self.assertTrue(required.issubset(card.keys()))
+        self.assertEqual(card["title"], "Smarter Order")
         self.assertEqual(card["health_score"], 88)
 
     def test_wording_length_sanity(self):
@@ -45,9 +51,9 @@ class ShareCardFormatterTests(unittest.TestCase):
         )
 
         self.assertLessEqual(len(card["title"]), 28)
-        self.assertLessEqual(len(card["place_name"]), 40)
-        self.assertLessEqual(len(card["best_order"]), 64)
-        self.assertLessEqual(len(card["subtitle"]), 88)
+        self.assertLessEqual(len(card["restaurant_name"]), 40)
+        self.assertLessEqual(len(card["order_name"]), 64)
+        self.assertLessEqual(len(card["subtitle"]), 72)
 
     def test_badges_are_deduped_and_capped(self):
         card = build_best_order_share_card(
@@ -68,7 +74,7 @@ class ShareCardFormatterTests(unittest.TestCase):
         )
 
         self.assertGreaterEqual(len(card["badges"]), 1)
-        self.assertLessEqual(len(card["badges"]), 4)
+        self.assertLessEqual(len(card["badges"]), 1)
         self.assertIn("Fat Loss Friendly", card["badges"])
 
 

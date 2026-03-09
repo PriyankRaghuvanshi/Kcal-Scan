@@ -94,6 +94,25 @@ class HealthyOrderRecommenderTests(unittest.TestCase):
         self.assertNotIn("grilled protein bowl", str(out.get("best_order") or "").lower())
         self.assertTrue(str(out.get("best_order") or "").strip())
 
+    def test_indian_grill_context_prefers_indian_rule_over_generic_grill(self):
+        place = {
+            "name": "Royal Indian Grill",
+            "types": ["restaurant", "indian", "grill"],
+            "vicinity": "Wentworthville",
+        }
+        out = suggest_best_order_for_place(place, health_score=6.2)
+        best_order = str(out.get("best_order") or "").lower()
+        self.assertTrue("tandoori" in best_order or "dal" in best_order)
+
+    def test_cafe_recommendation_does_not_leak_protein_plate_phrase(self):
+        place = {
+            "name": "Corner Cafe",
+            "types": ["restaurant", "cafe", "bakery"],
+            "vicinity": "Main Street",
+        }
+        out = suggest_best_order_for_place(place, health_score=5.5)
+        self.assertNotIn("protein plate", str(out.get("best_order") or "").lower())
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,0 +1,915 @@
+{
+  "chains": [
+    {
+      "aliases": [
+        "Subway",
+        "Sub-way",
+        "Subway Australia"
+      ],
+      "brand_family": "subway",
+      "canonical_name": "Subway",
+      "chain_id": "subway_au",
+      "country_codes": [
+        "AU",
+        "US",
+        "GB",
+        "CA",
+        "IN"
+      ],
+      "known_variants": [
+        "Subway Wentworthville"
+      ],
+      "normalized_tokens": [
+        "australia",
+        "sub",
+        "subway",
+        "way"
+      ],
+      "notes": "AU chain menu coverage primary record | Strong healthy-option relevance",
+      "official_website_domains": [
+        "subway.com",
+        "subway.com.au"
+      ],
+      "parent_brand": "",
+      "priority_tier": 1,
+      "source_metadata": {
+        "seed_type": "curated_open_data",
+        "source_ref": "official_chain_websites",
+        "updated_at": "2026-03-09T04:13:59.349589+00:00"
+      }
+    },
+    {
+      "aliases": [
+        "Subway",
+        "Sub-way"
+      ],
+      "brand_family": "subway",
+      "canonical_name": "Subway",
+      "chain_id": "subway_global",
+      "country_codes": [
+        "GLOBAL",
+        "US",
+        "GB",
+        "CA",
+        "NZ"
+      ],
+      "known_variants": [],
+      "normalized_tokens": [
+        "sub",
+        "subway",
+        "way"
+      ],
+      "notes": "Global fallback identity record",
+      "official_website_domains": [
+        "subway.com"
+      ],
+      "parent_brand": "",
+      "priority_tier": 2,
+      "source_metadata": {
+        "seed_type": "curated_open_data",
+        "source_ref": "official_chain_websites",
+        "updated_at": "2026-03-09T00:00:00Z"
+      }
+    },
+    {
+      "aliases": [
+        "McDonald's",
+        "McCafe",
+        "Mc Cafe",
+        "Maccas"
+      ],
+      "brand_family": "mcdonalds",
+      "canonical_name": "McDonald's",
+      "chain_id": "mcdonalds_au",
+      "country_codes": [
+        "AU",
+        "US",
+        "GB",
+        "CA"
+      ],
+      "known_variants": [
+        "McDonald's Parramatta",
+        "McCafe Parramatta"
+      ],
+      "normalized_tokens": [
+        "cafe",
+        "maccas",
+        "mc",
+        "mccafe",
+        "mcdonalds"
+      ],
+      "notes": "AU identity for McDonald's family brands | Global fast food chain",
+      "official_website_domains": [
+        "mcdonalds.com.au",
+        "mcdonalds.com"
+      ],
+      "parent_brand": "mcdonalds",
+      "priority_tier": 1,
+      "source_metadata": {
+        "seed_type": "curated_open_data",
+        "source_ref": "official_chain_websites",
+        "updated_at": "2026-03-09T04:13:59.349518+00:00"
+      }
+    },
+    {
+      "aliases": [
+        "McDonald's",
+        "McCafe",
+        "Mc Cafe"
+      ],
+      "brand_family": "mcdonalds",
+      "canonical_name": "McDonald's",
+      "chain_id": "mcdonalds_global",
+      "country_codes": [
+        "GLOBAL",
+        "US",
+        "GB",
+        "CA",
+        "NZ",
+        "IN"
+      ],
+      "known_variants": [],
+      "normalized_tokens": [
+        "cafe",
+        "mc",
+        "mccafe",
+        "mcdonalds"
+      ],
+      "notes": "Global fallback for McDonald's brand family",
+      "official_website_domains": [
+        "mcdonalds.com"
+      ],
+      "parent_brand": "mcdonalds",
+      "priority_tier": 2,
+      "source_metadata": {
+        "seed_type": "curated_open_data",
+        "source_ref": "official_chain_websites",
+        "updated_at": "2026-03-09T00:00:00Z"
+      }
+    },
+    {
+      "aliases": [
+        "Hungry Jack's",
+        "HungryJacks",
+        "Burger King",
+        "Burger King Australia"
+      ],
+      "brand_family": "hungry_jacks",
+      "canonical_name": "Hungry Jack's",
+      "chain_id": "hungry_jacks_au",
+      "country_codes": [
+        "AU"
+      ],
+      "known_variants": [
+        "Hungry Jack's Wentworthville",
+        "Burger King AU"
+      ],
+      "normalized_tokens": [
+        "australia",
+        "burger",
+        "hungry",
+        "hungryjacks",
+        "jacks",
+        "king"
+      ],
+      "notes": "AU Burger King equivalent | Australian Burger King equivalent",
+      "official_website_domains": [
+        "hungryjacks.com.au"
+      ],
+      "parent_brand": "restaurant_brands_international",
+      "priority_tier": 1,
+      "source_metadata": {
+        "seed_type": "curated_open_data",
+        "source_ref": "official_chain_websites",
+        "updated_at": "2026-03-09T04:13:59.349671+00:00"
+      }
+    },
+    {
+      "aliases": [
+        "Burger King",
+        "BurgerKing"
+      ],
+      "brand_family": "burger_king",
+      "canonical_name": "Burger King",
+      "chain_id": "burger_king_global",
+      "country_codes": [
+        "GLOBAL",
+        "US",
+        "GB",
+        "NZ",
+        "IN",
+        "CA",
+        "SG"
+      ],
+      "known_variants": [],
+      "normalized_tokens": [
+        "burger",
+        "burgerking",
+        "king"
+      ],
+      "notes": "Global Burger King identity outside AU Hungry Jack's context | Keep separate from Hungry Jack's by region",
+      "official_website_domains": [
+        "bk.com",
+        "burgerking.com"
+      ],
+      "parent_brand": "restaurant_brands_international",
+      "priority_tier": 1,
+      "source_metadata": {
+        "seed_type": "curated_open_data",
+        "source_ref": "official_chain_websites",
+        "updated_at": "2026-03-09T04:13:59.349766+00:00"
+      }
+    },
+    {
+      "aliases": [
+        "Nando's",
+        "Nando"
+      ],
+      "brand_family": "nandos",
+      "canonical_name": "Nando's",
+      "chain_id": "nandos_au",
+      "country_codes": [
+        "AU",
+        "GB",
+        "ZA",
+        "SG"
+      ],
+      "known_variants": [
+        "Nando's Blacktown"
+      ],
+      "normalized_tokens": [
+        "nando",
+        "nandos"
+      ],
+      "notes": "AU chain menu coverage record | High healthy-eating relevance",
+      "official_website_domains": [
+        "nandos.com.au",
+        "nandos.com"
+      ],
+      "parent_brand": "nandos",
+      "priority_tier": 1,
+      "source_metadata": {
+        "seed_type": "curated_open_data",
+        "source_ref": "official_chain_websites",
+        "updated_at": "2026-03-09T04:13:59.349839+00:00"
+      }
+    },
+    {
+      "aliases": [
+        "Nando's"
+      ],
+      "brand_family": "nandos",
+      "canonical_name": "Nando's",
+      "chain_id": "nandos_global",
+      "country_codes": [
+        "GLOBAL",
+        "GB",
+        "US",
+        "NZ",
+        "ZA"
+      ],
+      "known_variants": [],
+      "normalized_tokens": [
+        "nandos"
+      ],
+      "notes": "Global fallback for Nando's",
+      "official_website_domains": [
+        "nandos.com"
+      ],
+      "parent_brand": "nandos",
+      "priority_tier": 2,
+      "source_metadata": {
+        "seed_type": "curated_open_data",
+        "source_ref": "official_chain_websites",
+        "updated_at": "2026-03-09T00:00:00Z"
+      }
+    },
+    {
+      "aliases": [
+        "Grill'd",
+        "Grill d"
+      ],
+      "brand_family": "grilld",
+      "canonical_name": "Grill'd",
+      "chain_id": "grilld_au",
+      "country_codes": [
+        "AU"
+      ],
+      "known_variants": [],
+      "normalized_tokens": [
+        "d",
+        "grill",
+        "grilld"
+      ],
+      "notes": "AU-specific chain identity | Australia burger chain",
+      "official_website_domains": [
+        "grilld.com.au"
+      ],
+      "parent_brand": "",
+      "priority_tier": 1,
+      "source_metadata": {
+        "seed_type": "curated_open_data",
+        "source_ref": "official_chain_websites",
+        "updated_at": "2026-03-09T04:13:59.350003+00:00"
+      }
+    },
+    {
+      "aliases": [
+        "Guzman y Gomez",
+        "G y G",
+        "Guzman"
+      ],
+      "brand_family": "guzman_y_gomez",
+      "canonical_name": "Guzman y Gomez",
+      "chain_id": "guzman_y_gomez_au",
+      "country_codes": [
+        "AU",
+        "SG",
+        "JP"
+      ],
+      "known_variants": [],
+      "normalized_tokens": [
+        "g",
+        "gomez",
+        "guzman",
+        "y"
+      ],
+      "notes": "AU-first Mexican chain | Australia-relevant Mexican chain",
+      "official_website_domains": [
+        "guzmanygomez.com.au"
+      ],
+      "parent_brand": "",
+      "priority_tier": 1,
+      "source_metadata": {
+        "seed_type": "curated_open_data",
+        "source_ref": "official_chain_websites",
+        "updated_at": "2026-03-09T04:13:59.350083+00:00"
+      }
+    },
+    {
+      "aliases": [
+        "Oporto"
+      ],
+      "brand_family": "oporto",
+      "canonical_name": "Oporto",
+      "chain_id": "oporto_au",
+      "country_codes": [
+        "AU"
+      ],
+      "known_variants": [],
+      "normalized_tokens": [
+        "oporto"
+      ],
+      "notes": "AU chain | Australia chicken/burger chain",
+      "official_website_domains": [
+        "oporto.com.au"
+      ],
+      "parent_brand": "",
+      "priority_tier": 1,
+      "source_metadata": {
+        "seed_type": "curated_open_data",
+        "source_ref": "official_chain_websites",
+        "updated_at": "2026-03-09T04:13:59.350161+00:00"
+      }
+    },
+    {
+      "aliases": [
+        "Red Rooster",
+        "RedRooster"
+      ],
+      "brand_family": "red_rooster",
+      "canonical_name": "Red Rooster",
+      "chain_id": "red_rooster_au",
+      "country_codes": [
+        "AU"
+      ],
+      "known_variants": [],
+      "normalized_tokens": [
+        "red",
+        "redrooster",
+        "rooster"
+      ],
+      "notes": "AU chain | Australia chicken chain",
+      "official_website_domains": [
+        "redrooster.com.au"
+      ],
+      "parent_brand": "",
+      "priority_tier": 1,
+      "source_metadata": {
+        "seed_type": "curated_open_data",
+        "source_ref": "official_chain_websites",
+        "updated_at": "2026-03-09T04:13:59.350234+00:00"
+      }
+    },
+    {
+      "aliases": [
+        "KFC",
+        "Kentucky Fried Chicken"
+      ],
+      "brand_family": "kfc",
+      "canonical_name": "KFC",
+      "chain_id": "kfc_au",
+      "country_codes": [
+        "AU",
+        "US",
+        "GB",
+        "CA",
+        "IN"
+      ],
+      "known_variants": [],
+      "normalized_tokens": [
+        "chicken",
+        "fried",
+        "kentucky",
+        "kfc"
+      ],
+      "notes": "AU chain coverage identity | Global fried chicken chain",
+      "official_website_domains": [
+        "kfc.com.au",
+        "kfc.com"
+      ],
+      "parent_brand": "yum_brands",
+      "priority_tier": 1,
+      "source_metadata": {
+        "seed_type": "curated_open_data",
+        "source_ref": "official_chain_websites",
+        "updated_at": "2026-03-09T04:13:59.349934+00:00"
+      }
+    },
+    {
+      "aliases": [
+        "KFC",
+        "Kentucky Fried Chicken"
+      ],
+      "brand_family": "kfc",
+      "canonical_name": "KFC",
+      "chain_id": "kfc_global",
+      "country_codes": [
+        "GLOBAL",
+        "US",
+        "GB",
+        "CA",
+        "IN"
+      ],
+      "known_variants": [],
+      "normalized_tokens": [
+        "chicken",
+        "fried",
+        "kentucky",
+        "kfc"
+      ],
+      "notes": "Global KFC identity",
+      "official_website_domains": [
+        "kfc.com"
+      ],
+      "parent_brand": "yum_brands",
+      "priority_tier": 2,
+      "source_metadata": {
+        "seed_type": "curated_open_data",
+        "source_ref": "official_chain_websites",
+        "updated_at": "2026-03-09T00:00:00Z"
+      }
+    },
+    {
+      "aliases": [
+        "Domino's",
+        "Dominos Pizza"
+      ],
+      "brand_family": "dominos",
+      "canonical_name": "Domino's",
+      "chain_id": "dominos_au",
+      "country_codes": [
+        "AU",
+        "US",
+        "GB",
+        "IN"
+      ],
+      "known_variants": [],
+      "normalized_tokens": [
+        "dominos",
+        "pizza"
+      ],
+      "notes": "AU Domino's identity | Global pizza chain",
+      "official_website_domains": [
+        "dominos.com.au",
+        "dominos.com"
+      ],
+      "parent_brand": "",
+      "priority_tier": 1,
+      "source_metadata": {
+        "seed_type": "curated_open_data",
+        "source_ref": "official_chain_websites",
+        "updated_at": "2026-03-09T04:13:59.350518+00:00"
+      }
+    },
+    {
+      "aliases": [
+        "Domino's"
+      ],
+      "brand_family": "dominos",
+      "canonical_name": "Domino's",
+      "chain_id": "dominos_global",
+      "country_codes": [
+        "GLOBAL",
+        "US",
+        "GB",
+        "NZ",
+        "IN"
+      ],
+      "known_variants": [],
+      "normalized_tokens": [
+        "dominos"
+      ],
+      "notes": "Global Domino's fallback",
+      "official_website_domains": [
+        "dominos.com"
+      ],
+      "parent_brand": "",
+      "priority_tier": 2,
+      "source_metadata": {
+        "seed_type": "curated_open_data",
+        "source_ref": "official_chain_websites",
+        "updated_at": "2026-03-09T00:00:00Z"
+      }
+    },
+    {
+      "aliases": [
+        "Pizza Hut",
+        "PizzaHut"
+      ],
+      "brand_family": "pizza_hut",
+      "canonical_name": "Pizza Hut",
+      "chain_id": "pizza_hut_au",
+      "country_codes": [
+        "AU",
+        "US",
+        "GB",
+        "IN"
+      ],
+      "known_variants": [],
+      "normalized_tokens": [
+        "hut",
+        "pizza",
+        "pizzahut"
+      ],
+      "notes": "AU Pizza Hut identity | Global pizza chain",
+      "official_website_domains": [
+        "pizzahut.com.au",
+        "pizzahut.com"
+      ],
+      "parent_brand": "yum_brands",
+      "priority_tier": 1,
+      "source_metadata": {
+        "seed_type": "curated_open_data",
+        "source_ref": "official_chain_websites",
+        "updated_at": "2026-03-09T04:13:59.350617+00:00"
+      }
+    },
+    {
+      "aliases": [
+        "Pizza Hut",
+        "PizzaHut"
+      ],
+      "brand_family": "pizza_hut",
+      "canonical_name": "Pizza Hut",
+      "chain_id": "pizza_hut_global",
+      "country_codes": [
+        "GLOBAL",
+        "US",
+        "GB",
+        "CA",
+        "IN"
+      ],
+      "known_variants": [],
+      "normalized_tokens": [
+        "hut",
+        "pizza",
+        "pizzahut"
+      ],
+      "notes": "Global Pizza Hut fallback",
+      "official_website_domains": [
+        "pizzahut.com"
+      ],
+      "parent_brand": "yum_brands",
+      "priority_tier": 2,
+      "source_metadata": {
+        "seed_type": "curated_open_data",
+        "source_ref": "official_chain_websites",
+        "updated_at": "2026-03-09T00:00:00Z"
+      }
+    },
+    {
+      "aliases": [
+        "Zambrero"
+      ],
+      "brand_family": "zambrero",
+      "canonical_name": "Zambrero",
+      "chain_id": "zambrero_au",
+      "country_codes": [
+        "AU"
+      ],
+      "known_variants": [],
+      "normalized_tokens": [
+        "zambrero"
+      ],
+      "notes": "AU chain | Australia Mexican chain",
+      "official_website_domains": [
+        "zambrero.com.au"
+      ],
+      "parent_brand": "",
+      "priority_tier": 1,
+      "source_metadata": {
+        "seed_type": "curated_open_data",
+        "source_ref": "official_chain_websites",
+        "updated_at": "2026-03-09T04:13:59.350326+00:00"
+      }
+    },
+    {
+      "aliases": [
+        "Boost Juice",
+        "Boost"
+      ],
+      "brand_family": "boost_juice",
+      "canonical_name": "Boost Juice",
+      "chain_id": "boost_juice_au",
+      "country_codes": [
+        "AU",
+        "SG",
+        "IN"
+      ],
+      "known_variants": [],
+      "normalized_tokens": [
+        "boost",
+        "juice"
+      ],
+      "notes": "AU chain | Juice/smoothie chain",
+      "official_website_domains": [
+        "boostjuice.com.au"
+      ],
+      "parent_brand": "",
+      "priority_tier": 2,
+      "source_metadata": {
+        "seed_type": "curated_open_data",
+        "source_ref": "official_chain_websites",
+        "updated_at": "2026-03-09T04:13:59.350429+00:00"
+      }
+    },
+    {
+      "aliases": [
+        "Starbucks",
+        "starbucks coffee"
+      ],
+      "brand_family": "starbucks",
+      "canonical_name": "Starbucks",
+      "chain_id": "starbucks_global",
+      "country_codes": [
+        "GLOBAL",
+        "US",
+        "GB",
+        "CA",
+        "AU",
+        "IN",
+        "SG"
+      ],
+      "known_variants": [],
+      "normalized_tokens": [
+        "coffee",
+        "starbucks"
+      ],
+      "notes": "Global franchise seed | Global coffee chain",
+      "official_website_domains": [
+        "starbucks.com"
+      ],
+      "parent_brand": "starbucks",
+      "priority_tier": 1,
+      "source_metadata": {
+        "seed_type": "curated_open_data",
+        "source_ref": "official_chain_websites",
+        "updated_at": "2026-03-09T04:13:59.350763+00:00"
+      }
+    },
+    {
+      "aliases": [
+        "Taco Bell"
+      ],
+      "brand_family": "taco_bell",
+      "canonical_name": "Taco Bell",
+      "chain_id": "taco_bell_global",
+      "country_codes": [
+        "GLOBAL",
+        "US",
+        "GB",
+        "IN"
+      ],
+      "known_variants": [],
+      "normalized_tokens": [
+        "bell",
+        "taco"
+      ],
+      "notes": "Global franchise seed | Global taco chain",
+      "official_website_domains": [
+        "tacobell.com"
+      ],
+      "parent_brand": "yum_brands",
+      "priority_tier": 2,
+      "source_metadata": {
+        "seed_type": "curated_open_data",
+        "source_ref": "official_chain_websites",
+        "updated_at": "2026-03-09T04:13:59.351010+00:00"
+      }
+    },
+    {
+      "aliases": [
+        "Chipotle",
+        "Chipotle Mexican Grill"
+      ],
+      "brand_family": "chipotle",
+      "canonical_name": "Chipotle",
+      "chain_id": "chipotle_global",
+      "country_codes": [
+        "GLOBAL",
+        "US",
+        "CA",
+        "GB"
+      ],
+      "known_variants": [],
+      "normalized_tokens": [
+        "chipotle",
+        "grill",
+        "mexican"
+      ],
+      "notes": "Global franchise seed | Global-ish Mexican chain",
+      "official_website_domains": [
+        "chipotle.com"
+      ],
+      "parent_brand": "chipotle",
+      "priority_tier": 2,
+      "source_metadata": {
+        "seed_type": "curated_open_data",
+        "source_ref": "official_chain_websites",
+        "updated_at": "2026-03-09T04:13:59.350894+00:00"
+      }
+    },
+    {
+      "aliases": [
+        "Popeyes",
+        "Popeyes Louisiana Kitchen"
+      ],
+      "brand_family": "popeyes",
+      "canonical_name": "Popeyes",
+      "chain_id": "popeyes_global",
+      "country_codes": [
+        "GLOBAL",
+        "US",
+        "GB",
+        "CA",
+        "SG"
+      ],
+      "known_variants": [],
+      "normalized_tokens": [
+        "kitchen",
+        "louisiana",
+        "popeyes"
+      ],
+      "notes": "Global franchise seed | Global fried chicken chain",
+      "official_website_domains": [
+        "popeyes.com"
+      ],
+      "parent_brand": "restaurant_brands_international",
+      "priority_tier": 2,
+      "source_metadata": {
+        "seed_type": "curated_open_data",
+        "source_ref": "official_chain_websites",
+        "updated_at": "2026-03-09T04:13:59.351389+00:00"
+      }
+    },
+    {
+      "aliases": [
+        "Shake Shack"
+      ],
+      "brand_family": "shake_shack",
+      "canonical_name": "Shake Shack",
+      "chain_id": "shake_shack_global",
+      "country_codes": [
+        "GLOBAL",
+        "US",
+        "GB",
+        "SG"
+      ],
+      "known_variants": [],
+      "normalized_tokens": [
+        "shack",
+        "shake"
+      ],
+      "notes": "Global franchise seed | Premium burger chain",
+      "official_website_domains": [
+        "shakeshack.com"
+      ],
+      "parent_brand": "",
+      "priority_tier": 2,
+      "source_metadata": {
+        "seed_type": "curated_open_data",
+        "source_ref": "official_chain_websites",
+        "updated_at": "2026-03-09T04:13:59.351266+00:00"
+      }
+    },
+    {
+      "aliases": [
+        "Five Guys",
+        "FiveGuys",
+        "five guys burgers"
+      ],
+      "brand_family": "five_guys",
+      "canonical_name": "Five Guys",
+      "chain_id": "five_guys_global",
+      "country_codes": [
+        "GLOBAL",
+        "US",
+        "GB",
+        "CA"
+      ],
+      "known_variants": [],
+      "normalized_tokens": [
+        "burgers",
+        "five",
+        "fiveguys",
+        "guys"
+      ],
+      "notes": "Global franchise seed | Global burger chain",
+      "official_website_domains": [
+        "fiveguys.com"
+      ],
+      "parent_brand": "",
+      "priority_tier": 2,
+      "source_metadata": {
+        "seed_type": "curated_open_data",
+        "source_ref": "official_chain_websites",
+        "updated_at": "2026-03-09T04:13:59.351140+00:00"
+      }
+    },
+    {
+      "aliases": [
+        "Pret A Manger",
+        "Pret"
+      ],
+      "brand_family": "pret",
+      "canonical_name": "Pret A Manger",
+      "chain_id": "pret_global",
+      "country_codes": [
+        "GLOBAL",
+        "GB",
+        "US",
+        "FR"
+      ],
+      "known_variants": [],
+      "normalized_tokens": [
+        "a",
+        "manger",
+        "pret"
+      ],
+      "notes": "Global franchise seed | Grab-and-go cafe chain",
+      "official_website_domains": [
+        "pret.com"
+      ],
+      "parent_brand": "",
+      "priority_tier": 2,
+      "source_metadata": {
+        "seed_type": "curated_open_data",
+        "source_ref": "official_chain_websites",
+        "updated_at": "2026-03-09T04:13:59.351818+00:00"
+      }
+    },
+    {
+      "aliases": [
+        "Dunkin'",
+        "Dunkin Donuts"
+      ],
+      "brand_family": "dunkin",
+      "canonical_name": "Dunkin'",
+      "chain_id": "dunkin_global",
+      "country_codes": [
+        "GLOBAL",
+        "US",
+        "GB"
+      ],
+      "known_variants": [],
+      "normalized_tokens": [
+        "donuts",
+        "dunkin"
+      ],
+      "notes": "Global franchise seed | Donut/coffee chain",
+      "official_website_domains": [
+        "dunkindonuts.com",
+        "dunkin.com"
+      ],
+      "parent_brand": "",
+      "priority_tier": 2,
+      "source_metadata": {
+        "seed_type": "curated_open_data",
+        "source_ref": "official_chain_websites",
+        "updated_at": "2026-03-09T04:13:59.352252+00:00"
+      }
+    }
+  ],
+  "version": "v1"
+}

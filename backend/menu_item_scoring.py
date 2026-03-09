@@ -17,6 +17,10 @@ from personalization_profiles import (
 from restaurant_macro_estimator import estimate_restaurant_macros
 from llm_explanation_copy import maybe_rewrite_explanation_copy
 from llm_menu_parser import infer_place_menu_items_with_optional_llm
+from recommendation_safety import (
+    has_strong_menu_evidence,
+    sanitize_recommended_item,
+)
 from menu_intelligence_store import (
     SOURCE_HEURISTIC,
     SOURCE_LLM_INFERRED,
@@ -29,6 +33,7 @@ from menu_intelligence_store import (
     ingest_menu_intelligence,
 )
 from menu_ingestion import ingest_real_menu_for_place
+from chain_menu_registry import resolve_chain_menu_for_place
 from recommendation_feedback_store import get_place_item_feedback_signal
 
 
@@ -89,7 +94,7 @@ PLACE_MENU_RULES: List[Dict[str, Any]] = [
         "tokens": ("cafe", "coffee", "brunch", "bakery"),
         "items": [
             {"item_name": "Egg and chicken plate", "estimated_calories": 430, "estimated_protein_g": 30},
-            {"item_name": "Greek yogurt protein bowl", "estimated_calories": 390, "estimated_protein_g": 26},
+            {"item_name": "Savory egg and toast option", "estimated_calories": 410, "estimated_protein_g": 25},
             {"item_name": "Chicken sandwich (no fries)", "estimated_calories": 520, "estimated_protein_g": 32},
         ],
     },
@@ -142,9 +147,61 @@ PLACE_MENU_RULES: List[Dict[str, Any]] = [
 
 FALLBACK_ITEMS: List[Dict[str, Any]] = [
     {"item_name": "Lighter menu option", "estimated_calories": 520, "estimated_protein_g": 30},
-    {"item_name": "Lean protein + simple side", "estimated_calories": 500, "estimated_protein_g": 28},
+    {"item_name": "Simpler meal with less oil", "estimated_calories": 500, "estimated_protein_g": 28},
     {"item_name": "Lower-fried option with water", "estimated_calories": 540, "estimated_protein_g": 26},
 ]
+
+SOURCE_RANK_WEIGHTS: Dict[str, float] = {
+    "real_menu": 1.00,
+    "user_scan": 0.95,
+    "llm_inferred": 0.80,
+    "heuristic": 0.65,
+}
+
+SOURCE_PRIORITY_WEIGHTS: Dict[str, int] = {
+    "real_menu": 4,
+    "user_scan": 3,
+    "llm_inferred": 2,
+    "heuristic": 1,
+}
+
+_GENERIC_FALLBACK_NAME_TOKENS: Tuple[str, ...] = (
+    "greek yogurt protein bowl",
+    "grilled protein bowl",
+    "protein bowl",
+    "protein plate",
+    "lean wrap",
+    "protein wrap",
+)
+
+_INDIAN_CONTEXT_TOKENS: Tuple[str, ...] = (
+    "indian",
+    "south indian",
+    "udupi",
+    "temple",
+    "canteen",
+    "biryani",
+    "tandoori",
+    "dal",
+    "paneer",
+    "curry",
+)
+
+_DESSERT_CONTEXT_TOKENS: Tuple[str, ...] = (
+    "dessert",
+    "patisserie",
+    "pastry",
+    "bakery",
+    "cake",
+    "sweet",
+    "ice cream",
+)
+
+_CAFE_CONTEXT_TOKENS: Tuple[str, ...] = (
+    "cafe",
+    "coffee",
+    "brunch",
+)
 
 # Centralized menu-item penalty weights by mode. These are additive penalties subtracted
 # from the base nutrition score so high-protein, lower-calorie meals dominate ranking.
@@ -262,6 +319,8 @@ def _infer_cuisine(place: Dict[str, Any]) -> str:
 
 def _menu_item_source_from_menu_source(menu_source: Any) -> str:
     token = str(menu_source or "").strip().lower()
+    if token == "user_scan":
+        return "user_scan"
     if token in {
         "structured_menu",
         "menu_intelligence_store",
@@ -280,7 +339,7 @@ def _menu_item_source_from_menu_source(menu_source: Any) -> str:
 
 def _display_label_for_menu_item(source: str, confidence: float) -> str:
     conf = _clamp(_safe_float(confidence, 0.5), 0.0, 1.0)
-    if source == "real_menu":
+    if source in {"real_menu", "user_scan"}:
         return "Best Menu Item" if conf >= 0.72 else "Likely Better Choice"
     if source == "llm_inferred":
         if conf >= 0.75:
@@ -299,12 +358,16 @@ def _display_label_for_menu_item(source: str, confidence: float) -> str:
 
 def _coarse_item_name_for_context(cuisine_hint: str) -> str:
     text = str(cuisine_hint or "").strip().lower()
+    if any(token in text for token in _DESSERT_CONTEXT_TOKENS):
+        return "Needs menu check: choose lighter savory or single-item options"
     if any(token in text for token in ("south indian", "idli", "dosa", "udupi", "temple", "canteen")):
         return "Idli or plain dosa-style option"
+    if "biryani" in text:
+        return "Tandoori or grilled kebab-style option"
     if "indian" in text:
         return "Simpler tandoori or dal + roti option"
-    if any(token in text for token in ("cafe", "coffee", "bakery", "brunch")):
-        return "Lighter cafe meal option"
+    if any(token in text for token in ("cafe", "coffee", "bakery", "brunch", "patisserie")):
+        return "Egg, yogurt, or sandwich-style lighter option"
     if any(token in text for token in ("burger", "fast food", "fast_food", "fried chicken")):
         return "Lighter grilled or single-item option"
     if "pizza" in text:
@@ -314,6 +377,36 @@ def _coarse_item_name_for_context(cuisine_hint: str) -> str:
     if any(token in text for token in ("mexican", "burrito", "taco")):
         return "Lighter bowl or taco-style option"
     return "Lighter menu option"
+
+
+def _source_rank_weight(source: str, raw_source_token: str) -> float:
+    token = str(raw_source_token or "").strip().lower()
+    if token in {"user_scan", "ocr_menu"}:
+        return SOURCE_RANK_WEIGHTS["user_scan"]
+    if source == "user_scan":
+        return SOURCE_RANK_WEIGHTS["user_scan"]
+    if source == "real_menu":
+        return SOURCE_RANK_WEIGHTS["real_menu"]
+    if source == "llm_inferred":
+        return SOURCE_RANK_WEIGHTS["llm_inferred"]
+    return SOURCE_RANK_WEIGHTS["heuristic"]
+
+
+def _is_cuisine_inappropriate_generic(item_name: str, cuisine_hint: str) -> bool:
+    lower_item = str(item_name or "").strip().lower()
+    lower_cuisine = str(cuisine_hint or "").strip().lower()
+    if not lower_item:
+        return False
+
+    has_generic_label = any(token in lower_item for token in _GENERIC_FALLBACK_NAME_TOKENS)
+    if not has_generic_label:
+        return False
+
+    indian_context = any(token in lower_cuisine for token in _INDIAN_CONTEXT_TOKENS)
+    dessert_context = any(token in lower_cuisine for token in _DESSERT_CONTEXT_TOKENS)
+    cafe_context = any(token in lower_cuisine for token in _CAFE_CONTEXT_TOKENS)
+
+    return bool(indian_context or dessert_context or cafe_context)
 
 
 def _final_item_name(
@@ -326,18 +419,20 @@ def _final_item_name(
     text = str(item_name or "").strip()
     if not text:
         return _coarse_item_name_for_context(cuisine_hint)
-    if source == "real_menu":
+    if source in {"real_menu", "user_scan"}:
         return text
 
     lower_item = text.lower()
     lower_cuisine = str(cuisine_hint or "").lower()
-    is_south_indian_context = any(
-        token in lower_cuisine for token in ("south indian", "idli", "dosa", "udupi", "temple", "canteen")
-    )
+    if _is_cuisine_inappropriate_generic(lower_item, lower_cuisine):
+        return _coarse_item_name_for_context(cuisine_hint)
 
-    # Avoid unrealistic western fallback names in cuisine-specific contexts.
-    if is_south_indian_context and any(token in lower_item for token in ("grilled protein bowl", "protein wrap")):
-        return "Idli or plain dosa-style option"
+    if any(token in lower_cuisine for token in _DESSERT_CONTEXT_TOKENS) and source != "real_menu":
+        return _coarse_item_name_for_context(cuisine_hint)
+
+    # Heuristic-only names should remain soft and category-level for trust.
+    if source == "heuristic":
+        return _coarse_item_name_for_context(cuisine_hint)
 
     if _safe_float(confidence, 0.0) < 0.55:
         return _coarse_item_name_for_context(cuisine_hint)
@@ -345,12 +440,22 @@ def _final_item_name(
 
 
 def _order_type_for_item(source: str, confidence: float) -> str:
+    token = str(source or "").strip().lower()
+    if token == "heuristic":
+        return "estimated"
     conf = _clamp(_safe_float(confidence, 0.5), 0.0, 1.0)
-    if source == "real_menu" and conf >= 0.72:
+    if token in {"real_menu", "user_scan"} and conf >= 0.72:
         return "exact"
-    if conf >= 0.56:
+    if token == "llm_inferred" and conf >= 0.62:
+        return "likely"
+    if conf >= 0.62:
         return "likely"
     return "estimated"
+
+
+def _source_priority(source: Any) -> int:
+    token = str(source or "").strip().lower()
+    return int(SOURCE_PRIORITY_WEIGHTS.get(token, SOURCE_PRIORITY_WEIGHTS["heuristic"]))
 
 
 def _build_swap_plan(
@@ -611,6 +716,8 @@ def _sorted_scored_items(scored_items: List[Dict[str, Any]], mode: NutritionMode
         return sorted(
             scored_items,
             key=lambda row: (
+                _source_priority(row.get("menu_item_source")),
+                float(_safe_float(row.get("rank_adjusted_item_score"), row.get("item_score", 0.0)) or 0.0),
                 int(row.get("item_score", 0)),
                 int(row.get("item_score_breakdown", {}).get("calorie_control", 0)),
                 int(row.get("item_score_breakdown", {}).get("protein_density", 0)),
@@ -618,7 +725,15 @@ def _sorted_scored_items(scored_items: List[Dict[str, Any]], mode: NutritionMode
             reverse=True,
         )
 
-    return sorted(scored_items, key=lambda row: int(row.get("item_score", 0)), reverse=True)
+    return sorted(
+        scored_items,
+        key=lambda row: (
+            _source_priority(row.get("menu_item_source")),
+            float(_safe_float(row.get("rank_adjusted_item_score"), row.get("item_score", 0.0)) or 0.0),
+            int(row.get("item_score", 0)),
+        ),
+        reverse=True,
+    )
 
 
 def score_menu_item(
@@ -651,13 +766,14 @@ def score_menu_item(
         "structured_menu",
         "menu_intelligence_store",
         "scraped_menu",
-        "user_scan",
         "website_menu",
         "website_text",
         "review_text",
         "ocr_menu",
     }:
         menu_item_source = "real_menu"
+    elif raw_item_source in {"user_scan"}:
+        menu_item_source = "user_scan"
     elif raw_item_source in {"llm_inferred", "llm"}:
         menu_item_source = "llm_inferred"
     else:
@@ -671,6 +787,20 @@ def score_menu_item(
     parse_method = str(payload.get("parse_method") or "").strip()
     parsed_via = str(payload.get("parsed_via") or "").strip()
     raw_text_snippet = str(payload.get("raw_text_snippet") or "").strip()[:180]
+    chain_id = str(payload.get("chain_id") or "").strip()
+    chain_key = str(payload.get("chain_key") or "").strip()
+    chain_name = str(payload.get("chain_name") or "").strip()
+    canonical_name = str(payload.get("canonical_name") or chain_name).strip()
+    chain_name_resolved = str(payload.get("chain_name_resolved") or chain_name).strip()
+    country_code = str(payload.get("country_code") or "").strip().upper()
+    matched_alias = str(payload.get("matched_alias") or "").strip()
+    matched_place_name = str(payload.get("matched_place_name") or "").strip()
+    chain_source_used = str(payload.get("chain_source_used") or "").strip()
+    chain_match_detail = payload.get("chain_match_detail") if isinstance(payload.get("chain_match_detail"), dict) else {}
+    source_type = str(payload.get("source_type") or "").strip()
+    official_menu_source_url = str(payload.get("official_menu_source_url") or source_url).strip()
+    menu_last_updated = str(payload.get("menu_last_updated") or "").strip()
+    chain_match_confidence = round(_clamp(_safe_float(payload.get("chain_match_confidence"), 0.0), 0.0, 1.0), 2)
     category = str(payload.get("category") or "").strip()
     likely_protein = str(payload.get("likely_protein") or "").strip()
     likely_carbs = payload.get("likely_carbs") if isinstance(payload.get("likely_carbs"), list) else []
@@ -862,12 +992,41 @@ def score_menu_item(
 
     menu_item_confidence = round(_clamp(blended_confidence, 0.25, 0.97), 2)
     cuisine_hint = str(context_payload.get("cuisine_hint") or context_payload.get("place_text") or "")
-    display_label = _display_label_for_menu_item(menu_item_source, menu_item_confidence)
+    strong_evidence = has_strong_menu_evidence(
+        menu_item_source=menu_item_source,
+        menu_item_confidence=menu_item_confidence,
+        source_url=source_url,
+        extraction_method=extraction_method,
+        parse_method=parse_method,
+        raw_text_snippet=raw_text_snippet,
+    )
     item_name = _final_item_name(
         item_name=item_name,
         source=menu_item_source,
         confidence=menu_item_confidence,
         cuisine_hint=cuisine_hint,
+    )
+    safety = sanitize_recommended_item(
+        item_name=item_name,
+        context_text=cuisine_hint,
+        menu_item_source=menu_item_source,
+        menu_item_confidence=menu_item_confidence,
+        strong_menu_evidence=strong_evidence,
+    )
+    item_name = str(safety.get("item_name") or item_name)
+    menu_item_source = str(safety.get("menu_item_source") or menu_item_source).strip().lower() or "heuristic"
+    menu_item_confidence = round(
+        _clamp(_safe_float(safety.get("menu_item_confidence"), menu_item_confidence), 0.2, 0.97),
+        2,
+    )
+    display_label = str(safety.get("display_label") or "").strip() or _display_label_for_menu_item(
+        menu_item_source,
+        menu_item_confidence,
+    )
+    source_rank_weight = _source_rank_weight(menu_item_source, raw_item_source)
+    rank_confidence_weight = _clamp(0.72 + (menu_item_confidence * 0.34), 0.66, 1.04)
+    rank_adjusted_item_score = int(
+        round(_clamp(float(item_score) * source_rank_weight * rank_confidence_weight, 1.0, 100.0))
     )
     swap_plan = _build_swap_plan(
         item_name=item_name,
@@ -876,6 +1035,8 @@ def score_menu_item(
         confidence=menu_item_confidence,
         calories=calories,
     )
+    if bool(safety.get("sanitized")):
+        swap_plan["order_type"] = "estimated"
     place_ctx = context_payload.get("place") if isinstance(context_payload.get("place"), dict) else {}
     place_name = str(place_ctx.get("name") or "").strip()
     rewritten = maybe_rewrite_explanation_copy(
@@ -901,6 +1062,7 @@ def score_menu_item(
         "item_name": item_name,
         "raw_item_name": raw_item_name,
         "item_score": item_score,
+        "rank_adjusted_item_score": rank_adjusted_item_score,
         "item_score_breakdown": {
             "protein_density": int(round(_clamp(protein_density, 0.0, 100.0))),
             "calorie_control": int(round(_clamp(calorie_control, 0.0, 100.0))),
@@ -928,9 +1090,13 @@ def score_menu_item(
         "confidence": confidence,
         "order_confidence": menu_item_confidence,
         "menu_item_source": menu_item_source,
+        "menu_item_source_raw": raw_item_source,
         "menu_item_confidence": menu_item_confidence,
+        "menu_item_strong_evidence": bool(strong_evidence),
+        "menu_item_safety_reason": str(safety.get("safety_reason") or ""),
         "menu_source": menu_item_source,
         "menu_confidence": menu_item_confidence,
+        "source_rank_weight": round(_clamp(source_rank_weight, 0.0, 1.2), 2),
         "order_type": swap_plan["order_type"],
         "swap_suggestion": swap_plan["swap_suggestion"],
         "skip_items": swap_plan["skip_items"],
@@ -940,6 +1106,20 @@ def score_menu_item(
         "parse_method": parse_method,
         "parsed_via": parsed_via,
         "raw_text_snippet": raw_text_snippet,
+        "chain_id": chain_id,
+        "chain_key": chain_key,
+        "chain_name": chain_name,
+        "canonical_name": canonical_name,
+        "chain_name_resolved": chain_name_resolved,
+        "country_code": country_code,
+        "matched_alias": matched_alias,
+        "matched_place_name": matched_place_name,
+        "chain_source_used": chain_source_used,
+        "chain_match_detail": chain_match_detail,
+        "source_type": source_type,
+        "official_menu_source_url": official_menu_source_url,
+        "menu_last_updated": menu_last_updated,
+        "chain_match_confidence": chain_match_confidence,
         "category": category,
         "likely_protein": likely_protein,
         "likely_carbs": likely_carbs[:4],
@@ -1032,6 +1212,8 @@ def recommend_menu_items_for_place(
     )
 
     ingestion_bundle: Dict[str, Any] = {}
+    chain_bundle = resolve_chain_menu_for_place(place, max_items=12) if not has_structured_menu else {}
+    chain_items = chain_bundle.get("menu_items") if isinstance(chain_bundle.get("menu_items"), list) else []
     if not has_structured_menu and (not stored_items or not stored_has_real_menu):
         try:
             ingestion_bundle = ingest_real_menu_for_place(place, max_items=12)
@@ -1048,6 +1230,12 @@ def recommend_menu_items_for_place(
         menu_source = "structured_menu"
         menu_items = source_items
         _ingest_menu_snapshot(place, menu_items, SOURCE_SCRAPED_MENU)
+    elif chain_items:
+        menu_source = str(chain_bundle.get("menu_source") or SOURCE_WEBSITE_MENU)
+        menu_items = chain_items
+        if not ingestion_bundle:
+            ingestion_bundle = dict(chain_bundle)
+        _ingest_menu_snapshot(place, menu_items, SOURCE_WEBSITE_MENU)
     elif ingested_items:
         menu_source = str(ingestion_bundle.get("menu_source") or SOURCE_WEBSITE_TEXT)
         menu_items = ingested_items
@@ -1074,8 +1262,13 @@ def recommend_menu_items_for_place(
     cuisine_hint = _infer_cuisine(place)
     scored_items: List[Dict[str, Any]] = []
     for item in menu_items:
+        item_payload = dict(item) if isinstance(item, dict) else {}
+        if menu_source == "menu_intelligence_store":
+            # Legacy stored rows may miss source metadata; keep them conservative.
+            if not str(item_payload.get("source") or item_payload.get("menu_source") or item_payload.get("menu_item_source") or "").strip():
+                item_payload["menu_source"] = "heuristic"
         scored = score_menu_item(
-            item,
+            item_payload,
             context={
                 "place_text": place_text,
                 "cuisine_hint": cuisine_hint,
@@ -1100,8 +1293,36 @@ def recommend_menu_items_for_place(
         scored_items.append(scored)
 
     scored_items = _sorted_scored_items(scored_items, mode=resolved_mode)
+    # Real menu-backed items should drive the recommendation when available.
+    real_or_scan_items = [
+        row
+        for row in scored_items
+        if str(row.get("menu_item_source") or "").strip().lower() in {"real_menu", "user_scan"}
+    ]
+    if real_or_scan_items:
+        scored_items = list(real_or_scan_items) + [
+            row for row in scored_items if row not in real_or_scan_items
+        ]
     top_items = scored_items[:3]
     top_item = top_items[0] if top_items else None
+    resolved_source = str(menu_source or "").strip().lower()
+    if top_item and isinstance(top_item, dict):
+        top_source = str(top_item.get("menu_item_source") or "").strip().lower()
+        if top_source in {"real_menu", "user_scan", "llm_inferred", "heuristic"}:
+            resolved_source = top_source
+        elif resolved_source in {
+            "website_menu",
+            "scraped_menu",
+            "website_text",
+            "review_text",
+            "ocr_menu",
+            "structured_menu",
+            "menu_intelligence_store",
+        }:
+            resolved_source = "real_menu"
+    if not resolved_source:
+        resolved_source = "heuristic"
+    resolved_source_priority = _source_priority(resolved_source)
     menu_confidence = round(
         _safe_float(
             ingestion_bundle.get("menu_confidence"),
@@ -1127,15 +1348,94 @@ def recommend_menu_items_for_place(
         or ((top_item or {}).get("source_url") if isinstance(top_item, dict) else "")
         or ""
     ).strip()
+    chain_id = str(
+        ingestion_bundle.get("chain_id")
+        or ((top_item or {}).get("chain_id") if isinstance(top_item, dict) else "")
+        or ""
+    ).strip()
+    chain_name = str(
+        ingestion_bundle.get("chain_name")
+        or ((top_item or {}).get("chain_name") if isinstance(top_item, dict) else "")
+        or ""
+    ).strip()
+    chain_canonical_name = str(
+        ingestion_bundle.get("canonical_name")
+        or ((top_item or {}).get("canonical_name") if isinstance(top_item, dict) else "")
+        or chain_name
+    ).strip()
+    chain_key = str(
+        ingestion_bundle.get("chain_key")
+        or ((top_item or {}).get("chain_key") if isinstance(top_item, dict) else "")
+        or ""
+    ).strip()
+    chain_name_resolved = str(
+        ingestion_bundle.get("chain_name_resolved")
+        or ((top_item or {}).get("chain_name_resolved") if isinstance(top_item, dict) else "")
+        or chain_name
+    ).strip()
+    chain_country_code = str(
+        ingestion_bundle.get("country_code")
+        or ((top_item or {}).get("country_code") if isinstance(top_item, dict) else "")
+        or ""
+    ).strip()
+    matched_alias = str(
+        ingestion_bundle.get("matched_alias")
+        or ((top_item or {}).get("matched_alias") if isinstance(top_item, dict) else "")
+        or ""
+    ).strip()
+    matched_place_name = str(
+        ingestion_bundle.get("matched_place_name")
+        or ((top_item or {}).get("matched_place_name") if isinstance(top_item, dict) else "")
+        or ""
+    ).strip()
+    chain_source_used = str(
+        ingestion_bundle.get("chain_source_used")
+        or ((top_item or {}).get("chain_source_used") if isinstance(top_item, dict) else "")
+        or ""
+    ).strip()
+    chain_match_detail = (
+        ingestion_bundle.get("chain_match_detail")
+        if isinstance(ingestion_bundle.get("chain_match_detail"), dict)
+        else {}
+    )
+    if not chain_match_detail and isinstance(top_item, dict) and isinstance(top_item.get("chain_match_detail"), dict):
+        chain_match_detail = top_item.get("chain_match_detail") or {}
+    official_menu_source_url = str(
+        ingestion_bundle.get("official_menu_source_url")
+        or ((top_item or {}).get("official_menu_source_url") if isinstance(top_item, dict) else "")
+        or source_url
+    ).strip()
+    chain_match_confidence = round(
+        _safe_float(
+            ingestion_bundle.get("chain_match_confidence"),
+            _safe_float((top_item or {}).get("chain_match_confidence"), 0.0) if isinstance(top_item, dict) else 0.0,
+        ),
+        2,
+    )
 
     return {
         "menu_item_scoring_available": bool(top_items),
         "menu_items_source": menu_source,
         "menu_source": menu_source,
+        "menu_items_source_resolved": resolved_source,
+        "menu_source_resolved": resolved_source,
+        "menu_source_priority": resolved_source_priority,
         "menu_confidence": menu_confidence,
         "extraction_method": extraction_method,
         "parse_method": parse_method,
         "source_url": source_url,
+        "chain_id": chain_id,
+        "chain_name": chain_name,
+        "canonical_name": chain_canonical_name,
+        "chain_name_resolved": chain_name_resolved,
+        "chain_key": chain_key,
+        "chain_country_code": chain_country_code,
+        "chain_match_confidence": chain_match_confidence,
+        "matched_alias": matched_alias,
+        "matched_place_name": matched_place_name,
+        "chain_source_used": chain_source_used,
+        "chain_match_detail": chain_match_detail,
+        "official_menu_source_url": official_menu_source_url,
         "menu_ingestion_version": str(
             ingestion_bundle.get("menu_ingestion_version")
             or MENU_RECOMMENDATION_VERSION
@@ -1146,6 +1446,11 @@ def recommend_menu_items_for_place(
         "best_menu_items": top_items,
         "top_menu_item": top_item,
         "top_item": str(top_item.get("item_name")) if isinstance(top_item, dict) else "",
+        "top_menu_item_source_priority": int(
+            _source_priority((top_item or {}).get("menu_item_source"))
+            if isinstance(top_item, dict)
+            else 0
+        ),
         "cut_mode_active": cut_mode_active,
         "personalization_goal": goal_value,
     }

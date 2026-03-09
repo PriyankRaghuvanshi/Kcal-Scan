@@ -73,6 +73,9 @@ class LunchDecisionTests(unittest.TestCase):
         self.assertEqual(top["place_name"], "Protein Grill House")
         self.assertGreaterEqual(int(top.get("estimated_protein_g", 0)), 30)
         self.assertEqual(top.get("cta_label"), "Navigate")
+        self.assertIsInstance(top.get("swap_suggestions"), list)
+        self.assertGreaterEqual(len(top.get("swap_suggestions") or []), 1)
+        self.assertLessEqual(len(top.get("swap_suggestions") or []), 3)
         self.assertIn(top.get("recommended_order_label"), {"Best Menu Item", "Likely Better Choice", "Suggested Lighter Option", "Estimated Best Fit", "Needs Menu Check"})
         self.assertIn("fit_for_today", top)
         self.assertIn("daily_fit_score", top)
@@ -253,7 +256,8 @@ class LunchDecisionTests(unittest.TestCase):
 
         top = out["cards"][0]
         self.assertIsInstance(top.get("share_card"), dict)
-        self.assertEqual(top["share_card"].get("title"), "Best Order Near Me")
+        self.assertEqual(top["share_card"].get("title"), "Smarter Order")
+        self.assertIn("calories_saved", top["share_card"])
         self.assertIsInstance(out.get("top_share_card"), dict)
         self.assertIn("tracking", top)
         self.assertIn(top.get("copy_method"), {"deterministic", "llm"})
@@ -265,6 +269,94 @@ class LunchDecisionTests(unittest.TestCase):
         self.assertGreaterEqual(float(top["reality_check"].get("copy_confidence", 0.0)), 0.0)
         self.assertEqual(top["reality_check"].get("copy_version"), "v1")
         self.assertIsInstance(top.get("reality_check_share_card"), dict)
+
+    def test_cuisine_guardrails_block_generic_fallback_in_cards(self):
+        out = build_lunch_decision_response(
+            nearby_places=[
+                {
+                    "name": "Temple Canteen",
+                    "place_id": "g1",
+                    "lat": 28.61395,
+                    "lng": 77.20905,
+                    "types": ["restaurant", "south_indian", "temple", "canteen"],
+                    "menu_items": [
+                        {
+                            "item_name": "Greek yogurt protein bowl",
+                            "estimated_calories": 410,
+                            "estimated_protein_g": 26,
+                        }
+                    ],
+                }
+            ],
+            origin_lat=28.6139,
+            origin_lng=77.2090,
+            remaining_calories=1000,
+            remaining_protein_g=70,
+        )
+        card = out["cards"][0]
+        self.assertNotIn("greek yogurt protein bowl", str(card.get("recommended_order") or "").lower())
+        self.assertIn(
+            str(card.get("recommended_order") or "").lower(),
+            {
+                "idli or plain dosa-style option",
+                "tandoori or grilled style option",
+                "needs menu check: choose lighter savory options",
+            },
+        )
+        self.assertIsInstance(card.get("swap_suggestions"), list)
+        self.assertGreaterEqual(len(card.get("swap_suggestions") or []), 1)
+        self.assertTrue(
+            any(
+                token in " ".join(card.get("swap_suggestions") or []).lower()
+                for token in ("lighter", "fried", "creamy", "tandoori", "dal")
+            )
+        )
+
+    def test_nearby_subway_real_menu_beats_farther_weaker_inferred(self):
+        out = build_lunch_decision_response(
+            nearby_places=[
+                {
+                    "name": "Subway Wentworthville",
+                    "place_id": "sub-near",
+                    "lat": -33.8048,
+                    "lng": 150.9659,
+                    "types": ["restaurant", "sandwich_shop"],
+                    "menu_items": [
+                        {
+                            "item_name": "6\" Chicken Breast Sub, extra salad, no mayo",
+                            "estimated_calories": 430,
+                            "estimated_protein_g": 38,
+                            "menu_source": "website_menu",
+                            "menu_confidence": 0.9,
+                            "source_url": "https://subway.example/menu",
+                        }
+                    ],
+                },
+                {
+                    "name": "Far Generic Venue",
+                    "place_id": "far-weak",
+                    "lat": -33.8165,
+                    "lng": 150.9790,
+                    "types": ["restaurant", "indian", "biryani"],
+                    "menu_items": [
+                        {
+                            "item_name": "Suggested lighter option",
+                            "estimated_calories": 620,
+                            "estimated_protein_g": 24,
+                            "menu_source": "heuristic",
+                            "menu_confidence": 0.42,
+                        }
+                    ],
+                },
+            ],
+            origin_lat=-33.8070,
+            origin_lng=150.9670,
+            remaining_calories=1200,
+            remaining_protein_g=80,
+            cut_mode=True,
+            goal="fat_loss",
+        )
+        self.assertEqual(out["cards"][0]["place_name"], "Subway Wentworthville")
 
     def test_cut_mode_changes_context_but_keeps_schema(self):
         nearby_places = [

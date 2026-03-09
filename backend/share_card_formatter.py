@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from typing import Any, Dict, Iterable, List
+from typing import Any, Dict, Iterable, List, Optional
 
 
-SHARE_CARD_TITLE = "Best Order Near Me"
-SHARE_CARD_VERSION = "v1"
+SHARE_CARD_TITLE = "Smarter Order"
+SHARE_CARD_VERSION = "v2"
 
 
 _TAG_TO_BADGE: Dict[str, str] = {
@@ -50,8 +50,13 @@ def _build_badges(
     order_strategy_tags: Iterable[Any],
     cut_friendly: bool,
     fat_loss_friendly: bool,
+    primary_badge: Any = None,
 ) -> List[str]:
     badges: List[str] = []
+
+    override = str(primary_badge or "").strip()
+    if override:
+        badges.append(override)
 
     if cut_friendly or fat_loss_friendly:
         badges.append("Fat Loss Friendly")
@@ -83,9 +88,10 @@ def _build_badges(
         deduped.append(_clip(badge, 24, "Badge"))
 
     if not deduped:
-        deduped = ["Smart Choice"]
+        deduped = ["Better Swap"]
 
-    return deduped[:4]
+    # Keep share payload minimal and social-friendly.
+    return deduped[:1]
 
 
 def build_best_order_share_card(
@@ -100,6 +106,8 @@ def build_best_order_share_card(
     order_strategy_tags: Iterable[Any] | None = None,
     cut_friendly: bool = False,
     fat_loss_friendly: bool = False,
+    calories_saved: Any = None,
+    primary_badge: Any = None,
 ) -> Dict[str, Any]:
     try:
         calories = int(round(float(estimated_calories)))
@@ -113,23 +121,45 @@ def build_best_order_share_card(
 
     safe_subtitle = _clip(
         subtitle,
-        88,
-        "High protein and better calorie control for your cut.",
+        72,
+        "High protein and easier to fit today.",
     )
+    place = _clip(place_name, 40, "Nearby Pick")
+    order_name = _clip(best_order, 64, "Lighter menu option")
+    badge_list = _build_badges(
+        recommended_badges or [],
+        order_strategy_tags or [],
+        cut_friendly=bool(cut_friendly),
+        fat_loss_friendly=bool(fat_loss_friendly),
+        primary_badge=primary_badge,
+    )
+    badge = badge_list[0] if badge_list else ""
+
+    calories_saved_value: Optional[int]
+    try:
+        raw_saved = int(round(float(calories_saved)))
+        calories_saved_value = max(0, raw_saved)
+    except Exception:
+        calories_saved_value = None
+
+    if calories_saved_value and calories_saved_value > 0:
+        hero_line = f"You saved {calories_saved_value} calories"
+    else:
+        hero_line = "High protein, lower-calorie pick"
 
     return {
         "title": SHARE_CARD_TITLE,
-        "place_name": _clip(place_name, 40, "Nearby Pick"),
+        "restaurant_name": place,
+        "place_name": place,
         "health_score": _score_to_100(health_score),
-        "best_order": _clip(best_order, 64, "Lighter menu option"),
+        "order_name": order_name,
+        "best_order": order_name,
         "estimated_calories": max(0, calories),
         "estimated_protein_g": max(0, protein),
+        "calories_saved": calories_saved_value,
+        "hero_line": hero_line,
+        "badge": badge,
         "subtitle": safe_subtitle,
-        "badges": _build_badges(
-            recommended_badges or [],
-            order_strategy_tags or [],
-            cut_friendly=bool(cut_friendly),
-            fat_loss_friendly=bool(fat_loss_friendly),
-        ),
+        "badges": badge_list,
         "share_card_version": SHARE_CARD_VERSION,
     }

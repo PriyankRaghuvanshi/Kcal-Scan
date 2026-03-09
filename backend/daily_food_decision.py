@@ -9,6 +9,8 @@ from personalization_profiles import (
     normalize_personalization_goal,
     personalization_goal_value,
 )
+from ranking_modifiers import apply_score_modifiers
+from swap_intelligence import build_swap_suggestions
 
 
 DAILY_DECISION_VERSION = "v2"
@@ -124,54 +126,79 @@ def _context_adjusted_rank(
     daily_fit = _clamp(_safe_float(profile.get("daily_fit_score"), 0.0), 0.0, 1.0) * 100.0
     order_conf = _clamp(_safe_float(profile.get("order_confidence"), 0.0), 0.0, 1.0) * 100.0
     protein_density = _clamp((protein / max(1.0, calories)) * 1500.0, 0.0, 100.0)
+    source_rank_weight = _clamp(
+        _safe_float(profile.get("source_rank_weight"), 0.65),
+        0.5,
+        1.05,
+    )
+    menu_item_source = str(profile.get("menu_item_source") or "").strip().lower()
     fit_bonus = 10.0 if fit is True else -10.0 if fit is False else 0.0
     distance_penalty = min(18.0, distance / 200.0)
 
-    score = (health * 0.34) + (daily_fit * 0.24) + (order_conf * 0.18) + (protein_density * 0.24)
-    score += fit_bonus
-    score -= distance_penalty
+    base_score = (health * 0.34) + (daily_fit * 0.24) + (order_conf * 0.18) + (protein_density * 0.24)
+    base_score += source_rank_weight * 8.0
+    base_score += fit_bonus
+    base_score -= distance_penalty
+    if menu_item_source == "heuristic":
+        base_score -= 9.0
+    elif menu_item_source == "llm_inferred":
+        base_score -= 4.0
 
     window = str(meal_window or "").strip().lower()
     if window == "breakfast":
         if calories <= 600:
-            score += 6.0
+            base_score += 6.0
         if protein >= 28:
-            score += 4.0
+            base_score += 4.0
     elif window == "snack":
         if calories <= 420:
-            score += 9.0
+            base_score += 9.0
         elif calories >= 620:
-            score -= 8.0
+            base_score -= 8.0
     elif window == "dinner":
         if calories <= 650:
-            score += 6.0
+            base_score += 6.0
         elif calories >= 820:
-            score -= 10.0
+            base_score -= 10.0
 
     if remaining_calories is not None:
         rem_cal = max(0.0, float(remaining_calories))
         if rem_cal <= 500:
             if calories <= max(260.0, rem_cal):
-                score += 10.0
+                base_score += 10.0
             elif calories > rem_cal + 120.0:
-                score -= 14.0
+                base_score -= 14.0
         elif rem_cal >= 900 and protein >= 32:
-            score += 3.0
+            base_score += 3.0
 
     if remaining_protein_g is not None:
         rem_protein = max(0.0, float(remaining_protein_g))
         if rem_protein >= 45:
-            score += min(14.0, protein / 3.5)
+            base_score += min(14.0, protein / 3.5)
         elif rem_protein >= 25:
-            score += min(8.0, protein / 5.0)
+            base_score += min(8.0, protein / 5.0)
 
     if cut_mode:
         if calories <= 620 and protein >= 30:
-            score += 7.0
+            base_score += 7.0
         if calories >= 780:
-            score -= 10.0
+            base_score -= 10.0
 
-    return float(round(_clamp(score, 0.0, 100.0), 2))
+    base_score = _clamp(base_score, 0.0, 100.0)
+    modifier_result = apply_score_modifiers(
+        base_score=base_score,
+        payload=profile,
+        context={
+            "score_channel": "daily_decision_primary_rank",
+            # conservative rollout unless explicitly configured
+            "modifier_rollout_phase": str(profile.get("modifier_rollout_phase") or ""),
+            "goal": str(profile.get("personalization_goal") or ""),
+            "cut_mode": bool(cut_mode),
+            "fit_for_today": fit,
+        },
+    )
+    final_score = _safe_float(modifier_result.get("final_score"), base_score)
+    return float(round(_clamp(final_score, 0.0, 100.0), 2))
 
 
 def _to_recommendation(
@@ -181,6 +208,23 @@ def _to_recommendation(
     headline: str,
     reason_fallback: str,
 ) -> Dict[str, Any]:
+    swap_suggestions = build_swap_suggestions(
+        swap_suggestion=profile.get("swap_suggestion"),
+        skip_items=profile.get("skip_items") if isinstance(profile.get("skip_items"), list) else [],
+        add_items=profile.get("add_items") if isinstance(profile.get("add_items"), list) else [],
+        better_swap=profile.get("better_swap"),
+        place_context=" ".join(
+            [
+                str(profile.get("name") or ""),
+                str(profile.get("cuisine_hint") or ""),
+            ]
+        ),
+        menu_item_source=profile.get("menu_item_source"),
+        menu_item_confidence=profile.get("menu_item_confidence"),
+        max_items=3,
+    )
+    why = str(profile.get("short_reason") or reason_fallback).strip()
+
     return {
         "decision_type": str(decision_type or "").strip(),
         "headline": str(headline or "").strip(),
@@ -190,7 +234,9 @@ def _to_recommendation(
         "estimated_calories": int(max(0, _safe_int(profile.get("estimated_calories"), 0))),
         "estimated_protein_g": int(max(0, _safe_int(profile.get("estimated_protein_g"), 0))),
         "fit_for_today": profile.get("fit_for_today"),
-        "why_this_works": str(profile.get("short_reason") or reason_fallback).strip(),
+        "why_this_works": why,
+        "swap_suggestion": swap_suggestions[0] if swap_suggestions else "",
+        "swap_suggestions": swap_suggestions,
         "decision_confidence": round(_clamp(_safe_float(profile.get("decision_confidence"), 0.62), 0.2, 0.95), 2),
     }
 
@@ -233,7 +279,9 @@ def _pick_protein_catchup(
         return None
     candidates.sort(
         key=lambda row: (
+            1 if row.get("fit_for_today") is True else 0,
             _safe_float(row.get("estimated_protein_g"), 0.0),
+            -_safe_float(row.get("source_rank_weight"), 0.65),
             -_safe_float(row.get("estimated_calories"), 9_999.0),
             _safe_float(row.get("daily_fit_score"), 0.0),
         ),
@@ -256,10 +304,12 @@ def _pick_lighter_recovery(
         return None
     candidates.sort(
         key=lambda row: (
+            -(1 if row.get("fit_for_today") is True else 0),
             _safe_float(row.get("estimated_calories"), 9_999.0),
             -_safe_float(row.get("estimated_protein_g"), 0.0),
+            -_safe_float(row.get("source_rank_weight"), 0.65),
             _safe_float(row.get("distance_meters"), 9_999_999.0),
-        )
+        ),
     )
     return candidates[0]
 
@@ -285,6 +335,8 @@ def build_daily_decision_response(
 
     rem_cal = _safe_optional_float(remaining_calories)
     rem_protein = _safe_optional_float(remaining_protein_g)
+    consumed_cal = _safe_optional_float(consumed_calories)
+    target_cal = _safe_optional_float(target_calories)
 
     if rem_cal is None:
         t_cal = _safe_optional_float(target_calories)
@@ -300,6 +352,9 @@ def build_daily_decision_response(
     now_hour = _safe_int(current_hour, dt.datetime.now().hour)
     now_hour = int(max(0, min(23, now_hour)))
     meal_window = _meal_window_for_hour(now_hour)
+    calories_overshot = bool(
+        target_cal is not None and consumed_cal is not None and float(consumed_cal) > float(target_cal) + 20.0
+    )
 
     profiles = _build_profiles(
         nearby_places=nearby_places,
@@ -328,11 +383,14 @@ def build_daily_decision_response(
     if primary:
         headline = _headline_for_window(meal_window)
         primary_decision_type = _decision_type_for_window(meal_window)
-        if rem_cal is not None and rem_cal <= 420:
+        if calories_overshot:
+            headline = "Recovery option right now"
+            primary_decision_type = "lighter_recovery"
+        elif rem_cal is not None and rem_cal <= 420:
             headline = "Lighter option right now"
             primary_decision_type = "lighter_recovery"
-        elif rem_protein is not None and rem_protein >= 40:
-            headline = "Strong protein option right now"
+        elif rem_protein is not None and rem_protein >= 40 and (rem_cal is None or rem_cal >= 350):
+            headline = "Protein catch-up option"
             primary_decision_type = "protein_catchup"
 
         primary_recommendation = _to_recommendation(
@@ -352,7 +410,7 @@ def build_daily_decision_response(
 
         skip_name = str(primary.get("name") or "").strip()
 
-        if rem_protein is not None and rem_protein >= 25:
+        if rem_protein is not None and rem_protein >= 25 and (rem_cal is None or rem_cal >= 320):
             catchup = _pick_protein_catchup(profiles, skip_place=skip_name)
             if catchup:
                 protein_catchup_option = _to_recommendation(
@@ -363,14 +421,18 @@ def build_daily_decision_response(
                 )
                 secondary.append(protein_catchup_option)
 
-        if rem_cal is not None and rem_cal <= 650:
+        if calories_overshot or (rem_cal is not None and rem_cal <= 650):
             recovery = _pick_lighter_recovery(profiles, skip_place=skip_name)
             if recovery:
                 lighter_recovery_option = _to_recommendation(
                     recovery,
                     decision_type="lighter_recovery",
                     headline="Lighter recovery option",
-                    reason_fallback="Easier to fit if calories are tight.",
+                    reason_fallback=(
+                        "Useful to limit extra damage after a high-calorie day."
+                        if calories_overshot
+                        else "Easier to fit if calories are tight."
+                    ),
                 )
                 secondary.append(lighter_recovery_option)
 
@@ -394,6 +456,8 @@ def build_daily_decision_response(
             "estimated_protein_g": 0,
             "fit_for_today": None,
             "why_this_works": "Still gathering nearby options.",
+            "swap_suggestion": "",
+            "swap_suggestions": [],
             "decision_confidence": 0.32,
         }
 
@@ -412,7 +476,7 @@ def build_daily_decision_response(
             continue
         seen.add(key)
         deduped_secondary.append(row)
-        if len(deduped_secondary) >= 2:
+        if len(deduped_secondary) >= 1:
             break
 
     return {
@@ -434,4 +498,3 @@ def build_daily_decision_response(
         "lighter_recovery_option": lighter_recovery_option,
         "decision_version": DAILY_DECISION_VERSION,
     }
-

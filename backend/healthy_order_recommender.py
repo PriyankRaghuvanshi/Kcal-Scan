@@ -10,6 +10,7 @@ from personalization_profiles import (
     personalization_goal_value,
     personalize_order_for_goal,
 )
+from recommendation_safety import sanitize_recommended_item
 from restaurant_macro_estimator import estimate_restaurant_macros
 
 
@@ -21,7 +22,7 @@ CUISINE_ORDER_RULES: List[Dict[str, Any]] = [
     {
         "rule_id": "grill_bbq",
         "tokens": ("grill", "grilled", "bbq", "kebab", "rotisserie"),
-        "best_order": "Grilled chicken bowl",
+        "best_order": "Grilled chicken + salad",
         "better_swap": "Go easy on creamy sauces",
         "avoid_if_cutting": "Large fried combo meals",
         "estimated_calories": 520,
@@ -93,7 +94,7 @@ CUISINE_ORDER_RULES: List[Dict[str, Any]] = [
     {
         "rule_id": "cafe",
         "tokens": ("cafe", "coffee", "brunch", "bakery"),
-        "best_order": "Egg and chicken protein plate",
+        "best_order": "Egg + chicken plate",
         "better_swap": "Pick no-sugar coffee and skip pastry add-ons",
         "avoid_if_cutting": "Large pastries and sugary blended drinks",
         "estimated_calories": 430,
@@ -152,6 +153,20 @@ CUISINE_ORDER_RULES: List[Dict[str, Any]] = [
     },
 ]
 
+RULE_PRIORITY: Dict[str, int] = {
+    "south_indian_temple": 10,
+    "indian": 9,
+    "cafe": 8,
+    "sushi_japanese": 7,
+    "mexican": 7,
+    "thai_chinese": 7,
+    "pizza": 6,
+    "burger_fast_food": 6,
+    "fried_chicken": 6,
+    "grill_bbq": 5,
+    "salad_bowl_poke": 4,
+}
+
 
 def _clamp(x: float, lo: float, hi: float) -> float:
     return max(lo, min(hi, float(x)))
@@ -190,11 +205,16 @@ def _cuisine_hint(place: Dict[str, Any]) -> str:
 def _match_rule(place_text: str) -> tuple[Dict[str, Any] | None, int]:
     best_rule = None
     best_hits = 0
+    best_priority = -1
     for rule in CUISINE_ORDER_RULES:
         hits = sum(1 for token in rule.get("tokens", ()) if token in place_text)
-        if hits > best_hits:
+        if hits <= 0:
+            continue
+        priority = int(RULE_PRIORITY.get(str(rule.get("rule_id") or ""), 0))
+        if hits > best_hits or (hits == best_hits and priority > best_priority):
             best_hits = hits
             best_rule = rule
+            best_priority = priority
     return best_rule, best_hits
 
 
@@ -220,7 +240,7 @@ def _best_order_for_cut(best_order: str) -> str:
     if "wrap" in text:
         return "Grilled wrap with no creamy sauce"
     if "salad" in text or "bowl" in text:
-        return "High-protein bowl with light dressing"
+        return "High-protein salad with light dressing"
 
     return f"{str(best_order).strip()} (light sauce)"
 
@@ -287,6 +307,25 @@ def _swap_details(best_order: str, better_swap: str, place_text: str) -> Dict[st
     }
 
 
+def _sanitize_order_name(
+    *,
+    best_order: str,
+    place_text: str,
+    confidence: float,
+) -> tuple[str, str]:
+    safety = sanitize_recommended_item(
+        item_name=best_order,
+        context_text=place_text,
+        menu_item_source="heuristic",
+        menu_item_confidence=confidence,
+        strong_menu_evidence=False,
+    )
+    return (
+        str(safety.get("item_name") or best_order).strip() or "Suggested lighter option",
+        str(safety.get("display_label") or "").strip(),
+    )
+
+
 def _fallback_best_order_for_place(place: Dict[str, Any] | None) -> str:
     place_text = _place_text(place if isinstance(place, dict) else {})
     if any(token in place_text for token in ("south indian", "idli", "dosa", "udupi", "temple", "canteen")):
@@ -300,7 +339,7 @@ def _fallback_best_order_for_place(place: Dict[str, Any] | None) -> str:
     if "pizza" in place_text:
         return "Lighter thin-crust option"
     if any(token in place_text for token in ("sushi", "japanese")):
-        return "Sashimi or simple rice-bowl option"
+        return "Sashimi or simple rice option"
     return "Lighter menu option"
 
 
@@ -316,6 +355,11 @@ def _fallback_recommendation(
     cut_mode_active = is_cut_mode(resolved_mode)
     best_order = _fallback_best_order_for_place(place)
     place_text = _place_text(place if isinstance(place, dict) else {})
+    best_order, order_display_label = _sanitize_order_name(
+        best_order=best_order,
+        place_text=place_text,
+        confidence=0.46,
+    )
 
     macro = estimate_restaurant_macros(
         item_name=best_order,
@@ -347,6 +391,7 @@ def _fallback_recommendation(
         "personalization_goal": goal_value,
         "personalized_best_order": "",
         "personalized_reason": "",
+        "order_display_label": order_display_label,
     }
     out["order_type"] = "estimated"
 
@@ -441,7 +486,16 @@ def suggest_best_order_for_place(
             confidence -= 0.05
             cut_warning = "Can run calorie-heavy on cut days."
 
-    macro_item_name = best_order_for_cut if cut_mode_active else str(rule["best_order"])
+    confidence = round(_clamp(confidence, 0.35, 0.93), 2)
+    safe_best_order, order_display_label = _sanitize_order_name(
+        best_order=str(rule["best_order"]),
+        place_text=place_text,
+        confidence=confidence,
+    )
+    if cut_mode_active:
+        best_order_for_cut = _best_order_for_cut(safe_best_order)
+
+    macro_item_name = best_order_for_cut if cut_mode_active else safe_best_order
     macro = estimate_restaurant_macros(
         item_name=macro_item_name,
         cuisine_hint=place_text,
@@ -462,23 +516,22 @@ def suggest_best_order_for_place(
     personalized_reason = ""
     if resolved_goal:
         personalized_best_order = personalize_order_for_goal(
-            best_order_for_cut if cut_mode_active else str(rule["best_order"]),
+            _best_order_for_cut(safe_best_order) if cut_mode_active else safe_best_order,
             resolved_goal,
         )
         personalized_reason = get_personalized_reason(resolved_goal)
 
-    confidence = round(_clamp(confidence, 0.35, 0.93), 2)
-
     order_type = _order_type_from_confidence(confidence)
-    swap_details = _swap_details(str(rule["best_order"]), better_swap, place_text)
+    swap_details = _swap_details(safe_best_order, better_swap, place_text)
 
     result = {
-        "best_order": str(rule["best_order"]),
+        "best_order": safe_best_order,
         "better_swap": better_swap,
         "swap_suggestion": swap_details["swap_suggestion"],
         "skip_items": swap_details["skip_items"],
         "add_items": swap_details["add_items"],
         "order_type": order_type,
+        "order_display_label": order_display_label,
         "avoid_if_cutting": str(rule["avoid_if_cutting"]),
         "estimated_calories": estimated_calories,
         "estimated_protein_g": estimated_protein_g,
@@ -494,7 +547,7 @@ def suggest_best_order_for_place(
         "cut_mode_active": cut_mode_active,
         "cut_friendly": cut_friendly if cut_mode_active else False,
         "cut_warning": cut_warning,
-        "best_order_for_cut": best_order_for_cut if cut_mode_active else str(rule["best_order"]),
+        "best_order_for_cut": _best_order_for_cut(safe_best_order) if cut_mode_active else safe_best_order,
         "personalization_goal": goal_value,
         "personalized_best_order": personalized_best_order,
         "personalized_reason": personalized_reason,

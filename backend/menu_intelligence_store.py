@@ -61,6 +61,17 @@ _SOURCE_PRIORITY = {
     SOURCE_USER_SCAN: 3,
 }
 
+_SOURCE_RANK_WEIGHT = {
+    SOURCE_HEURISTIC: 0.65,
+    SOURCE_LLM_INFERRED: 0.80,
+    SOURCE_SCRAPED_MENU: 1.00,
+    SOURCE_REVIEW_TEXT: 1.00,
+    SOURCE_OCR_MENU: 0.95,
+    SOURCE_WEBSITE_TEXT: 1.00,
+    SOURCE_WEBSITE_MENU: 1.00,
+    SOURCE_USER_SCAN: 0.95,
+}
+
 _STORE_LOCK = threading.Lock()
 
 
@@ -175,7 +186,11 @@ def _normalize_item(item: Dict[str, Any], source: str) -> Dict[str, Any] | None:
         "confidence": round(confidence, 2),
         "source": item_source,
         "menu_source": item_source,
+        "menu_item_source": str(payload.get("menu_item_source") or _SOURCE_ALIASES.get(item_source, item_source)).strip() or item_source,
+        "menu_item_confidence": round(confidence, 2),
         "menu_confidence": round(confidence, 2),
+        "source_priority": int(_SOURCE_PRIORITY.get(item_source, 1)),
+        "source_rank_weight": round(float(_SOURCE_RANK_WEIGHT.get(item_source, 0.65)), 2),
         "source_url": str(payload.get("source_url") or "").strip(),
         "extraction_method": str(payload.get("extraction_method") or "").strip(),
         "parse_method": str(payload.get("parse_method") or "").strip(),
@@ -186,6 +201,19 @@ def _normalize_item(item: Dict[str, Any], source: str) -> Dict[str, Any] | None:
         "likely_carbs": payload.get("likely_carbs") if isinstance(payload.get("likely_carbs"), list) else [],
         "likely_fats": payload.get("likely_fats") if isinstance(payload.get("likely_fats"), list) else [],
         "health_signals": payload.get("health_signals") if isinstance(payload.get("health_signals"), list) else [],
+        "chain_id": str(payload.get("chain_id") or "").strip(),
+        "chain_key": str(payload.get("chain_key") or "").strip(),
+        "chain_name": str(payload.get("chain_name") or "").strip(),
+        "canonical_name": str(payload.get("canonical_name") or payload.get("chain_name") or "").strip(),
+        "chain_name_resolved": str(payload.get("chain_name_resolved") or payload.get("chain_name") or "").strip(),
+        "country_code": str(payload.get("country_code") or "").strip().upper(),
+        "matched_alias": str(payload.get("matched_alias") or "").strip(),
+        "matched_place_name": str(payload.get("matched_place_name") or "").strip(),
+        "chain_source_used": str(payload.get("chain_source_used") or "").strip(),
+        "source_type": str(payload.get("source_type") or "").strip(),
+        "official_menu_source_url": str(payload.get("official_menu_source_url") or "").strip(),
+        "menu_last_updated": str(payload.get("menu_last_updated") or "").strip(),
+        "chain_match_confidence": round(_safe_float(payload.get("chain_match_confidence"), 0.0), 2),
         "last_updated": _now_iso(),
     }
 
