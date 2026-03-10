@@ -1292,7 +1292,12 @@ def recommend_menu_items_for_place(
     ingestion_bundle: Dict[str, Any] = {}
     chain_bundle = resolve_chain_menu_for_place(place, max_items=12) if not has_structured_menu else {}
     chain_items = chain_bundle.get("menu_items") if isinstance(chain_bundle.get("menu_items"), list) else []
-    if not has_structured_menu and (not stored_items or not stored_has_real_menu):
+    # Skip menu ingestion when use_llm_place_context=False (bulk /places/healthy, lunch-decision) to avoid 20+ website fetches.
+    if (
+        use_llm_place_context
+        and not has_structured_menu
+        and (not stored_items or not stored_has_real_menu)
+    ):
         try:
             ingestion_bundle = ingest_real_menu_for_place(place, max_items=12)
         except Exception:
