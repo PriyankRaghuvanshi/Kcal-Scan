@@ -21,7 +21,7 @@
     "expo-camera": "~17.0.10",
     "expo-constants": "~18.0.13",
     "expo-dev-client": "~6.0.20",
-    "expo-device": "~7.0.2",
+    "expo-device": "~8.0.10",
     "expo-file-system": "~19.0.21",
     "expo-image-picker": "~17.0.10",
     "expo-location": "~19.0.7",
@@ -36,6 +36,6 @@
   },
   "private": true,
   "devDependencies": {
-    "jest": "^30.3.0"
+    "jest": "~29.7.0"
   }
 }
