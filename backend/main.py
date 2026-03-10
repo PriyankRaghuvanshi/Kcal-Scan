@@ -12619,6 +12619,7 @@ async def healthy_places(
                 p,
                 mode=nutrition_mode,
                 personalization_goal=personalization_goal,
+                use_llm_place_context=False,
             )
         except Exception:
             menu_recommendations = {

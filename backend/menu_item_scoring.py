@@ -1257,6 +1257,7 @@ def recommend_menu_items_for_place(
     health_score: float | None = None,
     mode: NutritionMode | str = NutritionMode.DEFAULT,
     personalization_goal: Any = None,
+    use_llm_place_context: bool = True,
 ) -> Dict[str, Any]:
     source_items, has_structured_menu = _menu_source_items(place)
 
@@ -1556,12 +1557,12 @@ def recommend_menu_items_for_place(
             pass
 
     # Option B: No real menu text available — try LLM reasoning from place metadata.
-    # Produces low-confidence (0.40–0.55) category-appropriate candidates that are
-    # more specific than pure keyword heuristics (e.g. "Tandoori Chicken" instead of
-    # "Lighter menu option" for an Indian restaurant).
-    # Only runs when:  (a) Option A reasoning didn't fire/succeed AND
-    #                  (b) we are still on heuristic/llm_inferred quality items.
-    if not llm_reasoning_candidates.get("llm_reasoning_used") and is_heuristic_quality:
+    # Skipped when use_llm_place_context=False (e.g. bulk /places/healthy) to avoid 20+ LLM timeouts.
+    if (
+        use_llm_place_context
+        and not llm_reasoning_candidates.get("llm_reasoning_used")
+        and is_heuristic_quality
+    ):
         try:
             context_result = reason_from_place_context(
                 place=place,
