@@ -12512,16 +12512,19 @@ def _best_options_for_place(place: Dict[str, Any]) -> List[str]:
         return ["Protein-forward meal", "Lower-oil whole-food option"]
 
 
-async def fetch_google_places(lat: float, lng: float, radius: int = 3000) -> List[Dict[str, Any]]:
+async def fetch_google_places(
+    lat: float, lng: float, radius: int = 3000
+) -> Tuple[List[Dict[str, Any]], Optional[str], Optional[int]]:
+    """Returns (places, error_reason, raw_places_count). raw_places_count is from API body when 200."""
     if not GOOGLE_PLACES_API_KEY:
         logger.info("fetch_google_places: GOOGLE_PLACES_API_KEY not configured, returning empty list")
-        return []
+        return [], "places_api_key_not_configured", None
 
     payload = build_nearby_search_payload(
         lat,
         lng,
         radius,
-        max_result_count=40,
+        max_result_count=20,
         rank_preference="DISTANCE",
     )
     headers = {
@@ -12536,22 +12539,42 @@ async def fetch_google_places(lat: float, lng: float, radius: int = 3000) -> Lis
                 r = await client.post(GOOGLE_PLACES_NEARBY_BASE, json=payload, headers=headers)
                 body = r.json() if 200 <= r.status_code < 300 else {}
                 if not body and r.status_code >= 300:
-                    logger.info(f"healthy places lookup failed: {r.status_code} {str(r.text)[:240]}")
+                    err_snippet = (str(r.text)[:400] if getattr(r, "text", None) else str(r))[:400]
+                    logger.info(f"healthy places lookup failed: {r.status_code} {err_snippet}")
+                    return [], f"api_error_{r.status_code}", None
         else:
             r = requests.post(GOOGLE_PLACES_NEARBY_BASE, json=payload, headers=headers, timeout=8.0)
             body = r.json() if 200 <= r.status_code < 300 else {}
             if not body and r.status_code >= 300:
-                logger.info(f"healthy places lookup failed: {r.status_code} {str(getattr(r, 'text', ''))[:240]}")
+                err_snippet = str(getattr(r, "text", ""))[:400]
+                logger.info(f"healthy places lookup failed: {r.status_code} {err_snippet}")
+                return [], f"api_error_{r.status_code}", None
     except Exception as e:
         logger.info(f"healthy places lookup failed: {e}")
-        return []
+        return [], "api_request_failed", None
 
+    raw_places = body.get("places") if isinstance(body, dict) else []
+    raw_count = len(raw_places) if isinstance(raw_places, list) else 0
     results = map_places_new_response(body if isinstance(body, dict) else {})
+
+    # Log what Google returned so we can debug zero results (check Railway logs).
+    logger.info(
+        "fetch_google_places: response lat=%.4f lng=%.4f radius=%d body_keys=%s raw_places_count=%d parsed_count=%d",
+        lat, lng, radius,
+        list(body.keys()) if isinstance(body, dict) else [],
+        raw_count,
+        len(results),
+    )
+    if isinstance(body, dict) and body.get("error"):
+        logger.info("fetch_google_places: body.error=%s", str(body.get("error"))[:500])
+
+    if not results and raw_count > 0:
+        logger.info(f"fetch_google_places: API returned {raw_count} raw places but parse yielded 0 at ({lat},{lng})")
 
     # If narrow search returned nothing, try once more with a wider radius before giving up.
     if not results and radius < 5000:
         wider_payload = build_nearby_search_payload(
-            lat, lng, 5000, max_result_count=40, rank_preference="DISTANCE"
+            lat, lng, 5000, max_result_count=20, rank_preference="DISTANCE"
         )
         try:
             if httpx is not None:
@@ -12561,13 +12584,16 @@ async def fetch_google_places(lat: float, lng: float, radius: int = 3000) -> Lis
             else:
                 r2 = requests.post(GOOGLE_PLACES_NEARBY_BASE, json=wider_payload, headers=headers, timeout=8.0)
                 body2 = r2.json() if 200 <= r2.status_code < 300 else {}
+            if r2.status_code >= 300:
+                return results, f"api_error_{r2.status_code}", raw_count
             results = map_places_new_response(body2 if isinstance(body2, dict) else {})
             if results:
+                raw_count = len(body2.get("places") or []) if isinstance(body2, dict) else raw_count
                 logger.info(f"fetch_google_places: wider fallback radius=5000 found {len(results)} places at ({lat},{lng})")
         except Exception as e2:
             logger.info(f"fetch_google_places: wider fallback failed: {e2}")
 
-    return results
+    return results, None, raw_count
 
 
 
@@ -12580,8 +12606,9 @@ async def healthy_places(
     goal: str = "",
     remaining_calories: Optional[float] = None,
     remaining_protein_g: Optional[float] = None,
+    debug: bool = False,
 ):
-    places = await fetch_google_places(lat, lng, radius=radius)
+    places, fetch_error_reason, raw_places_count = await fetch_google_places(lat, lng, radius=radius)
     nutrition_mode = NutritionMode.CUT if bool(cut_mode) else NutritionMode.DEFAULT
     personalization_goal = normalize_personalization_goal(goal)
     personalization_goal_value_str = personalization_goal_value(personalization_goal)
@@ -13067,16 +13094,27 @@ async def healthy_places(
         reverse=True,
     )
 
+    radius_used = int(max(200, min(50000, int(_safe_float(radius, 3000) or 3000))))
     response = {
         "places": scored,
         "places_count": len(scored),
         "api_available": bool(GOOGLE_PLACES_API_KEY),
-        "radius_used": int(max(200, min(5000, int(_safe_float(radius, 3000) or 3000)))),
+        "radius_used": radius_used,
     }
-    if not GOOGLE_PLACES_API_KEY:
-        response["_no_results_reason"] = "places_api_key_not_configured"
+    if fetch_error_reason:
+        response["_no_results_reason"] = fetch_error_reason
     elif not scored:
         response["_no_results_reason"] = "no_places_returned_by_api"
+    if (not scored or debug) and isinstance(lat, (int, float)) and isinstance(lng, (int, float)):
+        response["_debug"] = {
+            "request_lat": round(float(lat), 4),
+            "request_lng": round(float(lng), 4),
+            "radius_used": radius_used,
+            "raw_places_count": raw_places_count,
+            "parsed_count": len(places),
+            "scored_count": len(scored),
+            "empty_state_reason": response.get("_no_results_reason") or ("ok" if scored else "no_places_returned_by_api"),
+        }
     if scored and isinstance(scored[0].get("share_card"), dict):
         response["top_share_card"] = scored[0]["share_card"]
     if scored and isinstance(scored[0].get("reality_check_share_card"), dict):
@@ -13123,7 +13161,7 @@ async def healthy_places_map(
 
 @app.get("/places/feed")
 async def places_feed(lat: float, lng: float, radius: int = 3000, limit_per_section: int = 6):
-    nearby_places = await fetch_google_places(lat, lng, radius=radius)
+    nearby_places, _, _ = await fetch_google_places(lat, lng, radius=radius)
     return build_healthy_nearby_feed(
         nearby_places=nearby_places,
         limit_per_section=max(1, min(12, int(_safe_float(limit_per_section, 6) or 6))),
@@ -13144,7 +13182,7 @@ async def places_lunch_decision(
     goal: str = "",
     cut_mode: bool = False,
 ):
-    nearby_places = await fetch_google_places(lat, lng, radius=radius)
+    nearby_places, fetch_err, _ = await fetch_google_places(lat, lng, radius=radius)
     lunch_payload = build_lunch_decision_response(
         nearby_places=nearby_places,
         origin_lat=float(_safe_float(lat, 0.0) or 0.0),
@@ -13175,7 +13213,9 @@ async def places_lunch_decision(
     )
     lunch_payload["api_available"] = bool(GOOGLE_PLACES_API_KEY)
     lunch_payload["nearby_places_count"] = len(nearby_places)
-    if not GOOGLE_PLACES_API_KEY:
+    if fetch_err:
+        lunch_payload["_no_results_reason"] = fetch_err
+    elif not GOOGLE_PLACES_API_KEY:
         lunch_payload["_no_results_reason"] = "places_api_key_not_configured"
     elif not nearby_places:
         lunch_payload["_no_results_reason"] = "no_places_returned_by_api"
@@ -13197,7 +13237,7 @@ async def places_daily_decision(
     goal: str = "",
     cut_mode: bool = False,
 ):
-    nearby_places = await fetch_google_places(lat, lng, radius=radius)
+    nearby_places, _, _ = await fetch_google_places(lat, lng, radius=radius)
     return {
         "daily_decision": build_daily_decision_response(
             nearby_places=nearby_places,
@@ -13229,7 +13269,7 @@ async def better_choice_nearby(
     if not str(selected_place_name or "").strip() and not str(selected_place_id or "").strip():
         raise HTTPException(status_code=400, detail="selected_place_name or selected_place_id is required")
 
-    nearby_places = await fetch_google_places(lat, lng, radius=radius)
+    nearby_places, _, _ = await fetch_google_places(lat, lng, radius=radius)
 
     return build_better_choice_nearby_response(
         nearby_places=nearby_places,
@@ -13245,7 +13285,7 @@ async def better_choice_nearby(
 @app.post("/places/daily-fatloss-coach")
 async def daily_fatloss_coach(payload: DailyFatLossCoachRequestModel):
     radius = int(max(200, min(5000, int(_safe_float(payload.radius, 2000) or 2000))))
-    nearby_places = await fetch_google_places(payload.lat, payload.lng, radius=radius)
+    nearby_places, _, _ = await fetch_google_places(payload.lat, payload.lng, radius=radius)
 
     return build_daily_fatloss_coach_response(
         nearby_places=nearby_places,

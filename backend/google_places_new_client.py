@@ -22,10 +22,10 @@ PLACES_NEARBY_FIELD_MASK_FIELDS = (
 )
 PLACES_NEARBY_FIELD_MASK = ",".join(f"places.{field}" for field in PLACES_NEARBY_FIELD_MASK_FIELDS)
 
+# Places API (New) searchNearby: "fast_food" is not supported; maxResultCount must be 1–20.
 HEALTHY_NEARBY_INCLUDED_TYPES = (
     "restaurant",
     "meal_takeaway",
-    "fast_food",
     "cafe",
 )
 
@@ -50,12 +50,12 @@ def build_nearby_search_payload(
     lng: float,
     radius_m: int,
     *,
-    max_result_count: int = 40,
+    max_result_count: int = 20,
     rank_preference: str = "DISTANCE",
 ) -> Dict[str, Any]:
-    # API allows up to 50; we use a higher cap to avoid dropping the user's current place.
-    radius_val = float(max(200, min(5000, int(_safe_float(radius_m, 2000) or 2000))))
-    result_cap = int(max(1, min(50, int(_safe_float(max_result_count, 40) or 40))))
+    # Places API (New): circle radius up to 50_000 m; maxResultCount must be 1–20.
+    radius_val = float(max(200, min(50000, int(_safe_float(radius_m, 2000) or 2000))))
+    result_cap = int(max(1, min(20, int(_safe_float(max_result_count, 20) or 20))))
     rank_value = str(rank_preference or "").strip().upper()
     if rank_value not in {"DISTANCE", "POPULARITY"}:
         rank_value = "DISTANCE"
@@ -85,11 +85,14 @@ def map_places_new_response(body: Dict[str, Any]) -> List[Dict[str, Any]]:
 
         display_name = item.get("displayName") if isinstance(item.get("displayName"), dict) else {}
         location = item.get("location") if isinstance(item.get("location"), dict) else {}
+        # displayName is LocalizedText with "text"; "name" in New API is resource name (places/ID), not display.
+        name_text = (display_name.get("text") if isinstance(display_name, dict) else None) or ""
+        name_str = str(name_text).strip() or "Nearby place"
 
         out.append(
             {
                 # Keep legacy internal keys to avoid breaking current /places/healthy assembly.
-                "name": str(display_name.get("text") or item.get("name") or "").strip(),
+                "name": name_str,
                 "lat": float(_safe_float(location.get("latitude"), 0.0) or 0.0),
                 "lng": float(_safe_float(location.get("longitude"), 0.0) or 0.0),
                 "types": item.get("types") if isinstance(item.get("types"), list) else [],
