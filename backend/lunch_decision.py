@@ -172,6 +172,7 @@ def _place_profile(
     remaining_calories: Any,
     remaining_protein_g: Any,
     current_hour: Optional[int] = None,
+    use_llm_place_context: bool = True,
 ) -> Dict[str, Any]:
     goal_value = personalization_goal_value(personalization_goal)
     scoring = score_healthy_place(place, mode=mode, personalization_goal=personalization_goal)
@@ -183,12 +184,15 @@ def _place_profile(
         health_score=health_score_10pt,
         mode=mode,
         personalization_goal=personalization_goal,
+        use_llm_copy=use_llm_place_context,
+        allow_llm_macro=use_llm_place_context,
     )
     menu = recommend_menu_items_for_place(
         place,
         health_score=health_score_10pt,
         mode=mode,
         personalization_goal=personalization_goal,
+        use_llm_place_context=use_llm_place_context,
     )
     top_item = dict(_menu_item(menu))
     menu_context_text = " ".join(
@@ -334,10 +338,10 @@ def _place_profile(
     # protein_catchup_option and lighter_recovery_option are user-specific, not cached.
     llm_candidates = (
         menu.get("llm_reasoning_candidates")
-        if isinstance(menu.get("llm_reasoning_candidates"), dict)
+        if use_llm_place_context and isinstance(menu.get("llm_reasoning_candidates"), dict)
         else {}
     )
-    if llm_candidates.get("llm_reasoning_used") and not llm_candidates.get("contextual_overlay_applied"):
+    if use_llm_place_context and llm_candidates.get("llm_reasoning_used") and not llm_candidates.get("contextual_overlay_applied"):
         try:
             llm_candidates = apply_contextual_overlay(
                 llm_candidates,
@@ -441,6 +445,8 @@ def _place_profile(
             "goal": goal_value,
             "llm_reasoning_candidates": llm_candidates,
         },
+        use_llm_copy=use_llm_place_context,
+        allow_llm_macro=use_llm_place_context,
     )
 
     share_card = build_best_order_share_card(
@@ -823,6 +829,7 @@ def build_lunch_decision_response(
     target_protein_g: Any = None,
     consumed_protein_g: Any = None,
     current_hour: Any = None,
+    use_llm_place_context: bool = True,
 ) -> Dict[str, Any]:
     resolved_mode = NutritionMode.CUT if bool(cut_mode) else NutritionMode.DEFAULT
     resolved_goal = normalize_personalization_goal(goal)
@@ -842,6 +849,7 @@ def build_lunch_decision_response(
             remaining_calories=remaining_cal,
             remaining_protein_g=remaining_protein,
             current_hour=resolved_hour,
+            use_llm_place_context=use_llm_place_context,
         )
         for place in (nearby_places or [])
         if isinstance(place, dict)

@@ -13205,6 +13205,7 @@ async def places_lunch_decision(
         current_hour=current_hour,
         goal=goal,
         cut_mode=bool(cut_mode),
+        use_llm_place_context=False,
     )
     lunch_payload["daily_decision"] = build_daily_decision_response(
         nearby_places=nearby_places,
