@@ -87,6 +87,7 @@ def _build_profiles(
     personalization_goal: Any,
     remaining_calories: Any,
     remaining_protein_g: Any,
+    use_llm_place_context: bool = True,
 ) -> List[Dict[str, Any]]:
     out: List[Dict[str, Any]] = []
     for place in nearby_places or []:
@@ -101,6 +102,7 @@ def _build_profiles(
                 personalization_goal=personalization_goal,
                 remaining_calories=remaining_calories,
                 remaining_protein_g=remaining_protein_g,
+                use_llm_place_context=use_llm_place_context,
             )
             out.append(profile)
         except Exception:
@@ -328,6 +330,7 @@ def build_daily_decision_response(
     current_hour: Any = None,
     goal: Any = None,
     cut_mode: bool = False,
+    use_llm_place_context: bool = True,
 ) -> Dict[str, Any]:
     resolved_goal = normalize_personalization_goal(goal)
     goal_value = personalization_goal_value(resolved_goal)
@@ -364,6 +367,7 @@ def build_daily_decision_response(
         personalization_goal=resolved_goal,
         remaining_calories=rem_cal,
         remaining_protein_g=rem_protein,
+        use_llm_place_context=use_llm_place_context,
     )
 
     primary = _pick_primary(
