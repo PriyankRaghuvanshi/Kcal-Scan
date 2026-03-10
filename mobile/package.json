@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
+    "test": "jest",
     "start": "expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",
@@ -18,7 +19,9 @@
     "expo-apple-authentication": "~8.0.8",
     "expo-auth-session": "~7.0.10",
     "expo-camera": "~17.0.10",
+    "expo-constants": "~18.0.13",
     "expo-dev-client": "~6.0.20",
+    "expo-device": "~7.0.2",
     "expo-file-system": "~19.0.21",
     "expo-image-picker": "~17.0.10",
     "expo-location": "~19.0.7",
@@ -31,5 +34,8 @@
     "react-native-purchases": "^9.7.1",
     "react-native-url-polyfill": "^3.0.0"
   },
-  "private": true
+  "private": true,
+  "devDependencies": {
+    "jest": "^30.3.0"
+  }
 }

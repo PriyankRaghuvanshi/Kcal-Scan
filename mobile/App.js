@@ -7,6 +7,7 @@ import {
   Image,
   Alert,
   ActivityIndicator,
+  AppState,
   FlatList,
   StyleSheet,
   ScrollView,
@@ -30,8 +31,48 @@ import "react-native-url-polyfill/auto";
 // OAuth helpers (Google)
 import * as AuthSession from "expo-auth-session";
 import * as Notifications from "expo-notifications";
+import Constants from "expo-constants";
 import * as AppleAuthentication from "expo-apple-authentication";
 
+import {
+  normalizeHealthyPlacesResponse,
+  getHealthyItemLineLabel,
+  getHealthyPanelItemHeading,
+} from "./healthyNearbyUtils";
+import {
+  postMealDecisionEvent,
+  postMealFeedback,
+  buildDecisionEventPayload,
+  buildMealFeedbackPayload,
+} from "./personalLearningApi";
+import MealFeedbackPrompt from "./MealFeedbackPrompt";
+import {
+  fetchSmartFoodAlertCandidates,
+  buildSmartAlertFetchParams,
+} from "./smartAlertsApi";
+import {
+  getSmartAlertState,
+  updateSmartAlertSettings,
+  filterCandidatesForDisplay,
+  getAlertId,
+  recordAlertOpened,
+  recordAlertDismissed,
+} from "./smartAlertState";
+import { SmartAlertCard } from "./components/SmartAlertCard";
+import { SmartAlertInbox } from "./components/SmartAlertInbox";
+import { SmartAlertSettings } from "./components/SmartAlertSettings";
+import {
+  requestPushPermissionsIfNeeded,
+  getExpoPushTokenSafe,
+  registerPushTokenWithBackend,
+  unregisterPushTokenWithBackend,
+  setupNotificationListeners,
+  cleanupNotificationListeners,
+  handleNotificationOpen,
+  getPushPermissionStatus,
+  loadPushRegistrationState,
+  savePushRegistrationState,
+} from "./pushNotifications";
 
 import * as WebBrowser from "expo-web-browser";
 // RevenueCat
@@ -134,6 +175,7 @@ const SUPPLEMENT_PROCESSING_CHECKS = [
 const SUPPLEMENT_LEGAL_NOTE =
   "This authenticity confidence score is based on structural and pattern analysis. It is not a definitive determination of product genuineness. For confirmation, contact the manufacturer.";
 const DEFAULT_HEALTHY_RADIUS_M = 3000;
+const WIDER_SEARCH_RADIUS_M = 8000;
 const SUPPLEMENT_REPORT_REASONS = [
   { key: "packaging_differs", label: "Packaging looks different" },
   { key: "taste_texture_unusual", label: "Taste/texture unusual" },
@@ -381,14 +423,19 @@ function findMatchingLunchCard(place, cards) {
   const idx = findMatchingHealthyPlaceIndex(place, list);
   return idx >= 0 ? list[idx] : null;
 }
+function healthyPlaceScore100(place) {
+  const display = num(place?.display_rank_score_100);
+  if (Number.isFinite(display)) return display;
+  const v = num(place?.health_score_100);
+  if (Number.isFinite(v)) return v;
+  const h = num(place?.health_score);
+  return Number.isFinite(h) ? h * 10 : 0;
+}
+
 function healthyPlaceBand(place) {
   const explicit = String(place?.score_band || "").trim().toLowerCase();
   if (explicit === "high" || explicit === "medium" || explicit === "low") return explicit;
-  const score100 = Number.isFinite(num(place?.health_score_100))
-    ? num(place?.health_score_100)
-    : Number.isFinite(num(place?.health_score))
-    ? num(place?.health_score) * 10
-    : 0;
+  const score100 = healthyPlaceScore100(place);
   if (score100 >= 80) return "high";
   if (score100 >= 60) return "medium";
   return "low";
@@ -425,7 +472,7 @@ function filterHealthyPlacesForMap(places, filterKey) {
   if (key === "best_right_now") {
     const scored = rows.filter((x) => {
       const rank = num(x?.map_rank);
-      const score100 = Number.isFinite(num(x?.health_score_100)) ? num(x?.health_score_100) : num(x?.health_score) * 10;
+      const score100 = healthyPlaceScore100(x);
       return (Number.isFinite(rank) && rank <= 5) || score100 >= 60;
     });
     return scored.length ? scored : rows.slice(0, 5);
@@ -1490,6 +1537,8 @@ export default function App() {
   const [healthyPlacesBusy, setHealthyPlacesBusy] = useState(false);
   const [healthyPlacesError, setHealthyPlacesError] = useState("");
   const [healthyPlaces, setHealthyPlaces] = useState([]);
+  const [healthySortMode, setHealthySortMode] = useState("flat_score");
+  const [healthySections, setHealthySections] = useState(null);
   const [healthyPlaceCoords, setHealthyPlaceCoords] = useState(null);
   const [healthyMapFocusCoords, setHealthyMapFocusCoords] = useState(null);
   const [healthyMapWidth, setHealthyMapWidth] = useState(320);
@@ -1506,6 +1555,8 @@ export default function App() {
   const [menuScanError, setMenuScanError] = useState("");
   const [menuScanResult, setMenuScanResult] = useState(null);
   const [cameraMode, setCameraMode] = useState("meal");
+  const [pendingMealFeedback, setPendingMealFeedback] = useState(null);
+  const [showMealFeedbackPrompt, setShowMealFeedbackPrompt] = useState(false);
 
   // ===== History (isolated by user id) =====
   const [history, setHistory] = useState([]);
@@ -1555,6 +1606,23 @@ export default function App() {
   const [barcodeManual, setBarcodeManual] = useState("");
   const [barcodeBusy, setBarcodeBusy] = useState(false);
   const lastBarcodeAt = useRef(0);
+
+  // ===== Smart Food Alerts =====
+  const [smartAlertCandidates, setSmartAlertCandidates] = useState([]);
+  const [smartAlertsBusy, setSmartAlertsBusy] = useState(false);
+  const [smartAlertState, setSmartAlertState] = useState(null);
+  const [smartAlertInboxVisible, setSmartAlertInboxVisible] = useState(false);
+  const [smartAlertSettingsVisible, setSmartAlertSettingsVisible] = useState(false);
+  const smartAlertsLastFetchRef = useRef(0);
+  const SMART_ALERTS_COOLDOWN_MS = 5 * 60 * 1000; // 5 min between fetches
+
+  // ===== Push Notifications =====
+  const [pushPermissionStatus, setPushPermissionStatus] = useState(null);
+  const [expoPushToken, setExpoPushToken] = useState(null);
+  const [pushRegisteredUserId, setPushRegisteredUserId] = useState(null);
+  const pushNotificationSubsRef = useRef(null);
+  const pushPermissionPromptedThisSessionRef = useRef(false);
+  const pushRegistrationRef = useRef({ userId: null, token: null });
 
   // ===== RevenueCat =====
   const [rcReady, setRcReady] = useState(false);
@@ -1640,6 +1708,14 @@ export default function App() {
           shouldSetBadge: false,
         }),
       });
+      if (Platform.OS === "android") {
+        Notifications.setNotificationChannelAsync("default", {
+          name: "Smart Food Alerts",
+          importance: Notifications.AndroidImportance.MAX,
+          vibrationPattern: [0, 250, 250, 250],
+          lightColor: "#2563eb",
+        });
+      }
     } catch {}
   }, []);
 
@@ -1732,6 +1808,7 @@ export default function App() {
     setHealthyPlacesBusy(false);
     setHealthyPlacesError("");
     setHealthyPlaces([]);
+    setHealthySections(null);
     setHealthyPlaceCoords(null);
     setHealthyMapFocusCoords(null);
     setHealthyViewMode("map");
@@ -1778,6 +1855,7 @@ export default function App() {
       setHealthyPlacesBusy(false);
       setHealthyPlacesError("");
       setHealthyPlaces([]);
+      setHealthySections(null);
       setHealthyPlaceCoords(null);
       setHealthyMapFocusCoords(null);
       setHealthyViewMode("map");
@@ -1810,6 +1888,134 @@ export default function App() {
     void fetchAiConsent(userId);
     void flushCoachFeedbackQueue(userId);
   }, [userId]);
+
+  useEffect(() => {
+    (async () => {
+      const state = await getSmartAlertState();
+      setSmartAlertState(state);
+    })();
+  }, []);
+
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (next) => {
+      if (next === "active") {
+        if (healthyPlaceCoords && userId && smartAlertState?.enabled) {
+          void fetchSmartAlerts({ coords: healthyPlaceCoords, force: false });
+        }
+      }
+    });
+    return () => sub?.remove?.();
+  }, [healthyPlaceCoords?.lat, healthyPlaceCoords?.lng, userId, smartAlertState?.enabled]);
+
+  // Push registration: when Smart Alerts enabled + userId, request permission, get token, register
+  useEffect(() => {
+    let cancelled = false;
+    const uid = userId || session?.user?.id;
+    const enabled = smartAlertState?.enabled;
+    if (!uid || !enabled) return;
+
+    (async () => {
+      const status = await getPushPermissionStatus();
+      if (!cancelled) setPushPermissionStatus(status);
+      if (!status.granted) return;
+
+      const token = await getExpoPushTokenSafe();
+      if (cancelled) return;
+      if (!token) return;
+
+      setExpoPushToken(token);
+      const result = await registerPushTokenWithBackend({
+        userId: uid,
+        expoPushToken: token,
+        platform: Platform.OS,
+        appVersion: Constants?.expoConfig?.version || "1.0",
+      });
+      if (!cancelled && result.ok) {
+        setPushRegisteredUserId(uid);
+        pushRegistrationRef.current = { userId: uid, token };
+        await savePushRegistrationState({
+          pushPermissionStatus: "granted",
+          expoPushToken: token,
+          pushRegisteredUserId: uid,
+          lastPushRegistrationAt: Date.now(),
+        });
+      }
+    })();
+  }, [userId, session?.user?.id, smartAlertState?.enabled]);
+
+  // Push unregister when Smart Alerts disabled
+  useEffect(() => {
+    const enabled = smartAlertState?.enabled;
+    const uid = pushRegisteredUserId;
+    const token = expoPushToken;
+    if (enabled || !uid || !token) return;
+
+    (async () => {
+      await unregisterPushTokenWithBackend({ userId: uid, expoPushToken: token });
+      setPushRegisteredUserId(null);
+      setExpoPushToken(null);
+      pushRegistrationRef.current = { userId: null, token: null };
+      await savePushRegistrationState({});
+    })();
+  }, [smartAlertState?.enabled, pushRegisteredUserId, expoPushToken]);
+
+  // Load push state on mount
+  useEffect(() => {
+    (async () => {
+      const state = await loadPushRegistrationState();
+      if (state.expoPushToken) {
+        setExpoPushToken(state.expoPushToken);
+        if (state.pushRegisteredUserId) {
+          setPushRegisteredUserId(state.pushRegisteredUserId);
+          pushRegistrationRef.current = {
+            userId: state.pushRegisteredUserId,
+            token: state.expoPushToken,
+          };
+        }
+      }
+      const status = await getPushPermissionStatus();
+      setPushPermissionStatus(status);
+    })();
+  }, []);
+
+  // Notification listeners: received + response (tap)
+  useEffect(() => {
+    const subs = setupNotificationListeners({
+      onNotificationReceived: (notification) => {
+        const data = notification?.request?.content?.data;
+        if (data?.place_id && data?.alert_type) {
+          const candidate = {
+            place_id: data.place_id,
+            place_name: data.place_name,
+            best_item_name: data.best_item_name,
+            alert_type: data.alert_type,
+            title: notification?.request?.content?.title || "Smart alert",
+            body: notification?.request?.content?.body || "",
+            display_rank_score_100: data.display_rank_score_100,
+          };
+          setSmartAlertCandidates((prev) => {
+            const key = (c) => (c.place_id || "") + (c.alert_type || "");
+            if (prev.some((p) => key(p) === key(candidate))) return prev;
+            return [candidate, ...prev].slice(0, 10);
+          });
+        }
+      },
+      onNotificationResponse: (response) => {
+        handleNotificationOpen(response, {
+          userId: userId || session?.user?.id,
+          recordAlertOpened,
+        }).then(() => {
+          setSmartAlertState(null);
+          getSmartAlertState().then(setSmartAlertState);
+        });
+      },
+    });
+    pushNotificationSubsRef.current = subs;
+    return () => {
+      cleanupNotificationListeners(subs);
+      pushNotificationSubsRef.current = null;
+    };
+  }, [userId, session?.user?.id]);
 
   useEffect(() => {
     if (!supplementProcessingVisible) {
@@ -3091,6 +3297,11 @@ export default function App() {
 
   async function signOut() {
     dismissKeyboardSafe();
+    const { userId: regUid, token: regToken } = pushRegistrationRef.current || {};
+    if (regUid && regToken) {
+      unregisterPushTokenWithBackend({ userId: regUid, expoPushToken: regToken });
+      pushRegistrationRef.current = { userId: null, token: null };
+    }
     try {
       await supabase.auth.signOut();
     } catch {}
@@ -3139,6 +3350,7 @@ export default function App() {
     setHealthyPlacesBusy(false);
     setHealthyPlacesError("");
     setHealthyPlaces([]);
+    setHealthySections(null);
     setHealthyPlaceCoords(null);
     setHealthyMapFocusCoords(null);
     setHealthyViewMode("map");
@@ -3152,6 +3364,9 @@ export default function App() {
     setMenuScanError("");
     setMenuScanResult(null);
     setRerunBusy(false);
+    setPushRegisteredUserId(null);
+    setExpoPushToken(null);
+    setSmartAlertCandidates([]);
     if (coachRefreshTimerRef.current) {
       clearTimeout(coachRefreshTimerRef.current);
       coachRefreshTimerRef.current = null;
@@ -3954,27 +4169,55 @@ async function openCamera(mode = "meal") {
       const goal = String(opts?.goal || resolveLunchGoal()).trim();
       const cutMode = typeof opts?.cut_mode === "boolean" ? opts.cut_mode : goal === "fat_loss";
 
+      const radiusM = Number.isFinite(num(opts?.radius_m)) ? Math.max(500, Math.min(50000, num(opts.radius_m))) : DEFAULT_HEALTHY_RADIUS_M;
       const params = [
         "lat=" + encodeURIComponent(lat),
         "lng=" + encodeURIComponent(lng),
-        "radius=" + encodeURIComponent(DEFAULT_HEALTHY_RADIUS_M),
+        "radius=" + encodeURIComponent(radiusM),
       ];
       if (remainingCalories !== null) params.push("remaining_calories=" + encodeURIComponent(remainingCalories));
       if (remainingProtein !== null) params.push("remaining_protein_g=" + encodeURIComponent(remainingProtein));
       if (goal) params.push("goal=" + encodeURIComponent(goal));
       if (cutMode) params.push("cut_mode=true");
+      const sortMode = String(opts?.sortMode || "flat_score").trim().toLowerCase();
+      if (sortMode === "sectioned" || sortMode === "flat_score") {
+        params.push("sort_mode=" + encodeURIComponent(sortMode));
+      } else {
+        params.push("sort_mode=" + encodeURIComponent("flat_score"));
+      }
+      const uid = userId || (session?.user?.id ?? null);
+      if (uid) {
+        params.push("user_id=" + encodeURIComponent(String(uid)));
+      }
 
       const url = withTimezoneQuery(`${API_BASE}/places/healthy?${params.join("&")}`);
       const res = await fetch(url, { method: "GET", headers: { accept: "application/json" } });
       const data = await safeJson(res);
       if (reqSeq !== healthyPlacesReqSeqRef.current) return;
-      const list = Array.isArray(data?.places)
-        ? data.places.filter((x) => x && typeof x === "object")
-        : [];
+      const normalized = normalizeHealthyPlacesResponse(data);
+      const list = normalized.items;
+      setHealthySortMode(normalized.sortMode);
+      setHealthySections(normalized.sections ?? null);
+
+      if (typeof __DEV__ !== "undefined" && __DEV__ && data?._debug) {
+        console.log("[Healthy Nearby] pipeline debug:", data._debug);
+      }
 
       setHealthyPlaces(list);
       setHealthyViewMode("map");
       if (!opts?.preserveFilter) setHealthyMapFilter("all");
+
+      // Fire a lightweight decision event for this load (one per call, not per card).
+      const uid = userId || (session?.user?.id ?? null);
+      if (uid && list.length) {
+        const payload = buildDecisionEventPayload(list[0], "recommendation_viewed", {
+          userId: uid,
+          goal,
+          timeOfDay: "",
+          tab: "healthy_nearby",
+        });
+        postMealDecisionEvent(payload);
+      }
 
       const preferredIndex = findMatchingHealthyPlaceIndex(opts?.preferredCard, list);
       const selectedIndex = preferredIndex >= 0 ? preferredIndex : list.length ? 0 : -1;
@@ -3990,10 +4233,18 @@ async function openCamera(mode = "meal") {
         setHealthyMapFocusCoords(null);
       }
 
+      void fetchSmartAlerts({ coords: { lat, lng }, force: false });
+
       if (!list.length) {
         const noResultsReason = String(data?._no_results_reason || "").trim();
         if (noResultsReason === "places_api_key_not_configured") {
           setHealthyPlacesError("Places search is not configured on this server. Contact support.");
+        } else if (noResultsReason === "api_error_403" || noResultsReason === "api_error_401") {
+          setHealthyPlacesError("Google Places (New) is not enabled or the API key is invalid. Enable \"Places API (New)\" in Google Cloud and ensure the key has access.");
+        } else if (noResultsReason.startsWith("api_error_")) {
+          setHealthyPlacesError("Could not load places from Google (server error). Try again later or contact support.");
+        } else if (noResultsReason === "api_request_failed") {
+          setHealthyPlacesError("Network or server error while loading places. Check your connection and try again.");
         } else {
           setHealthyPlacesError("No food places found nearby. Try moving to a more central location.");
         }
@@ -4003,12 +4254,45 @@ async function openCamera(mode = "meal") {
       const msg = String((e && e.message) || e || "").trim() || "Could not load nearby places.";
       setHealthyPlacesError(msg.slice(0, 220));
       setHealthyPlaces([]);
+    setHealthySections(null);
       setSelectedHealthyPlaceId("");
       setHealthyMapFocusCoords(null);
     } finally {
       if (reqSeq === healthyPlacesReqSeqRef.current) {
         setHealthyPlacesBusy(false);
       }
+    }
+  }
+
+  async function fetchSmartAlerts(opts = {}) {
+    const now = Date.now();
+    if (!opts.force && now - smartAlertsLastFetchRef.current < SMART_ALERTS_COOLDOWN_MS) return;
+    const coords = opts.coords || healthyPlaceCoords;
+    if (!coords || !Number.isFinite(num(coords?.lat)) || !Number.isFinite(num(coords?.lng))) return;
+
+    const state = smartAlertState || (await getSmartAlertState());
+    if (state && !state.enabled) return;
+
+    setSmartAlertsBusy(true);
+    smartAlertsLastFetchRef.current = now;
+    try {
+      const params = buildSmartAlertFetchParams({
+        userId: userId || session?.user?.id,
+        lat: num(coords.lat),
+        lng: num(coords.lng),
+        remainingCalories: Number.isFinite(num(remainingToday?.kcal)) ? num(remainingToday.kcal) : null,
+        remainingProteinG: Number.isFinite(num(remainingToday?.protein_g)) ? num(remainingToday.protein_g) : null,
+        goal: resolveLunchGoal(),
+        ignoredStreak: state?.ignored_streak_local ?? 0,
+      });
+      const { candidates } = await fetchSmartFoodAlertCandidates(params, false, withTimezoneQuery);
+      const filtered = state ? filterCandidatesForDisplay(candidates, state) : candidates;
+      setSmartAlertCandidates(filtered.slice(0, 10));
+    } catch (e) {
+      if (typeof __DEV__ !== "undefined" && __DEV__) console.log("[SmartAlerts] fetch failed", String(e));
+      setSmartAlertCandidates([]);
+    } finally {
+      setSmartAlertsBusy(false);
     }
   }
 
@@ -4283,10 +4567,14 @@ async function openCamera(mode = "meal") {
         const noResultsReason = String(payload?._no_results_reason || "").trim();
         if (noResultsReason === "places_api_key_not_configured") {
           setLunchDecisionError("Places search is not configured on this server. Contact support.");
-        } else if (noResultsReason === "no_places_returned_by_api") {
+        } else if (noResultsReason === "no_places_returned_by_api" || noResultsReason === "api_request_failed") {
           setLunchDecisionError("No food places found nearby. Try moving to a more central location or check location permissions.");
+        } else if (noResultsReason === "api_error_403" || noResultsReason === "api_error_401") {
+          setLunchDecisionError("Google Places (New) is not enabled or the API key is invalid. Enable \"Places API (New)\" in Google Cloud.");
+        } else if (noResultsReason.startsWith("api_error_")) {
+          setLunchDecisionError("Could not load places from Google. Try again later or contact support.");
         } else {
-          setLunchDecisionError("No strong macro-fit picks found. Showing best available options — check the Map tab.");
+          setLunchDecisionError("No strong macro-fit picks found. Check the Map tab for nearby options.");
         }
       }
 
@@ -5031,18 +5319,33 @@ async function openCamera(mode = "meal") {
     { key: "cut_friendly", label: "Cut Friendly" },
     { key: "best_right_now", label: "Best Right Now" },
   ];
-  const healthyVisiblePlaces = (() => {
+  const { healthyVisiblePlaces, healthySectionsFiltered } = (() => {
+    const isBackendOrdered = healthySortMode === "flat_score" || healthySortMode === "sectioned";
+    if (healthySortMode === "sectioned" && Array.isArray(healthySections) && healthySections.length > 0) {
+      const filteredSections = healthySections
+        .map((sec) => ({
+          name: String(sec?.name || "").trim() || "Section",
+          items: filterHealthyPlacesForMap(Array.isArray(sec?.items) ? sec.items : [], healthyMapFilter),
+        }))
+        .filter((sec) => sec.items.length > 0);
+      const flat = filteredSections.flatMap((sec) => sec.items);
+      return { healthyVisiblePlaces: flat, healthySectionsFiltered: filteredSections };
+    }
     const filtered = filterHealthyPlacesForMap(healthyPlaces, healthyMapFilter);
+    if (isBackendOrdered) {
+      return { healthyVisiblePlaces: filtered, healthySectionsFiltered: null };
+    }
     const rows = [...filtered];
     rows.sort((a, b) => {
+      const scoreA = healthyPlaceScore100(a);
+      const scoreB = healthyPlaceScore100(b);
+      if (scoreB !== scoreA) return scoreB - scoreA;
       const rankA = num(a?.map_rank);
       const rankB = num(b?.map_rank);
       if (Number.isFinite(rankA) && Number.isFinite(rankB) && rankA !== rankB) return rankA - rankB;
-      const scoreA = Number.isFinite(num(a?.health_score_100)) ? num(a?.health_score_100) : num(a?.health_score) * 10;
-      const scoreB = Number.isFinite(num(b?.health_score_100)) ? num(b?.health_score_100) : num(b?.health_score) * 10;
-      return scoreB - scoreA;
+      return 0;
     });
-    return rows;
+    return { healthyVisiblePlaces: rows, healthySectionsFiltered: null };
   })();
   const healthySelectedPlace = (() => {
     if (!healthyVisiblePlaces.length) return null;
@@ -5182,6 +5485,86 @@ async function openCamera(mode = "meal") {
 
         {activeScreen !== "healthy_nearby" ? (
         <>
+        {(() => {
+          const enabled = smartAlertState?.enabled;
+          const count = (smartAlertCandidates || []).length;
+          const preview = (smartAlertCandidates || []).slice(0, 3);
+          if (!enabled) {
+            return (
+              <TouchableOpacity
+                style={[styles.card, { opacity: 0.9 }]}
+                onPress={() => setSmartAlertSettingsVisible(true)}
+                activeOpacity={0.85}
+              >
+                <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                  <View>
+                    <Text style={styles.cardTitle}>Smart Food Alerts</Text>
+                    <Text style={styles.tiny}>Turn on to see nearby options that fit your goals</Text>
+                  </View>
+                  <Text style={styles.smallBtnText}>⚙</Text>
+                </View>
+              </TouchableOpacity>
+            );
+          }
+          return (
+            <View style={styles.card}>
+              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                <TouchableOpacity
+                  style={{ flex: 1 }}
+                  onPress={() => setSmartAlertInboxVisible(true)}
+                  activeOpacity={0.9}
+                >
+                  <Text style={styles.cardTitle}>Smart Food Alerts</Text>
+                  <Text style={styles.tiny}>
+                    {count > 0
+                      ? `${count} nearby option${count !== 1 ? "s" : ""} for your goals`
+                      : smartAlertsBusy
+                      ? "Checking…"
+                      : "No alerts right now"}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.smallBtn, { marginLeft: 8 }]}
+                  onPress={() => setSmartAlertSettingsVisible(true)}
+                >
+                  <Text style={styles.smallBtnText}>⚙</Text>
+                </TouchableOpacity>
+              </View>
+              {preview.length > 0 ? (
+                <View style={{ marginTop: 10 }}>
+                  {preview.map((c, i) => (
+                    <SmartAlertCard
+                      key={(c.place_id || "") + (c.alert_type || "") + i}
+                      candidate={c}
+                      compact
+                      onOpen={async (cand) => {
+                        const aid = getAlertId(cand);
+                        await recordAlertOpened(aid, cand.place_id);
+                        setSmartAlertState(await getSmartAlertState());
+                        setSmartAlertInboxVisible(false);
+                        void openHealthyNearbyScreen("decide");
+                      }}
+                      onDismiss={async (cand) => {
+                        const aid = getAlertId(cand);
+                        await recordAlertDismissed(aid, cand.place_id);
+                        setSmartAlertState(await getSmartAlertState());
+                        setSmartAlertCandidates((prev) => prev.filter((p) => getAlertId(p) !== aid));
+                      }}
+                    />
+                  ))}
+                  {count > 3 ? (
+                    <TouchableOpacity
+                      style={[styles.smallBtn, { marginTop: 8, alignSelf: "flex-start" }]}
+                      onPress={() => setSmartAlertInboxVisible(true)}
+                    >
+                      <Text style={styles.smallBtnText}>View all ({count})</Text>
+                    </TouchableOpacity>
+                  ) : null}
+                </View>
+              ) : null}
+            </View>
+          );
+        })()}
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Scans left</Text>
           <Text style={styles.big}>
@@ -6260,18 +6643,28 @@ async function openCamera(mode = "meal") {
               <Text style={styles.nearbyErrorText}>
                 {healthyPlacesError || lunchDecisionError}
               </Text>
-              <TouchableOpacity
-                style={styles.nearbyRetryBtn}
-                onPress={() => {
-                  setHealthyNearbyTab("decision");
-                  void loadLunchDecision();
-                }}
-                disabled={lunchDecisionBusy || healthyPlacesBusy}
-              >
-                <Text style={styles.nearbyRetryBtnText}>
-                  {lunchDecisionBusy || healthyPlacesBusy ? "Searching..." : "↺ Retry"}
-                </Text>
-              </TouchableOpacity>
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 8, justifyContent: "center" }}>
+                <TouchableOpacity
+                  style={styles.nearbyRetryBtn}
+                  onPress={() => {
+                    setHealthyNearbyTab("decision");
+                    void loadLunchDecision();
+                  }}
+                  disabled={lunchDecisionBusy || healthyPlacesBusy}
+                >
+                  <Text style={styles.nearbyRetryBtnText}>
+                    {lunchDecisionBusy || healthyPlacesBusy ? "Searching..." : "↺ Retry"}
+                  </Text>
+                </TouchableOpacity>
+                {healthyPlaceCoords ? (
+                  <TouchableOpacity
+                    style={[styles.nearbyRetryBtn, { backgroundColor: "#1e3a2f", borderColor: "#22c55e" }]}
+                    onPress={openHealthyAreaMap}
+                  >
+                    <Text style={styles.nearbyRetryBtnText}>📍 Open in Maps</Text>
+                  </TouchableOpacity>
+                ) : null}
+              </View>
             </View>
           ) : null}
           {menuScanError ? (
@@ -6888,7 +7281,37 @@ async function openCamera(mode = "meal") {
                 </View>
               ) : (
                 <View style={{ marginTop: 8, alignItems: "center" }}>
-                  <Text style={styles.tiny}>No places match this filter right now.</Text>
+                  {healthyPlaceCoords ? (
+                    <View style={[styles.placeMapCard, { marginBottom: 12 }]}>
+                      <Text style={styles.itemName}>Your location</Text>
+                      <Text style={[styles.tiny, { marginTop: 4 }]}>
+                        You're at {round1(healthyPlaceCoords.lat)}, {round1(healthyPlaceCoords.lng)}
+                      </Text>
+                      <Text style={[styles.tiny, { marginTop: 6, color: "#94a3b8" }]}>
+                        Open the map to see your area and nearby food places.
+                      </Text>
+                      <TouchableOpacity
+                        style={[styles.primaryBtn, { marginTop: 12 }]}
+                        onPress={openHealthyAreaMap}
+                      >
+                        <Text style={styles.btnText}>📍 Open map to see my location</Text>
+                      </TouchableOpacity>
+                      {healthyMapFilter === "all" ? (
+                        <TouchableOpacity
+                          style={[styles.smallBtn, { marginTop: 8 }]}
+                          onPress={() => loadHealthyPlacesNearby({ radius_m: WIDER_SEARCH_RADIUS_M })}
+                          disabled={healthyPlacesBusy}
+                        >
+                          <Text style={styles.smallBtnText}>
+                            {healthyPlacesBusy ? "Searching…" : "Search wider area (8 km)"}
+                          </Text>
+                        </TouchableOpacity>
+                      ) : null}
+                    </View>
+                  ) : null}
+                  <Text style={styles.tiny}>
+                    {healthyMapFilter === "all" ? "No nearby places found right now." : "No places match this filter right now."}
+                  </Text>
                   {healthyMapFilter !== "all" ? (
                     <TouchableOpacity
                       style={[styles.smallBtn, { marginTop: 6 }]}
@@ -6910,11 +7333,15 @@ async function openCamera(mode = "meal") {
                   const badges = healthyPlaceBadges(place);
                   const distanceLabel = formatDistanceFromMeters(place?.distance_meters);
                   const why = String(
+                    place?.rank_reason_short ||
                     decisionCard?.why_this_works ||
+                    place?.why_this_ranked_here ||
                     place?.why_this_works ||
                     place?.short_reason ||
                     "Better choice nearby for your goal."
                   ).trim();
+                  const recommendationLabel = String(place?.recommendation_label || "").trim();
+                  const confidenceLabel = String(place?.confidence_label || "").trim();
 
                   const panel = place?.intelligence_panel && typeof place.intelligence_panel === "object"
                     ? place.intelligence_panel
@@ -6943,13 +7370,13 @@ async function openCamera(mode = "meal") {
                     (panel?.top_menu_item && typeof panel.top_menu_item === "object" ? panel.top_menu_item : null) ||
                     (place?.top_menu_item && typeof place.top_menu_item === "object" ? place.top_menu_item : null) ||
                     {
-                      item_name: String(place?.best_order || "Smart high-protein order"),
-                      estimated_calories: Number.isFinite(num(place?.estimated_calories)) ? Math.round(num(place?.estimated_calories)) : null,
-                      estimated_protein_g: Number.isFinite(num(place?.estimated_protein_g)) ? Math.round(num(place?.estimated_protein_g)) : null,
+                      item_name: String(place?.best_item_name || place?.best_order || "Smart high-protein order"),
+                      estimated_calories: Number.isFinite(num(place?.best_item_calories)) ? Math.round(num(place.best_item_calories)) : Number.isFinite(num(place?.estimated_calories)) ? Math.round(num(place?.estimated_calories)) : null,
+                      estimated_protein_g: Number.isFinite(num(place?.best_item_protein)) ? Math.round(num(place.best_item_protein)) : Number.isFinite(num(place?.estimated_protein_g)) ? Math.round(num(place?.estimated_protein_g)) : null,
                       short_reason: why,
                     };
 
-                  const topItemName = String(topMenuItem?.item_name || place?.best_order || "Smart high-protein order").trim();
+                  const topItemName = String(topMenuItem?.item_name || place?.best_item_name || place?.best_order || "Smart high-protein order").trim();
                   const topItemCalories = Number.isFinite(num(topMenuItem?.estimated_calories))
                     ? Math.round(num(topMenuItem?.estimated_calories))
                     : Number.isFinite(num(place?.estimated_calories))
@@ -7018,6 +7445,11 @@ async function openCamera(mode = "meal") {
                       : "Can fit with lighter choices.")
                   ).trim();
 
+                  const memoryLabel = String(place?.personal_memory_label || "").trim();
+                  const hideMemory = !memoryLabel || memoryLabel === "Not enough data yet";
+                  const timesChosen = Number.isFinite(num(place?.times_chosen)) ? num(place.times_chosen) : 0;
+                  const avgFullness = Number.isFinite(num(place?.avg_fullness)) ? num(place.avg_fullness) : null;
+
                   const reality =
                     (panel?.reality_check && typeof panel.reality_check === "object" ? panel.reality_check : null) ||
                     (place?.reality_check && typeof place.reality_check === "object" ? place.reality_check : null);
@@ -7046,7 +7478,7 @@ async function openCamera(mode = "meal") {
                     share_card: place?.share_card,
                     reality_check: reality || null,
                   };
-                  const topItemHeading = topItemLabel === "Best Menu Item" ? "Best Item" : topItemLabel;
+                  const topItemHeading = getHealthyPanelItemHeading(place);
 
                   return (
                     <View style={styles.healthySelectedCard}>
@@ -7058,9 +7490,22 @@ async function openCamera(mode = "meal") {
                           {String(place?.place_name || place?.name || "Nearby place")}
                         </Text>
                         <Text style={[styles.placeScore, { color: tone.color }]} numberOfLines={1}>
-                          Score {Math.round(num(place?.health_score_100 || num(place?.health_score) * 10 || 0))}
+                          Score {Math.round(healthyPlaceScore100(place))}
                         </Text>
                       </View>
+                      {(recommendationLabel || confidenceLabel) ? (
+                        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 4, alignItems: "center" }}>
+                          {!!recommendationLabel ? (
+                            <Text style={[styles.tiny, { fontWeight: "600" }]}>{recommendationLabel}</Text>
+                          ) : null}
+                          {!!confidenceLabel ? (
+                            <Text style={[styles.tiny, styles.nearbyLowPriorityHint]}>{confidenceLabel}</Text>
+                          ) : null}
+                        </View>
+                      ) : null}
+                      {!!why ? (
+                        <Text style={[styles.tiny, { marginTop: 4 }]} numberOfLines={2}>{why}</Text>
+                      ) : null}
                       {!!distanceLabel ? <Text style={styles.tiny}>{distanceLabel}</Text> : null}
 
                       <View style={styles.healthyCoachSection}>
@@ -7104,6 +7549,13 @@ async function openCamera(mode = "meal") {
                           </Text>
                         </View>
                         <Text style={styles.tiny} numberOfLines={2}>{decisionReason}</Text>
+                        {!hideMemory && (timesChosen > 0 || memoryLabel) ? (
+                          <Text style={[styles.tiny, styles.nearbyLowPriorityHint, { marginTop: 4 }]} numberOfLines={2}>
+                            {memoryLabel}
+                            {timesChosen > 0 ? ` • Chosen ${timesChosen}×` : ""}
+                            {avgFullness != null ? ` • Avg fullness ${round1(avgFullness)}/5` : ""}
+                          </Text>
+                        ) : null}
                         {badges.length ? (
                           <View style={styles.lunchBadgeRow}>
                             {badges.map((badge, badgeIdx) => (
@@ -7187,62 +7639,115 @@ async function openCamera(mode = "meal") {
           ) : null}
 
           {healthyViewMode === "list"
-            ? (healthyVisiblePlaces || []).slice(0, 8).map((place, idx) => {
-                const tone = healthyMapPinTone(place);
-                const opts = Array.isArray(place?.best_options) ? place.best_options.filter(Boolean).slice(0, 2) : [];
-                const placeSwaps = extractSwapSuggestions(place).slice(0, 1);
-                const distanceKm = haversineKm(
-                  healthyPlaceCoords?.lat,
-                  healthyPlaceCoords?.lng,
-                  place?.lat,
-                  place?.lng
-                );
-                return (
-                  <View key={healthyPlaceStableId(place, idx)} style={styles.placeCard}>
+            ? (() => {
+                const renderPlaceCard = (place, idx) => {
+                  const tone = healthyMapPinTone(place);
+                  const opts = Array.isArray(place?.best_options) ? place.best_options.filter(Boolean).slice(0, 2) : [];
+                  const placeSwaps = extractSwapSuggestions(place).slice(0, 1);
+                  const distanceKm = haversineKm(
+                    healthyPlaceCoords?.lat,
+                    healthyPlaceCoords?.lng,
+                    place?.lat,
+                    place?.lng
+                  );
+                  const listRecLabel = String(place?.recommendation_label || "").trim();
+                  const listConfLabel = String(place?.confidence_label || "").trim();
+                  const listReason = String(place?.rank_reason_short || place?.why_this_ranked_here || "").trim();
+                  const bestItemName = String(place?.best_item_name || place?.best_order || "").trim();
+                  const memoryLabel = String(place?.personal_memory_label || "").trim();
+                  const hideMemory = !memoryLabel || memoryLabel === "Not enough data yet";
+                  const itemLineLabel = getHealthyItemLineLabel(place?.recommendation_label);
+                  return (
+                    <View key={healthyPlaceStableId(place, idx)} style={styles.placeCard}>
                       <View style={styles.placeHeader}>
                         <Text style={[styles.itemName, styles.placeNameText]} numberOfLines={2}>
                           {String(place?.place_name || place?.name || "Unknown place")}
                         </Text>
                         <Text style={[styles.placeScore, { color: tone.color }]} numberOfLines={1}>
-                          Score {Math.round(num(place?.health_score_100 || num(place?.health_score) * 10 || 0))}
+                          Score {Math.round(healthyPlaceScore100(place))}
                         </Text>
                       </View>
-                    {!!String(place?.address || "").trim() ? (
-                      <Text style={styles.tiny}>{String(place.address)}</Text>
-                    ) : null}
-                    {Number.isFinite(distanceKm) ? (
-                      <Text style={[styles.tiny, { marginTop: 4 }]}>Distance: {round1(distanceKm)} km</Text>
-                    ) : null}
-                    {!!String(place?.best_order || "").trim() ? (
-                      <Text style={[styles.tiny, { marginTop: 4 }]}>Best order: {String(place.best_order)}</Text>
-                    ) : null}
-                    {placeSwaps.length ? (
-                      <Text style={[styles.swapHintText, { marginTop: 4 }]} numberOfLines={2}>
-                        Better swap: {placeSwaps[0]}
-                      </Text>
-                    ) : null}
-                    {opts.length ? (
-                      <View style={{ marginTop: 6 }}>
-                        {opts.map((opt, i) => (
-                          <Text key={`${idx}-opt-${i}`} style={styles.tiny}>
-                            • {String(opt)}
-                          </Text>
-                        ))}
+                      {(listRecLabel || listConfLabel) ? (
+                        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 4 }}>
+                          {!!listRecLabel ? <Text style={[styles.tiny, { fontWeight: "600" }]}>{listRecLabel}</Text> : null}
+                          {!!listConfLabel ? <Text style={[styles.tiny, styles.nearbyLowPriorityHint]}>{listConfLabel}</Text> : null}
+                        </View>
+                      ) : null}
+                      {!!listReason ? <Text style={[styles.tiny, { marginTop: 4 }]} numberOfLines={2}>{listReason}</Text> : null}
+                      {!!String(place?.address || "").trim() ? (
+                        <Text style={styles.tiny}>{String(place.address)}</Text>
+                      ) : null}
+                      {Number.isFinite(distanceKm) ? (
+                        <Text style={[styles.tiny, { marginTop: 4 }]}>Distance: {round1(distanceKm)} km</Text>
+                      ) : null}
+                      {!!bestItemName ? (
+                        <Text style={[styles.tiny, { marginTop: 4 }]}>{itemLineLabel}: {bestItemName}</Text>
+                      ) : null}
+                      {placeSwaps.length ? (
+                        <Text style={[styles.swapHintText, { marginTop: 4 }]} numberOfLines={2}>
+                          Better swap: {placeSwaps[0]}
+                        </Text>
+                      ) : null}
+                      {!hideMemory ? (
+                        <Text style={[styles.tiny, styles.nearbyLowPriorityHint, { marginTop: 4 }]} numberOfLines={1}>
+                          {memoryLabel}
+                        </Text>
+                      ) : null}
+                      {opts.length ? (
+                        <View style={{ marginTop: 6 }}>
+                          {opts.map((opt, i) => (
+                            <Text key={`${idx}-opt-${i}`} style={styles.tiny}>
+                              • {String(opt)}
+                            </Text>
+                          ))}
+                        </View>
+                      ) : null}
+                      <View style={{ marginTop: 8 }}>
+                        <TouchableOpacity
+                          style={styles.secondaryBtn}
+                          onPress={() => {
+                            const uid = userId || (session?.user?.id ?? null);
+                            if (uid) {
+                              const payload = buildDecisionEventPayload(place, "place_opened", {
+                                userId: uid,
+                                goal: resolveLunchGoal(),
+                                timeOfDay: "",
+                                tab: "healthy_nearby",
+                              });
+                              postMealDecisionEvent(payload);
+                              setPendingMealFeedback({
+                                place_id: String(place?.place_id || ""),
+                                place_name: String(place?.place_name || place?.name || ""),
+                                best_item_name: bestItemName,
+                                selected_item_name: bestItemName,
+                                selected_candidate_source: String(place?.menu_item_source || "").trim(),
+                                accepted_swap_label: placeSwaps[0] || "",
+                                estimated_calories: place?.best_item_calories ?? place?.estimated_calories ?? null,
+                                estimated_protein_g: place?.best_item_protein ?? place?.estimated_protein_g ?? null,
+                                goal: resolveLunchGoal(),
+                                time_of_day: "",
+                                swap_accepted: false,
+                              });
+                            }
+                            void openPlaceInMaps(place);
+                          }}
+                        >
+                          <Text style={styles.btnText}>Open in Maps</Text>
+                        </TouchableOpacity>
                       </View>
-                    ) : null}
-                    <View style={{ marginTop: 8 }}>
-                      <TouchableOpacity
-                        style={styles.secondaryBtn}
-                        onPress={() => {
-                          void openPlaceInMaps(place);
-                        }}
-                      >
-                        <Text style={styles.btnText}>Open in Maps</Text>
-                      </TouchableOpacity>
                     </View>
-                  </View>
-                );
-              })
+                  );
+                };
+                if (healthySectionsFiltered?.length) {
+                  return healthySectionsFiltered.map((sec, secIdx) => (
+                    <View key={`section-${secIdx}-${String(sec.name).slice(0, 20)}`} style={{ marginBottom: 16 }}>
+                      <Text style={[styles.healthyPanelSectionTitle, { marginBottom: 8 }]}>{sec.name}</Text>
+                      {(sec.items || []).slice(0, 8).map((place, idx) => renderPlaceCard(place, idx))}
+                    </View>
+                  ));
+                }
+                return (healthyVisiblePlaces || []).slice(0, 8).map((place, idx) => renderPlaceCard(place, idx));
+              })()
             : null}
         </View>
         ) : null}
@@ -7515,6 +8020,107 @@ async function openCamera(mode = "meal") {
         </Modal>
 
         <Modal
+          visible={smartAlertInboxVisible}
+          transparent
+          animationType="slide"
+          onRequestClose={() => setSmartAlertInboxVisible(false)}
+        >
+          <View style={styles.modalBackdrop}>
+            <View style={[styles.modalCard, { maxHeight: "80%" }]}>
+              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                <Text style={styles.cardTitle}>Smart Food Alerts</Text>
+                <TouchableOpacity style={styles.smallBtn} onPress={() => setSmartAlertInboxVisible(false)}>
+                  <Text style={styles.smallBtnText}>Close</Text>
+                </TouchableOpacity>
+              </View>
+              <SmartAlertInbox
+                candidates={smartAlertCandidates}
+                loading={smartAlertsBusy}
+                onOpenPlace={async (cand) => {
+                  const aid = getAlertId(cand);
+                  await recordAlertOpened(aid, cand.place_id);
+                  setSmartAlertState(await getSmartAlertState());
+                  setSmartAlertInboxVisible(false);
+                  void openHealthyNearbyScreen("decide");
+                }}
+                onDismiss={async (cand) => {
+                  const aid = getAlertId(cand);
+                  await recordAlertDismissed(aid, cand.place_id);
+                  setSmartAlertState(await getSmartAlertState());
+                  setSmartAlertCandidates((prev) => prev.filter((p) => getAlertId(p) !== aid));
+                }}
+                onRefresh={() => void fetchSmartAlerts({ force: true })}
+              />
+            </View>
+          </View>
+        </Modal>
+
+        <Modal
+          visible={smartAlertSettingsVisible}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setSmartAlertSettingsVisible(false)}
+        >
+          <View style={styles.modalBackdrop}>
+            <View style={styles.modalCard}>
+              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                <Text style={styles.cardTitle}>Smart Alert Settings</Text>
+                <TouchableOpacity style={styles.smallBtn} onPress={() => setSmartAlertSettingsVisible(false)}>
+                  <Text style={styles.smallBtnText}>Done</Text>
+                </TouchableOpacity>
+              </View>
+              <ScrollView style={{ maxHeight: 400 }} showsVerticalScrollIndicator={false}>
+                <SmartAlertSettings
+                  enabled={smartAlertState?.enabled ?? false}
+                  categories={smartAlertState?.categories ?? {}}
+                  frequencyMode={smartAlertState?.frequency_mode ?? "smart_only"}
+                  pushPermissionStatus={pushPermissionStatus}
+                  onRequestPushPermission={async () => {
+                    if (pushPermissionPromptedThisSessionRef.current) return;
+                    pushPermissionPromptedThisSessionRef.current = true;
+                    const result = await requestPushPermissionsIfNeeded();
+                    setPushPermissionStatus(result);
+                    if (result.granted) {
+                      const token = await getExpoPushTokenSafe();
+                      if (token) {
+                        const uid = userId || session?.user?.id;
+                        if (uid) {
+                          const reg = await registerPushTokenWithBackend({
+                            userId: uid,
+                            expoPushToken: token,
+                            platform: Platform.OS,
+                          });
+                          if (reg.ok) {
+                            setExpoPushToken(token);
+                            setPushRegisteredUserId(uid);
+                            pushRegistrationRef.current = { userId: uid, token };
+                          }
+                        }
+                      }
+                    }
+                  }}
+                  onOpenSettings={() => Linking.openSettings()}
+                  onEnabledChange={async (v) => {
+                    const next = await updateSmartAlertSettings({ enabled: v });
+                    setSmartAlertState(next);
+                  }}
+                  onCategoryChange={async (key, v) => {
+                    const next = await updateSmartAlertSettings({
+                      categories: { [key]: v },
+                    });
+                    setSmartAlertState(next);
+                  }}
+                  onFrequencyChange={async (mode) => {
+                    const next = await updateSmartAlertSettings({ frequency_mode: mode });
+                    setSmartAlertState(next);
+                  }}
+                />
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
+
+        <Modal
           visible={coachProfileModal}
           transparent
           animationType="fade"
@@ -7728,7 +8334,28 @@ async function openCamera(mode = "meal") {
           </View>
         </Modal>
 
-</ScrollView>
+      </ScrollView>
+      <MealFeedbackPrompt
+        visible={!!showMealFeedbackPrompt && !!pendingMealFeedback}
+        pending={pendingMealFeedback}
+        onSkip={() => {
+          setShowMealFeedbackPrompt(false);
+          setPendingMealFeedback(null);
+        }}
+        onSubmit={(answers) => {
+          const uid = userId || (session?.user?.id ?? null);
+          if (uid && pendingMealFeedback) {
+            const payload = buildMealFeedbackPayload(pendingMealFeedback, answers, {
+              userId: uid,
+              goal: resolveLunchGoal(),
+              timeOfDay: "",
+            });
+            postMealFeedback(payload);
+          }
+          setShowMealFeedbackPrompt(false);
+          setPendingMealFeedback(null);
+        }}
+      />
 
       {/* CAMERA MODAL */}
       <Modal visible={camOpen} animationType="slide">
