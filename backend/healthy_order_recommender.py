@@ -362,6 +362,8 @@ def _fallback_recommendation(
     place: Dict[str, Any] | None = None,
     mode: NutritionMode | str = NutritionMode.DEFAULT,
     personalization_goal: Any = None,
+    use_llm_copy: bool = True,
+    allow_llm_macro: bool = True,
 ) -> Dict[str, Any]:
     # Safe default for sparse/ambiguous place metadata.
     resolved_mode = normalize_nutrition_mode(mode)
@@ -382,6 +384,7 @@ def _fallback_recommendation(
         place=None,
         input_calories=500,
         input_protein_g=26,
+        allow_llm=allow_llm_macro,
     )
 
     out = {
@@ -425,19 +428,22 @@ def _fallback_recommendation(
     out["skip_items"] = swap_details["skip_items"]
     out["add_items"] = swap_details["add_items"]
 
-    rewritten = maybe_rewrite_explanation_copy(
-        place_name=str((place or {}).get("name") or "Nearby place").strip(),
-        cuisine=_cuisine_hint(place if isinstance(place, dict) else {}),
-        recommended_order=out["best_order"],
-        estimated_calories=out["estimated_calories"],
-        estimated_protein_g=out["estimated_protein_g"],
-        goal=goal_value,
-        confidence=out["order_confidence"],
-        recommendation_source="heuristic",
-        menu_item_confidence=out["order_confidence"],
-        base_why_this_works=out["short_reason"],
-        base_short_reason=out["short_reason"],
-    )
+    if use_llm_copy:
+        rewritten = maybe_rewrite_explanation_copy(
+            place_name=str((place or {}).get("name") or "Nearby place").strip(),
+            cuisine=_cuisine_hint(place if isinstance(place, dict) else {}),
+            recommended_order=out["best_order"],
+            estimated_calories=out["estimated_calories"],
+            estimated_protein_g=out["estimated_protein_g"],
+            goal=goal_value,
+            confidence=out["order_confidence"],
+            recommendation_source="heuristic",
+            menu_item_confidence=out["order_confidence"],
+            base_why_this_works=out["short_reason"],
+            base_short_reason=out["short_reason"],
+        )
+    else:
+        rewritten = {}
     out["short_reason"] = str(rewritten.get("short_reason") or out["short_reason"])
     out["why_this_works"] = str(rewritten.get("why_this_works") or out["short_reason"])
     out["copy_method"] = str(rewritten.get("copy_method") or "deterministic")
@@ -452,6 +458,8 @@ def suggest_best_order_for_place(
     health_score: float | None = None,
     mode: NutritionMode | str = NutritionMode.DEFAULT,
     personalization_goal: Any = None,
+    use_llm_copy: bool = True,
+    allow_llm_macro: bool = True,
 ) -> Dict[str, Any]:
     resolved_mode = normalize_nutrition_mode(mode)
     resolved_goal = normalize_personalization_goal(personalization_goal)
@@ -459,11 +467,23 @@ def suggest_best_order_for_place(
     cut_mode_active = is_cut_mode(resolved_mode)
     place_text = _place_text(place)
     if not place_text:
-        return _fallback_recommendation(place=place, mode=resolved_mode, personalization_goal=resolved_goal)
+        return _fallback_recommendation(
+            place=place,
+            mode=resolved_mode,
+            personalization_goal=resolved_goal,
+            use_llm_copy=use_llm_copy,
+            allow_llm_macro=allow_llm_macro,
+        )
 
     rule, hits = _match_rule(place_text)
     if not rule:
-        return _fallback_recommendation(place=place, mode=resolved_mode, personalization_goal=resolved_goal)
+        return _fallback_recommendation(
+            place=place,
+            mode=resolved_mode,
+            personalization_goal=resolved_goal,
+            use_llm_copy=use_llm_copy,
+            allow_llm_macro=allow_llm_macro,
+        )
 
     # Confidence rises when venue type is clear (more token hits) and healthy score is stronger.
     confidence = 0.68 if hits == 1 else 0.78 if hits >= 2 else 0.46
@@ -517,6 +537,7 @@ def suggest_best_order_for_place(
         place=place,
         input_calories=estimated_calories,
         input_protein_g=estimated_protein_g,
+        allow_llm=allow_llm_macro,
     )
 
     estimated_calories = int(macro.get("estimated_calories", estimated_calories))
@@ -567,19 +588,22 @@ def suggest_best_order_for_place(
         "personalized_best_order": personalized_best_order,
         "personalized_reason": personalized_reason,
     }
-    rewritten = maybe_rewrite_explanation_copy(
-        place_name=str((place or {}).get("name") or "").strip(),
-        cuisine=_cuisine_hint(place),
-        recommended_order=result["best_order_for_cut"] if cut_mode_active else result["best_order"],
-        estimated_calories=result["estimated_calories"],
-        estimated_protein_g=result["estimated_protein_g"],
-        goal=goal_value,
-        confidence=result["order_confidence"],
-        recommendation_source="heuristic",
-        menu_item_confidence=result["order_confidence"],
-        base_why_this_works=result["short_reason"],
-        base_short_reason=result["short_reason"],
-    )
+    if use_llm_copy:
+        rewritten = maybe_rewrite_explanation_copy(
+            place_name=str((place or {}).get("name") or "").strip(),
+            cuisine=_cuisine_hint(place),
+            recommended_order=result["best_order_for_cut"] if cut_mode_active else result["best_order"],
+            estimated_calories=result["estimated_calories"],
+            estimated_protein_g=result["estimated_protein_g"],
+            goal=goal_value,
+            confidence=result["order_confidence"],
+            recommendation_source="heuristic",
+            menu_item_confidence=result["order_confidence"],
+            base_why_this_works=result["short_reason"],
+            base_short_reason=result["short_reason"],
+        )
+    else:
+        rewritten = {}
     result["short_reason"] = str(rewritten.get("short_reason") or result["short_reason"])
     result["why_this_works"] = str(rewritten.get("why_this_works") or result["short_reason"])
     result["copy_method"] = str(rewritten.get("copy_method") or "deterministic")

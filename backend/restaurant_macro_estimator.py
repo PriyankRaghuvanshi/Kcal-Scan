@@ -211,6 +211,7 @@ def estimate_restaurant_macros(
     place: Dict[str, Any] | None = None,
     input_calories: int | None = None,
     input_protein_g: int | None = None,
+    allow_llm: bool = True,
 ) -> Dict[str, Any]:
     item_text = str(item_name or "").strip().lower()
     cuisine_text = str(cuisine_hint or "").strip().lower()
@@ -268,15 +269,18 @@ def estimate_restaurant_macros(
         "macro_confidence": confidence,
     }
 
-    llm_out = maybe_estimate_unknown_meal_macros(
-        item_name=str(item_name or ""),
-        cuisine_hint=cuisine_text,
-        place=place,
-        known_components=[],
-        deterministic_estimate=deterministic,
-        has_known_nutrition=has_known_nutrition,
-        profile_hit_count=int(hit_count or 0),
-    )
+    if allow_llm:
+        llm_out = maybe_estimate_unknown_meal_macros(
+            item_name=str(item_name or ""),
+            cuisine_hint=cuisine_text,
+            place=place,
+            known_components=[],
+            deterministic_estimate=deterministic,
+            has_known_nutrition=has_known_nutrition,
+            profile_hit_count=int(hit_count or 0),
+        )
+    else:
+        llm_out = {"attempted": False, "used": False, "error": "", "estimate": None}
 
     if bool(llm_out.get("used")) and isinstance(llm_out.get("estimate"), dict):
         llm_est = llm_out["estimate"]

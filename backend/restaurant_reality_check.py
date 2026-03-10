@@ -202,13 +202,21 @@ def _extract_menu_items(place: Dict[str, Any]) -> List[Dict[str, Any]]:
     return out
 
 
-def _with_macro_estimate(item_name: str, place: Dict[str, Any], calories: int, protein_g: int) -> Dict[str, Any]:
+def _with_macro_estimate(
+    item_name: str,
+    place: Dict[str, Any],
+    calories: int,
+    protein_g: int,
+    *,
+    allow_llm_macro: bool = True,
+) -> Dict[str, Any]:
     estimate = estimate_restaurant_macros(
         item_name=item_name,
         cuisine_hint=_place_text(place),
         place=place,
         input_calories=calories if calories > 0 else None,
         input_protein_g=protein_g if protein_g > 0 else None,
+        allow_llm=allow_llm_macro,
     )
 
     est_cal = _safe_int(estimate.get("estimated_calories"), calories if calories > 0 else 520)
@@ -293,6 +301,8 @@ def _infer_typical_order(
     place: Dict[str, Any],
     menu_items: List[Dict[str, Any]],
     context: Optional[Dict[str, Any]] = None,
+    *,
+    allow_llm_macro: bool = True,
 ) -> Dict[str, Any]:
     ctx = context if isinstance(context, dict) else {}
 
@@ -310,6 +320,7 @@ def _infer_typical_order(
             place=place,
             calories=cal,
             protein_g=candidate_protein(llm_typical) or 0,
+            allow_llm_macro=allow_llm_macro,
         )
 
     if menu_items:
@@ -320,6 +331,7 @@ def _infer_typical_order(
                 place=place,
                 calories=_safe_int(item.get("estimated_calories"), 0),
                 protein_g=_safe_int(item.get("estimated_protein_g"), 0),
+                allow_llm_macro=allow_llm_macro,
             )
             bonus = _combo_keyword_bonus(str(item.get("name") or "")) * 80
             rank = float(row["estimated_calories"]) + float(bonus) - float(row["estimated_protein_g"]) * 1.2
@@ -336,6 +348,7 @@ def _infer_typical_order(
         place=place,
         calories=_safe_int(rule.get("typical_calories"), 860),
         protein_g=_safe_int(rule.get("typical_protein_g"), 26),
+        allow_llm_macro=allow_llm_macro,
     )
     typical["confidence"] = round(_clamp(0.58 + (0.08 if hits >= 2 else 0.04 if hits == 1 else -0.06), 0.35, 0.9), 2)
     return typical
@@ -346,6 +359,8 @@ def _infer_smarter_order(
     menu_items: List[Dict[str, Any]],
     recommended_order: Dict[str, Any],
     context: Dict[str, Any],
+    *,
+    allow_llm_macro: bool = True,
 ) -> Dict[str, Any]:
     rec = recommended_order if isinstance(recommended_order, dict) else {}
     ctx = context if isinstance(context, dict) else {}
@@ -363,7 +378,13 @@ def _infer_smarter_order(
     rec_conf = float(_safe_float(rec.get("confidence", rec.get("order_confidence")), 0.0))
 
     if rec_name:
-        out = _with_macro_estimate(rec_name, place, rec_cal, rec_protein)
+        out = _with_macro_estimate(
+            rec_name,
+            place,
+            rec_cal,
+            rec_protein,
+            allow_llm_macro=allow_llm_macro,
+        )
         out["confidence"] = round(_clamp(max(out["confidence"], rec_conf or 0.0), 0.4, 0.93), 2)
         out["order_type"] = str(rec.get("order_type") or "likely").strip().lower() or "likely"
         out["swap_suggestion"] = str(rec.get("swap_suggestion") or rec.get("better_swap") or "")
@@ -384,6 +405,7 @@ def _infer_smarter_order(
             place,
             _safe_int(ctx_top_item.get("estimated_calories", ctx_top_item.get("calories")), 0),
             _safe_int(ctx_top_item.get("estimated_protein_g", ctx_top_item.get("protein_g")), 0),
+            allow_llm_macro=allow_llm_macro,
         )
         out["confidence"] = round(
             _clamp(max(out["confidence"], float(_safe_float(ctx_top_item.get("confidence"), 0.68))), 0.4, 0.93),
@@ -403,6 +425,7 @@ def _infer_smarter_order(
                 place=place,
                 calories=_safe_int(item.get("estimated_calories"), 0),
                 protein_g=_safe_int(item.get("estimated_protein_g"), 0),
+                allow_llm_macro=allow_llm_macro,
             )
             protein_density = (float(row["estimated_protein_g"]) / max(1.0, float(row["estimated_calories"]))) * 1000.0
             score = (protein_density * 1.5) + (float(row["estimated_protein_g"]) * 1.1) - (float(row["estimated_calories"]) * 0.08)
@@ -424,6 +447,7 @@ def _infer_smarter_order(
         place=place,
         calories=_safe_int(rule.get("smarter_calories"), 560),
         protein_g=_safe_int(rule.get("smarter_protein_g"), 34),
+        allow_llm_macro=allow_llm_macro,
     )
     smart["confidence"] = round(_clamp(smart.get("confidence", 0.56) + 0.02, 0.38, 0.9), 2)
     smart["order_type"] = "estimated"
@@ -497,6 +521,9 @@ def build_restaurant_reality_check(
     place: Dict[str, Any],
     recommended_order: Dict[str, Any] | None = None,
     context: Dict[str, Any] | None = None,
+    *,
+    use_llm_copy: bool = True,
+    allow_llm_macro: bool = True,
 ) -> Dict[str, Any]:
     payload = place if isinstance(place, dict) else {}
     ctx = context if isinstance(context, dict) else {}
@@ -504,7 +531,12 @@ def build_restaurant_reality_check(
     place_name = str(payload.get("name") or "Nearby place").strip() or "Nearby place"
     menu_items = _extract_menu_items(payload)
 
-    typical = _infer_typical_order(payload, menu_items, context=ctx)
+    typical = _infer_typical_order(
+        payload,
+        menu_items,
+        context=ctx,
+        allow_llm_macro=allow_llm_macro,
+    )
 
     # When LLM reasoning produced a best_choice_here that is distinct from the
     # typical order, prefer it as the smarter order so the comparison is meaningful.
@@ -535,7 +567,13 @@ def build_restaurant_reality_check(
         if isinstance(swap_key, dict) and swap_key.get("swap_tip"):
             enriched_recommended_order.setdefault("swap_suggestion", str(swap_key["swap_tip"]).strip())
 
-    smart = _infer_smarter_order(payload, menu_items, enriched_recommended_order, ctx)
+    smart = _infer_smarter_order(
+        payload,
+        menu_items,
+        enriched_recommended_order,
+        ctx,
+        allow_llm_macro=allow_llm_macro,
+    )
 
     typical_cal = int(max(120, _safe_int(typical.get("estimated_calories"), 860)))
     typical_protein = int(max(6, _safe_int(typical.get("estimated_protein_g"), 26)))
@@ -571,22 +609,25 @@ def build_restaurant_reality_check(
             _safe_float(ctx_top_menu_item.get("menu_item_confidence"), confidence),
         )
     )
-    rewritten = maybe_rewrite_explanation_copy(
-        place_name=place_name,
-        cuisine=_place_text(payload),
-        recommended_order=smart.get("name"),
-        estimated_calories=smart_cal,
-        estimated_protein_g=smart_protein,
-        typical_order_calories=typical_cal,
-        goal=ctx.get("goal"),
-        confidence=confidence,
-        recommendation_source=recommendation_source,
-        menu_item_confidence=recommendation_confidence,
-        today_fit=ctx.get("fit_for_today"),
-        has_reality_check=True,
-        base_why_this_works=short_reason,
-        base_short_reason=short_reason,
-    )
+    if use_llm_copy:
+        rewritten = maybe_rewrite_explanation_copy(
+            place_name=place_name,
+            cuisine=_place_text(payload),
+            recommended_order=smart.get("name"),
+            estimated_calories=smart_cal,
+            estimated_protein_g=smart_protein,
+            typical_order_calories=typical_cal,
+            goal=ctx.get("goal"),
+            confidence=confidence,
+            recommendation_source=recommendation_source,
+            menu_item_confidence=recommendation_confidence,
+            today_fit=ctx.get("fit_for_today"),
+            has_reality_check=True,
+            base_why_this_works=short_reason,
+            base_short_reason=short_reason,
+        )
+    else:
+        rewritten = {}
     short_reason = str(rewritten.get("short_reason") or short_reason)
     why_this_works = str(rewritten.get("why_this_works") or short_reason)
     copy_method = str(rewritten.get("copy_method") or "deterministic")

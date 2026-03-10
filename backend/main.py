@@ -12663,7 +12663,13 @@ async def healthy_places(
         options = scoring.get("best_options") if isinstance(scoring.get("best_options"), list) else _best_options_for_place(p)
 
         try:
-            order_suggestion = suggest_best_order_for_place(p, health_score=score, mode=nutrition_mode)
+            order_suggestion = suggest_best_order_for_place(
+                p,
+                health_score=score,
+                mode=nutrition_mode,
+                use_llm_copy=False,
+                allow_llm_macro=False,
+            )
         except Exception:
             order_suggestion = {}
 
@@ -12961,6 +12967,8 @@ async def healthy_places(
                 "mode": nutrition_mode.value,
                 "goal": personalization_goal_value_str,
             },
+            use_llm_copy=False,
+            allow_llm_macro=False,
         )
 
         scored.append(
