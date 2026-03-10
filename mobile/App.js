@@ -4208,7 +4208,6 @@ async function openCamera(mode = "meal") {
       if (!opts?.preserveFilter) setHealthyMapFilter("all");
 
       // Fire a lightweight decision event for this load (one per call, not per card).
-      const uid = userId || (session?.user?.id ?? null);
       if (uid && list.length) {
         const payload = buildDecisionEventPayload(list[0], "recommendation_viewed", {
           userId: uid,
