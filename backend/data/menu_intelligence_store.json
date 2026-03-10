@@ -3,7 +3,7 @@
     "a1": {
       "confidence": 0.72,
       "cuisine": "grill",
-      "last_updated": "2026-03-09T06:38:23.376225+00:00",
+      "last_updated": "2026-03-10T05:15:05.085206+00:00",
       "menu_items": [
         {
           "category": "",
@@ -29,7 +29,7 @@
           "extraction_method": "",
           "health_signals": [],
           "item_name": "Grilled chicken wrap",
-          "last_updated": "2026-03-09T06:38:23.376198+00:00",
+          "last_updated": "2026-03-10T05:15:05.085203+00:00",
           "likely_carbs": [],
           "likely_fats": [],
           "likely_protein": "",
@@ -61,7 +61,7 @@
     "a2": {
       "confidence": 0.72,
       "cuisine": "salad",
-      "last_updated": "2026-03-09T06:38:23.389010+00:00",
+      "last_updated": "2026-03-10T05:15:05.088950+00:00",
       "menu_items": [
         {
           "category": "",
@@ -87,7 +87,7 @@
           "extraction_method": "",
           "health_signals": [],
           "item_name": "Protein salad",
-          "last_updated": "2026-03-09T06:38:23.388989+00:00",
+          "last_updated": "2026-03-10T05:15:05.088947+00:00",
           "likely_carbs": [],
           "likely_fats": [],
           "likely_protein": "",
@@ -119,7 +119,7 @@
     "a3": {
       "confidence": 0.72,
       "cuisine": "fast food",
-      "last_updated": "2026-03-09T06:38:23.401376+00:00",
+      "last_updated": "2026-03-10T05:15:05.092559+00:00",
       "menu_items": [
         {
           "category": "",
@@ -145,7 +145,7 @@
           "extraction_method": "",
           "health_signals": [],
           "item_name": "Fried mega combo",
-          "last_updated": "2026-03-09T06:38:23.401365+00:00",
+          "last_updated": "2026-03-10T05:15:05.092556+00:00",
           "likely_carbs": [],
           "likely_fats": [],
           "likely_protein": "",
@@ -2229,7 +2229,7 @@
     "far-weak": {
       "confidence": 0.48,
       "cuisine": "indian",
-      "last_updated": "2026-03-09T06:38:23.496025+00:00",
+      "last_updated": "2026-03-10T05:15:05.122696+00:00",
       "menu_items": [
         {
           "category": "",
@@ -2253,7 +2253,7 @@
           "extraction_method": "",
           "health_signals": [],
           "item_name": "Suggested lighter option",
-          "last_updated": "2026-03-09T06:38:23.496002+00:00",
+          "last_updated": "2026-03-10T05:15:05.122692+00:00",
           "likely_carbs": [],
           "likely_fats": [],
           "likely_protein": "",
@@ -2283,7 +2283,7 @@
     "g1": {
       "confidence": 0.72,
       "cuisine": "south indian",
-      "last_updated": "2026-03-09T06:38:23.409604+00:00",
+      "last_updated": "2026-03-10T05:15:05.096217+00:00",
       "menu_items": [
         {
           "category": "",
@@ -2309,7 +2309,7 @@
           "extraction_method": "",
           "health_signals": [],
           "item_name": "Greek yogurt protein bowl",
-          "last_updated": "2026-03-09T06:38:23.409589+00:00",
+          "last_updated": "2026-03-10T05:15:05.096214+00:00",
           "likely_carbs": [],
           "likely_fats": [],
           "likely_protein": "",
@@ -2341,7 +2341,7 @@
     "h1": {
       "confidence": 0.72,
       "cuisine": "healthy",
-      "last_updated": "2026-03-09T06:38:23.434300+00:00",
+      "last_updated": "2026-03-10T05:15:05.105389+00:00",
       "menu_items": [
         {
           "category": "",
@@ -2367,7 +2367,7 @@
           "extraction_method": "",
           "health_signals": [],
           "item_name": "Chicken bowl",
-          "last_updated": "2026-03-09T06:38:23.434275+00:00",
+          "last_updated": "2026-03-10T05:15:05.105385+00:00",
           "likely_carbs": [],
           "likely_fats": [],
           "likely_protein": "",
@@ -2399,7 +2399,7 @@
     "h2": {
       "confidence": 0.8,
       "cuisine": "pizza",
-      "last_updated": "2026-03-09T06:38:23.451558+00:00",
+      "last_updated": "2026-03-10T05:15:05.108974+00:00",
       "menu_items": [
         {
           "category": "",
@@ -2425,7 +2425,7 @@
           "extraction_method": "",
           "health_signals": [],
           "item_name": "Large cheesy combo",
-          "last_updated": "2026-03-09T06:38:23.451535+00:00",
+          "last_updated": "2026-03-10T05:15:05.108970+00:00",
           "likely_carbs": [],
           "likely_fats": [],
           "likely_protein": "",
@@ -2596,7 +2596,7 @@
     "h3": {
       "confidence": 0.84,
       "cuisine": "fast food",
-      "last_updated": "2026-03-09T06:38:23.462018+00:00",
+      "last_updated": "2026-03-10T05:15:05.112541+00:00",
       "menu_items": [
         {
           "category": "",
@@ -2622,7 +2622,7 @@
           "extraction_method": "",
           "health_signals": [],
           "item_name": "Double burger combo",
-          "last_updated": "2026-03-09T06:38:23.461995+00:00",
+          "last_updated": "2026-03-10T05:15:05.112537+00:00",
           "likely_carbs": [],
           "likely_fats": [],
           "likely_protein": "",
@@ -3116,10 +3116,69 @@
       ],
       "version": "v1"
     },
+    "p-sub": {
+      "confidence": 0.48,
+      "cuisine": "sandwich",
+      "last_updated": "2026-03-10T06:40:11.003186+00:00",
+      "menu_items": [
+        {
+          "canonical_name": "",
+          "category": "bowl",
+          "chain_id": "",
+          "chain_key": "",
+          "chain_match_confidence": 0.0,
+          "chain_name": "",
+          "chain_name_resolved": "",
+          "chain_source_used": "",
+          "confidence": 0.48,
+          "country_code": "",
+          "estimated_calories": 390,
+          "estimated_carbs_g": 0,
+          "estimated_fat_g": 0,
+          "estimated_macros": {
+            "calories": 390,
+            "carbs_g": 0,
+            "fat_g": 0,
+            "protein_g": 30
+          },
+          "estimated_protein_g": 30,
+          "estimated_satiety": "",
+          "extraction_method": "",
+          "health_signals": [],
+          "item_name": "6-inch grilled chicken sub extra salad light sauce",
+          "last_updated": "2026-03-10T06:40:11.003175+00:00",
+          "likely_carbs": [],
+          "likely_fats": [],
+          "likely_protein": "",
+          "matched_alias": "",
+          "matched_place_name": "",
+          "menu_confidence": 0.48,
+          "menu_item_confidence": 0.48,
+          "menu_item_source": "chain_registry",
+          "menu_last_updated": "",
+          "menu_source": "heuristic_generation",
+          "official_menu_source_url": "",
+          "parse_method": "",
+          "parsed_via": "",
+          "raw_text_snippet": "",
+          "source": "heuristic_generation",
+          "source_priority": 1,
+          "source_rank_weight": 0.65,
+          "source_type": "",
+          "source_url": ""
+        }
+      ],
+      "place_id": "p-sub",
+      "restaurant_name": "Subway",
+      "sources": [
+        "website_menu"
+      ],
+      "version": "v1"
+    },
     "p1": {
       "confidence": 0.72,
       "cuisine": "grill",
-      "last_updated": "2026-03-09T06:38:23.334832+00:00",
+      "last_updated": "2026-03-10T05:15:05.073490+00:00",
       "menu_items": [
         {
           "category": "",
@@ -3145,7 +3204,7 @@
           "extraction_method": "",
           "health_signals": [],
           "item_name": "Grilled chicken bowl",
-          "last_updated": "2026-03-09T06:38:23.334781+00:00",
+          "last_updated": "2026-03-10T05:15:05.073485+00:00",
           "likely_carbs": [],
           "likely_fats": [],
           "likely_protein": "",
@@ -3177,7 +3236,7 @@
     "p2": {
       "confidence": 0.72,
       "cuisine": "fast food",
-      "last_updated": "2026-03-09T06:38:23.350272+00:00",
+      "last_updated": "2026-03-10T05:15:05.077668+00:00",
       "menu_items": [
         {
           "category": "",
@@ -3203,7 +3262,7 @@
           "extraction_method": "",
           "health_signals": [],
           "item_name": "Loaded fried combo",
-          "last_updated": "2026-03-09T06:38:23.350257+00:00",
+          "last_updated": "2026-03-10T05:15:05.077663+00:00",
           "likely_carbs": [],
           "likely_fats": [],
           "likely_protein": "",
@@ -3235,7 +3294,7 @@
     "p3": {
       "confidence": 0.72,
       "cuisine": "healthy",
-      "last_updated": "2026-03-09T06:38:23.364077+00:00",
+      "last_updated": "2026-03-10T05:15:05.081357+00:00",
       "menu_items": [
         {
           "category": "",
@@ -3261,7 +3320,7 @@
           "extraction_method": "",
           "health_signals": [],
           "item_name": "Chicken quinoa bowl",
-          "last_updated": "2026-03-09T06:38:23.364052+00:00",
+          "last_updated": "2026-03-10T05:15:05.081353+00:00",
           "likely_carbs": [],
           "likely_fats": [],
           "likely_protein": "",
@@ -3347,7 +3406,7 @@
     "s1": {
       "confidence": 0.93,
       "cuisine": "grill",
-      "last_updated": "2026-03-09T06:38:23.508326+00:00",
+      "last_updated": "2026-03-10T05:15:05.127084+00:00",
       "menu_items": [
         {
           "category": "",
@@ -3371,7 +3430,7 @@
           "extraction_method": "",
           "health_signals": [],
           "item_name": "Quarter chicken + salad",
-          "last_updated": "2026-03-09T06:38:23.508304+00:00",
+          "last_updated": "2026-03-10T05:15:05.127080+00:00",
           "likely_carbs": [],
           "likely_fats": [],
           "likely_protein": "",
@@ -3525,7 +3584,7 @@
     "sub-near": {
       "confidence": 0.92,
       "cuisine": "sandwich shop",
-      "last_updated": "2026-03-09T06:38:23.483425+00:00",
+      "last_updated": "2026-03-10T05:15:05.118706+00:00",
       "menu_items": [
         {
           "category": "",
@@ -3549,7 +3608,7 @@
           "extraction_method": "",
           "health_signals": [],
           "item_name": "6\" Chicken Breast Sub, extra salad, no mayo",
-          "last_updated": "2026-03-09T06:38:23.483394+00:00",
+          "last_updated": "2026-03-10T05:15:05.118701+00:00",
           "likely_carbs": [],
           "likely_fats": [],
           "likely_protein": "",

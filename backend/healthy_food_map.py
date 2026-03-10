@@ -763,16 +763,65 @@ def _build_reality_check(payload: Dict[str, Any], top_menu_item: Dict[str, Any])
     return merged
 
 
-def _sort_key(payload: Dict[str, Any]) -> tuple:
-    local_rank = _safe_float(payload.get("final_rank_score"), _safe_float(payload.get("local_ranking_score"), 0.0))
-    current_place = 1 if bool(payload.get("is_current_place") or payload.get("current_place_priority")) else 0
-    local_priority = _safe_float(payload.get("local_priority_score"), 0.0)
-    source_weight = _safe_float(payload.get("source_rank_weight"), 0.65)
-    tier_idx = int(_safe_int(payload.get("distance_tier_index"), 4))
+# Canonical section order for sectioned_mode
+SECTION_ORDER: List[str] = [
+    "Best fit for your goal",
+    "Decent nearby options",
+    "Needs menu check",
+]
+
+
+def _section_rank(section: Any) -> int:
+    s = str(section or "").strip().lower()
+    if "best fit" in s or "best fit for your goal" in s:
+        return 0
+    if "decent" in s:
+        return 1
+    if "needs menu check" in s:
+        return 2
+    return 1
+
+
+def _display_score_100(payload: Dict[str, Any]) -> float:
+    v = _safe_float(payload.get("display_rank_score_100") or payload.get("health_score_100"), 0.0) or 0.0
+    if 0 < v <= 10:
+        v *= 10.0
+    return v
+
+
+def _flat_sort_key(payload: Dict[str, Any]) -> tuple:
+    """Visible order = display_rank_score_100 desc, distance asc. No current_place bump."""
+    score = _display_score_100(payload)
     distance = _safe_float(payload.get("distance_meters"), 10_000_000.0)
-    fit_score = _safe_float(payload.get("fit_for_today_score"), 0.0)
-    health = _safe_float(payload.get("restaurant_health_score"), _safe_float(payload.get("health_score"), 0.0))
-    return (-current_place, -local_rank, -local_priority, -source_weight, tier_idx, distance, -fit_score, -health)
+    return (-score, distance)
+
+
+def _sectioned_sort_key(payload: Dict[str, Any]) -> tuple:
+    """Section rank, then display_rank_score_100 desc, then distance asc."""
+    section_r = _section_rank(payload.get("section"))
+    score = _display_score_100(payload)
+    distance = _safe_float(payload.get("distance_meters"), 10_000_000.0)
+    return (section_r, -score, distance)
+
+
+def build_sections(places: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Group places by section; each section has name and items (sorted by display_rank_score_100 desc, distance)."""
+    by_section: Dict[str, List[Dict[str, Any]]] = {}
+    for p in places:
+        sec = str(p.get("section") or "Decent nearby options").strip()
+        if sec not in by_section:
+            by_section[sec] = []
+        by_section[sec].append(p)
+    for sec_list in by_section.values():
+        sec_list.sort(key=_flat_sort_key)
+    sections = []
+    for name in SECTION_ORDER:
+        if name in by_section and by_section[name]:
+            sections.append({"name": name, "items": by_section[name]})
+    for name, items in by_section.items():
+        if name not in SECTION_ORDER:
+            sections.append({"name": name, "items": items})
+    return sections
 
 
 def enrich_places_for_healthy_map(
@@ -784,15 +833,22 @@ def enrich_places_for_healthy_map(
     cut_mode: bool = False,
     remaining_calories: Optional[float] = None,
     remaining_protein_g: Optional[float] = None,
+    sort_mode: str = "sectioned",
 ) -> List[Dict[str, Any]]:
+    """Enrich places with map/display fields. sort_mode: 'flat_score' | 'sectioned'. Flat = order by display_rank_score_100 desc, distance (no current_place bump)."""
     src = [dict(row) for row in (places or []) if isinstance(row, dict)]
     if not src:
         return []
 
     out: List[Dict[str, Any]] = []
     for row in src:
-        score_value = row.get("personalized_health_score") if row.get("personalized_health_score") is not None else row.get("health_score")
-        score_100 = _score_to_100(score_value)
+        # Meal-first: visible score = display_rank_score_100 (must match list sort)
+        display_rank = row.get("display_rank_score_100")
+        if display_rank is not None and str(display_rank).strip() != "":
+            score_100 = int(round(_safe_float(display_rank, 0.0)))
+        else:
+            score_value = row.get("personalized_health_score") if row.get("personalized_health_score") is not None else row.get("health_score")
+            score_100 = _score_to_100(score_value)
         band = _score_band(score_100)
         fit = _fit_for_today(row)
 
@@ -851,6 +907,8 @@ def enrich_places_for_healthy_map(
                 "place_name": place_name,
                 "distance_meters": int(max(0, distance_m)),
                 "health_score_100": int(score_100),
+                "display_rank_score_100": int(score_100),
+                "section": str(row.get("section") or "Decent nearby options").strip(),
                 "score_band": band,
                 "map_pin_color": _map_pin_color(band),
                 "map_pin_hex": _map_pin_hex(band),
@@ -890,7 +948,10 @@ def enrich_places_for_healthy_map(
         )
         out.append(enriched)
 
-    out.sort(key=_sort_key)
+    if sort_mode == "flat_score":
+        out.sort(key=_flat_sort_key)
+    else:
+        out.sort(key=_sectioned_sort_key)
     for idx, row in enumerate(out, start=1):
         row["map_rank"] = int(idx)
         row["map_priority"] = int(max(1, 100 - idx))

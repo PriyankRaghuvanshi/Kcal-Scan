@@ -14,7 +14,9 @@ from chain_registry import resolve_chain_identity
 CHAIN_MENU_REGISTRY_VERSION = "v1"
 DEFAULT_COUNTRY_CODE = "AU"
 
-_CHAIN_MENU_SOURCE = "website_menu"
+# Exposed source token for downstream preference logic.
+# This is deterministic seeded data (not scraped live here).
+_CHAIN_MENU_SOURCE = "chain_registry"
 _CHAIN_EXTRACTION_METHOD = "chain_registry_official_menu"
 _CHAIN_PARSE_METHOD = "chain_registry_seed"
 _CHAIN_PARSED_VIA = "chain_registry"
@@ -380,7 +382,7 @@ def _menu_items_for_entry(entry: Dict[str, Any], max_items: int = 12) -> List[Di
                 "menu_confidence": round(confidence, 2),
                 "source": _CHAIN_MENU_SOURCE,
                 "menu_source": _CHAIN_MENU_SOURCE,
-                "menu_item_source": "real_menu",
+                "menu_item_source": "chain_registry",
                 "menu_item_confidence": round(confidence, 2),
                 "source_url": str(row.get("source_url") or official_url),
                 "extraction_method": _CHAIN_EXTRACTION_METHOD,

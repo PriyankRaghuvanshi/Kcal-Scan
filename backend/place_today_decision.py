@@ -137,6 +137,16 @@ def evaluate_place_for_today(
             overage = _clamp((est_cal - remaining_cal) / max(1.0, remaining_cal), 0.0, 2.0)
             confidence = 0.66 + min(0.24, overage * 0.28)
 
+    # Numeric fit scores 0..100 for meal-first ranking
+    calorie_fit_score_100 = 100.0 if fits_calories else (80.0 if near_calorie_limit else max(0.0, 60.0 - (est_cal - remaining_cal) / 10.0))
+    protein_fit_score_100 = 100.0 * protein_coverage if protein_context_available else 70.0
+    fit_today_score_100 = (calorie_fit_score_100 * 0.55 + protein_fit_score_100 * 0.45) if protein_context_available else calorie_fit_score_100
+    if decision == "NO":
+        fit_today_score_100 = min(fit_today_score_100, 45.0)
+    overshoot_penalty_100 = 0.0
+    if remaining_cal > 0 and est_cal > remaining_cal:
+        overshoot_penalty_100 = min(100.0, ((est_cal - remaining_cal) / remaining_cal) * 80.0)
+
     return {
         "decision_today": decision,
         "decision_reason": reason,
@@ -144,4 +154,8 @@ def evaluate_place_for_today(
         "fits_remaining_protein": fits_protein,
         "decision_confidence": round(_clamp(confidence, 0.35, 0.96), 2),
         "decision_version": DECISION_ENGINE_VERSION,
+        "fit_today_score_100": round(_clamp(fit_today_score_100, 0.0, 100.0), 1),
+        "calorie_fit_score_100": round(_clamp(calorie_fit_score_100, 0.0, 100.0), 1),
+        "protein_fit_score_100": round(_clamp(protein_fit_score_100, 0.0, 100.0), 1),
+        "overshoot_penalty_100": round(_clamp(overshoot_penalty_100, 0.0, 100.0), 1),
     }

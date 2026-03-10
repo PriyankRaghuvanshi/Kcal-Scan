@@ -102,7 +102,11 @@ class HealthyOrderRecommenderTests(unittest.TestCase):
         }
         out = suggest_best_order_for_place(place, health_score=6.2)
         best_order = str(out.get("best_order") or "").lower()
-        self.assertTrue("tandoori" in best_order or "dal" in best_order)
+        # Cuisine rules: Indian candidates include tandoori, tikka, dal, paneer, etc.
+        self.assertTrue(
+            "tandoori" in best_order or "dal" in best_order or "tikka" in best_order or "paneer" in best_order or "bhurji" in best_order,
+            msg=f"Expected Indian-style candidate, got: {out.get('best_order')}",
+        )
 
     def test_cafe_recommendation_does_not_leak_protein_plate_phrase(self):
         place = {

@@ -24,6 +24,7 @@ from personalization_profiles import (
     personalization_goal_value,
 )
 from place_today_decision import evaluate_place_for_today
+from ranked_place_builder import build_ranked_place_profile
 from restaurant_reality_check import build_restaurant_reality_check
 from share_card_formatter import build_best_order_share_card
 from swap_intelligence import build_swap_suggestions
@@ -471,6 +472,35 @@ def _place_profile(
         calories_saved=reality_check.get("calories_saved") if isinstance(reality_check, dict) else None,
     )
 
+    # Canonical ranking from single builder (no duplicate logic)
+    place_for_ranking = {
+        "name": place_name,
+        "cuisine_hint": _cuisine_hint_from_place(place),
+        "recommended_order": recommended_order,
+        "best_order": recommended_order,
+        "decision_today": decision_today,
+        "fit_for_today": fit_for_today,
+        "estimated_calories": estimated_calories,
+        "estimated_protein_g": estimated_protein_g,
+        "menu_item_confidence": menu_item_confidence,
+        "order_confidence": order_confidence,
+        "distance_meters": distance_meters,
+        "menu_item_source": menu_item_source,
+        "health_score": health_score_10pt,
+        "fit_today_score_100": decision.get("fit_today_score_100"),
+        "calorie_fit_score_100": decision.get("calorie_fit_score_100"),
+        "protein_fit_score_100": decision.get("protein_fit_score_100"),
+        "overshoot_penalty_100": decision.get("overshoot_penalty_100"),
+    }
+    user_context = {
+        "remaining_protein_g": remaining_protein_g,
+        "cut_mode": mode == NutritionMode.CUT,
+        "goal": goal_value,
+    }
+    ranking_fields = build_ranked_place_profile(place_for_ranking, user_context)
+    if ranking_fields.get("best_item_is_generic_fallback") and recommended_order_label.lower() in ("best order", "estimated best fit"):
+        recommended_order_label = "Suggested healthier pick"
+
     return {
         "name": place_name,
         "place_id": place_id,
@@ -479,6 +509,8 @@ def _place_profile(
         "distance_meters": int(distance_meters),
         "health_score": int(_clamp(health_score, 1, 100)),
         "health_score_10pt": round(health_score_10pt, 1),
+        **ranking_fields,
+        "candidate_source_label": menu_item_source.replace("_", " ").title(),
         "recommended_order": recommended_order,
         "recommended_order_label": recommended_order_label,
         "order_type": order_type,
@@ -512,22 +544,37 @@ def _place_profile(
     }
 
 
-def _pick_best(profiles: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+def _fit_for_today_strength(decision_today: str) -> float:
+    d = str(decision_today or "").strip().upper()
+    return 1.0 if d == "YES" else (0.5 if d == "MAYBE" else 0.0)
+
+
+def _pick_best(profiles: List[Dict[str, Any]], *, goal: str = "") -> Optional[Dict[str, Any]]:
     if not profiles:
         return None
 
-    ordered = sorted(
-        profiles,
-        key=lambda row: (
-            1 if row.get("fit_for_today") is True else 0,
-            float(_safe_float(row.get("source_rank_weight"), 0.65) or 0.65),
-            float(_safe_float(row.get("fit_score"), 0.0) or 0.0),
-            float(_safe_float(row.get("decision_confidence"), 0.0) or 0.0),
-            float(_safe_float(row.get("health_score"), 0.0) or 0.0),
-        ),
-        reverse=True,
-    )
-    return ordered[0]
+    # Meal-first: eligibility_band, meal_fitness_score_100, fit_for_today_strength, confidence, protein_density, distance, venue_prior
+    def _sort_key(row: Dict[str, Any]) -> tuple:
+        band = int(_safe_float(row.get("eligibility_band"), 1))
+        meal_score = float(_safe_float(row.get("meal_fitness_score_100") or row.get("display_rank_score_100"), 0.0) or 0.0)
+        fit_strength = _fit_for_today_strength(row.get("decision_today"))
+        conf = float(_safe_float(row.get("decision_confidence") or row.get("order_confidence"), 0.5) or 0.5)
+        protein_density = _clamp(
+            (float(_safe_float(row.get("estimated_protein_g"), 0.0) or 0.0) / max(1.0, float(_safe_float(row.get("estimated_calories"), 520.0) or 520.0)) * 1400.0),
+            0.0, 100.0,
+        )
+        dist = float(_safe_float(row.get("distance_meters"), 99999.0) or 99999.0)
+        venue_prior = float(_safe_float(row.get("venue_prior_score_100") or row.get("health_score"), 0.0) or 0.0)
+        return (band, meal_score, fit_strength, conf, protein_density, -dist, venue_prior)
+
+    ordered = sorted(profiles, key=_sort_key, reverse=True)
+    best = ordered[0]
+    # Hero constraint: if top candidate is band < 2 or generic, caller can show "Best available option" section
+    if int(_safe_float(best.get("eligibility_band"), 1)) < 2 or best.get("best_item_is_generic_fallback"):
+        best["hero_available"] = False
+    else:
+        best["hero_available"] = True
+    return best
 
 
 def _pick_better_alternative(profiles: List[Dict[str, Any]], best: Dict[str, Any]) -> Optional[Dict[str, Any]]:
@@ -857,7 +904,7 @@ def build_lunch_decision_response(
 
     cards: List[Dict[str, Any]] = []
 
-    best = _pick_best(profiles)
+    best = _pick_best(profiles, goal=goal)
     if best:
         cards.append(_build_best_card(best))
 

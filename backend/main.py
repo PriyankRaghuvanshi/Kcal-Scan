@@ -47,7 +47,11 @@ from healthy_place_scoring import (
     score_healthy_place,
 )
 from healthy_order_recommender import suggest_best_order_for_place
-from healthy_food_map import build_healthy_food_map_response, enrich_places_for_healthy_map
+from healthy_food_map import (
+    build_healthy_food_map_response,
+    build_sections,
+    enrich_places_for_healthy_map,
+)
 from menu_item_scoring import recommend_menu_items_for_place
 from menu_scan import build_menu_scan_response
 from menu_intelligence_store import get_place_menu_intelligence, ingest_menu_intelligence
@@ -57,13 +61,46 @@ from recommendation_feedback_store import (
     get_place_item_feedback_signal,
     log_recommendation_feedback_event,
 )
+from meal_feedback_store import upsert_meal_feedback_event
+from meal_decision_event_store import log_meal_decision_event
+from push_token_store import (
+    register_push_token,
+    unregister_push_token,
+    list_tokens_for_user,
+    deactivate_token_by_value,
+)
+from push_delivery_store import (
+    create_delivery_record,
+    update_delivery_status,
+    list_pending_receipt_ids,
+    list_recent_deliveries,
+    get_delivery_by_ticket_id,
+    mark_token_deactivated_for_delivery,
+    was_recently_sent,
+)
+from expo_push_service import (
+    build_expo_push_message,
+    send_expo_push_messages,
+    fetch_expo_push_receipts,
+    is_device_not_registered,
+)
+from push_rollout import can_send_real_push, get_push_rollout_mode, get_push_test_user_ids
+from personal_response_summary import get_personal_meal_memory
 from nutrition_mode import NutritionMode
 from better_choice_nearby import build_better_choice_nearby_response
 from daily_fatloss_coach import build_daily_fatloss_coach_response
 from daily_food_decision import build_daily_decision_response
 from lunch_decision import build_lunch_decision_response
 from nearby_feed import build_healthy_nearby_feed
+from ranked_place_builder import build_ranked_place_profile
+from context_modes import infer_context_mode
 from place_today_decision import evaluate_place_for_today
+from smart_food_alerts import build_smart_food_alert_candidates, build_alert_audit_one_liner
+from healthy_places_audit import (
+    build_audit_one_liner,
+    build_audit_result_row,
+    build_filtered_out_entry,
+)
 from recommendation_safety import has_strong_menu_evidence, sanitize_recommended_item
 from restaurant_reality_check import build_restaurant_reality_check
 from share_card_formatter import build_best_order_share_card
@@ -12597,6 +12634,11 @@ async def fetch_google_places(
 
 
 
+# Allowed sort_mode values for /places/healthy. Default "sectioned" for backward compatibility (existing clients expect sections).
+HEALTHY_PLACES_SORT_MODES = ("flat_score", "sectioned")
+HEALTHY_PLACES_SORT_MODE_DEFAULT = "sectioned"
+
+
 @app.get("/places/healthy")
 async def healthy_places(
     lat: float,
@@ -12606,8 +12648,29 @@ async def healthy_places(
     goal: str = "",
     remaining_calories: Optional[float] = None,
     remaining_protein_g: Optional[float] = None,
+    sort_mode: str = HEALTHY_PLACES_SORT_MODE_DEFAULT,
     debug: bool = False,
+    user_id: str = "",
+    context_mode: str = "",
+    post_workout: bool = False,
+    late_night: bool = False,
+    local_hour: Optional[int] = None,
+    poor_sleep_flag: bool = False,
+    high_craving_risk_flag: bool = False,
 ):
+    sort_mode_val = (sort_mode or "").strip().lower()
+    if sort_mode_val not in HEALTHY_PLACES_SORT_MODES:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "error": "invalid_sort_mode",
+                "message": f"sort_mode must be one of: {', '.join(HEALTHY_PLACES_SORT_MODES)}",
+                "received": sort_mode,
+                "allowed": list(HEALTHY_PLACES_SORT_MODES),
+            },
+        )
+    healthy_sort_mode = sort_mode_val
+
     places, fetch_error_reason, raw_places_count = await fetch_google_places(lat, lng, radius=radius)
     nutrition_mode = NutritionMode.CUT if bool(cut_mode) else NutritionMode.DEFAULT
     personalization_goal = normalize_personalization_goal(goal)
@@ -12924,6 +12987,69 @@ async def healthy_places(
             remaining_protein_g=remaining_protein_g,
             health_score=score,
         )
+        fit_for_today = (str(decision_today.get("decision_today") or "").strip().upper() != "NO")
+        place_name = str(p.get("name") or "Unknown place").strip()
+        cuisine_hint = ", ".join(
+            str(t or "").replace("_", " ") for t in (p.get("types") or [])[:3]
+            if t and str(t) not in {"restaurant", "food", "point_of_interest", "establishment", "meal_takeaway"}
+        )
+        _lat = _safe_float(p.get("lat"), 0.0)
+        _lng = _safe_float(p.get("lng"), 0.0)
+        _dist_m = int(max(0, (math.hypot((_lat - float(lat)) * 111320, (_lng - float(lng)) * 111320 * max(0.7, math.cos(math.radians(_lat)))) * 1000))) if (_lat and _lng) else 2000
+        place_for_ranking = {
+            "name": place_name,
+            "cuisine_hint": cuisine_hint,
+            "recommended_order": best_order,
+            "best_order": best_order,
+            "decision_today": decision_today.get("decision_today"),
+            "fit_for_today": fit_for_today,
+            "estimated_calories": estimated_calories,
+            "estimated_protein_g": estimated_protein_g,
+            "menu_item_confidence": final_order_confidence,
+            "order_confidence": final_order_confidence,
+            "distance_meters": _dist_m,
+            "menu_item_source": top_menu_source,
+            "health_score": score,
+            "fit_today_score_100": decision_today.get("fit_today_score_100"),
+            "calorie_fit_score_100": decision_today.get("calorie_fit_score_100"),
+            "protein_fit_score_100": decision_today.get("protein_fit_score_100"),
+            "overshoot_penalty_100": decision_today.get("overshoot_penalty_100"),
+        }
+        context_info_raw = {
+            "remaining_calories": remaining_calories,
+            "remaining_protein_g": remaining_protein_g,
+            "post_workout": bool(post_workout),
+            "late_night": bool(late_night),
+            "poor_sleep_flag": bool(poor_sleep_flag),
+            "high_craving_risk_flag": bool(high_craving_risk_flag),
+            "context_mode_override": (context_mode or "").strip() or None,
+            "local_hour": int(local_hour) if local_hour is not None else 12,
+        }
+        ctx_modes = infer_context_mode(context_info_raw)
+        context_info = {**context_info_raw, **ctx_modes}
+        user_context_meal = {
+            "remaining_protein_g": remaining_protein_g,
+            "cut_mode": bool(cut_mode),
+            "goal": personalization_goal_value_str,
+            "context_info": context_info,
+        }
+        mem_dict = None
+        if str(user_id or "").strip():
+            try:
+                mem = get_personal_meal_memory(
+                    user_id=user_id,
+                    place_id=str(p.get("place_id") or p.get("id") or ""),
+                    place_name=place_name,
+                    item_name=best_order,
+                    goal=goal,
+                    time_of_day="",
+                )
+                mem_dict = mem.to_dict()
+                user_context_meal["personal_memory"] = mem
+            except Exception:
+                mem_dict = None
+
+        ranking_fields = build_ranked_place_profile(place_for_ranking, user_context_meal)
 
         reality_check = build_restaurant_reality_check(
             p,
@@ -12998,6 +13124,11 @@ async def healthy_places(
                 ),
                 "swap_suggestion": swap_suggestion,
                 "swap_suggestions": swap_suggestions,
+                "best_item_swaps": (
+                    top_menu_item.get("best_item_swaps")
+                    if use_menu_order and isinstance(top_menu_item.get("best_item_swaps"), list)
+                    else []
+                ),
                 "skip_items": skip_items if isinstance(skip_items, list) else [],
                 "add_items": add_items if isinstance(add_items, list) else [],
                 "order_type": order_type,
@@ -13079,10 +13210,40 @@ async def healthy_places(
                         reality_check.get("calories_saved") if isinstance(reality_check, dict) else None
                     ),
                 ),
+                # Canonical ranking fields from ranked_place_builder
+                **ranking_fields,
+                "candidate_source_label": top_menu_source.replace("_", " ").title(),
+                **(mem_dict or {}),
             }
         )
 
-    # Add map-friendly metadata and local-first ranking without breaking list clients.
+    # Personal memory enrichment (optional; does not affect ranking math).
+    if str(user_id or "").strip():
+        for row in scored:
+            try:
+                mem = get_personal_meal_memory(
+                    user_id=user_id,
+                    place_id=row.get("place_id"),
+                    place_name=row.get("name"),
+                    item_name=row.get("best_item_name") or row.get("best_order") or "",
+                    goal=goal,
+                    time_of_day="",
+                )
+                row.update(mem.to_dict())
+            except Exception:
+                row.update(
+                    {
+                        "worked_before": False,
+                        "personal_memory_label": "",
+                        "times_chosen": 0,
+                        "repeat_success_rate": 0.0,
+                        "swap_accept_rate": 0.0,
+                        "avg_fullness": None,
+                        "avg_craving_score": None,
+                    }
+                )
+
+    # Add map-friendly metadata; sort by client-requested sort_mode (flat_score = display_rank_score_100 desc, distance; sectioned = sections then score).
     scored = enrich_places_for_healthy_map(
         scored,
         origin_lat=float(_safe_float(lat, 0.0) or 0.0),
@@ -13091,25 +13252,23 @@ async def healthy_places(
         cut_mode=bool(cut_mode),
         remaining_calories=remaining_calories,
         remaining_protein_g=remaining_protein_g,
+        sort_mode=healthy_sort_mode,
     )
-    scored.sort(
-        key=lambda x: (
-            1.0 if bool(x.get("is_current_place") or x.get("current_place_priority")) else 0.0,
-            float(_safe_float(x.get("final_rank_score"), _safe_float(x.get("local_ranking_score"), 0.0)) or 0.0),
-            float(_safe_float(x.get("local_priority_score"), 0.0) or 0.0),
-            float(_safe_float(x.get("source_rank_weight"), 0.0) or 0.0),
-            float(_safe_float(x.get("restaurant_health_score"), x.get("health_score", 0.0)) or 0.0),
-        ),
-        reverse=True,
-    )
+    sections_payload = build_sections(scored) if healthy_sort_mode == "sectioned" else None
 
     radius_used = int(max(200, min(50000, int(_safe_float(radius, 3000) or 3000))))
     response = {
-        "places": scored,
+        "sort_mode": healthy_sort_mode,
         "places_count": len(scored),
         "api_available": bool(GOOGLE_PLACES_API_KEY),
         "radius_used": radius_used,
     }
+    if healthy_sort_mode == "flat_score":
+        response["items"] = scored
+    else:
+        response["places"] = scored
+        if sections_payload is not None:
+            response["sections"] = sections_payload
     if fetch_error_reason:
         response["_no_results_reason"] = fetch_error_reason
     elif not scored:
@@ -13129,6 +13288,235 @@ async def healthy_places(
     if scored and isinstance(scored[0].get("reality_check_share_card"), dict):
         response["top_reality_check_share_card"] = scored[0]["reality_check_share_card"]
     return response
+
+
+@app.get("/places/healthy/audit")
+async def healthy_places_audit(
+    lat: float,
+    lng: float,
+    radius_m: int = 3000,
+    goal: str = "",
+    remaining_calories: Optional[float] = None,
+    remaining_protein_g: Optional[float] = None,
+    sort_mode: str = "flat_score",
+    limit: int = 10,
+    include_filtered_out: bool = False,
+    include_candidate_debug: bool = False,
+    include_alert_candidates: bool = False,
+    user_id: str = "",
+    context_mode: str = "",
+    post_workout: bool = False,
+    late_night: bool = False,
+    local_hour: Optional[int] = None,
+    poor_sleep_flag: bool = False,
+    high_craving_risk_flag: bool = False,
+):
+    """
+    Developer-only audit: inspect why each place ranked where it did.
+    Uses the same retrieval and canonical ranking as /places/healthy.
+    No LLM. No ranking logic changes.
+    """
+    sort_mode_val = (sort_mode or "flat_score").strip().lower()
+    if sort_mode_val not in HEALTHY_PLACES_SORT_MODES:
+        sort_mode_val = "flat_score"
+    radius = int(max(200, min(50000, radius_m)))
+    cut_mode = (goal or "").strip().lower() in ("cut", "fat_loss")
+    payload = await healthy_places(
+        lat=lat,
+        lng=lng,
+        radius=radius,
+        cut_mode=cut_mode,
+        goal=goal,
+        remaining_calories=remaining_calories,
+        remaining_protein_g=remaining_protein_g,
+        sort_mode=sort_mode_val,
+        user_id=user_id,
+        context_mode=context_mode,
+        post_workout=post_workout,
+        late_night=late_night,
+        local_hour=local_hour,
+        poor_sleep_flag=poor_sleep_flag,
+        high_craving_risk_flag=high_craving_risk_flag,
+    )
+    items = payload.get("items") or payload.get("places") or []
+    if not isinstance(items, list):
+        items = []
+    places_considered = len(items)
+    limited = items[: max(1, min(100, limit))]
+    places_returned = len(limited)
+    results = []
+    for i, place in enumerate(limited, 1):
+        row = build_audit_result_row(place, i, include_candidate_debug=include_candidate_debug)
+        if str(user_id or "").strip():
+            try:
+                mem = get_personal_meal_memory(
+                    user_id=user_id,
+                    place_id=row.get("place_id"),
+                    place_name=row.get("place_name"),
+                    item_name=row.get("best_item_name"),
+                    goal=goal,
+                    time_of_day="",
+                )
+                row.update(mem.to_dict())
+            except Exception:
+                pass
+        results.append(row)
+    filtered_out: List[Dict[str, Any]] = []
+    if include_filtered_out and len(items) > len(limited):
+        for place in items[places_returned:]:
+            filtered_out.append(build_filtered_out_entry(place, "limit"))
+    alert_candidates: List[Dict[str, Any]] = []
+    if include_alert_candidates and items:
+        context_info_raw = {
+            "remaining_calories": remaining_calories,
+            "remaining_protein_g": remaining_protein_g,
+            "post_workout": bool(post_workout),
+            "late_night": bool(late_night),
+            "poor_sleep_flag": bool(poor_sleep_flag),
+            "high_craving_risk_flag": bool(high_craving_risk_flag),
+            "context_mode_override": (context_mode or "").strip() or None,
+            "local_hour": int(local_hour) if local_hour is not None else 12,
+        }
+        ctx_modes = infer_context_mode(context_info_raw)
+        user_context_alert = {
+            "remaining_protein_g": remaining_protein_g,
+            "remaining_calories": remaining_calories,
+            "post_workout": bool(post_workout),
+            "late_night": bool(late_night),
+            "local_hour": int(local_hour) if local_hour is not None else 12,
+            "context_mode": ctx_modes.get("context_mode", "default"),
+            "context_flags": ctx_modes.get("context_flags", {}),
+            "poor_sleep_flag": bool(poor_sleep_flag),
+            "high_craving_risk_flag": bool(high_craving_risk_flag),
+            "recent_alerts_count_6h": 0,
+            "recent_alerts_count_24h": 0,
+            "weekly_alert_count": 0,
+            "ignored_streak": 0,
+        }
+        alert_candidates = build_smart_food_alert_candidates(user_context_alert, items, eligible_only=False)
+        for ac in alert_candidates:
+            ac["audit_one_liner"] = build_alert_audit_one_liner(ac)
+    generated_at = dt.datetime.now(dt.timezone.utc).isoformat()
+    out = {
+        "query": {
+            "lat": lat,
+            "lng": lng,
+            "radius_m": radius,
+            "goal": goal or None,
+            "remaining_calories": remaining_calories,
+            "remaining_protein_g": remaining_protein_g,
+            "sort_mode": sort_mode_val,
+            "limit": limit,
+        },
+        "summary": {
+            "places_considered": places_considered,
+            "places_returned": places_returned,
+            "sort_mode": sort_mode_val,
+            "generated_at": generated_at,
+        },
+        "results": results,
+    }
+    if include_filtered_out:
+        out["filtered_out"] = filtered_out
+    if include_alert_candidates:
+        out["alert_candidates"] = alert_candidates
+    return out
+
+
+@app.get("/smart-food-alerts/candidates")
+async def smart_food_alert_candidates(
+    lat: float,
+    lng: float,
+    radius: int = 3000,
+    goal: str = "",
+    remaining_calories: Optional[float] = None,
+    remaining_protein_g: Optional[float] = None,
+    user_id: str = "",
+    context_mode: str = "",
+    post_workout: bool = False,
+    late_night: bool = False,
+    local_hour: Optional[int] = None,
+    poor_sleep_flag: bool = False,
+    high_craving_risk_flag: bool = False,
+    recent_alerts_count_6h: Optional[int] = None,
+    recent_alerts_count_24h: Optional[int] = None,
+    weekly_alert_count: Optional[int] = None,
+    ignored_streak: Optional[int] = None,
+    recently_opened_app: bool = False,
+    recently_viewed_nearby: bool = False,
+    eligible_only: bool = False,
+):
+    """
+    Dev/internal: build smart food alert candidates.
+    Reuses same ranked place pipeline as /places/healthy.
+    Returns alert candidates with why_triggered, suppression_reasons, eligible_to_send.
+    """
+    cut_mode = (goal or "").strip().lower() in ("cut", "fat_loss")
+    context_info_raw = {
+        "remaining_calories": remaining_calories,
+        "remaining_protein_g": remaining_protein_g,
+        "post_workout": bool(post_workout),
+        "late_night": bool(late_night),
+        "poor_sleep_flag": bool(poor_sleep_flag),
+        "high_craving_risk_flag": bool(high_craving_risk_flag),
+        "context_mode_override": (context_mode or "").strip() or None,
+        "local_hour": int(local_hour) if local_hour is not None else 12,
+    }
+    ctx_modes = infer_context_mode(context_info_raw)
+    user_context = {
+        "remaining_calories": remaining_calories,
+        "remaining_protein_g": remaining_protein_g,
+        "post_workout": bool(post_workout),
+        "late_night": bool(late_night),
+        "local_hour": int(local_hour) if local_hour is not None else 12,
+        "context_mode": ctx_modes.get("context_mode", "default"),
+        "context_flags": ctx_modes.get("context_flags", {}),
+        "poor_sleep_flag": bool(poor_sleep_flag),
+        "high_craving_risk_flag": bool(high_craving_risk_flag),
+        "recent_alerts_count_6h": recent_alerts_count_6h if recent_alerts_count_6h is not None else 0,
+        "recent_alerts_count_24h": recent_alerts_count_24h if recent_alerts_count_24h is not None else 0,
+        "weekly_alert_count": weekly_alert_count if weekly_alert_count is not None else 0,
+        "ignored_streak": ignored_streak if ignored_streak is not None else 0,
+        "recently_opened_app": bool(recently_opened_app),
+        "recently_viewed_nearby": bool(recently_viewed_nearby),
+    }
+    payload = await healthy_places(
+        lat=lat,
+        lng=lng,
+        radius=radius,
+        cut_mode=cut_mode,
+        goal=goal,
+        remaining_calories=remaining_calories,
+        remaining_protein_g=remaining_protein_g,
+        sort_mode="flat_score",
+        user_id=user_id,
+        context_mode=context_mode,
+        post_workout=post_workout,
+        late_night=late_night,
+        local_hour=local_hour,
+        poor_sleep_flag=poor_sleep_flag,
+        high_craving_risk_flag=high_craving_risk_flag,
+    )
+    items = payload.get("items") or payload.get("places") or []
+    if not isinstance(items, list):
+        items = []
+    candidates = build_smart_food_alert_candidates(
+        user_context, items, eligible_only=eligible_only
+    )
+    for c in candidates:
+        c["audit_one_liner"] = build_alert_audit_one_liner(c)
+    return {
+        "candidates": candidates,
+        "places_considered": len(items),
+        "query": {
+            "lat": lat,
+            "lng": lng,
+            "remaining_protein_g": remaining_protein_g,
+            "remaining_calories": remaining_calories,
+            "context_mode": user_context.get("context_mode"),
+            "local_hour": user_context.get("local_hour"),
+        },
+    }
 
 
 @app.get("/places/healthy-map")
@@ -13152,7 +13540,10 @@ async def healthy_places_map(
         remaining_protein_g=remaining_protein_g,
     )
 
-    places = nearby_payload.get("places") if isinstance(nearby_payload, dict) else []
+    # /places/healthy returns "places" when sort_mode=sectioned, "items" when sort_mode=flat_score
+    places = (
+        nearby_payload.get("places") or nearby_payload.get("items") or []
+    ) if isinstance(nearby_payload, dict) else []
 
     return build_healthy_food_map_response(
         places=places if isinstance(places, list) else [],
@@ -13166,6 +13557,406 @@ async def healthy_places_map(
         limit=max(1, min(80, int(_safe_float(limit, 40) or 40))),
     )
 
+
+@app.post("/meal-feedback")
+async def meal_feedback(payload: Dict[str, Any] = Body(...)):
+    """
+    Capture meal feedback events (partial allowed) and allow follow-up updates via feedback_id.
+    """
+    try:
+        saved = upsert_meal_feedback_event(payload if isinstance(payload, dict) else {})
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail={"error": str(e)})
+    return {"ok": True, "feedback": saved}
+
+
+@app.post("/meal-decision-event")
+async def meal_decision_event(payload: Dict[str, Any] = Body(...)):
+    """
+    Append-only meal decision events (viewed/opened/swap accepted/chosen/ignored).
+    """
+    try:
+        saved = log_meal_decision_event(payload if isinstance(payload, dict) else {})
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail={"error": str(e)})
+    return {"ok": True, "event": saved}
+
+
+@app.post("/push/register")
+async def push_register(payload: Dict[str, Any] = Body(...)):
+    """
+    Register Expo push token for a user. Dedupes by user_id + expo_push_token.
+    Payload: user_id, expo_push_token, platform (ios|android), device_name?, app_version?
+    """
+    try:
+        p = payload if isinstance(payload, dict) else {}
+        saved = register_push_token(p)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail={"error": str(e)})
+    return {"ok": True, "token": saved}
+
+
+@app.post("/push/unregister")
+async def push_unregister(payload: Dict[str, Any] = Body(...)):
+    """
+    Unregister Expo push token. Mark inactive.
+    Payload: user_id, expo_push_token
+    """
+    try:
+        p = payload if isinstance(payload, dict) else {}
+        result = unregister_push_token(p)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail={"error": str(e)})
+    return {"ok": True, **result}
+
+
+@app.post("/push/send-smart-alerts")
+async def push_send_smart_alerts(payload: Dict[str, Any] = Body(...)):
+    """
+    Send eligible Smart Food Alerts as Expo push notifications.
+    Payload: user_id, lat, lng, eligible_only?, dry_run?, context?, fatigue?, goal?, radius?
+    Top 1 candidate per user per run (conservative).
+    Respects EXPO_PUSH_SENDING_ENABLED; dry_run works even when disabled.
+    """
+    p = payload if isinstance(payload, dict) else {}
+    user_id = (p.get("user_id") or "").strip()
+    if not user_id:
+        raise HTTPException(status_code=422, detail={"error": "user_id required"})
+    lat = _safe_float(p.get("lat"), 0.0)
+    lng = _safe_float(p.get("lng"), 0.0)
+    if not (math.isfinite(lat) and math.isfinite(lng)):
+        raise HTTPException(status_code=422, detail={"error": "lat and lng required"})
+
+    dry_run = bool(p.get("dry_run", True))
+    eligible_only = bool(p.get("eligible_only", True))
+    goal = str(p.get("goal") or "").strip()
+    cut_mode = (goal or "").strip().lower() in ("cut", "fat_loss")
+    radius = max(500, min(5000, int(_safe_float(p.get("radius"), 3000) or 3000)))
+
+    allowed, reason = can_send_real_push(user_id, dry_run=dry_run)
+    rollout_mode = get_push_rollout_mode()
+    effective_dry_run = dry_run or not allowed
+
+    ctx = p.get("context") or {}
+    fatigue = p.get("fatigue") or {}
+    remaining_cal = _safe_float(ctx.get("remaining_calories"), 0.0)
+    remaining_protein = _safe_float(ctx.get("remaining_protein_g"), 0.0)
+    local_hour = int(ctx.get("local_hour") if ctx.get("local_hour") is not None else 12)
+    post_workout = bool(ctx.get("post_workout", False))
+    late_night = bool(ctx.get("late_night", False))
+    poor_sleep = bool(ctx.get("poor_sleep_flag", False))
+    high_craving = bool(ctx.get("high_craving_risk_flag", False))
+    context_mode_override = (ctx.get("context_mode") or "").strip() or None
+
+    context_info_raw = {
+        "remaining_calories": remaining_cal,
+        "remaining_protein_g": remaining_protein,
+        "post_workout": post_workout,
+        "late_night": late_night,
+        "poor_sleep_flag": poor_sleep,
+        "high_craving_risk_flag": high_craving,
+        "context_mode_override": context_mode_override,
+        "local_hour": local_hour,
+    }
+    ctx_modes = infer_context_mode(context_info_raw)
+    context_mode = ctx_modes.get("context_mode", "default")
+
+    recent_6h = int(fatigue.get("recent_alerts_count_6h") if fatigue.get("recent_alerts_count_6h") is not None else 0)
+    recent_24h = int(fatigue.get("recent_alerts_count_24h") if fatigue.get("recent_alerts_count_24h") is not None else 0)
+    weekly = int(fatigue.get("weekly_alert_count") if fatigue.get("weekly_alert_count") is not None else 0)
+    ignored = int(fatigue.get("ignored_streak") if fatigue.get("ignored_streak") is not None else 0)
+    recently_opened = bool(fatigue.get("recently_opened_app", False))
+    recently_viewed = bool(fatigue.get("recently_viewed_nearby", False))
+
+    payload_hp = await healthy_places(
+        lat=lat,
+        lng=lng,
+        radius=radius,
+        cut_mode=cut_mode,
+        goal=goal,
+        remaining_calories=remaining_cal,
+        remaining_protein_g=remaining_protein,
+        sort_mode="flat_score",
+        user_id=user_id,
+        context_mode=context_mode,
+        post_workout=post_workout,
+        late_night=late_night,
+        local_hour=local_hour,
+        poor_sleep_flag=poor_sleep,
+        high_craving_risk_flag=high_craving,
+    )
+    items = payload_hp.get("items") or payload_hp.get("places") or []
+    if not isinstance(items, list):
+        items = []
+
+    user_context = {
+        "remaining_calories": remaining_cal,
+        "remaining_protein_g": remaining_protein,
+        "post_workout": post_workout,
+        "late_night": late_night,
+        "local_hour": local_hour,
+        "context_mode": context_mode,
+        "poor_sleep_flag": poor_sleep,
+        "high_craving_risk_flag": high_craving,
+        "recent_alerts_count_6h": recent_6h,
+        "recent_alerts_count_24h": recent_24h,
+        "weekly_alert_count": weekly,
+        "ignored_streak": ignored,
+        "recently_opened_app": recently_opened,
+        "recently_viewed_nearby": recently_viewed,
+    }
+    candidates = build_smart_food_alert_candidates(user_context, items, eligible_only=eligible_only)
+    eligible = [c for c in candidates if c.get("eligible_to_send") and c.get("confidence_label") not in ("", "Needs menu check")]
+    top_candidate = eligible[0] if eligible else None
+
+    tokens = list_tokens_for_user(user_id, active_only=True)
+    if not tokens or not top_candidate:
+        return {
+            "ok": True,
+            "dry_run": dry_run,
+            "real_send_allowed": allowed,
+            "real_send_reason": reason,
+            "rollout_mode": rollout_mode,
+            "candidates_considered": len(candidates),
+            "eligible_count": len(eligible),
+            "notifications_attempted": 0,
+            "tickets_received": 0,
+            "suppressed_reasons": "no_tokens" if not tokens else "no_eligible_candidates",
+        }
+
+    alert_id = f"{top_candidate.get('alert_type')}::{top_candidate.get('place_id')}::{top_candidate.get('best_item_name')}"
+
+    messages = []
+    delivery_records = []
+    for t in tokens:
+        token = t.get("expo_push_token") or ""
+        if not token or not token.startswith("ExponentPushToken["):
+            continue
+        if was_recently_sent(user_id, token, alert_id):
+            continue
+        msg = build_expo_push_message(top_candidate, token)
+        messages.append(msg)
+        rec = create_delivery_record(
+            user_id=user_id,
+            expo_push_token=token,
+            alert_id=alert_id,
+            alert_type=str(top_candidate.get("alert_type") or ""),
+            place_id=str(top_candidate.get("place_id") or ""),
+            place_name=str(top_candidate.get("place_name") or ""),
+            best_item_name=str(top_candidate.get("best_item_name") or ""),
+            title=str(top_candidate.get("title") or ""),
+            body=str(top_candidate.get("body") or ""),
+            payload_data=msg.get("data"),
+            dry_run=effective_dry_run,
+        )
+        delivery_records.append(rec)
+
+    if not messages:
+        return {
+            "ok": True,
+            "dry_run": dry_run,
+            "real_send_allowed": allowed,
+            "real_send_reason": reason,
+            "rollout_mode": rollout_mode,
+            "candidates_considered": len(candidates),
+            "eligible_count": len(eligible),
+            "notifications_attempted": 0,
+            "tickets_received": 0,
+            "suppressed_reasons": "duplicate_recently_sent",
+        }
+
+    result = send_expo_push_messages(messages, dry_run=effective_dry_run)
+    tickets = result.get("tickets") or []
+    if not effective_dry_run:
+        for i, ticket in enumerate(tickets):
+            if i >= len(delivery_records):
+                break
+            rec = delivery_records[i]
+            if ticket.get("status") == "ok":
+                tid = ticket.get("id")
+                update_delivery_status(rec["delivery_id"], status="sent", expo_ticket_id=tid)
+            else:
+                err_msg = ticket.get("message") or "unknown"
+                err_details = ticket.get("details") or {}
+                err_code = err_details.get("error") if isinstance(err_details, dict) else None
+                update_delivery_status(
+                    rec["delivery_id"],
+                    status="ticket_error",
+                    error_code=str(err_code) if err_code else None,
+                    error_message=err_msg[:500],
+                )
+
+    return {
+        "ok": result.get("ok", True),
+        "dry_run": dry_run,
+        "real_send_allowed": allowed,
+        "real_send_reason": reason,
+        "rollout_mode": rollout_mode,
+        "candidates_considered": len(candidates),
+        "eligible_count": len(eligible),
+        "notifications_attempted": len(messages),
+        "tickets_received": result.get("sent_count", 0),
+        "ticket_errors": result.get("error_count", 0),
+    }
+
+
+@app.post("/push/check-receipts")
+async def push_check_receipts(payload: Dict[str, Any] = Body(...)):
+    """
+    Fetch receipts for given ticket IDs, update delivery records, deactivate invalid tokens.
+    Payload: ticket_ids (list), dry_run? (default false)
+    """
+    p = payload if isinstance(payload, dict) else {}
+    ticket_ids = p.get("ticket_ids") or []
+    if not isinstance(ticket_ids, list):
+        ticket_ids = []
+    ticket_ids = [str(t).strip() for t in ticket_ids if str(t).strip()][:1000]
+    dry_run = bool(p.get("dry_run", False))
+
+    if dry_run:
+        return {"ok": True, "dry_run": True, "processed": 0, "receipt_ok": 0, "receipt_error": 0, "tokens_deactivated": 0}
+
+    if not ticket_ids:
+        return {"ok": True, "dry_run": False, "processed": 0, "receipt_ok": 0, "receipt_error": 0, "tokens_deactivated": 0}
+
+    receipts_result = fetch_expo_push_receipts(ticket_ids)
+    receipts = receipts_result.get("receipts") or {}
+    receipt_ok = 0
+    receipt_error = 0
+    tokens_deactivated = 0
+
+    for tid, receipt in receipts.items():
+        delivery = get_delivery_by_ticket_id(tid)
+        if not delivery:
+            continue
+        if receipt.get("status") == "ok":
+            update_delivery_status(delivery["delivery_id"], status="receipt_ok", expo_receipt_id=tid)
+            receipt_ok += 1
+        else:
+            err_details = receipt.get("details") or {}
+            err_code = err_details.get("error") if isinstance(err_details, dict) else None
+            err_msg = receipt.get("message") or ""
+            update_delivery_status(
+                delivery["delivery_id"],
+                status="receipt_error",
+                error_code=str(err_code) if err_code else None,
+                error_message=err_msg[:500],
+            )
+            receipt_error += 1
+            if is_device_not_registered(receipt):
+                mark_token_deactivated_for_delivery(delivery["delivery_id"])
+                deactivate_token_by_value(delivery["user_id"], delivery["expo_push_token"])
+                tokens_deactivated += 1
+
+    return {
+        "ok": receipts_result.get("ok", True),
+        "dry_run": False,
+        "processed": len(receipts),
+        "receipt_ok": receipt_ok,
+        "receipt_error": receipt_error,
+        "tokens_deactivated": tokens_deactivated,
+    }
+
+
+@app.post("/push/check-pending-receipts")
+async def push_check_pending_receipts(payload: Optional[Dict[str, Any]] = Body(default=None)):
+    """
+    Check receipts for all pending (sent but not receipt-checked) tickets.
+    Optional payload: { "limit": 100 }
+    """
+    p = payload if isinstance(payload, dict) else {}
+    limit = max(1, min(500, int(p.get("limit") or 100)))
+    pending = list_pending_receipt_ids(limit=limit)
+    if not pending:
+        return {"ok": True, "pending_count": 0, "processed": 0, "receipt_ok": 0, "receipt_error": 0, "tokens_deactivated": 0}
+    result = await push_check_receipts({"ticket_ids": pending, "dry_run": False})
+    result["pending_count"] = len(pending)
+    return result
+
+
+@app.get("/push/analytics/summary")
+async def push_analytics_summary(
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    user_id: Optional[str] = None,
+    alert_type: Optional[str] = None,
+    dry_run_only: bool = False,
+    real_send_only: bool = False,
+):
+    """
+    Push analytics summary. Query params: start_date, end_date, user_id?, alert_type?, dry_run_only?, real_send_only?
+    """
+    from push_analytics import build_push_analytics_summary
+
+    summary = build_push_analytics_summary(
+        start_date=start_date,
+        end_date=end_date,
+        user_id=user_id,
+        alert_type=alert_type,
+        dry_run_only=dry_run_only,
+        real_send_only=real_send_only,
+    )
+    return {"ok": True, "summary": summary}
+
+
+@app.get("/push/analytics/recent-deliveries")
+async def push_analytics_recent_deliveries(
+    limit: int = 50,
+    user_id: Optional[str] = None,
+    alert_type: Optional[str] = None,
+    status: Optional[str] = None,
+):
+    """
+    Recent delivery records. Query params: limit (default 50), user_id?, alert_type?, status?
+    """
+    deliveries = list_recent_deliveries(
+        limit=max(1, min(200, limit or 50)),
+        user_id=user_id,
+        alert_type=alert_type,
+        status=status,
+    )
+    rows = [
+        {
+            "delivery_id": d.get("delivery_id"),
+            "user_id": d.get("user_id"),
+            "alert_type": d.get("alert_type"),
+            "place_name": d.get("place_name"),
+            "title": d.get("title"),
+            "dry_run": d.get("dry_run"),
+            "status": d.get("status"),
+            "expo_ticket_id": d.get("expo_ticket_id"),
+            "error_code": d.get("error_code"),
+            "created_at": d.get("created_at"),
+        }
+        for d in deliveries
+    ]
+    return {"ok": True, "deliveries": rows, "count": len(rows)}
+
+
+@app.get("/push/analytics/rollout-status")
+async def push_analytics_rollout_status(debug: bool = False):
+    """
+    Rollout configuration. debug=true shows allowlist size and sample (redacted) IDs.
+    """
+    import os
+
+    push_enabled = str(os.getenv("EXPO_PUSH_SENDING_ENABLED", "0")).strip().lower() in ("1", "true", "yes")
+    mode = get_push_rollout_mode()
+    allowlist = get_push_test_user_ids()
+    sample_count = 0
+    sample_ids = []
+    if debug and allowlist:
+        sample_count = len(allowlist)
+        for uid in sorted(allowlist)[:5]:
+            sample_ids.append(uid[:4] + "***" + uid[-4:] if len(uid) > 12 else "***")
+    return {
+        "ok": True,
+        "push_sending_enabled": push_enabled,
+        "rollout_mode": mode,
+        "allowlist_size": len(allowlist),
+        "sample_ids_count": sample_count if debug else None,
+        "sample_ids_preview": sample_ids if debug else None,
+    }
 
 
 @app.get("/places/feed")

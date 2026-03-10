@@ -50,6 +50,15 @@ from menu_intelligence_store import (
 from menu_ingestion import ingest_real_menu_for_place
 from chain_menu_registry import resolve_chain_menu_for_place
 from recommendation_feedback_store import get_place_item_feedback_signal
+from cuisine_candidate_rules import (
+    get_candidates_for_place,
+    get_best_order_for_place_heuristic,
+    select_best_candidate,
+    SOURCE_HEURISTIC_CUISINE_STRONG,
+    SOURCE_HEURISTIC_CUISINE_WEAK,
+)
+from menu_normalization import normalize_menu_candidates
+from swap_rules import generate_swaps_for_item
 
 
 MENU_RECOMMENDATION_VERSION = "v1"
@@ -117,9 +126,9 @@ PLACE_MENU_RULES: List[Dict[str, Any]] = [
         "rule_id": "cafe",
         "tokens": ("cafe", "coffee", "brunch", "bakery"),
         "items": [
-            {"item_name": "Egg and chicken plate", "estimated_calories": 430, "estimated_protein_g": 30},
+            {"item_name": "Eggs on toast", "estimated_calories": 410, "estimated_protein_g": 22},
+            {"item_name": "Grilled chicken wrap", "estimated_calories": 480, "estimated_protein_g": 28},
             {"item_name": "Savory egg and toast option", "estimated_calories": 410, "estimated_protein_g": 25},
-            {"item_name": "Chicken sandwich (no fries)", "estimated_calories": 520, "estimated_protein_g": 32},
         ],
     },
     {
@@ -133,7 +142,7 @@ PLACE_MENU_RULES: List[Dict[str, Any]] = [
     },
     {
         "rule_id": "south_indian_temple_canteen",
-        "tokens": ("south indian", "idli", "dosa", "sambar", "udupi", "canteen", "temple"),
+        "tokens": ("south indian", "idli", "dosa", "sambar", "udupi", "canteen", "temple", "filter coffee", "chennai", "cfc"),
         "items": [
             {"item_name": "Idli + sambar", "estimated_calories": 360, "estimated_protein_g": 13},
             {"item_name": "Plain dosa + sambar", "estimated_calories": 420, "estimated_protein_g": 14},
@@ -178,6 +187,7 @@ FALLBACK_ITEMS: List[Dict[str, Any]] = [
 SOURCE_RANK_WEIGHTS: Dict[str, float] = {
     "real_menu": 1.00,
     "user_scan": 0.95,
+    "chain_registry": 0.90,
     "llm_reasoning": 0.85,
     "llm_inferred": 0.80,
     "heuristic": 0.65,
@@ -186,6 +196,7 @@ SOURCE_RANK_WEIGHTS: Dict[str, float] = {
 SOURCE_PRIORITY_WEIGHTS: Dict[str, int] = {
     "real_menu": 4,
     "user_scan": 3,
+    "chain_registry": 3,
     "llm_inferred": 2,
     "heuristic": 1,
 }
@@ -197,6 +208,8 @@ _GENERIC_FALLBACK_NAME_TOKENS: Tuple[str, ...] = (
     "protein plate",
     "lean wrap",
     "protein wrap",
+    "egg + chicken plate",
+    "egg and chicken plate",
     # Additional generic placeholders from LLM hallucination patterns
     "healthy option",
     "lighter option",
@@ -359,6 +372,8 @@ def _menu_item_source_from_menu_source(menu_source: Any) -> str:
     token = str(menu_source or "").strip().lower()
     if token == "user_scan":
         return "user_scan"
+    if token == "chain_registry":
+        return "chain_registry"
     if token in {
         "structured_menu",
         "menu_intelligence_store",
@@ -375,10 +390,18 @@ def _menu_item_source_from_menu_source(menu_source: Any) -> str:
     return "heuristic"
 
 
-def _display_label_for_menu_item(source: str, confidence: float) -> str:
+def _display_label_for_menu_item(
+    source: str, confidence: float, candidate_source_label: str | None = None
+) -> str:
     conf = _clamp(_safe_float(confidence, 0.5), 0.0, 1.0)
     if source in {"real_menu", "user_scan"}:
         return "Best Menu Item" if conf >= 0.72 else "Likely Better Choice"
+    if source == "chain_registry":
+        if conf >= 0.78:
+            return "Likely Better Choice"
+        if conf >= 0.60:
+            return "Estimated Best Fit"
+        return "Needs Menu Check"
     if source == "llm_reasoning":
         if conf >= 0.70:
             return "Best Menu Item"
@@ -392,6 +415,10 @@ def _display_label_for_menu_item(source: str, confidence: float) -> str:
             return "Suggested Lighter Option"
         if conf >= 0.45:
             return "Estimated Best Fit"
+        return "Needs Menu Check"
+    if source == "heuristic":
+        if candidate_source_label == SOURCE_HEURISTIC_CUISINE_STRONG and conf >= 0.58:
+            return "Likely healthy option"
         return "Needs Menu Check"
     if conf >= 0.7:
         return "Estimated Best Fit"
@@ -431,6 +458,8 @@ def _source_rank_weight(source: str, raw_source_token: str) -> float:
         return SOURCE_RANK_WEIGHTS["user_scan"]
     if source == "real_menu":
         return SOURCE_RANK_WEIGHTS["real_menu"]
+    if source == "chain_registry":
+        return SOURCE_RANK_WEIGHTS["chain_registry"]
     if source == "llm_reasoning":
         return SOURCE_RANK_WEIGHTS["llm_reasoning"]
     if source == "llm_inferred":
@@ -687,12 +716,69 @@ def _rule_match(place_text: str) -> Dict[str, Any] | None:
     return best_rule
 
 
-def _heuristic_menu_items(place: Dict[str, Any]) -> List[Dict[str, Any]]:
+def _heuristic_menu_items(
+    place: Dict[str, Any],
+    *,
+    cut_mode: bool = False,
+    remaining_calories: float | None = None,
+    remaining_protein_g: float | None = None,
+) -> List[Dict[str, Any]]:
+    """
+    Up to 3 heuristic candidates. Prefer cuisine_candidate_rules; fallback to PLACE_MENU_RULES/FALLBACK_ITEMS.
+    """
+    candidates, cuisine_id, confidence, source_label = get_candidates_for_place(
+        place, max_candidates=3, cut_mode=cut_mode
+    )
+    if candidates:
+        best, _ = select_best_candidate(
+            candidates, place,
+            cut_mode=cut_mode,
+            remaining_calories=remaining_calories,
+            remaining_protein_g=remaining_protein_g,
+        )
+        primary = best or candidates[0]
+        out = []
+        for i, c in enumerate(candidates[:3]):
+            name = str(c.get("candidate_name") or "").strip()
+            if not name:
+                continue
+            item = {
+                "item_name": name,
+                "estimated_calories": int(c.get("estimated_calories") or 520),
+                "estimated_protein_g": int(c.get("estimated_protein_g") or 28),
+                "menu_item_source": "heuristic",
+                "menu_item_confidence": confidence,
+                "candidate_source_label": source_label,
+                "candidate_rank": i + 1,
+            }
+            out.append(item)
+        return out
+
     place_text = _place_text(place)
     rule = _rule_match(place_text)
     if rule and isinstance(rule.get("items"), list):
-        return [dict(item) for item in rule["items"][:3]]
-    return [dict(item) for item in FALLBACK_ITEMS]
+        return [
+            {
+                "item_name": item.get("item_name", ""),
+                "estimated_calories": int(item.get("estimated_calories", 520)),
+                "estimated_protein_g": int(item.get("estimated_protein_g", 28)),
+                "menu_item_source": "heuristic",
+                "menu_item_confidence": 0.55,
+                "candidate_source_label": SOURCE_HEURISTIC_CUISINE_WEAK,
+            }
+            for item in rule["items"][:3]
+        ]
+    return [
+        {
+            "item_name": item.get("item_name", "Lighter menu option"),
+            "estimated_calories": int(item.get("estimated_calories", 520)),
+            "estimated_protein_g": int(item.get("estimated_protein_g", 28)),
+            "menu_item_source": "heuristic",
+            "menu_item_confidence": 0.42,
+            "candidate_source_label": SOURCE_HEURISTIC_CUISINE_WEAK,
+        }
+        for item in FALLBACK_ITEMS[:3]
+    ]
 
 
 def _infer_nutrition_from_name(item_name: str) -> Tuple[int, int]:
@@ -846,6 +932,8 @@ def score_menu_item(
         "ocr_menu",
     }:
         menu_item_source = "real_menu"
+    elif raw_item_source in {"chain_registry"}:
+        menu_item_source = "chain_registry"
     elif raw_item_source in {"user_scan"}:
         menu_item_source = "user_scan"
     elif raw_item_source in {"llm_inferred", "llm"}:
@@ -1093,9 +1181,11 @@ def score_menu_item(
         _clamp(_safe_float(safety.get("menu_item_confidence"), menu_item_confidence), 0.2, 0.97),
         2,
     )
+    candidate_source_label = str(payload.get("candidate_source_label") or "").strip() or None
     display_label = str(safety.get("display_label") or "").strip() or _display_label_for_menu_item(
         menu_item_source,
         menu_item_confidence,
+        candidate_source_label=candidate_source_label,
     )
     source_rank_weight = _source_rank_weight(menu_item_source, raw_item_source)
     rank_confidence_weight = _clamp(0.72 + (menu_item_confidence * 0.34), 0.66, 1.04)
@@ -1112,6 +1202,22 @@ def score_menu_item(
     if bool(safety.get("sanitized")):
         swap_plan["order_type"] = "estimated"
     place_ctx = context_payload.get("place") if isinstance(context_payload.get("place"), dict) else {}
+
+    # Structured swaps (1–3) for the chosen item.
+    try:
+        swaps, swap_debug = generate_swaps_for_item(
+            place=place_ctx,
+            item_name=item_name,
+            estimated_calories=int(calories),
+            estimated_protein_g=int(protein_g),
+            cuisine_hint=cuisine_hint,
+            menu_item_source=menu_item_source,
+            menu_item_confidence=menu_item_confidence,
+            cut_mode=cut_mode_active,
+            max_swaps=3,
+        )
+    except Exception:
+        swaps, swap_debug = [], {}
     place_name = str(place_ctx.get("name") or "").strip()
     if use_llm_copy:
         rewritten = maybe_rewrite_explanation_copy(
@@ -1178,6 +1284,8 @@ def score_menu_item(
         "swap_suggestion": swap_plan["swap_suggestion"],
         "skip_items": swap_plan["skip_items"],
         "add_items": swap_plan["add_items"],
+        "best_item_swaps": swaps,
+        "swap_debug": swap_debug,
         "source_url": source_url,
         "extraction_method": extraction_method,
         "parse_method": parse_method,
@@ -1311,22 +1419,28 @@ def recommend_menu_items_for_place(
 
     if has_structured_menu:
         menu_source = "structured_menu"
-        menu_items = source_items
+        menu_items = normalize_menu_candidates(place, source_items, default_source="real_menu", default_confidence=0.78)
         _ingest_menu_snapshot(place, menu_items, SOURCE_SCRAPED_MENU)
     elif chain_items:
-        menu_source = str(chain_bundle.get("menu_source") or SOURCE_WEBSITE_MENU)
-        menu_items = chain_items
+        menu_source = str(chain_bundle.get("menu_source") or "chain_registry")
+        menu_items = normalize_menu_candidates(place, chain_items, default_source="chain_registry", default_confidence=0.86)
         if not ingestion_bundle:
             ingestion_bundle = dict(chain_bundle)
         _ingest_menu_snapshot(place, menu_items, SOURCE_WEBSITE_MENU)
     elif ingested_items:
         menu_source = str(ingestion_bundle.get("menu_source") or SOURCE_WEBSITE_TEXT)
-        menu_items = ingested_items
+        menu_items = normalize_menu_candidates(place, ingested_items, default_source="real_menu", default_confidence=0.70)
     elif stored_items:
         menu_source = "menu_intelligence_store"
-        menu_items = stored_items
+        menu_items = normalize_menu_candidates(place, stored_items, default_source="real_menu", default_confidence=0.70)
     else:
-        heuristic_items = _heuristic_menu_items(place)
+        heuristic_items = _heuristic_menu_items(place, cut_mode=cut_mode_active)
+        heuristic_items = normalize_menu_candidates(
+            place,
+            heuristic_items,
+            default_source="heuristic",
+            default_confidence=0.52,
+        )
         llm_bundle = infer_place_menu_items_with_optional_llm(
             place=place,
             heuristic_items=heuristic_items,
@@ -1378,22 +1492,26 @@ def recommend_menu_items_for_place(
         scored_items.append(scored)
 
     scored_items = _sorted_scored_items(scored_items, mode=resolved_mode)
-    # Real menu-backed items should drive the recommendation when available.
+    # Prefer higher-trust sources when available (real_menu/user_scan > chain_registry > rest).
     real_or_scan_items = [
         row
         for row in scored_items
         if str(row.get("menu_item_source") or "").strip().lower() in {"real_menu", "user_scan"}
     ]
-    if real_or_scan_items:
-        scored_items = list(real_or_scan_items) + [
-            row for row in scored_items if row not in real_or_scan_items
-        ]
+    chain_items_scored = [
+        row
+        for row in scored_items
+        if str(row.get("menu_item_source") or "").strip().lower() in {"chain_registry"}
+    ]
+    if real_or_scan_items or chain_items_scored:
+        preferred = list(real_or_scan_items) + [r for r in chain_items_scored if r not in real_or_scan_items]
+        scored_items = preferred + [row for row in scored_items if row not in preferred]
     top_items = scored_items[:3]
     top_item = top_items[0] if top_items else None
     resolved_source = str(menu_source or "").strip().lower()
     if top_item and isinstance(top_item, dict):
         top_source = str(top_item.get("menu_item_source") or "").strip().lower()
-        if top_source in {"real_menu", "user_scan", "llm_inferred", "heuristic"}:
+        if top_source in {"real_menu", "user_scan", "chain_registry", "llm_inferred", "heuristic"}:
             resolved_source = top_source
         elif resolved_source in {
             "website_menu",

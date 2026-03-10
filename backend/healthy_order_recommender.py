@@ -12,6 +12,7 @@ from personalization_profiles import (
 )
 from recommendation_safety import sanitize_recommended_item
 from restaurant_macro_estimator import estimate_restaurant_macros
+from cuisine_candidate_rules import get_best_order_for_place_heuristic
 
 
 RECOMMENDATION_VERSION = "v1"
@@ -108,14 +109,14 @@ CUISINE_ORDER_RULES: List[Dict[str, Any]] = [
     {
         "rule_id": "cafe",
         "tokens": ("cafe", "coffee", "brunch", "bakery"),
-        "best_order": "Egg + chicken plate",
+        "best_order": "Eggs on toast",
         "better_swap": "Pick no-sugar coffee and skip pastry add-ons",
         "avoid_if_cutting": "Large pastries and sugary blended drinks",
-        "estimated_calories": 430,
-        "estimated_protein_g": 30,
+        "estimated_calories": 410,
+        "estimated_protein_g": 22,
         "estimated_satiety": "medium",
         "order_strategy_tags": ["high_protein", "lower_calorie", "better_swap"],
-        "short_reason": "Protein-forward cafe picks are more filling than pastry meals.",
+        "short_reason": "Eggs on toast or grilled wrap are solid cafe picks.",
     },
     {
         "rule_id": "indian",
@@ -131,7 +132,7 @@ CUISINE_ORDER_RULES: List[Dict[str, Any]] = [
     },
     {
         "rule_id": "south_indian_temple",
-        "tokens": ("south indian", "idli", "dosa", "sambar", "udupi", "temple", "canteen"),
+        "tokens": ("south indian", "idli", "dosa", "sambar", "udupi", "temple", "canteen", "filter coffee", "chennai", "cfc"),
         "best_order": "Idli or plain dosa-style option",
         "better_swap": "Choose steamed items and keep chutney portions moderate",
         "avoid_if_cutting": "Deep-fried snacks and heavy ghee-rich combos",
@@ -341,18 +342,30 @@ def _sanitize_order_name(
     )
 
 
-def _fallback_best_order_for_place(place: Dict[str, Any] | None) -> str:
+def _fallback_best_order_for_place(
+    place: Dict[str, Any] | None,
+    *,
+    cut_mode: bool = False,
+    remaining_calories: float | None = None,
+    remaining_protein_g: float | None = None,
+) -> str:
+    if place:
+        name, _cal, _pro, _conf, _src, _ = get_best_order_for_place_heuristic(
+            place, cut_mode=cut_mode, remaining_calories=remaining_calories, remaining_protein_g=remaining_protein_g
+        )
+        if name and name.strip() and "lighter menu option" not in name.lower():
+            return name.strip()
     place_text = _place_text(place if isinstance(place, dict) else {})
     if any(token in place_text for token in ("south indian", "idli", "dosa", "udupi", "temple", "canteen")):
         return "Idli or plain dosa-style option"
     if "indian" in place_text:
-        return "Simpler tandoori or dal + roti option"
+        return "Tandoori chicken + dal or paneer tikka + dal"
     if any(token in place_text for token in ("cafe", "coffee", "bakery")):
-        return "Lighter cafe meal option"
+        return "Eggs on toast or grilled chicken wrap"
     if any(token in place_text for token in ("burger", "fast food", "fast_food", "fried")):
         return "Lighter grilled or single-item option"
     if "pizza" in place_text:
-        return "Lighter thin-crust option"
+        return "2 thin-crust slices, no sides"
     if any(token in place_text for token in ("sushi", "japanese")):
         return "Sashimi or simple rice option"
     return "Lighter menu option"
@@ -370,7 +383,7 @@ def _fallback_recommendation(
     resolved_goal = normalize_personalization_goal(personalization_goal)
     goal_value = personalization_goal_value(resolved_goal)
     cut_mode_active = is_cut_mode(resolved_mode)
-    best_order = _fallback_best_order_for_place(place)
+    best_order = _fallback_best_order_for_place(place, cut_mode=cut_mode_active)
     place_text = _place_text(place if isinstance(place, dict) else {})
     best_order, order_display_label = _sanitize_order_name(
         best_order=best_order,
@@ -485,29 +498,44 @@ def suggest_best_order_for_place(
             allow_llm_macro=allow_llm_macro,
         )
 
-    # Confidence rises when venue type is clear (more token hits) and healthy score is stronger.
-    confidence = 0.68 if hits == 1 else 0.78 if hits >= 2 else 0.46
-    hs = float(health_score or 0.0)
-    if hs >= 7.5:
-        confidence += 0.08
-    elif hs >= 6.0:
-        confidence += 0.04
-    elif hs > 0 and hs < 4.5:
-        confidence -= 0.07
+    # Prefer cuisine_candidate_rules for candidate name and macros when available.
+    heuristic_name, heuristic_cal, heuristic_pro, heuristic_conf, _src_label, _ = get_best_order_for_place_heuristic(
+        place, cut_mode=cut_mode_active
+    )
+    use_heuristic_candidate = bool(
+        heuristic_name and heuristic_name.strip()
+        and "lighter menu option" not in (heuristic_name or "").strip().lower()
+    )
+    if use_heuristic_candidate:
+        estimated_calories = int(heuristic_cal)
+        estimated_protein_g = int(heuristic_pro)
+        confidence = float(heuristic_conf)
+        best_order_from_rule = heuristic_name.strip()
+    else:
+        estimated_calories = int(rule["estimated_calories"])
+        estimated_protein_g = int(rule["estimated_protein_g"])
+        confidence = 0.68 if hits == 1 else 0.78 if hits >= 2 else 0.46
+        best_order_from_rule = str(rule["best_order"])
 
-    estimated_calories = int(rule["estimated_calories"])
-    estimated_protein_g = int(rule["estimated_protein_g"])
+    hs = float(health_score or 0.0)
+    if not use_heuristic_candidate:
+        if hs >= 7.5:
+            confidence += 0.08
+        elif hs >= 6.0:
+            confidence += 0.04
+        elif hs > 0 and hs < 4.5:
+            confidence -= 0.07
 
     cut_friendly = _is_cut_friendly_order(estimated_calories, estimated_protein_g)
     cut_warning = ""
-    best_order_for_cut = str(rule["best_order"])
+    best_order_for_cut = best_order_from_rule
 
     order_strategy_tags = list(rule.get("order_strategy_tags", []))
     short_reason = str(rule["short_reason"])
     better_swap = str(rule["better_swap"])
 
     if cut_mode_active:
-        best_order_for_cut = _best_order_for_cut(str(rule["best_order"]))
+        best_order_for_cut = _best_order_for_cut(best_order_from_rule)
         order_strategy_tags = list(dict.fromkeys([*order_strategy_tags, "cut_mode"]))
 
         # Keep copy short and app-ready for strict fat-loss context.
@@ -523,7 +551,7 @@ def suggest_best_order_for_place(
 
     confidence = round(_clamp(confidence, 0.35, 0.93), 2)
     safe_best_order, order_display_label = _sanitize_order_name(
-        best_order=str(rule["best_order"]),
+        best_order=best_order_from_rule,
         place_text=place_text,
         confidence=confidence,
     )
