@@ -665,6 +665,7 @@ def infer_place_menu_items_with_optional_llm(
     place: Dict[str, Any],
     heuristic_items: List[Dict[str, Any]] | None = None,
     max_items: int = 3,
+    allow_llm: bool = True,
 ) -> Dict[str, Any]:
     fallback_candidates = heuristic_items if isinstance(heuristic_items, list) else []
     fallback_scoring_items: List[Dict[str, Any]] = []
@@ -681,7 +682,7 @@ def infer_place_menu_items_with_optional_llm(
             }
         )
 
-    llm_enabled = _env_bool("ENABLE_LLM_MENU_PARSING", default=True)
+    llm_enabled = bool(allow_llm) and _env_bool("ENABLE_LLM_MENU_PARSING", default=True)
     llm_attempted = False
     llm_error = ""
     parse_method = "heuristic"

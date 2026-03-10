@@ -814,6 +814,7 @@ def score_menu_item(
     context: Dict[str, Any] | None = None,
     mode: NutritionMode | str | None = None,
     personalization_goal: Any = None,
+    use_llm_copy: bool = True,
 ) -> Dict[str, Any]:
     payload = item if isinstance(item, dict) else {}
     context_payload = context if isinstance(context, dict) else {}
@@ -1112,19 +1113,22 @@ def score_menu_item(
         swap_plan["order_type"] = "estimated"
     place_ctx = context_payload.get("place") if isinstance(context_payload.get("place"), dict) else {}
     place_name = str(place_ctx.get("name") or "").strip()
-    rewritten = maybe_rewrite_explanation_copy(
-        place_name=place_name,
-        cuisine=cuisine_hint,
-        recommended_order=raw_item_name,
-        estimated_calories=calories,
-        estimated_protein_g=protein_g,
-        goal=goal_value,
-        confidence=confidence,
-        recommendation_source=menu_item_source,
-        menu_item_confidence=menu_item_confidence,
-        base_why_this_works=short_reason,
-        base_short_reason=short_reason,
-    )
+    if use_llm_copy:
+        rewritten = maybe_rewrite_explanation_copy(
+            place_name=place_name,
+            cuisine=cuisine_hint,
+            recommended_order=raw_item_name,
+            estimated_calories=calories,
+            estimated_protein_g=protein_g,
+            goal=goal_value,
+            confidence=confidence,
+            recommendation_source=menu_item_source,
+            menu_item_confidence=menu_item_confidence,
+            base_why_this_works=short_reason,
+            base_short_reason=short_reason,
+        )
+    else:
+        rewritten = {}
     short_reason = str(rewritten.get("short_reason") or short_reason)
     why_this_works = str(rewritten.get("why_this_works") or short_reason)
     copy_method = str(rewritten.get("copy_method") or "deterministic")
@@ -1322,6 +1326,7 @@ def recommend_menu_items_for_place(
             place=place,
             heuristic_items=heuristic_items,
             max_items=3,
+            allow_llm=use_llm_place_context,
         )
         menu_source = "llm_inferred" if str(llm_bundle.get("parse_method") or "") == "llm_inferred" else "heuristic"
         parsed_items = llm_bundle.get("parsed_items") if isinstance(llm_bundle.get("parsed_items"), list) else []
@@ -1353,6 +1358,7 @@ def recommend_menu_items_for_place(
             },
             mode=resolved_mode,
             personalization_goal=personalization_goal,
+            use_llm_copy=use_llm_place_context,
         )
 
         # Nudge rank by venue-level health score when available, without overriding item fundamentals.
@@ -1499,6 +1505,8 @@ def recommend_menu_items_for_place(
         and menu_confidence < CONF_REASONING_FULL
     )
     should_run_reasoning = bool(
+        use_llm_place_context
+        and
         raw_menu_text_for_reasoning
         and len(raw_menu_text_for_reasoning) >= 80
         and (is_heuristic_quality or is_low_quality_real)
