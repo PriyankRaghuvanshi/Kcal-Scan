@@ -85,7 +85,7 @@ Run these before release:
 
 ## Clean release steps (avoid ITMS-90189)
 1. Keep app version at `1.0.6` unless marketing release requires version bump.
-2. Ensure iOS production profile uses `autoIncrement: "buildNumber"` in `/Users/priyankraghuvanshi/projects/kcal-photo-app/mobile/eas.json`.
+2. Ensure iOS production profile uses `autoIncrement: true` in `/Users/priyankraghuvanshi/projects/kcal-photo-app/mobile/eas.json` (with `cli.appVersionSource: "remote"`).
 3. Build and auto-submit from `/Users/priyankraghuvanshi/projects/kcal-photo-app/mobile`:
    - `npx eas-cli build --platform ios --profile production_auto_submit --auto-submit --non-interactive`
 4. Confirm new build number is greater than previous uploaded build (for example, after `131`, next must be `132+`).
