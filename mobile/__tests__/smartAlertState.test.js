@@ -79,6 +79,14 @@ describe("getSmartAlertState and updateSmartAlertSettings", () => {
     const state = await getSmartAlertState();
     expect(state.frequency_mode).toBe("low");
   });
+
+  test("bad cached JSON falls back safely to defaults", async () => {
+    storage["kcal_smart_alerts_v1"] = "{bad";
+    _resetCache();
+    const state = await getSmartAlertState();
+    expect(state.enabled).toBe(false);
+    expect(state.categories).toHaveProperty("protein_rescue", true);
+  });
 });
 
 describe("shouldShowAlert", () => {

@@ -8,6 +8,7 @@ import * as Notifications from "expo-notifications";
 import Constants from "expo-constants";
 import * as Device from "expo-device";
 import { postMealDecisionEvent, buildDecisionEventPayload } from "./personalLearningApi";
+import { safeGetSmartAlertPayload, safeObject, safeParseJson } from "./startupSafety";
 
 const isPhysicalDevice = () => Boolean(Device?.isDevice);
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -217,28 +218,29 @@ export function cleanupNotificationListeners(subs) {
  * @returns {object}
  */
 export function parseSmartAlertNotificationData(data) {
-  if (!data || typeof data !== "object") return {};
+  const src = safeGetSmartAlertPayload(data);
+  if (!src.alert_id && !src.place_id && !src.alert_type && !src.place_name && !src.best_item_name) return {};
   const out = {
-    alert_type: String(data.alert_type || "").trim(),
-    place_id: String(data.place_id || "").trim(),
-    place_name: String(data.place_name || "").trim(),
-    best_item_name: String(data.best_item_name || "").trim(),
-    deep_link: String(data.deep_link || "").trim(),
-    alert_id: String(data.alert_id || "").trim(),
-    display_rank_score_100: data.display_rank_score_100 ?? null,
-    context_mode: String(data.context_mode || "").trim(),
-    route_target: String(data.route_target || "smart_alert_inbox").trim(),
-    place_lat: typeof data.place_lat === "number" ? data.place_lat : null,
-    place_lng: typeof data.place_lng === "number" ? data.place_lng : null,
+    alert_type: src.alert_type,
+    place_id: src.place_id,
+    place_name: src.place_name,
+    best_item_name: src.best_item_name,
+    deep_link: src.deep_link,
+    alert_id: src.alert_id,
+    display_rank_score_100: src.display_rank_score_100,
+    context_mode: src.context_mode,
+    route_target: src.route_target || "smart_alert_inbox",
+    place_lat: src.place_lat,
+    place_lng: src.place_lng,
   };
-  if (data.confidence_label) out.confidence_label = String(data.confidence_label).trim();
-  if (data.recommendation_label) out.recommendation_label = String(data.recommendation_label).trim();
-  if (data.chosen_candidate_specificity_tier) out.chosen_candidate_specificity_tier = String(data.chosen_candidate_specificity_tier).trim();
-  if (data.menu_item_source) out.menu_item_source = String(data.menu_item_source).trim();
-  if (data.matched_local_profile === true) out.matched_local_profile = true;
-  if (data.local_profile_source) out.local_profile_source = String(data.local_profile_source).trim();
-  if (data.used_venue_intelligence_cache === true) out.used_venue_intelligence_cache = true;
-  if (data.best_item_is_generic_fallback === true) out.best_item_is_generic_fallback = true;
+  if (src.confidence_label) out.confidence_label = src.confidence_label;
+  if (src.recommendation_label) out.recommendation_label = src.recommendation_label;
+  if (src.chosen_candidate_specificity_tier) out.chosen_candidate_specificity_tier = src.chosen_candidate_specificity_tier;
+  if (src.menu_item_source) out.menu_item_source = src.menu_item_source;
+  if (src.matched_local_profile === true) out.matched_local_profile = true;
+  if (src.local_profile_source) out.local_profile_source = src.local_profile_source;
+  if (src.used_venue_intelligence_cache === true) out.used_venue_intelligence_cache = true;
+  if (src.best_item_is_generic_fallback === true) out.best_item_is_generic_fallback = true;
   return out;
 }
 
@@ -250,7 +252,8 @@ export function parseSmartAlertNotificationData(data) {
 export async function handleNotificationOpen(response, opts = {}) {
   if (!response?.notification?.request?.content) return;
 
-  const data = response.notification.request.content.data || {};
+  const content = safeObject(response.notification.request.content, {});
+  const data = safeObject(content.data, {});
   const parsed = parseSmartAlertNotificationData(data);
   const { userId, recordAlertOpened } = opts;
 
@@ -292,8 +295,8 @@ export async function handleNotificationOpen(response, opts = {}) {
 export async function loadPushRegistrationState() {
   try {
     const raw = await AsyncStorage.getItem(PUSH_STORAGE_KEY);
-    const parsed = raw ? JSON.parse(raw) : null;
-    return parsed && typeof parsed === "object" ? parsed : {};
+    const parsed = safeParseJson(raw, {}, "push_registration_state");
+    return safeObject(parsed, {});
   } catch {
     return {};
   }

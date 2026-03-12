@@ -65,6 +65,14 @@ import { HealthyPlaceListCard } from "./components/HealthyPlaceListCard";
 import { AdminOpsDashboard } from "./components/AdminOpsDashboard";
 import { ScanConfirmationChips } from "./components/ScanConfirmationChips";
 import {
+  createLaunchTracer,
+  installGlobalErrorHandler,
+  safeArray,
+  safeGetSmartAlertPayload,
+  safeObject,
+  safeParseJson,
+} from "./startupSafety";
+import {
   requestPushPermissionsIfNeeded,
   getExpoPushTokenSafe,
   registerPushTokenWithBackend,
@@ -1648,6 +1656,9 @@ export default function App() {
   const pushNotificationSubsRef = useRef(null);
   const pushPermissionPromptedThisSessionRef = useRef(false);
   const pushRegistrationRef = useRef({ userId: null, token: null });
+  const launchTracerRef = useRef(createLaunchTracer("app_launch"));
+  const launchPhaseRef = useRef("boot_start");
+  const startupCompleteLoggedRef = useRef(false);
 
   // ===== RevenueCat =====
   const [rcReady, setRcReady] = useState(false);
@@ -1723,8 +1734,30 @@ export default function App() {
     return fallbackRemaining;
   }, [dailySummary, goals, history]);
 
+  function markLaunchPhase(phase, detail = null) {
+    launchPhaseRef.current = String(phase || "unknown");
+    try {
+      launchTracerRef.current?.mark?.(phase, detail);
+    } catch {}
+  }
+
   // ===================== INIT =====================
   useEffect(() => {
+    markLaunchPhase("boot_start", { appVersion: Constants?.expoConfig?.version || "unknown" });
+    const cleanup = installGlobalErrorHandler(() => ({
+      phase: launchPhaseRef.current,
+      activeScreen,
+      userId: userId ? "present" : "none",
+    }));
+    return () => {
+      try {
+        cleanup?.();
+      } catch {}
+    };
+  }, []);
+
+  useEffect(() => {
+    markLaunchPhase("notification_handler_init_start");
     try {
       Notifications.setNotificationHandler({
         handleNotification: async () => ({
@@ -1744,6 +1777,7 @@ export default function App() {
         });
       }
     } catch {}
+    markLaunchPhase("notification_handler_init_done");
   }, []);
 
   useEffect(
@@ -1759,14 +1793,17 @@ export default function App() {
   useEffect(() => {
     let cancelled = false;
     let unsub = null;
+    markLaunchPhase("auth_hydration_start");
 
     (async () => {
       if (!HAS_SUPABASE) return;
       try {
         const { data } = await supabase.auth.getSession();
         if (!cancelled) setSession(data?.session || null);
+        markLaunchPhase("auth_session_loaded");
       } catch (e) {
         console.log("getSession failed", String(e));
+        markLaunchPhase("auth_session_failed", { message: String(e?.message || e) });
       }
 
       const { data } = supabase.auth.onAuthStateChange((_event, sess) => {
@@ -1917,9 +1954,17 @@ export default function App() {
   }, [userId]);
 
   useEffect(() => {
+    markLaunchPhase("smart_alert_state_hydration_start");
     (async () => {
-      const state = await getSmartAlertState();
-      setSmartAlertState(state);
+      try {
+        const state = await getSmartAlertState();
+        setSmartAlertState(state);
+        markLaunchPhase("smart_alert_state_hydration_done");
+      } catch (e) {
+        console.log("smart alert state hydration failed", String(e?.message || e));
+        setSmartAlertState(null);
+        markLaunchPhase("smart_alert_state_hydration_failed", { message: String(e?.message || e) });
+      }
     })();
   }, []);
 
@@ -1988,29 +2033,50 @@ export default function App() {
 
   // Load push state on mount
   useEffect(() => {
+    markLaunchPhase("push_state_hydration_start");
     (async () => {
-      const state = await loadPushRegistrationState();
-      if (state.expoPushToken) {
-        setExpoPushToken(state.expoPushToken);
-        if (state.pushRegisteredUserId) {
-          setPushRegisteredUserId(state.pushRegisteredUserId);
-          pushRegistrationRef.current = {
-            userId: state.pushRegisteredUserId,
-            token: state.expoPushToken,
-          };
+      try {
+        const state = safeObject(await loadPushRegistrationState(), {});
+        if (state.expoPushToken) {
+          setExpoPushToken(String(state.expoPushToken));
+          if (state.pushRegisteredUserId) {
+            setPushRegisteredUserId(String(state.pushRegisteredUserId));
+            pushRegistrationRef.current = {
+              userId: String(state.pushRegisteredUserId),
+              token: String(state.expoPushToken),
+            };
+          }
         }
+        const status = await getPushPermissionStatus();
+        setPushPermissionStatus(status);
+        markLaunchPhase("push_state_hydration_done", { permission: status?.status || "unknown" });
+      } catch (e) {
+        console.log("push state hydration error", String(e?.message || e));
+        setPushPermissionStatus({ granted: false, status: "error" });
+        markLaunchPhase("push_state_hydration_failed", { message: String(e?.message || e) });
       }
-      const status = await getPushPermissionStatus();
-      setPushPermissionStatus(status);
     })();
   }, []);
 
+  useEffect(() => {
+    if (startupCompleteLoggedRef.current) return;
+    if (pushPermissionStatus == null || smartAlertState == null) return;
+    startupCompleteLoggedRef.current = true;
+    markLaunchPhase("startup_complete", {
+      active_screen: activeScreen,
+      push_permission: pushPermissionStatus?.status || "unknown",
+      smart_alerts_enabled: smartAlertState?.enabled === true,
+    });
+  }, [pushPermissionStatus, smartAlertState, activeScreen]);
+
   // Notification listeners: received + response (tap)
   useEffect(() => {
+    markLaunchPhase("notification_listeners_setup_start");
     const subs = setupNotificationListeners({
       onNotificationReceived: (notification) => {
         try {
-          const data = notification?.request?.content?.data;
+          const rawData = safeObject(notification?.request?.content?.data, {});
+          const data = safeGetSmartAlertPayload(rawData);
           if (data?.place_id && data?.alert_type) {
             const candidate = {
               place_id: data.place_id,
@@ -2040,16 +2106,21 @@ export default function App() {
         }
       },
       onNotificationResponse: (response) => {
+        markLaunchPhase("notification_open_received");
         void handleNotificationOpen(response, {
           userId: userId || session?.user?.id,
           recordAlertOpened,
         })
           .then(({ parsed }) => {
             try {
+              markLaunchPhase("notification_open_parsed", {
+                place_id: String(parsed?.place_id || ""),
+                route_target: String(parsed?.route_target || ""),
+              });
               setSmartAlertState(null);
               void getSmartAlertState().then(setSmartAlertState).catch(() => {});
               const resolved = resolveSmartAlertNavigationTarget(
-                parseSmartAlertDeepLink(parsed || response?.notification?.request?.content?.data || {})
+                parseSmartAlertDeepLink(parsed || safeObject(response?.notification?.request?.content?.data, {}) || {})
               );
               if (resolved.action === "open_place" && resolved.place_id) {
                 setActiveScreen("healthy_nearby");
@@ -2090,6 +2161,7 @@ export default function App() {
           });
       },
     });
+    markLaunchPhase("notification_listeners_setup_done");
     pushNotificationSubsRef.current = subs;
     return () => {
       cleanupNotificationListeners(subs);
@@ -2138,8 +2210,8 @@ export default function App() {
   async function loadHistory() {
     try {
       const raw = await AsyncStorage.getItem(historyKey(userId));
-      const parsed = raw ? JSON.parse(raw) : [];
-      setHistory(Array.isArray(parsed) ? parsed : []);
+      const parsed = safeParseJson(raw, [], "history");
+      setHistory(safeArray(parsed));
     } catch {
       setHistory([]);
     }
@@ -2150,8 +2222,8 @@ export default function App() {
     const key = coachFeedbackQueueKey(uid);
     try {
       const raw = await AsyncStorage.getItem(key);
-      const arr = raw ? JSON.parse(raw) : [];
-      const queue = Array.isArray(arr) ? arr : [];
+      const arr = safeParseJson(raw, [], "coach_feedback_queue");
+      const queue = safeArray(arr);
       queue.push({
         payload: body,
         attempts: 0,
@@ -2169,8 +2241,7 @@ export default function App() {
     let queue = [];
     try {
       const raw = await AsyncStorage.getItem(key);
-      queue = raw ? JSON.parse(raw) : [];
-      queue = Array.isArray(queue) ? queue : [];
+      queue = safeArray(safeParseJson(raw, [], "coach_feedback_flush"));
     } catch {
       queue = [];
     }
@@ -2211,8 +2282,8 @@ export default function App() {
     try {
       const key = historyKey(userId);
       const raw = await AsyncStorage.getItem(key);
-      const existing = raw ? JSON.parse(raw) : [];
-      const arr = Array.isArray(existing) ? existing : [];
+      const existing = safeParseJson(raw, [], "history_push");
+      const arr = safeArray(existing);
       const incomingAnalysisId = String(entry?.analysis_id || "").trim();
       if (incomingAnalysisId) {
         const idx = arr.findIndex((it) => String(it?.analysis_id || "").trim() === incomingAnalysisId);
@@ -2257,7 +2328,7 @@ export default function App() {
     try {
       const raw = await AsyncStorage.getItem(goalsKey(uid));
       if (!raw) return null;
-      return normalizeGoals(JSON.parse(raw), DEFAULT_GOALS);
+      return normalizeGoals(safeParseJson(raw, {}, "goals"), DEFAULT_GOALS);
     } catch {
       return null;
     }
@@ -2275,7 +2346,7 @@ export default function App() {
     try {
       const raw = await AsyncStorage.getItem(coachProfileKey(uid));
       if (!raw) return DEFAULT_COACH_PROFILE;
-      return normalizeCoachProfile(JSON.parse(raw));
+      return normalizeCoachProfile(safeParseJson(raw, {}, "coach_profile"));
     } catch {
       return DEFAULT_COACH_PROFILE;
     }
@@ -2315,7 +2386,7 @@ export default function App() {
           const v = row?.[1];
           if (!k || !v) return null;
           try {
-            const obj = JSON.parse(v);
+            const obj = safeParseJson(v, null, "coach_trend_row");
             const resp = obj?.response || obj;
             const score = Math.round(num(resp?.fat_loss_score));
             if (!Number.isFinite(score)) return null;
@@ -2542,8 +2613,8 @@ export default function App() {
     if (!uid) return [];
     try {
       const raw = await AsyncStorage.getItem(weeklyCoachChoicesKey(uid));
-      const arr = raw ? JSON.parse(raw) : [];
-      const rows = Array.isArray(arr) ? arr : [];
+      const arr = safeParseJson(raw, [], "weekly_coach_choices_load");
+      const rows = safeArray(arr);
       const today = localDayISO();
       return rows
         .map((row) => {
@@ -2600,8 +2671,8 @@ export default function App() {
     try {
       const key = weeklyCoachChoicesKey(uid);
       const raw = await AsyncStorage.getItem(key);
-      const arr = raw ? JSON.parse(raw) : [];
-      const rows = Array.isArray(arr) ? arr : [];
+      const arr = safeParseJson(raw, [], "weekly_coach_choices_save");
+      const rows = safeArray(arr);
       rows.push(row);
       await AsyncStorage.setItem(key, JSON.stringify(rows.slice(-120)));
     } catch {}
@@ -2651,7 +2722,7 @@ export default function App() {
     try {
       const raw = await AsyncStorage.getItem(coachVoiceMemoryKey(uid, dayIso));
       if (!raw) return [];
-      const arr = JSON.parse(raw);
+      const arr = safeArray(safeParseJson(raw, [], "coach_voice_memory"));
       if (!Array.isArray(arr)) return [];
       return arr
         .map((x) => ({
@@ -2936,7 +3007,7 @@ export default function App() {
       try {
         const raw = await AsyncStorage.getItem(dailyCoachKey(uid, day));
         if (raw) {
-          const parsed = JSON.parse(raw);
+          const parsed = safeParseJson(raw, null, "daily_coach_cache_empty");
           const cachedResp = normalizeCoachDaily(parsed?.response || parsed, day);
           if (cachedResp && typeof cachedResp === "object") {
             setCoachDaily(sanitizeCoachForDiet(cachedResp));
@@ -2962,7 +3033,7 @@ export default function App() {
       try {
         const raw = await AsyncStorage.getItem(cacheKey);
         if (raw) {
-          const parsed = JSON.parse(raw);
+          const parsed = safeParseJson(raw, null, "daily_coach_cache");
           const cachedPayloadHash = String(parsed?.payloadHash || "");
           const cachedResp = normalizeCoachDaily(parsed?.response || parsed, day);
           if (
@@ -3125,7 +3196,7 @@ export default function App() {
       try {
         const raw = await AsyncStorage.getItem(cacheKey);
         if (raw) {
-          const parsed = JSON.parse(raw);
+          const parsed = safeParseJson(raw, null, "daily_coach_cache_error");
           const cachedResp = normalizeCoachDaily(parsed?.response || parsed, day);
           if (cachedResp && typeof cachedResp === "object") {
             setCoachDaily(sanitizeCoachForDiet(cachedResp));

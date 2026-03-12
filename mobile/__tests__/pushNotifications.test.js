@@ -53,16 +53,21 @@ describe("parseSmartAlertNotificationData", () => {
 
   test("handles null/empty", () => {
     expect(parseSmartAlertNotificationData(null)).toEqual({});
-    expect(parseSmartAlertNotificationData({})).toEqual({
-      alert_type: "",
-      place_id: "",
-      place_name: "",
-      best_item_name: "",
-      deep_link: "",
-      alert_id: "",
-      display_rank_score_100: null,
-      context_mode: "",
+    expect(parseSmartAlertNotificationData({})).toEqual({});
+  });
+
+  test("malformed payload does not throw and normalizes safely", () => {
+    const out = parseSmartAlertNotificationData({
+      alert_id: 10,
+      place_id: null,
+      alert_type: "protein_rescue",
+      place_lat: "-33.8",
+      place_lng: "bad",
     });
+    expect(out.alert_id).toBe("10");
+    expect(out.alert_type).toBe("protein_rescue");
+    expect(out.place_lat).toBe(-33.8);
+    expect(out.place_lng).toBeNull();
   });
 });
 

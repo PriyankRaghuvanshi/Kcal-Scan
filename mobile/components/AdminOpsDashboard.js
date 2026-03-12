@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, StyleSheet } from "react-native";
 import { fetchOpsDashboard, applyNextTargets, runBatchDryRun, checkReceipts, runAutoPromote } from "../adminOpsApi";
+import { safeArray, safeObject } from "../startupSafety";
 
 function num(x, d = 0) {
   const n = Number(x);
@@ -34,7 +35,7 @@ export function AdminOpsDashboard({ onClose }) {
       setLoading(false);
       return;
     }
-    setData(res.data || null);
+    setData(safeObject(res.data, {}));
     setLoading(false);
   }
 
@@ -42,14 +43,14 @@ export function AdminOpsDashboard({ onClose }) {
     void refresh();
   }, []);
 
-  const enrichment = data?.enrichment || {};
-  const push = data?.push || {};
-  const scan = data?.scan || {};
+  const enrichment = safeObject(data?.enrichment, {});
+  const push = safeObject(data?.push, {});
+  const scan = safeObject(data?.scan, {});
 
   const weakest = enrichment?.weak_suburbs?.[0] || null;
   const weakestGeneric = weakest ? num(weakest.percent_top_5_generic_fallback) : null;
   const canonicalCount = weakest ? num(weakest.canonical_trusted_local_profiles_count) : null;
-  const nextCount = Array.isArray(enrichment?.next_targets) ? enrichment.next_targets.length : 0;
+  const nextCount = safeArray(enrichment?.next_targets).length;
 
   const rolloutMode = String(push?.rollout_mode || push?.rolloutMode || "-");
   const sendingEnabled = Boolean(push?.sending_enabled ?? push?.sendingEnabled);
@@ -133,7 +134,7 @@ export function AdminOpsDashboard({ onClose }) {
           {/* Weak suburbs */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Weak suburbs</Text>
-            {(enrichment?.weak_suburbs || []).slice(0, 6).map((r, idx) => (
+            {safeArray(enrichment?.weak_suburbs).slice(0, 6).map((r, idx) => (
               <View key={`${r.area_key || idx}`} style={styles.row}>
                 <Text style={styles.rowTitle}>{r.display_name || r.area_key}</Text>
                 <View style={styles.rowRight}>
@@ -148,7 +149,7 @@ export function AdminOpsDashboard({ onClose }) {
           {/* Next targets */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Next enrichment targets</Text>
-            {(enrichment?.next_targets || []).slice(0, 12).map((t, idx) => (
+            {safeArray(enrichment?.next_targets).slice(0, 12).map((t, idx) => (
               <View key={`${t.area_key || ""}:${t.place_name || idx}`} style={styles.row}>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.rowTitle}>{t.place_name || "-"}</Text>
@@ -320,4 +321,3 @@ const styles = StyleSheet.create({
   actionBtnDisabled: { opacity: 0.55 },
   actionBtnText: { color: "#cfe3ff", fontSize: 12, fontWeight: "700" },
 });
-

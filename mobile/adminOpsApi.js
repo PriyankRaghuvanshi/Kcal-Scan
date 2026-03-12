@@ -2,6 +2,7 @@
  * Admin Ops Dashboard API helpers (internal).
  * Lightweight wrapper around /admin/ops-dashboard and safe operator actions.
  */
+import { safeGetOpsDashboardSummary, safeObject } from "./startupSafety";
 
 const API_BASE =
   process.env.EXPO_PUBLIC_API_BASE?.trim() ||
@@ -39,7 +40,7 @@ export async function fetchOpsDashboard(params = {}) {
       return { ok: false, error: `http_${res.status}` };
     }
     const data = await safeJson(res);
-    return { ok: true, data };
+    return { ok: true, data: safeGetOpsDashboardSummary(data) };
   } catch (e) {
     devLog("network error", String(e?.message || e));
     return { ok: false, error: "network_error" };
@@ -64,19 +65,30 @@ async function postJson(path, body) {
   }
 }
 
+export function safeOpsActionResult(raw) {
+  return safeObject(raw, {});
+}
+
 export function applyNextTargets({ limit = 20, area_keys = null } = {}) {
-  return postJson("/admin/ops-dashboard/apply-next-targets", { limit, area_keys });
+  return postJson("/admin/ops-dashboard/apply-next-targets", { limit, area_keys }).then((res) =>
+    res?.ok ? { ...res, data: safeOpsActionResult(res.data) } : res
+  );
 }
 
 export function runBatchDryRun({ limit_users = 100 } = {}) {
-  return postJson("/admin/ops-dashboard/run-batch-dry-run", { limit_users });
+  return postJson("/admin/ops-dashboard/run-batch-dry-run", { limit_users }).then((res) =>
+    res?.ok ? { ...res, data: safeOpsActionResult(res.data) } : res
+  );
 }
 
 export function checkReceipts({ limit = 100 } = {}) {
-  return postJson("/admin/ops-dashboard/check-receipts", { limit });
+  return postJson("/admin/ops-dashboard/check-receipts", { limit }).then((res) =>
+    res?.ok ? { ...res, data: safeOpsActionResult(res.data) } : res
+  );
 }
 
 export function runAutoPromote({ limit = 100, area_key = "" } = {}) {
-  return postJson("/admin/ops-dashboard/run-auto-promote", { limit, area_key });
+  return postJson("/admin/ops-dashboard/run-auto-promote", { limit, area_key }).then((res) =>
+    res?.ok ? { ...res, data: safeOpsActionResult(res.data) } : res
+  );
 }
-

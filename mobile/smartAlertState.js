@@ -4,6 +4,7 @@
  */
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { safeObject, safeParseJson } from "./startupSafety";
 
 const STORAGE_KEY = "kcal_smart_alerts_v1";
 const DISMISSED_IDS_MAX = 50;
@@ -37,12 +38,13 @@ async function load() {
   if (inMemoryState) return inMemoryState;
   try {
     const raw = await AsyncStorage.getItem(STORAGE_KEY);
-    const parsed = raw ? JSON.parse(raw) : null;
+    const parsed = safeParseJson(raw, null, "smart_alert_state");
     if (parsed && typeof parsed === "object") {
+      const parsedObj = safeObject(parsed, {});
       inMemoryState = {
         ...DEFAULT_STATE,
-        ...parsed,
-        categories: { ...DEFAULT_CATEGORIES, ...(parsed.categories || {}) },
+        ...parsedObj,
+        categories: { ...DEFAULT_CATEGORIES, ...safeObject(parsedObj.categories, {}) },
       };
     } else {
       inMemoryState = { ...DEFAULT_STATE };

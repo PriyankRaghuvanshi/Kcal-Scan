@@ -60,6 +60,21 @@ describe("parseSmartAlertDeepLink", () => {
     expect(out.place_lat).toBeNull();
   });
 
+  test("handles malformed payload types without throwing", () => {
+    const out = parseSmartAlertDeepLink({
+      alert_id: 88,
+      place_id: { bad: true },
+      place_lat: "-33.8",
+      place_lng: "nan",
+      route_target: "",
+    });
+    expect(out.alert_id).toBe("88");
+    expect(out.place_id).toBe("[object Object]");
+    expect(out.place_lat).toBe(-33.8);
+    expect(out.place_lng).toBeNull();
+    expect(out.route_target).toBe("smart_alert_inbox");
+  });
+
   test("parses URL format", () => {
     const url = "calorieclick://smart-alert?alert_id=a&place_id=p1&place_lat=-33.8&place_lng=151";
     const out = parseSmartAlertDeepLink(url);
