@@ -5414,6 +5414,47 @@ async function openCamera(mode = "meal") {
     await barcodeLookup(code);
   }
 
+  // Keep hook order stable regardless of auth state.
+  // This must stay before any early return branches.
+  useEffect(() => {
+    const visiblePlaces = (() => {
+      const isBackendOrdered = healthySortMode === "flat_score" || healthySortMode === "sectioned";
+      if (healthySortMode === "sectioned" && Array.isArray(healthySections) && healthySections.length > 0) {
+        const filteredSections = healthySections
+          .map((sec) => ({
+            name: String(sec?.name || "").trim() || "Section",
+            items: filterHealthyPlacesForMap(Array.isArray(sec?.items) ? sec.items : [], healthyMapFilter),
+          }))
+          .filter((sec) => sec.items.length > 0);
+        return filteredSections.flatMap((sec) => sec.items);
+      }
+      const filtered = filterHealthyPlacesForMap(healthyPlaces, healthyMapFilter);
+      if (isBackendOrdered) return filtered;
+      const rows = [...filtered];
+      rows.sort((a, b) => {
+        const scoreA = healthyPlaceScore100(a);
+        const scoreB = healthyPlaceScore100(b);
+        if (scoreB !== scoreA) return scoreB - scoreA;
+        const rankA = num(a?.map_rank);
+        const rankB = num(b?.map_rank);
+        if (Number.isFinite(rankA) && Number.isFinite(rankB) && rankA !== rankB) return rankA - rankB;
+        return 0;
+      });
+      return rows;
+    })();
+
+    if (!visiblePlaces.length) return;
+    const id = String(selectedHealthyPlaceId || "").trim();
+    const found = visiblePlaces.some((x, idx) => healthyPlaceStableId(x, idx) === id);
+    if (!found) {
+      const top = visiblePlaces[0];
+      setSelectedHealthyPlaceId(healthyPlaceStableId(top, 0));
+      if (top && Number.isFinite(num(top?.lat)) && Number.isFinite(num(top?.lng))) {
+        setHealthyMapFocusCoords({ lat: num(top.lat), lng: num(top.lng) });
+      }
+    }
+  }, [healthyMapFilter, healthyPlaces, selectedHealthyPlaceId, healthySections, healthySortMode]);
+
   // ===================== RENDER: LOGIN =====================
   if (!session) {
     return (
@@ -5566,20 +5607,6 @@ async function openCamera(mode = "meal") {
     return picked || healthyVisiblePlaces[0];
   })();
   const healthySelectedPlaceStableId = healthySelectedPlace ? healthyPlaceStableId(healthySelectedPlace, 0) : "";
-
-  // Auto-select: when selected place disappears from visible (e.g. filter change), select top visible
-  useEffect(() => {
-    if (!healthyVisiblePlaces.length) return;
-    const id = String(selectedHealthyPlaceId || "").trim();
-    const found = healthyVisiblePlaces.some((x, idx) => healthyPlaceStableId(x, idx) === id);
-    if (!found) {
-      const top = healthyVisiblePlaces[0];
-      setSelectedHealthyPlaceId(healthyPlaceStableId(top, 0));
-      if (top && Number.isFinite(num(top?.lat)) && Number.isFinite(num(top?.lng))) {
-        setHealthyMapFocusCoords({ lat: num(top.lat), lng: num(top.lng) });
-      }
-    }
-  }, [healthyMapFilter, healthyPlaces, selectedHealthyPlaceId, healthySections]);
 
   const healthySelectedDecisionCard = findMatchingLunchCard(healthySelectedPlace, lunchDecision?.cards || []);
   const lunchDayCoach = lunchDecision?.day_coach && typeof lunchDecision.day_coach === "object"
