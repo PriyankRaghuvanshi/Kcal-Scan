@@ -12,7 +12,7 @@
       "distribution": "internal"
     },
     "production": {
-      "autoIncrement": "buildNumber",
+      "autoIncrement": true,
       "cache": {
         "disabled": false,
         "key": "production-v3"
