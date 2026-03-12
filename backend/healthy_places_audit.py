@@ -23,10 +23,18 @@ def _safe_int(v: Any, default: int = 0) -> int:
 
 def build_audit_one_liner(place: Dict[str, Any], rank: int) -> str:
     """Deterministic one-line audit string for tuning. Example:
-    #1 Darbar | Score 84 (+3 personal, +2 context) | Band 3 | Best pick | Verified | Tandoori chicken + dal | 610 kcal | 42g protein | Higher protein, better whole-food option
+    #1 Subway | Score 82 | chain_registry (+4 specificity) | Grilled chicken sub | visible
+    #2 Darbar | Score 79 | enriched_local_profile (+4) | tandoori chicken half + dal | visible
+    #3 Place Y | Score 74 | no_local_profile -> generic_fallback
     """
     name = _safe_str(place.get("name") or place.get("place_name"), "?")
     score = _safe_int(place.get("display_rank_score_100"), 0)
+    tier = _safe_str(place.get("chosen_candidate_specificity_tier"), "")
+    spec_bonus = place.get("specificity_bonus_100")
+    spec_str = ""
+    if tier and spec_bonus is not None:
+        sign = "+" if spec_bonus >= 0 else ""
+        spec_str = f" | {tier} ({sign}{int(spec_bonus)} specificity)"
     net = _safe_int(place.get("personal_history_net_100"), 0)
     ctx_net = place.get("context_net_100")
     band = _safe_int(place.get("eligibility_band"), 0)
@@ -56,13 +64,17 @@ def build_audit_one_liner(place: Dict[str, Any], rank: int) -> str:
         f"#{rank}",
         name,
         f"Score {score}{score_suffix}",
+    ]
+    if spec_str:
+        parts.append(spec_str.strip().lstrip(" | "))
+    parts.extend([
         f"Band {band}",
         rec or "-",
         conf or "-",
         item or "-",
         f"{cal} kcal",
         f"{pro}g protein",
-    ]
+    ])
     if reason:
         parts.append(reason)
     if swap_hint:
@@ -104,6 +116,26 @@ def build_audit_result_row(place: Dict[str, Any], rank: int, *, include_candidat
         "overshoot_penalty_100": place.get("overshoot_penalty_100"),
         "selected_candidate_source": _safe_str(place.get("menu_item_source") or top.get("menu_item_source") or place.get("best_item_source")),
         "candidate_source_priority": place.get("menu_source_priority"),
+        "chosen_candidate_specificity_tier": _safe_str(place.get("chosen_candidate_specificity_tier")),
+        "specificity_bonus_100": place.get("specificity_bonus_100"),
+        "matched_local_profile": bool(place.get("matched_local_profile") or place.get("_matched_local_profile")),
+        "local_profile_source": _safe_str(place.get("local_profile_source") or place.get("_local_profile_source")),
+        "chosen_candidate_profile_source": _safe_str(place.get("chosen_candidate_profile_source") or place.get("_chosen_candidate_profile_source")),
+        "local_profile_confidence": place.get("local_profile_confidence") or place.get("_local_profile_confidence"),
+        "used_venue_intelligence_cache": bool(place.get("used_venue_intelligence_cache") or place.get("_used_venue_intelligence_cache")),
+        "cache_source_type": _safe_str(place.get("cache_source_type") or place.get("_cache_source_type")),
+        "cache_last_enriched_at": place.get("cache_last_enriched_at") or place.get("_cache_last_enriched_at"),
+        "local_profile_id": _safe_str(place.get("local_profile_id") or place.get("_local_profile_id")),
+        "profile_store": _safe_str(place.get("profile_store") or place.get("_profile_store") or "fallback_local_store"),
+        "seeded_by_launch_pack": bool(place.get("seeded_by_launch_pack") or place.get("_seeded_by_launch_pack")),
+        "enqueued_for_enrichment": bool(place.get("enqueued_for_enrichment") or place.get("_enqueued_for_enrichment")),
+        "enrichment_enqueue_reason": _safe_str(place.get("enrichment_enqueue_reason") or place.get("_enrichment_enqueue_reason")),
+        "diet_preference": _safe_str(place.get("diet_preference") or ""),
+        "diet_excluded_candidate_count": place.get("_diet_excluded_candidate_count") or 0,
+        "fallback_used": bool(place.get("best_item_is_generic_fallback") or (str(place.get("chosen_candidate_specificity_tier") or "") == "generic_fallback")),
+        "fallback_reason": _safe_str(place.get("_fallback_reason") or ("generic_heuristic_only" if place.get("best_item_is_generic_fallback") else "")),
+        "fetched_but_hidden": bool(place.get("fetched_but_hidden")),
+        "hidden_reason": _safe_str(place.get("hidden_reason")),
         "best_item_swaps": swaps if isinstance(swaps, list) else [],
         "personal_history_bonus_100": place.get("personal_history_bonus_100"),
         "personal_history_penalty_100": place.get("personal_history_penalty_100"),

@@ -56,3 +56,7 @@ Mark a token inactive.
 - **File:** `backend/data/push_token_store.json` (or `PUSH_TOKEN_STORE_PATH` env override)
 - **Module:** `push_token_store.py`
 - **List tokens:** `list_tokens_for_user(user_id, active_only=True)` for future push sending
+
+## Rollout and Active-User Signals
+
+`last_seen_at` is updated on register. It (and `updated_at`) are used by push rollout to infer recent app activity when `PUSH_REAL_SEND_MODE=active_users_only`. See **PUSH_ROLLOUT.md** for staged rollout, percentage rollout, and production rollout path.

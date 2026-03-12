@@ -21,6 +21,7 @@ from meal_ranking import (
 )
 from personal_response_summary import compute_personal_memory_modifier
 from context_scoring import compute_context_modifier
+from place_trace_debug import infer_specificity_tier, get_specificity_bonus_100
 
 
 def _safe_float(v: Any, default: float = 0.0) -> float:
@@ -30,12 +31,17 @@ def _safe_float(v: Any, default: float = 0.0) -> float:
         return float(default)
 
 
-def _confidence_label(menu_item_source: str, menu_item_confidence: float) -> str:
-    """Deterministic: Verified | Estimated | Needs menu check."""
+def _confidence_label(menu_item_source: str, menu_item_confidence: float, diet_preference: str = "") -> str:
+    """Deterministic: Verified | Estimated | Needs menu check. Vegan + weak inference -> prefer weaker label."""
     source = str(menu_item_source or "heuristic").strip().lower()
     conf = _safe_float(menu_item_confidence, 0.5)
-    if source in ("real_menu", "user_scan", "menu_intelligence_store", "structured_menu") and conf >= 0.72:
+    diet = str(diet_preference or "").strip().lower()
+    if diet == "vegan" and source == "heuristic" and conf < 0.60:
+        return "Needs menu check"
+    if source in ("real_menu", "user_scan", "menu_intelligence_store", "structured_menu", "exact_menu_cache", "chain_registry", "ingested_chain_item") and conf >= 0.72:
         return "Verified"
+    if source in ("chain_registry", "ingested_chain_item") and conf >= 0.60:
+        return "Chain-backed"
     if conf >= 0.55 or source == "llm_inferred":
         return "Estimated"
     return "Needs menu check"
@@ -109,22 +115,32 @@ def build_ranked_place_profile(
     meal_result = compute_meal_fitness_score(place_profile, ctx)
     eligibility_band = compute_eligibility_band(place_profile, ctx)
     is_generic = _is_generic_fallback(best_order)
+    chain_match_key = str(place.get("chain_key") or place.get("chain_id") or place.get("chain_name") or "").strip()
+    tier = infer_specificity_tier(
+        place_profile["menu_item_source"],
+        best_order,
+        chain_match_key or None,
+    )
+    specificity_bonus_100 = get_specificity_bonus_100(tier)
     rec_label, section = recommendation_label_and_section(
         eligibility_band,
         place_profile["menu_item_source"],
         place_profile["menu_item_confidence"],
         is_generic,
     )
-    # Generic fallbacks must never be Best pick
+    # Generic fallbacks must never be Best pick or Strong option
     if is_generic and rec_label == LABEL_BEST_PICK:
         rec_label = LABEL_SUGGESTED_HEALTHIER
+    if is_generic and rec_label == LABEL_STRONG_OPTION:
+        rec_label = LABEL_NEEDS_MENU_CHECK
 
     display_rank_score_100 = round(meal_result["meal_fitness_score_100"], 1)
     venue_prior_score_100 = int(round(_safe_float(place.get("health_score"), 5.0) * 10.0))
     if venue_prior_score_100 <= 0:
         venue_prior_score_100 = int(round(display_rank_score_100))
 
-    confidence_lbl = _confidence_label(place_profile["menu_item_source"], place_profile["menu_item_confidence"])
+    diet_pref = str(user_context.get("diet_preference") or "").strip() or ""
+    confidence_lbl = _confidence_label(place_profile["menu_item_source"], place_profile["menu_item_confidence"], diet_preference=diet_pref)
     fit_today_100 = _safe_float(place.get("fit_today_score_100") or ctx.get("fit_today_score_100"), 50.0)
     rank_reason = _rank_reason_short(
         display_rank_score_100,
@@ -182,8 +198,14 @@ def build_ranked_place_profile(
     if final_display_score_100 > 100:
         final_display_score_100 = 100.0
 
+    # Specificity-aware sort score: tie-break favoring chain/menu over generic
+    display_sort_score_100 = min(100.0, max(0.0, final_display_score_100 + float(specificity_bonus_100)))
+
     return {
         "display_rank_score_100": int(round(final_display_score_100)),
+        "display_sort_score_100": round(display_sort_score_100, 1),
+        "chosen_candidate_specificity_tier": tier,
+        "specificity_bonus_100": specificity_bonus_100,
         "meal_fitness_score_100": round(meal_result["meal_fitness_score_100"], 1),
         "meal_fitness_score": meal_result.get("meal_fitness_score", display_rank_score_100 / 10.0),
         "venue_prior_score_100": venue_prior_score_100,

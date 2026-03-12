@@ -211,13 +211,14 @@ export function cleanupNotificationListeners(subs) {
 
 /**
  * Parse notification data payload. Expected shape for Smart Alerts:
- * alert_type, place_id, place_name, best_item_name, deep_link, alert_id, display_rank_score_100, context_mode
+ * alert_type, place_id, place_name, best_item_name, deep_link, alert_id, display_rank_score_100,
+ * context_mode, route_target, place_lat, place_lng, plus trust metadata for inbox/card consistency.
  * @param {object} data
  * @returns {object}
  */
 export function parseSmartAlertNotificationData(data) {
   if (!data || typeof data !== "object") return {};
-  return {
+  const out = {
     alert_type: String(data.alert_type || "").trim(),
     place_id: String(data.place_id || "").trim(),
     place_name: String(data.place_name || "").trim(),
@@ -226,7 +227,19 @@ export function parseSmartAlertNotificationData(data) {
     alert_id: String(data.alert_id || "").trim(),
     display_rank_score_100: data.display_rank_score_100 ?? null,
     context_mode: String(data.context_mode || "").trim(),
+    route_target: String(data.route_target || "smart_alert_inbox").trim(),
+    place_lat: typeof data.place_lat === "number" ? data.place_lat : null,
+    place_lng: typeof data.place_lng === "number" ? data.place_lng : null,
   };
+  if (data.confidence_label) out.confidence_label = String(data.confidence_label).trim();
+  if (data.recommendation_label) out.recommendation_label = String(data.recommendation_label).trim();
+  if (data.chosen_candidate_specificity_tier) out.chosen_candidate_specificity_tier = String(data.chosen_candidate_specificity_tier).trim();
+  if (data.menu_item_source) out.menu_item_source = String(data.menu_item_source).trim();
+  if (data.matched_local_profile === true) out.matched_local_profile = true;
+  if (data.local_profile_source) out.local_profile_source = String(data.local_profile_source).trim();
+  if (data.used_venue_intelligence_cache === true) out.used_venue_intelligence_cache = true;
+  if (data.best_item_is_generic_fallback === true) out.best_item_is_generic_fallback = true;
+  return out;
 }
 
 /**
@@ -242,7 +255,7 @@ export async function handleNotificationOpen(response, opts = {}) {
   const { userId, recordAlertOpened } = opts;
 
   const alertId = parsed.alert_id || (parsed.place_id && parsed.alert_type
-    ? `${parsed.alert_type}::${parsed.place_id}::${parsed.best_item_name || "?"}::${new Date().toISOString().slice(0, 10)}`
+    ? `${parsed.alert_type}::${parsed.place_id}::${parsed.best_item_name || "?"}`
     : null);
   const placeId = parsed.place_id || null;
 

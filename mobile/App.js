@@ -36,9 +36,8 @@ import * as AppleAuthentication from "expo-apple-authentication";
 
 import {
   normalizeHealthyPlacesResponse,
-  getHealthyItemLineLabel,
-  getHealthyPanelItemHeading,
 } from "./healthyNearbyUtils";
+import { buildRemainingLine, buildWeeklyCoachSummaryLine } from "./utils/lunchAndWeeklyCoachUtils";
 import {
   postMealDecisionEvent,
   postMealFeedback,
@@ -61,6 +60,10 @@ import {
 import { SmartAlertCard } from "./components/SmartAlertCard";
 import { SmartAlertInbox } from "./components/SmartAlertInbox";
 import { SmartAlertSettings } from "./components/SmartAlertSettings";
+import { HealthyNearbyMapScreen } from "./components/HealthyNearbyMapScreen";
+import { HealthyPlaceListCard } from "./components/HealthyPlaceListCard";
+import { AdminOpsDashboard } from "./components/AdminOpsDashboard";
+import { ScanConfirmationChips } from "./components/ScanConfirmationChips";
 import {
   requestPushPermissionsIfNeeded,
   getExpoPushTokenSafe,
@@ -72,7 +75,9 @@ import {
   getPushPermissionStatus,
   loadPushRegistrationState,
   savePushRegistrationState,
+  parseSmartAlertNotificationData,
 } from "./pushNotifications";
+import { parseSmartAlertDeepLink, resolveSmartAlertNavigationTarget } from "./deepLinkRouter";
 
 import * as WebBrowser from "expo-web-browser";
 // RevenueCat
@@ -869,6 +874,17 @@ function normalizeRerunPatch(patch, editableItems = []) {
       out.portion_multiplier = { item_id: itemId || "", multiplier };
     }
   }
+  const gramsRaw = src?.set_item_grams;
+  if (gramsRaw != null) {
+    if (typeof gramsRaw === "number" || typeof gramsRaw === "string") {
+      const grams = Math.max(0, num(gramsRaw));
+      out.set_item_grams = { item_id: fallbackItemId || "", grams };
+    } else if (gramsRaw && typeof gramsRaw === "object") {
+      const grams = Math.max(0, num(gramsRaw?.grams));
+      const itemId = String(gramsRaw?.item_id || fallbackItemId || "").trim();
+      out.set_item_grams = { item_id: itemId || "", grams };
+    }
+  }
   return out;
 }
 function rerunPatchToActions(patch) {
@@ -919,6 +935,13 @@ function rerunPatchToActions(patch) {
     actions.push({
       type: "clarifying_answer",
       value: String(src.clarifying_answer || "").trim(),
+    });
+  }
+  if (src?.set_item_grams && typeof src.set_item_grams === "object") {
+    actions.push({
+      type: "set_item_grams",
+      item_id: String(src.set_item_grams?.item_id || "").trim(),
+      grams: num(src.set_item_grams?.grams),
     });
   }
   return actions;
@@ -1517,6 +1540,7 @@ export default function App() {
   const [goalsModal, setGoalsModal] = useState(false);
   const [goalsBusy, setGoalsBusy] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [scanProgress, setScanProgress] = useState("");
   const [rerunBusy, setRerunBusy] = useState(false);
   const [supplementFrontUri, setSupplementFrontUri] = useState(null);
   const [supplementBackUri, setSupplementBackUri] = useState(null);
@@ -1613,6 +1637,7 @@ export default function App() {
   const [smartAlertState, setSmartAlertState] = useState(null);
   const [smartAlertInboxVisible, setSmartAlertInboxVisible] = useState(false);
   const [smartAlertSettingsVisible, setSmartAlertSettingsVisible] = useState(false);
+  const [adminOpsVisible, setAdminOpsVisible] = useState(false);
   const smartAlertsLastFetchRef = useRef(0);
   const SMART_ALERTS_COOLDOWN_MS = 5 * 60 * 1000; // 5 min between fetches
 
@@ -1992,6 +2017,14 @@ export default function App() {
             title: notification?.request?.content?.title || "Smart alert",
             body: notification?.request?.content?.body || "",
             display_rank_score_100: data.display_rank_score_100,
+            confidence_label: data.confidence_label,
+            recommendation_label: data.recommendation_label,
+            chosen_candidate_specificity_tier: data.chosen_candidate_specificity_tier,
+            menu_item_source: data.menu_item_source,
+            matched_local_profile: data.matched_local_profile,
+            local_profile_source: data.local_profile_source,
+            used_venue_intelligence_cache: data.used_venue_intelligence_cache,
+            best_item_is_generic_fallback: data.best_item_is_generic_fallback,
           };
           setSmartAlertCandidates((prev) => {
             const key = (c) => (c.place_id || "") + (c.alert_type || "");
@@ -2004,9 +2037,36 @@ export default function App() {
         handleNotificationOpen(response, {
           userId: userId || session?.user?.id,
           recordAlertOpened,
-        }).then(() => {
+        }).then(({ parsed }) => {
           setSmartAlertState(null);
           getSmartAlertState().then(setSmartAlertState);
+          const resolved = resolveSmartAlertNavigationTarget(parseSmartAlertDeepLink(parsed || response?.notification?.request?.content?.data || {}));
+          if (resolved.action === "open_place" && resolved.place_id) {
+            setActiveScreen("healthy_nearby");
+            setSmartAlertInboxVisible(false);
+            setHealthyNearbyTab("decision");
+            const coords = Number.isFinite(resolved.place_lat) && Number.isFinite(resolved.place_lng)
+              ? { lat: resolved.place_lat, lng: resolved.place_lng }
+              : healthyPlaceCoords;
+            const preferredCard = {
+              place_id: resolved.place_id,
+              place_name: resolved.place_name,
+              place_lat: resolved.place_lat,
+              place_lng: resolved.place_lng,
+              best_item_name: resolved.best_item_name,
+            };
+            if (coords) {
+              void loadHealthyPlacesNearby({ coords, preferredCard });
+            } else {
+              void loadHealthyPlacesNearby();
+            }
+          } else if (resolved.action === "open_inbox" || resolved.place_id) {
+            setActiveScreen("healthy_nearby");
+            setSmartAlertInboxVisible(true);
+            void fetchSmartAlerts({ force: true });
+          } else {
+            setActiveScreen("healthy_nearby");
+          }
         });
       },
     });
@@ -2670,20 +2730,27 @@ export default function App() {
       tone_preference: coachProfile?.tone_preference || "supportive",
       tone_id: coachProfile?.tone_preference || "supportive",
     };
+    // Coach voice is optional/background enrichment.
+    // Never block UI on it; keep request short and abortable.
     setCoachVoiceBusy(true);
     try {
       const url = withTimezoneQuery(`${API_BASE}/coach/voice`);
+      const ctrl = typeof AbortController !== "undefined" ? new AbortController() : null;
+      const timeoutMs = 2200;
+      const t = ctrl ? setTimeout(() => ctrl.abort(), timeoutMs) : null;
       const res = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json", accept: "application/json" },
         body: JSON.stringify(requestBody),
+        signal: ctrl ? ctrl.signal : undefined,
       });
+      if (t) clearTimeout(t);
       const data = await safeJson(res);
       const cleaned = sanitizeVoiceForDiet(normalizeCoachVoice(data));
       setCoachVoice(cleaned);
       await rememberCoachVoiceMessage(uid, day, cleaned);
     } catch (e) {
-      console.log("coach voice fetch failed", String(e));
+      // Silent failure; optional layer only.
     } finally {
       setCoachVoiceBusy(false);
     }
@@ -3822,11 +3889,14 @@ async function openCamera(mode = "meal") {
     analyzeCancelRef.current = false;
     setBusy(true);
     setResult(null);
+    setScanProgress("");
 
     try {
+      const { prepareImageForScan } = await import("./utils/imageCompress");
+      const uriToUpload = await prepareImageForScan(photoUri);
       const form = new FormData();
       form.append("file", {
-        uri: photoUri,
+        uri: uriToUpload,
         name: "meal.jpg",
         type: "image/jpeg",
       });
@@ -3846,7 +3916,7 @@ async function openCamera(mode = "meal") {
           throw new Error("Analyze job was queued without a job_id.");
         }
         const startedAt = Date.now();
-        let pollDelay = 1200;
+        let pollDelay = 800;
         let finalPayload = null;
         while (Date.now() - startedAt < 180000) {
           if (analyzeCancelRef.current) {
@@ -3858,13 +3928,20 @@ async function openCamera(mode = "meal") {
           const pollRes = await fetch(jobUrl, { method: "GET", headers: { accept: "application/json" } });
           const pollData = await safeJson(pollRes);
           const status = String(pollData?.status || "").trim().toLowerCase();
+          const progressStage = String(pollData?.progress_stage || "").trim();
+          if (progressStage === "enriching") {
+            setScanProgress("Almost done…");
+          } else if (status === "running") {
+            setScanProgress("Analyzing…");
+          } else if (status === "queued") {
+            setScanProgress("Starting…");
+          }
+          const resultObj = pollData?.result && typeof pollData.result === "object" ? pollData.result : null;
+          if (resultObj && !finalPayload) {
+            setResult(normalizeAnalyzeResult(resultObj));
+          }
           if (status === "done") {
-            finalPayload =
-              pollData?.result && typeof pollData.result === "object"
-                ? pollData.result
-                : pollData?.result_json && typeof pollData.result_json === "object"
-                ? pollData.result_json
-                : null;
+            finalPayload = resultObj;
             if (!finalPayload) {
               throw new Error("Analyze job completed but no result payload was returned.");
             }
@@ -3878,7 +3955,7 @@ async function openCamera(mode = "meal") {
             throw new Error(errMsg || "Analyze failed while processing image.");
           }
           await sleepMs(pollDelay);
-          pollDelay = Math.min(5000, Math.round(pollDelay * 1.35));
+          pollDelay = Math.min(5000, Math.round(pollDelay * 1.2));
         }
         if (!finalPayload) {
           throw new Error("Analyze timed out. Please try again.");
@@ -3992,6 +4069,7 @@ async function openCamera(mode = "meal") {
       }
     } finally {
       setBusy(false);
+      setScanProgress("");
       analyzeCancelRef.current = false;
     }
   }
@@ -4756,6 +4834,26 @@ async function openCamera(mode = "meal") {
     try { mainScrollRef.current?.scrollTo({ y: 0, animated: false }); } catch (_) {}
   }
 
+  async function openPlaceFromSmartAlert(candidate) {
+    if (!candidate || typeof candidate !== "object") return;
+    setActiveScreen("healthy_nearby");
+    setSmartAlertInboxVisible(false);
+    setWeeklyCoachExpanded(false);
+    setHealthyNearbyTab("decision");
+    _scrollToTop();
+    const lat = num(candidate.place_lat ?? candidate.lat ?? healthyPlaceCoords?.lat);
+    const lng = num(candidate.place_lng ?? candidate.lng ?? healthyPlaceCoords?.lng);
+    const coords = Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : healthyPlaceCoords;
+    const preferredCard = {
+      place_id: candidate.place_id,
+      place_name: candidate.place_name || candidate.name,
+      place_lat: lat,
+      place_lng: lng,
+      best_item_name: candidate.best_item_name,
+    };
+    await loadHealthyPlacesNearby(coords ? { coords, preferredCard } : {});
+  }
+
   async function openHealthyNearbyScreen(target = "overview") {
     const mode = String(target || "overview").trim().toLowerCase();
     setActiveScreen("healthy_nearby");
@@ -4810,6 +4908,18 @@ async function openCamera(mode = "meal") {
       const onTrackDays = Math.max(0, Math.round(num(weekSummary?.days_on_track)));
       const trackedDays = Math.max(0, Math.round(num(weekSummary?.days_tracked)));
       const avgProtein = Math.max(0, Math.round(num(weekSummary?.average_daily_protein_g)));
+      const currentWeekStart = localWeekStartISO(localDayISO());
+      const isCurrentWeek = String(weeklyCoach?.week_start || "").trim() === currentWeekStart;
+      const hasLoggedToday = (history || []).some(
+        (h) => (h?.kind || "") === "photo" && localDayFromISO(h?.ts) === localDayISO()
+      );
+      const todayInProgress = Boolean(isCurrentWeek && hasLoggedToday);
+      const summaryLine = buildWeeklyCoachSummaryLine({
+        onTrackDays,
+        trackedDays,
+        avgProtein,
+        todayInProgress,
+      });
 
       return (
         <View style={[styles.weeklyCoachCard, styles.weeklyCoachCardCompact]}>
@@ -4828,9 +4938,7 @@ async function openCamera(mode = "meal") {
             </Text>
           ) : null}
 
-          <Text style={styles.weeklyCoachSummaryLine}>
-            {onTrackDays}/{trackedDays} days on track • Avg protein {avgProtein}g
-          </Text>
+          <Text style={styles.weeklyCoachSummaryLine}>{summaryLine}</Text>
 
           {primaryInsight ? (
             <View style={styles.weeklyCoachPrimaryInsight}>
@@ -5133,6 +5241,19 @@ async function openCamera(mode = "meal") {
     });
   }
 
+  async function applyPowderConfirmation(itemId, powderType, scoopG) {
+    const id = String(itemId || "").trim();
+    const pt = String(powderType || "").trim();
+    const g = Number(scoopG);
+    if (!id || !pt || !Number.isFinite(g) || g <= 0) return;
+    setFliPending(true);
+    // Backend recognizes supplement_powder:<type> as deterministic nutrition source.
+    await rerunAnalyzeWithPatch({
+      swap_item: { item_id: id, new_name: `supplement_powder:${pt}` },
+      set_item_grams: { item_id: id, grams: g },
+    });
+  }
+
   // ===================== BARCODE =====================
   async function openBarcodeScanner(mode = "lookup") {
     if (!ensureAiConsentOrAlert()) return;
@@ -5354,6 +5475,21 @@ async function openCamera(mode = "meal") {
     return picked || healthyVisiblePlaces[0];
   })();
   const healthySelectedPlaceStableId = healthySelectedPlace ? healthyPlaceStableId(healthySelectedPlace, 0) : "";
+
+  // Auto-select: when selected place disappears from visible (e.g. filter change), select top visible
+  useEffect(() => {
+    if (!healthyVisiblePlaces.length) return;
+    const id = String(selectedHealthyPlaceId || "").trim();
+    const found = healthyVisiblePlaces.some((x, idx) => healthyPlaceStableId(x, idx) === id);
+    if (!found) {
+      const top = healthyVisiblePlaces[0];
+      setSelectedHealthyPlaceId(healthyPlaceStableId(top, 0));
+      if (top && Number.isFinite(num(top?.lat)) && Number.isFinite(num(top?.lng))) {
+        setHealthyMapFocusCoords({ lat: num(top.lat), lng: num(top.lng) });
+      }
+    }
+  }, [healthyMapFilter, healthyPlaces, selectedHealthyPlaceId, healthySections]);
+
   const healthySelectedDecisionCard = findMatchingLunchCard(healthySelectedPlace, lunchDecision?.cards || []);
   const lunchDayCoach = lunchDecision?.day_coach && typeof lunchDecision.day_coach === "object"
     ? lunchDecision.day_coach
@@ -5540,8 +5676,7 @@ async function openCamera(mode = "meal") {
                         const aid = getAlertId(cand);
                         await recordAlertOpened(aid, cand.place_id);
                         setSmartAlertState(await getSmartAlertState());
-                        setSmartAlertInboxVisible(false);
-                        void openHealthyNearbyScreen("decide");
+                        await openPlaceFromSmartAlert(cand);
                       }}
                       onDismiss={async (cand) => {
                         const aid = getAlertId(cand);
@@ -5708,10 +5843,6 @@ async function openCamera(mode = "meal") {
                     <Text style={[styles.tiny, { marginTop: 6 }]}>{String(coachVoice?.safety_disclaimer || "")}</Text>
                   )}
                 </View>
-              ) : coachVoiceBusy ? (
-                <View style={{ marginTop: 10 }}>
-                  <ActivityIndicator />
-                </View>
               ) : null}
 
               {weeklyReport ? (
@@ -5781,6 +5912,12 @@ async function openCamera(mode = "meal") {
                       </Text>
                       {showCoachDebug ? (
                         <View style={{ marginTop: 6, padding: 8, borderWidth: 1, borderColor: "#26364f", borderRadius: 8 }}>
+                          <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                            <Text style={[styles.tiny, { fontWeight: "700", color: "#cfe3ff" }]}>Internal</Text>
+                            <TouchableOpacity style={styles.smallBtn} onPress={() => setAdminOpsVisible(true)}>
+                              <Text style={styles.smallBtnText}>Ops Dashboard</Text>
+                            </TouchableOpacity>
+                          </View>
                           <Text style={styles.tiny}>payload_hash_used: {String(coachDaily?.payload_hash_used || "-")}</Text>
                           <Text style={styles.tiny}>request_id: {String(coachDaily?.request_id || "-")}</Text>
                           <Text style={styles.tiny}>source: {String(coachDaily?.source || "-")}</Text>
@@ -6052,6 +6189,9 @@ async function openCamera(mode = "meal") {
               <TouchableOpacity style={styles.secondaryBtn} onPress={cancelAnalyzeJob}>
                 <Text style={styles.btnText}>Cancel analyze</Text>
               </TouchableOpacity>
+              {!!scanProgress ? (
+                <Text style={[styles.tiny, { marginLeft: 10, alignSelf: "center" }]}>{scanProgress}</Text>
+              ) : null}
             </View>
           ) : null}
 
@@ -6173,6 +6313,32 @@ async function openCamera(mode = "meal") {
     </Text>
   </View>
 ) : null}
+
+              {/* Powder confirmation (supplements) */}
+              {(Array.isArray(result?.items) ? result.items : [])
+                .filter((it) => it && typeof it === "object" && it?._powder_meta?.is_powder_like)
+                .slice(0, 1)
+                .map((it) => {
+                  const meta = it._powder_meta || {};
+                  const conf = meta.powder_confirmation || {};
+                  const needs = Boolean(meta.needs_powder_confirmation);
+                  const resolved = String(meta.powder_type_resolved || "").trim();
+                  const itemId = String(it.item_id || "").trim();
+                  const scoopG = Math.round(num(it.grams));
+                  return (
+                    <ScanConfirmationChips
+                      key={`powder-confirm-${itemId}`}
+                      title={needs ? "Confirm powder type + scoop" : "Powder detected (optional confirm)"}
+                      powderTypes={conf.powder_types || ["whey", "whey_isolate", "plant_protein", "mass_gainer", "cocoa_powder", "other_powder"]}
+                      scoopSizesG={conf.scoop_sizes_g || [25, 30, 40]}
+                      selectedPowderType={resolved}
+                      selectedScoopG={scoopG || 30}
+                      disabled={rerunBusy}
+                      onSelectPowderType={(pt) => applyPowderConfirmation(itemId, pt, scoopG || 30)}
+                      onSelectScoopG={(g) => applyPowderConfirmation(itemId, resolved || "whey", g)}
+                    />
+                  );
+                })}
 
               <Text style={[styles.cardTitle, { marginTop: 12 }]}>Items</Text>
               {(result.items || []).map((it, idx) => (
@@ -6634,7 +6800,7 @@ async function openCamera(mode = "meal") {
           </View>
           {healthyPlaceCoords ? (
             <Text style={[styles.tiny, { marginTop: 8 }]}>
-              Using location: {round1(healthyPlaceCoords.lat)}, {round1(healthyPlaceCoords.lng)}
+              Using your current location
             </Text>
           ) : null}
           {(healthyPlacesError || lunchDecisionError) ? (
@@ -7104,6 +7270,27 @@ async function openCamera(mode = "meal") {
                   ? Math.max(0, Math.round(num(realityCheck.calories_saved)))
                   : null;
                 const typicalOrderName = String(realityCheck?.typical_order?.name || "").trim();
+                const orderCal = Number.isFinite(num(card?.estimated_calories)) ? num(card.estimated_calories) : null;
+                const orderProtein = Number.isFinite(num(card?.estimated_protein_g)) ? num(card.estimated_protein_g) : null;
+                const decisionCtx = lunchDecision?.decision_context;
+                const dayProgress = lunchDecision?.day_coach?.day_summary?.progress;
+                const pageRemainingCal =
+                  Number.isFinite(num(remainingToday?.kcal)) ? num(remainingToday.kcal) :
+                  Number.isFinite(num(decisionCtx?.remaining_calories)) ? num(decisionCtx.remaining_calories) :
+                  Number.isFinite(num(dayProgress?.remaining_calories)) ? num(dayProgress.remaining_calories) : null;
+                const pageRemainingProtein =
+                  Number.isFinite(num(remainingToday?.protein_g)) ? num(remainingToday.protein_g) :
+                  Number.isFinite(num(decisionCtx?.remaining_protein_g)) ? num(decisionCtx.remaining_protein_g) :
+                  Number.isFinite(num(dayProgress?.remaining_protein_g)) ? num(dayProgress.remaining_protein_g) : null;
+                const cardRemaining = Number.isFinite(num(card?.remaining_calories)) ? num(card.remaining_calories) : null;
+                const remainingLine = buildRemainingLine({
+                  pageRemainingCal: pageRemainingCal,
+                  pageRemainingProtein: pageRemainingProtein,
+                  cardRemainingCal: cardRemaining,
+                  cardRemainingProtein: num(card?.remaining_protein_g),
+                  orderCal: orderCal,
+                  orderProtein: orderProtein,
+                });
                 return (
                   <View
                     key={"lunch-card-" + idx}
@@ -7134,8 +7321,8 @@ async function openCamera(mode = "meal") {
                     {!!String(card?.typical_calorie_range || "").trim() ? (
                       <Text style={styles.tiny}>Typical meals: {String(card.typical_calorie_range)}</Text>
                     ) : null}
-                    {Number.isFinite(num(card?.remaining_calories)) ? (
-                      <Text style={styles.tiny}>Your remaining calories: {Math.round(num(card?.remaining_calories))}</Text>
+                    {remainingLine ? (
+                      <Text style={styles.tiny}>{remainingLine}</Text>
                     ) : null}
                     {caloriesSaved !== null && caloriesSaved > 0 ? (
                       <Text style={[styles.tiny, styles.realitySavedText]}>✨ You saved {caloriesSaved} calories</Text>
@@ -7215,525 +7402,72 @@ async function openCamera(mode = "meal") {
           ) : null}
 
           {healthyViewMode === "map" ? (
-            <View style={styles.placeMapCard}>
-              <Text style={styles.itemName}>Healthy Food Map</Text>
-              <Text style={[styles.tiny, { marginTop: 4 }]}>Best places near you</Text>
-              {healthySelectedDecisionCard ? (
-                <Text style={[styles.lunchSummaryLine, { marginTop: 4 }]}>Selected for your current macros</Text>
-              ) : null}
-
-              {healthyMapFilterChips.length ? (
-                <View style={styles.healthyFilterRow}>
-                  {healthyMapFilterChips.map((chip) => {
-                    const active = healthyMapFilter === chip.key;
-                    return (
-                      <TouchableOpacity
-                        key={chip.key}
-                        style={[styles.healthyFilterChip, active ? styles.healthyFilterChipActive : null]}
-                        onPress={() => setHealthyMapFilter(chip.key)}
-                      >
-                        <Text style={styles.healthyFilterChipText}>{chip.label}</Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              ) : null}
-
-              {healthyMapPoints.length ? (
-                <View
-                  style={styles.placeMapCanvas}
-                  onLayout={(e) => {
-                    const w = Math.max(220, num(e?.nativeEvent?.layout?.width));
-                    if (Math.abs(w - num(healthyMapWidth)) > 2) setHealthyMapWidth(w);
-                  }}
-                >
-                  <View style={styles.placeMapCenter} />
-                  {healthyMapPoints.map((pt, idx) => {
-                    const tone = healthyMapPinTone(pt?.place);
-                    const selected =
-                      Boolean(healthySelectedPlaceStableId) &&
-                      healthyPlaceStableId(pt?.place, idx) === healthySelectedPlaceStableId;
-                    return (
-                      <TouchableOpacity
-                        key={pt.key}
-                        style={[
-                          styles.placeMapPin,
-                          selected ? styles.placeMapPinSelected : null,
-                          {
-                            left: pt.x - 9,
-                            top: pt.y - 9,
-                            borderColor: tone.color,
-                            backgroundColor: selected ? "#0b1220" : "#050a12",
-                          },
-                        ]}
-                        onPress={() => {
-                          setSelectedHealthyPlaceId(healthyPlaceStableId(pt?.place, idx));
-                          if (Number.isFinite(num(pt?.place?.lat)) && Number.isFinite(num(pt?.place?.lng))) {
-                            setHealthyMapFocusCoords({ lat: num(pt.place.lat), lng: num(pt.place.lng) });
-                          }
-                        }}
-                      >
-                        <View style={[styles.placeMapPinCore, { backgroundColor: tone.color }]} />
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              ) : (
-                <View style={{ marginTop: 8, alignItems: "center" }}>
-                  {healthyPlaceCoords ? (
-                    <View style={[styles.placeMapCard, { marginBottom: 12 }]}>
-                      <Text style={styles.itemName}>Your location</Text>
-                      <Text style={[styles.tiny, { marginTop: 4 }]}>
-                        You're at {round1(healthyPlaceCoords.lat)}, {round1(healthyPlaceCoords.lng)}
-                      </Text>
-                      <Text style={[styles.tiny, { marginTop: 6, color: "#94a3b8" }]}>
-                        Open the map to see your area and nearby food places.
-                      </Text>
-                      <TouchableOpacity
-                        style={[styles.primaryBtn, { marginTop: 12 }]}
-                        onPress={openHealthyAreaMap}
-                      >
-                        <Text style={styles.btnText}>📍 Open map to see my location</Text>
-                      </TouchableOpacity>
-                      {healthyMapFilter === "all" ? (
-                        <TouchableOpacity
-                          style={[styles.smallBtn, { marginTop: 8 }]}
-                          onPress={() => loadHealthyPlacesNearby({ radius_m: WIDER_SEARCH_RADIUS_M })}
-                          disabled={healthyPlacesBusy}
-                        >
-                          <Text style={styles.smallBtnText}>
-                            {healthyPlacesBusy ? "Searching…" : "Search wider area (8 km)"}
-                          </Text>
-                        </TouchableOpacity>
-                      ) : null}
-                    </View>
-                  ) : null}
-                  <Text style={styles.tiny}>
-                    {healthyMapFilter === "all" ? "No nearby places found right now." : "No places match this filter right now."}
-                  </Text>
-                  {healthyMapFilter !== "all" ? (
-                    <TouchableOpacity
-                      style={[styles.smallBtn, { marginTop: 6 }]}
-                      onPress={() => setHealthyMapFilter("all")}
-                    >
-                      <Text style={styles.smallBtnText}>Show all nearby places</Text>
-                    </TouchableOpacity>
-                  ) : null}
-                </View>
-              )}
-
-              {healthySelectedPlace ? (
-                (() => {
-                  const place = healthySelectedPlace;
-                  const tone = healthyMapPinTone(place);
-                  const decisionCard = healthySelectedDecisionCard && typeof healthySelectedDecisionCard === "object"
-                    ? healthySelectedDecisionCard
-                    : null;
-                  const badges = healthyPlaceBadges(place);
-                  const distanceLabel = formatDistanceFromMeters(place?.distance_meters);
-                  const why = String(
-                    place?.rank_reason_short ||
-                    decisionCard?.why_this_works ||
-                    place?.why_this_ranked_here ||
-                    place?.why_this_works ||
-                    place?.short_reason ||
-                    "Better choice nearby for your goal."
-                  ).trim();
-                  const recommendationLabel = String(place?.recommendation_label || "").trim();
-                  const confidenceLabel = String(place?.confidence_label || "").trim();
-
-                  const panel = place?.intelligence_panel && typeof place.intelligence_panel === "object"
-                    ? place.intelligence_panel
-                    : null;
-                  const coachMessage =
-                    (panel?.coach_message && typeof panel.coach_message === "object" ? panel.coach_message : null) ||
-                    (place?.coach_message && typeof place.coach_message === "object" ? place.coach_message : null) ||
-                    null;
-                  const coachHeadline = String(
-                    coachMessage?.headline ||
-                    (decisionCard?.why_this_works ? decisionCard.why_this_works : "Best fit for your remaining calories.")
-                  ).trim();
-                  const coachSupport = String(
-                    coachMessage?.supporting_text ||
-                    (decisionCard?.decision_reason ? decisionCard.decision_reason : "Pick lean protein and keep extras light.")
-                  ).trim();
-                  const coachTone = String(coachMessage?.tone || "encouraging").trim().toLowerCase();
-                  const coachToneStyle =
-                    coachTone === "warning"
-                      ? styles.mapCoachToneWarning
-                      : coachTone === "caution"
-                      ? styles.mapCoachToneCaution
-                      : styles.mapCoachToneEncouraging;
-
-                  const topMenuItem =
-                    (panel?.top_menu_item && typeof panel.top_menu_item === "object" ? panel.top_menu_item : null) ||
-                    (place?.top_menu_item && typeof place.top_menu_item === "object" ? place.top_menu_item : null) ||
-                    {
-                      item_name: String(place?.best_item_name || place?.best_order || "Smart high-protein order"),
-                      estimated_calories: Number.isFinite(num(place?.best_item_calories)) ? Math.round(num(place.best_item_calories)) : Number.isFinite(num(place?.estimated_calories)) ? Math.round(num(place?.estimated_calories)) : null,
-                      estimated_protein_g: Number.isFinite(num(place?.best_item_protein)) ? Math.round(num(place.best_item_protein)) : Number.isFinite(num(place?.estimated_protein_g)) ? Math.round(num(place?.estimated_protein_g)) : null,
-                      short_reason: why,
-                    };
-
-                  const topItemName = String(topMenuItem?.item_name || place?.best_item_name || place?.best_order || "Smart high-protein order").trim();
-                  const topItemCalories = Number.isFinite(num(topMenuItem?.estimated_calories))
-                    ? Math.round(num(topMenuItem?.estimated_calories))
-                    : Number.isFinite(num(place?.estimated_calories))
-                    ? Math.round(num(place?.estimated_calories))
-                    : null;
-                  const topItemProtein = Number.isFinite(num(topMenuItem?.estimated_protein_g))
-                    ? Math.round(num(topMenuItem?.estimated_protein_g))
-                    : Number.isFinite(num(place?.estimated_protein_g))
-                    ? Math.round(num(place?.estimated_protein_g))
-                    : null;
-                  const topItemReason = String(topMenuItem?.short_reason || why).trim();
-                  const topItemLabel = String(topMenuItem?.display_label || "Best Menu Item").trim();
-                  const topItemSwaps = extractSwapSuggestions(topMenuItem, decisionCard, place).slice(0, 2);
-                  const topItemSource = String(topMenuItem?.menu_item_source || place?.menu_items_source || "heuristic")
-                    .trim()
-                    .toLowerCase();
-                  const topItemConfidence = Number.isFinite(num(topMenuItem?.menu_item_confidence))
-                    ? Math.max(0, Math.min(1, num(topMenuItem.menu_item_confidence)))
-                    : Number.isFinite(num(place?.menu_item_confidence))
-                    ? Math.max(0, Math.min(1, num(place.menu_item_confidence)))
-                    : null;
-                  const lowConfidenceHint =
-                    topItemLabel === "Needs Menu Check"
-                      ? "Menu looks unclear here, so use lighter options."
-                      : topItemSource !== "real_menu" && topItemConfidence !== null && topItemConfidence < 0.55
-                      ? "Likely pick for this place."
-                      : "";
-
-                  const todayFit =
-                    (panel?.today_fit && typeof panel.today_fit === "object" ? panel.today_fit : null) ||
-                    (place?.today_fit && typeof place.today_fit === "object" ? place.today_fit : null) ||
-                    {};
-                  const rawDecision = String(todayFit?.decision || place?.decision_today || "").trim().toUpperCase();
-                  const decisionToken = rawDecision === "YES" || rawDecision === "MAYBE" || rawDecision === "NO"
-                    ? rawDecision
-                    : place?.fit_for_today === true
-                    ? "YES"
-                    : place?.fit_for_today === false
-                    ? "NO"
-                    : "MAYBE";
-                  const decisionText =
-                    decisionToken === "YES"
-                      ? "YES"
-                      : decisionToken === "NO"
-                      ? "NO"
-                      : "MAYBE";
-                  const decisionBadgeStyle =
-                    decisionToken === "YES"
-                      ? styles.mapDecisionBadgeYes
-                      : decisionToken === "NO"
-                      ? styles.mapDecisionBadgeNo
-                      : styles.mapDecisionBadgeMaybe;
-                  const decisionLabel =
-                    decisionToken === "YES"
-                      ? "Fits Today"
-                      : decisionToken === "NO"
-                      ? "Hard to Fit Today"
-                      : "Can Work Today";
-                  const decisionReason = String(
-                    todayFit?.decision_reason ||
-                    place?.decision_reason ||
-                    (decisionToken === "YES"
-                      ? "Fits calories and protein today."
-                      : decisionToken === "NO"
-                      ? "Harder to fit today."
-                      : "Can fit with lighter choices.")
-                  ).trim();
-
-                  const memoryLabel = String(place?.personal_memory_label || "").trim();
-                  const hideMemory = !memoryLabel || memoryLabel === "Not enough data yet";
-                  const timesChosen = Number.isFinite(num(place?.times_chosen)) ? num(place.times_chosen) : 0;
-                  const avgFullness = Number.isFinite(num(place?.avg_fullness)) ? num(place.avg_fullness) : null;
-
-                  const reality =
-                    (panel?.reality_check && typeof panel.reality_check === "object" ? panel.reality_check : null) ||
-                    (place?.reality_check && typeof place.reality_check === "object" ? place.reality_check : null);
-                  const caloriesSaved = Number.isFinite(num(reality?.calories_saved)) ? Math.max(0, Math.round(num(reality.calories_saved))) : null;
-                  const typicalCalories = Number.isFinite(num(reality?.typical_order?.estimated_calories))
-                    ? Math.round(num(reality.typical_order.estimated_calories))
-                    : null;
-                  const smarterCalories = Number.isFinite(num(reality?.smarter_order?.estimated_calories))
-                    ? Math.round(num(reality.smarter_order.estimated_calories))
-                    : topItemCalories;
-                  const realityReason = String(
-                    reality?.short_reason ||
-                    (caloriesSaved !== null && caloriesSaved > 0
-                      ? `You save ${caloriesSaved} kcal with a smarter order.`
-                      : "Smarter order, better calorie control.")
-                  ).trim();
-
-                  const selectedCta = String(decisionCard?.cta_label || place?.cta_label || "Navigate").trim();
-                  const sharePayload = decisionCard || {
-                    place_id: place?.place_id,
-                    place_name: place?.place_name || place?.name,
-                    recommended_order: topItemName,
-                    estimated_calories: topItemCalories,
-                    estimated_protein_g: topItemProtein,
-                    why_this_works: topItemReason,
-                    share_card: place?.share_card,
-                    reality_check: reality || null,
-                  };
-                  const topItemHeading = getHealthyPanelItemHeading(place);
-
-                  return (
-                    <View style={styles.healthySelectedCard}>
-                      {!!String(decisionCard?.label || "").trim() ? (
-                        <Text style={styles.lunchDecisionLabel}>{String(decisionCard.label).trim()}</Text>
-                      ) : null}
-                      <View style={styles.placeHeader}>
-                        <Text style={[styles.itemName, styles.placeNameText]} numberOfLines={2}>
-                          {String(place?.place_name || place?.name || "Nearby place")}
-                        </Text>
-                        <Text style={[styles.placeScore, { color: tone.color }]} numberOfLines={1}>
-                          Score {Math.round(healthyPlaceScore100(place))}
-                        </Text>
-                      </View>
-                      {(recommendationLabel || confidenceLabel) ? (
-                        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 4, alignItems: "center" }}>
-                          {!!recommendationLabel ? (
-                            <Text style={[styles.tiny, { fontWeight: "600" }]}>{recommendationLabel}</Text>
-                          ) : null}
-                          {!!confidenceLabel ? (
-                            <Text style={[styles.tiny, styles.nearbyLowPriorityHint]}>{confidenceLabel}</Text>
-                          ) : null}
-                        </View>
-                      ) : null}
-                      {!!why ? (
-                        <Text style={[styles.tiny, { marginTop: 4 }]} numberOfLines={2}>{why}</Text>
-                      ) : null}
-                      {!!distanceLabel ? <Text style={styles.tiny}>{distanceLabel}</Text> : null}
-
-                      <View style={styles.healthyCoachSection}>
-                        <Text style={styles.mapCoachHeadline} numberOfLines={2}>{coachHeadline}</Text>
-                        {!!coachSupport && coachSupport !== coachHeadline ? (
-                          <Text style={styles.mapCoachSupportCompact} numberOfLines={2}>{coachSupport}</Text>
-                        ) : null}
-                        <Text style={[styles.mapDecisionBadge, coachToneStyle]}>
-                          {coachTone === "warning" ? "Watch out" : coachTone === "caution" ? "Be smart" : "Coach pick"}
-                        </Text>
-                      </View>
-
-                      <View style={styles.healthyPanelSection}>
-                        <Text style={styles.healthyPanelSectionTitle}>{topItemHeading}</Text>
-                        <Text style={styles.healthyPanelItemName}>{topItemName}</Text>
-                        {(topItemCalories !== null || topItemProtein !== null) ? (
-                          <Text style={styles.tiny}>
-                            {topItemCalories !== null ? `${topItemCalories} kcal` : "Calories n/a"}
-                            {topItemProtein !== null ? ` • ${topItemProtein}g protein` : ""}
-                          </Text>
-                        ) : null}
-                        {!!topItemReason ? <Text style={styles.tiny} numberOfLines={2}>{topItemReason}</Text> : null}
-                        {topItemSwaps.length ? (
-                          <Text style={styles.swapHintText} numberOfLines={2}>
-                            Better swap: {topItemSwaps[0]}
-                          </Text>
-                        ) : null}
-                        {!!lowConfidenceHint ? (
-                          <Text style={[styles.tiny, styles.nearbyLowPriorityHint]} numberOfLines={1}>{lowConfidenceHint}</Text>
-                        ) : null}
-                      </View>
-
-                      <View style={styles.healthyPanelSection}>
-                        <Text style={styles.healthyPanelSectionTitle}>Fits Today</Text>
-                        <View style={styles.mapDecisionRow}>
-                          <Text style={[styles.mapDecisionBadge, decisionBadgeStyle]} numberOfLines={1}>
-                            {decisionText}
-                          </Text>
-                          <Text style={[styles.tiny, styles.mapDecisionLabel]} numberOfLines={1}>
-                            {decisionLabel}
-                          </Text>
-                        </View>
-                        <Text style={styles.tiny} numberOfLines={2}>{decisionReason}</Text>
-                        {!hideMemory && (timesChosen > 0 || memoryLabel) ? (
-                          <Text style={[styles.tiny, styles.nearbyLowPriorityHint, { marginTop: 4 }]} numberOfLines={2}>
-                            {memoryLabel}
-                            {timesChosen > 0 ? ` • Chosen ${timesChosen}×` : ""}
-                            {avgFullness != null ? ` • Avg fullness ${round1(avgFullness)}/5` : ""}
-                          </Text>
-                        ) : null}
-                        {badges.length ? (
-                          <View style={styles.lunchBadgeRow}>
-                            {badges.map((badge, badgeIdx) => (
-                              <View key={`map-badge-${badgeIdx}`} style={styles.lunchBadge}>
-                                <Text style={styles.lunchBadgeText}>{badge}</Text>
-                              </View>
-                            ))}
-                          </View>
-                        ) : null}
-                      </View>
-
-                      {reality ? (
-                        <View style={styles.healthyPanelSection}>
-                          <Text style={styles.healthyPanelSectionTitle}>Reality Check</Text>
-                          {typicalCalories !== null && smarterCalories !== null ? (
-                            <Text style={styles.tiny}>Typical {typicalCalories} kcal • Smart {smarterCalories} kcal</Text>
-                          ) : typicalCalories !== null ? (
-                            <Text style={styles.tiny}>Typical {typicalCalories} kcal</Text>
-                          ) : smarterCalories !== null ? (
-                            <Text style={styles.tiny}>Smart {smarterCalories} kcal</Text>
-                          ) : null}
-                          {caloriesSaved !== null && caloriesSaved > 0 ? (
-                            <Text style={[styles.tiny, styles.realitySavedText]}>You save: {caloriesSaved} kcal</Text>
-                          ) : null}
-                          {!!realityReason ? (
-                            <Text style={[styles.tiny, styles.nearbyLowPriorityHint]} numberOfLines={2}>{realityReason}</Text>
-                          ) : null}
-                        </View>
-                      ) : null}
-
-                      <View style={styles.lunchCardActionsRow}>
-                        <TouchableOpacity
-                          style={[styles.secondaryBtn, styles.lunchCardCtaBtn]}
-                          onPress={() => {
-                            if (decisionCard) {
-                              void handleLunchDecisionCTA(decisionCard);
-                              return;
-                            }
-                            void openPlaceInMaps(place);
-                          }}
-                        >
-                          <Text style={styles.btnText} numberOfLines={1}>
-                            {selectedCta || "Navigate"}
-                          </Text>
-                        </TouchableOpacity>
-
-                        <TouchableOpacity
-                          style={[styles.smallBtn, styles.lunchShareBtn]}
-                          onPress={() => {
-                            void shareLunchDecisionCard(sharePayload);
-                          }}
-                        >
-                          <Text style={styles.smallBtnText}>Share</Text>
-                        </TouchableOpacity>
-
-                        <TouchableOpacity
-                          style={styles.smallBtn}
-                          onPress={() => {
-                            setHealthyMapFilter("best_right_now");
-                            const currentId = healthyPlaceStableId(place, 0);
-                            const alternatives = healthyVisiblePlaces.filter(
-                              (row, rowIdx) => healthyPlaceStableId(row, rowIdx) !== currentId
-                            );
-                            const next = alternatives[0] || null;
-                            if (next) {
-                              setSelectedHealthyPlaceId(healthyPlaceStableId(next, 0));
-                              if (Number.isFinite(num(next?.lat)) && Number.isFinite(num(next?.lng))) {
-                                setHealthyMapFocusCoords({ lat: num(next.lat), lng: num(next.lng) });
-                              }
-                            }
-                          }}
-                        >
-                          <Text style={styles.smallBtnText}>Alternatives</Text>
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-                  );
-                })()
-              ) : null}
-            </View>
+            <HealthyNearbyMapScreen
+              places={healthyVisiblePlaces}
+              filterKey={healthyMapFilter}
+              onFilterChange={setHealthyMapFilter}
+              selectedPlace={healthySelectedPlace}
+              onSelectPlace={(place, idx) => {
+                setSelectedHealthyPlaceId(place ? healthyPlaceStableId(place, idx) : "");
+                if (place && Number.isFinite(num(place?.lat)) && Number.isFinite(num(place?.lng))) {
+                  setHealthyMapFocusCoords({ lat: num(place.lat), lng: num(place.lng) });
+                }
+              }}
+              userCoords={healthyPlaceCoords}
+              focusCoords={healthyMapCenter}
+              onLoadPlaces={() => void loadHealthyPlacesNearby()}
+              onSearchWider={
+                healthyMapFilter === "all"
+                  ? () => void loadHealthyPlacesNearby({ radius_m: WIDER_SEARCH_RADIUS_M })
+                  : null
+              }
+              busy={healthyPlacesBusy}
+              error={healthyPlacesError}
+              formatDistanceFromMeters={formatDistanceFromMeters}
+              getPlaceStableId={healthyPlaceStableId}
+              onScanMenu={(place) => {
+                void openCamera("menu_scan");
+              }}
+            />
           ) : null}
 
           {healthyViewMode === "list"
             ? (() => {
                 const renderPlaceCard = (place, idx) => {
-                  const tone = healthyMapPinTone(place);
-                  const opts = Array.isArray(place?.best_options) ? place.best_options.filter(Boolean).slice(0, 2) : [];
-                  const placeSwaps = extractSwapSuggestions(place).slice(0, 1);
-                  const distanceKm = haversineKm(
-                    healthyPlaceCoords?.lat,
-                    healthyPlaceCoords?.lng,
-                    place?.lat,
-                    place?.lng
-                  );
-                  const listRecLabel = String(place?.recommendation_label || "").trim();
-                  const listConfLabel = String(place?.confidence_label || "").trim();
-                  const listReason = String(place?.rank_reason_short || place?.why_this_ranked_here || "").trim();
-                  const bestItemName = String(place?.best_item_name || place?.best_order || "").trim();
-                  const memoryLabel = String(place?.personal_memory_label || "").trim();
-                  const hideMemory = !memoryLabel || memoryLabel === "Not enough data yet";
-                  const itemLineLabel = getHealthyItemLineLabel(place?.recommendation_label);
+                  const stableId = healthyPlaceStableId(place, idx);
+                  const handleOpenInMaps = (p) => {
+                    const uid = userId || (session?.user?.id ?? null);
+                    if (uid) {
+                      const payload = buildDecisionEventPayload(p, "place_opened", {
+                        userId: uid,
+                        goal: resolveLunchGoal(),
+                        timeOfDay: "",
+                        tab: "healthy_nearby",
+                      });
+                      postMealDecisionEvent(payload);
+                      setPendingMealFeedback({
+                        place_id: String(p?.place_id || ""),
+                        place_name: String(p?.place_name || p?.name || ""),
+                        best_item_name: String(p?.best_item_name || p?.best_order || "").trim(),
+                        selected_item_name: String(p?.best_item_name || p?.best_order || "").trim(),
+                        selected_candidate_source: String(p?.menu_item_source || "").trim(),
+                        accepted_swap_label: (extractSwapSuggestions(p)[0] || ""),
+                        estimated_calories: p?.best_item_calories ?? p?.estimated_calories ?? null,
+                        estimated_protein_g: p?.best_item_protein ?? p?.estimated_protein_g ?? null,
+                        goal: resolveLunchGoal(),
+                        time_of_day: "",
+                        swap_accepted: false,
+                      });
+                    }
+                    void openPlaceInMaps(p);
+                  };
                   return (
-                    <View key={healthyPlaceStableId(place, idx)} style={styles.placeCard}>
-                      <View style={styles.placeHeader}>
-                        <Text style={[styles.itemName, styles.placeNameText]} numberOfLines={2}>
-                          {String(place?.place_name || place?.name || "Unknown place")}
-                        </Text>
-                        <Text style={[styles.placeScore, { color: tone.color }]} numberOfLines={1}>
-                          Score {Math.round(healthyPlaceScore100(place))}
-                        </Text>
-                      </View>
-                      {(listRecLabel || listConfLabel) ? (
-                        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 4 }}>
-                          {!!listRecLabel ? <Text style={[styles.tiny, { fontWeight: "600" }]}>{listRecLabel}</Text> : null}
-                          {!!listConfLabel ? <Text style={[styles.tiny, styles.nearbyLowPriorityHint]}>{listConfLabel}</Text> : null}
-                        </View>
-                      ) : null}
-                      {!!listReason ? <Text style={[styles.tiny, { marginTop: 4 }]} numberOfLines={2}>{listReason}</Text> : null}
-                      {!!String(place?.address || "").trim() ? (
-                        <Text style={styles.tiny}>{String(place.address)}</Text>
-                      ) : null}
-                      {Number.isFinite(distanceKm) ? (
-                        <Text style={[styles.tiny, { marginTop: 4 }]}>Distance: {round1(distanceKm)} km</Text>
-                      ) : null}
-                      {!!bestItemName ? (
-                        <Text style={[styles.tiny, { marginTop: 4 }]}>{itemLineLabel}: {bestItemName}</Text>
-                      ) : null}
-                      {placeSwaps.length ? (
-                        <Text style={[styles.swapHintText, { marginTop: 4 }]} numberOfLines={2}>
-                          Better swap: {placeSwaps[0]}
-                        </Text>
-                      ) : null}
-                      {!hideMemory ? (
-                        <Text style={[styles.tiny, styles.nearbyLowPriorityHint, { marginTop: 4 }]} numberOfLines={1}>
-                          {memoryLabel}
-                        </Text>
-                      ) : null}
-                      {opts.length ? (
-                        <View style={{ marginTop: 6 }}>
-                          {opts.map((opt, i) => (
-                            <Text key={`${idx}-opt-${i}`} style={styles.tiny}>
-                              • {String(opt)}
-                            </Text>
-                          ))}
-                        </View>
-                      ) : null}
-                      <View style={{ marginTop: 8 }}>
-                        <TouchableOpacity
-                          style={styles.secondaryBtn}
-                          onPress={() => {
-                            const uid = userId || (session?.user?.id ?? null);
-                            if (uid) {
-                              const payload = buildDecisionEventPayload(place, "place_opened", {
-                                userId: uid,
-                                goal: resolveLunchGoal(),
-                                timeOfDay: "",
-                                tab: "healthy_nearby",
-                              });
-                              postMealDecisionEvent(payload);
-                              setPendingMealFeedback({
-                                place_id: String(place?.place_id || ""),
-                                place_name: String(place?.place_name || place?.name || ""),
-                                best_item_name: bestItemName,
-                                selected_item_name: bestItemName,
-                                selected_candidate_source: String(place?.menu_item_source || "").trim(),
-                                accepted_swap_label: placeSwaps[0] || "",
-                                estimated_calories: place?.best_item_calories ?? place?.estimated_calories ?? null,
-                                estimated_protein_g: place?.best_item_protein ?? place?.estimated_protein_g ?? null,
-                                goal: resolveLunchGoal(),
-                                time_of_day: "",
-                                swap_accepted: false,
-                              });
-                            }
-                            void openPlaceInMaps(place);
-                          }}
-                        >
-                          <Text style={styles.btnText}>Open in Maps</Text>
-                        </TouchableOpacity>
-                      </View>
+                    <View key={stableId} style={{ marginBottom: 12 }}>
+                      <HealthyPlaceListCard
+                        place={place}
+                        indexInSection={idx}
+                        onOpenInMaps={handleOpenInMaps}
+                      />
                     </View>
                   );
                 };
@@ -8039,8 +7773,7 @@ async function openCamera(mode = "meal") {
                   const aid = getAlertId(cand);
                   await recordAlertOpened(aid, cand.place_id);
                   setSmartAlertState(await getSmartAlertState());
-                  setSmartAlertInboxVisible(false);
-                  void openHealthyNearbyScreen("decide");
+                  await openPlaceFromSmartAlert(cand);
                 }}
                 onDismiss={async (cand) => {
                   const aid = getAlertId(cand);
@@ -8115,6 +7848,19 @@ async function openCamera(mode = "meal") {
                   }}
                 />
               </ScrollView>
+            </View>
+          </View>
+        </Modal>
+
+        <Modal
+          visible={adminOpsVisible}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setAdminOpsVisible(false)}
+        >
+          <View style={styles.modalBackdrop}>
+            <View style={[styles.modalCard, { width: "96%", maxHeight: "90%", padding: 0 }]}>
+              <AdminOpsDashboard onClose={() => setAdminOpsVisible(false)} />
             </View>
           </View>
         </Modal>
@@ -8487,6 +8233,15 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     alignItems: "center",
     flex: 1,
+  },
+  mapCtaBtn: {
+    marginTop: 12,
+    minHeight: 52,
+    paddingVertical: 14,
+    justifyContent: "center",
+    width: "100%",
+    flex: 0,
+    alignSelf: "stretch",
   },
   secondaryBtn: {
     backgroundColor: "#121721",

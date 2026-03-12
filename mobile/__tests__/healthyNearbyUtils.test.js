@@ -8,6 +8,7 @@ const {
   normalizeHealthyPlacesResponse,
   getHealthyItemLineLabel,
   getHealthyPanelItemHeading,
+  getRecommendationHeroLabel,
 } = require("../healthyNearbyUtils.js");
 
 describe("normalizeHealthyPlacesResponse", () => {
@@ -98,5 +99,33 @@ describe("getHealthyPanelItemHeading", () => {
   test("best_item_is_generic_fallback uses softer wording", () => {
     const place = { recommendation_label: "Best pick", best_item_is_generic_fallback: true };
     expect(getHealthyPanelItemHeading(place)).toBe("Suggested option");
+  });
+});
+
+describe("getRecommendationHeroLabel", () => {
+  test("rank 1 strong returns Best nearby right now", () => {
+    const place = {
+      recommendation_label: "Best pick",
+      display_rank_score_100: 80,
+      menu_item_source: "real_menu",
+      best_item_is_generic_fallback: false,
+    };
+    expect(getRecommendationHeroLabel(place, 1)).toBe("Best nearby right now");
+  });
+
+  test("rank 1 generic fallback returns Likely best nearby", () => {
+    const place = {
+      recommendation_label: "Needs menu check",
+      best_item_is_generic_fallback: true,
+    };
+    expect(getRecommendationHeroLabel(place, 1)).toBe("Likely best nearby");
+  });
+
+  test("rank 2 returns #2 nearby", () => {
+    expect(getRecommendationHeroLabel({}, 2)).toBe("#2 nearby");
+  });
+
+  test("rank 3 returns #3 nearby", () => {
+    expect(getRecommendationHeroLabel({}, 3)).toBe("#3 nearby");
   });
 });

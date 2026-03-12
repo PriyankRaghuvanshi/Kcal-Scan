@@ -8,9 +8,32 @@ Fix Healthy Nearby so it is **meal-first, not venue-first**. A Pizza Hut "less b
 
 All ranking-related fields come from **one source of truth**: **`backend/ranked_place_builder.py`** → `build_ranked_place_profile(place, user_context, *, for_map=False, for_list=False) -> dict`. Callers (main.py `/places/healthy`, lunch_decision.py, map flows) call this builder and merge the result; they do not recompute ranking fields. The builder returns: `display_rank_score_100`, `meal_fitness_score_100`, `meal_fitness_score`, `venue_prior_score_100`, `eligibility_band`, `section`, `recommendation_label`, `confidence_label`, `why_this_ranked_here`, `rank_reason_short`, `score_breakdown`, fit/protein/calorie/overshoot scores, `best_item_*`, `best_item_is_generic_fallback`, `best_item_needs_menu_check`, `food_quality_score_100`, `protein_density_score_100`.
 
+## Specificity-aware ranking
+
+Chain/menu-backed candidates are preferred over generic cuisine guesses when core scores are close. Display sort uses **`display_sort_score_100`** = `display_rank_score_100` + bounded `specificity_bonus_100`:
+
+| Tier | Bonus |
+|------|-------|
+| exact_menu_match | +5 |
+| chain_registry | +4 |
+| exact_local_profile | +5 |
+| enriched_local_profile | +4 |
+| menu_inferred | +2 |
+| heuristic_cuisine_match_strong | +1 |
+| heuristic_cuisine_match_weak | 0 |
+| generic_fallback | -4 |
+
+**Local venue enrichment:** Independents in launch suburbs get chain-like specificity via `backend/local_venue_profiles.py`. See [LOCAL_VENUE_ENRICHMENT.md](LOCAL_VENUE_ENRICHMENT.md).
+
+**Launch readiness report:** Measure whether Healthy Nearby produces concrete value per suburb. `GET /launch-readiness/report?area_key=parramatta`. See [LAUNCH_READINESS_REPORT.md](LAUNCH_READINESS_REPORT.md).
+
+**Rule:** A generic fallback (e.g. "Tandoori + dal + roti") cannot outrank a chain-backed candidate (e.g. Subway) when core scores are within ~8 points. Generic fallbacks never get "Best pick" or "Strong option"; they get "Needs menu check" or "Suggested healthier pick".
+
+**Debug:** `GET /places/healthy/trace?query_place_name=Subway` — explains why a place did or did not appear. Returns `chosen_candidate_specificity_tier`, `hidden_reason`, `fetched_but_hidden`. See `backend/place_trace_debug.py`.
+
 ## Flat vs sectioned sort mode
 
-- **`sort_mode: "flat_score"`** — Order = **display_rank_score_100 descending**, then **distance ascending**. No current_place bump. Use when the API returns a flat list without section headers.
+- **`sort_mode: "flat_score"`** — Order = **display_sort_score_100** descending (or display_rank_score_100 when unavailable), then **distance ascending**. No current_place bump. Use when the API returns a flat list without section headers.
 - **`sort_mode: "sectioned"`** — Order = **section rank** (fixed order below), then **display_rank_score_100 descending**, then distance. Use when the API returns grouped `sections` and the client renders section headers.
 
 Section order (fixed): 1. Best fit for your goal  2. Decent nearby options  3. Needs menu check. Do not silently mix current_place into visible order in flat mode; use a badge (e.g. `is_current_place: true`) instead.
@@ -34,9 +57,24 @@ Candidate meals for ranking come from **cuisine-specific archetypes** when no re
 
 Heuristic labels: **Likely healthy option** when cuisine match is strong and confidence ≥ 0.58; **Needs menu check** when weak or low confidence. Heuristic generic fallbacks are never labeled "Best pick".
 
+## Live priority order (recommendation path)
+
+The live `/places/healthy` path uses database-backed intelligence before heuristics:
+
+1. **Venue intelligence cache** (`venue_intelligence_cache`) – `get_cached_venue_intelligence(place_id)` in `menu_item_scoring.py`
+2. **Local venue profiles** (`local_venue_profiles`) – `get_local_venue_profile` via `supabase_intelligence_store`; used in `menu_item_scoring.py` and `healthy_order_recommender.py`
+3. **Ingested chain items** – `chain_menu_ingested.json`
+4. **Chain registry** – `chain_menu_registry.py` templates
+5. **Strong cuisine heuristic**
+6. **Generic fallback** – triggers enrichment enqueue with diet- and context-aware reason
+
+When neither cache nor local profile yields a good candidate, generic fallback is used and the place is enqueued for enrichment. Enqueue reasons: `unknown_suburb_visible_result` (outside launch area), `missing_vegan_profile`, `missing_veg_profile`, or `candidate_low_specificity`. Over time, generic fallback becomes rarer as venues are enriched. See [LOCAL_VENUE_ENRICHMENT.md](LOCAL_VENUE_ENRICHMENT.md), [FALLBACK_UX_AND_DIET_RULES.md](FALLBACK_UX_AND_DIET_RULES.md), and [CHAIN_MENU_INGESTION.md](CHAIN_MENU_INGESTION.md).
+
 ## Reducing heuristic dependence (real menu + chain registry + swaps)
 
-- **Chain coverage**: `backend/chain_menu_registry.py` provides deterministic seeded menu items for known chains. These items are tagged as **`menu_item_source="chain_registry"`** (separate from `real_menu`) and are preferred over broad heuristics when available.
+- **Chain menu ingestion**: Offline pipeline ingests official chain menu/nutrition data into `chain_menu_ingested.json`. Ingested items are tagged **`menu_item_source="ingested_chain_item"`** and **preferred over** registry templates. No live fetch in `/places/healthy`. See [CHAIN_MENU_INGESTION.md](CHAIN_MENU_INGESTION.md).
+- **Chain coverage**: `backend/chain_menu_registry.py` provides deterministic menu items. Items tagged **`menu_item_source="chain_registry"`** or **`ingested_chain_item`** are preferred over broad heuristics.
+- **Chain roadmap**: `backend/chain_coverage_roadmap.py` + `backend/data/chain_coverage_roadmap.json` define a structured 50-chain roadmap (priority, aliases, menu/swap templates). Coverage expands via roadmap + registry data, not ad hoc hardcoding. See [CHAIN_COVERAGE_ROADMAP.md](CHAIN_COVERAGE_ROADMAP.md).
 - **Normalization**: `backend/menu_normalization.py` normalizes candidates across sources to a consistent shape (name, macros, category, negative_flags, supports_swaps), making selection stable and debuggable.
 - **Source preference** (approx): `user_scan` / `real_menu` > `chain_registry` > `llm_inferred` (if enabled) > `heuristic`.
 - **Swap intelligence**: `backend/swap_rules.py` generates 1–3 deterministic structured swaps for the chosen item (portion control, light sauce, skip sides/drinks, etc.). These appear as `best_item_swaps` in the chosen item payload and are visible in audit mode.
@@ -133,6 +171,7 @@ Context-aware nearby notifications that fire **only when** there is a genuinely 
 
 - **confidence_label**: **Verified** (real menu/user_scan, conf ≥ 0.72), **Estimated** (decent conf), **Needs menu check** (low conf/heuristic).
 - **recommendation_label**: Best pick | Strong option | Likely healthy option | Suggested healthier pick | Needs menu check. Generic fallbacks (`best_item_is_generic_fallback = true`) must never be "Best pick"; they get Suggested healthier pick or Needs menu check and eligibility_band ≤ 2.
+- **Diet-aware**: Pass `diet_preference` (omnivore | vegetarian | vegan) via `/places/healthy`, `/places/healthy/audit`, `/smart-food-alerts/candidates`. Vegetarian/vegan users never receive meat/fish/chicken (or egg/dairy for vegan). Vegan + weak heuristic gets "Needs menu check". See [FALLBACK_UX_AND_DIET_RULES.md](FALLBACK_UX_AND_DIET_RULES.md).
 
 ## Files changed
 
@@ -141,7 +180,8 @@ Context-aware nearby notifications that fire **only when** there is a genuinely 
 | **backend/context_modes.py** | **Context inference.** `infer_context_mode(context)` – time-of-day and situational flags. |
 | **backend/context_scoring.py** | **Context scoring.** `compute_context_modifier()` – bounded ±8 modifier, safeguards. |
 | **backend/smart_food_alerts.py** | **Smart alerts.** `build_smart_food_alert_candidates()` – need × timing × quality − fatigue; anti-spam. |
-| **backend/ranked_place_builder.py** | **Canonical builder.** `build_ranked_place_profile()`; context modifier; confidence_label; rank_reason_short; all ranking fields in one place. |
+| **backend/ranked_place_builder.py** | **Canonical builder.** `build_ranked_place_profile()`; context modifier; confidence_label; rank_reason_short; specificity tier/bonus; display_sort_score_100; all ranking fields in one place. |
+| **backend/place_trace_debug.py** | **Trace/debug.** `build_place_trace()`, `infer_specificity_tier()`, `infer_hidden_reason()` — explain why a place is missing. |
 | **backend/meal_ranking.py** | General penalties (ultra_processed, combo_meal, deep_fried, sugary_drink, hyper_palatable, low_protein_density). No pizza-specific band cap. |
 | **backend/place_today_decision.py** | Numeric fields: `fit_today_score_100`, `calorie_fit_score_100`, `protein_fit_score_100`, `overshoot_penalty_100`. |
 | **backend/lunch_decision.py** | Calls `build_ranked_place_profile`; merges result. Hero uses `best_item_is_generic_fallback`. |
@@ -218,6 +258,7 @@ Common per-place fields: `display_rank_score_100`, `meal_fitness_score_100`, `ve
 ## Performance (making data faster)
 
 - **LLM out of hot path:** Ranking uses no LLM; meal_fitness_score and eligibility_band are deterministic (existing `use_llm_place_context=False` and no menu ingestion in bulk are unchanged).
+- **Fast path:** Shortlist-before-deep-rank, venue intelligence cache, and background enrichment queue. See [HEALTHY_NEARBY_FASTPATH.md](HEALTHY_NEARBY_FASTPATH.md).
 - **Google Places:** Keep using Nearby Search (New) and Place Details with **minimal field masks** (only fields you need) to reduce latency and cost.
 - **Concurrent load:** To handle many simultaneous users:
   - **Caching:** Cache `/places/healthy` (or its upstream Google calls) by `(lat, lng, radius, goal, cut_mode)` with a short TTL (e.g. 2–5 min). Cache per-place details by `place_id`.
@@ -226,3 +267,14 @@ Common per-place fields: `display_rank_score_100`, `meal_fitness_score_100`, `ve
   - **Read replicas / async:** If DB is used for menu or user prefs, use read replicas for healthy endpoint; keep ranking logic async-friendly so it doesn't block.
 
 No Yelp/Foursquare added; discovery and ranking stay on Google Places + internal meal-first logic.
+
+## Scan performance and nutrition cache
+
+Photo scan performance is measured and cached to reduce latency and cost:
+
+- **Nutrition resolution cache** (`backend/nutrition_resolution_cache.py`): Caches USDA/common-food lookups by normalized food key. Reduces repeated API calls for common foods (chicken breast, rice, eggs, etc.). Lookup key normalization: lowercase, trim punctuation, singular/plural, strip weak descriptors; preserves strong distinctions (chicken breast vs thigh, white vs brown rice, whole vs skim milk).
+- **Scan performance analytics** (`backend/scan_performance_analytics.py`): Records time-to-first-result, time-to-final-result, and latency breakdown per scan. Best-effort, non-blocking; analytics failure does not affect scan success.
+- **Reporting:** `GET /scan-performance/summary?window_days=7` returns median/p90 first-result and final-result, stage latencies, nutrition cache hit rate, vision cache hit rate, vision cache hit/miss counts, median time-to-first-result when vision cache hit vs miss, and vision_cache_skipped_reasons. `GET /scan-performance/recent?limit=50` returns recent events.
+- **Vision result cache** (`backend/vision_result_cache.py`): Caches vision classification for byte-identical resized images. Reuse only when cached confidence ≥ threshold and items are valid. Reduces `vision_ms` for repeated scans of the same meal.
+
+See [SCAN_PERFORMANCE_ANALYTICS.md](SCAN_PERFORMANCE_ANALYTICS.md) for time definitions, vision cache safe-reuse rules, and bottleneck identification.

@@ -10,9 +10,19 @@ from typing import Any, Dict, List
 
 from chain_registry import resolve_chain_identity
 
+try:
+    from chain_menu_ingestion import get_chain_items_for_registry
+except ImportError:
+    get_chain_items_for_registry = None
+
 
 CHAIN_MENU_REGISTRY_VERSION = "v1"
 DEFAULT_COUNTRY_CODE = "AU"
+
+# Coverage architecture: chains can be global, regional, or local
+# Optional in JSON: coverage_type (global_chain|regional_chain|local_chain), markets (["AU","US"])
+# When absent, inferred: country_code=GLOBAL -> global_chain; else regional_chain
+COVERAGE_TYPES = ("global_chain", "regional_chain", "local_chain")
 
 # Exposed source token for downstream preference logic.
 # This is deterministic seeded data (not scraped live here).
@@ -256,21 +266,44 @@ def clear_chain_menu_registry_cache() -> None:
     _load_registry.cache_clear()
 
 
-def list_chain_entries(country_code: str | None = None, include_global: bool = True) -> List[Dict[str, Any]]:
+def _infer_coverage_type(entry: Dict[str, Any]) -> str:
+    """Infer coverage_type from entry. Supports scalable expansion schema."""
+    explicit = str(entry.get("coverage_type") or "").strip().lower()
+    if explicit in COVERAGE_TYPES:
+        return explicit
+    country = _normalize_country_code(entry.get("country_code")) or "GLOBAL"
+    return "global_chain" if country == "GLOBAL" else "regional_chain"
+
+
+def list_chain_entries(
+    country_code: str | None = None,
+    include_global: bool = True,
+    coverage_type: str | None = None,
+) -> List[Dict[str, Any]]:
+    """
+    List chain entries. Supports scalable expansion:
+    - country_code / include_global: legacy filter
+    - coverage_type: optional filter by global_chain | regional_chain | local_chain
+    """
     registry = _load_registry()
     rows = registry.get("chains") if isinstance(registry.get("chains"), list) else []
     requested_country = _normalize_country_code(country_code)
+    req_coverage = str(coverage_type or "").strip().lower() if coverage_type else None
 
     out: List[Dict[str, Any]] = []
     for row in rows:
-        row_country = _normalize_country_code(row.get("country_code")) or "GLOBAL"
+        r = dict(row)
+        r["coverage_type"] = _infer_coverage_type(r)
+        row_country = _normalize_country_code(r.get("country_code")) or "GLOBAL"
+        if req_coverage and r["coverage_type"] != req_coverage:
+            continue
         if requested_country:
             if row_country == requested_country:
-                out.append(dict(row))
+                out.append(r)
             elif include_global and row_country == "GLOBAL":
-                out.append(dict(row))
+                out.append(r)
         else:
-            out.append(dict(row))
+            out.append(r)
     return out
 
 
@@ -494,13 +527,26 @@ def resolve_chain_menu_for_place(
     if not best_entry or best_score < 0.78:
         return {}
 
-    items = _menu_items_for_entry(best_entry, max_items=max_items)
+    # Prefer ingested chain items over registry templates (offline ingestion pipeline)
+    chain_key = str(best_entry.get("chain_key") or "").strip().lower()
+    items: List[Dict[str, Any]] = []
+    source_used = "chain_registry_template"
+    if get_chain_items_for_registry:
+        ingested = get_chain_items_for_registry(
+            chain_key, market_tag=resolved_country, max_items=max_items, chain_entry=best_entry,
+        )
+        if ingested:
+            items = ingested
+            source_used = "ingested_chain_item"
+    if not items:
+        items = _menu_items_for_entry(best_entry, max_items=max_items)
     if not items:
         return {}
 
     avg_conf = sum(float(row.get("menu_confidence") or 0.0) for row in items) / max(1, len(items))
     official_url = str(best_entry.get("official_menu_source_url") or "").strip()
-    source_used = "country_chain_registry" if best_entry_country == resolved_country else "global_chain_registry"
+    if source_used == "chain_registry_template":
+        source_used = "country_chain_registry" if best_entry_country == resolved_country else "global_chain_registry"
     for row in items:
         if not isinstance(row, dict):
             continue
@@ -536,7 +582,7 @@ def resolve_chain_menu_for_place(
         "menu_last_updated": str(best_entry.get("menu_last_updated") or "").strip(),
         "official_menu_source_url": official_url,
         "menu_items": items,
-        "menu_source": _CHAIN_MENU_SOURCE,
+        "menu_source": "chain_menu_ingestion" if source_used == "ingested_chain_item" else _CHAIN_MENU_SOURCE,
         "menu_confidence": round(max(0.45, min(0.98, avg_conf)), 2),
         "extraction_method": _CHAIN_EXTRACTION_METHOD,
         "parse_method": _CHAIN_PARSE_METHOD,

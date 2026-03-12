@@ -237,5 +237,31 @@ class WeeklyCoachTests(unittest.TestCase):
         self.assertIn("weekday", insight_text)
 
 
+    def test_partial_day_tracked_but_not_on_track(self):
+        """Partial day (e.g. breakfast only) counts in days_tracked but not days_on_track."""
+        rows = [
+            # Yesterday - full day, on track
+            {
+                "date": "2026-03-08",
+                "consumed_calories": 1950,
+                "target_calories": 2000,
+                "consumed_protein_g": 140,
+                "target_protein_g": 150,
+            },
+            # Today - breakfast only, under protein target
+            {
+                "date": "2026-03-09",
+                "consumed_calories": 450,
+                "target_calories": 2000,
+                "consumed_protein_g": 20,
+                "target_protein_g": 150,
+            },
+        ]
+        out = build_weekly_coach_payload(days=rows, choices=[])
+        self.assertEqual(out["week_summary"]["days_tracked"], 2)
+        self.assertEqual(out["week_summary"]["days_on_track"], 1)
+        # Today has data but doesn't meet protein >= 85% target (20 < 127.5)
+
+
 if __name__ == "__main__":
     unittest.main()

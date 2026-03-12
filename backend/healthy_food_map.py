@@ -789,17 +789,25 @@ def _display_score_100(payload: Dict[str, Any]) -> float:
     return v
 
 
+def _sort_score_100(payload: Dict[str, Any]) -> float:
+    """Use specificity-aware sort score when available (favors chain/menu over generic)."""
+    sort_score = payload.get("display_sort_score_100")
+    if sort_score is not None and str(sort_score).strip() != "":
+        return float(sort_score)
+    return _display_score_100(payload)
+
+
 def _flat_sort_key(payload: Dict[str, Any]) -> tuple:
-    """Visible order = display_rank_score_100 desc, distance asc. No current_place bump."""
-    score = _display_score_100(payload)
+    """Visible order = display_sort_score_100 desc (or display_rank_score_100), distance asc."""
+    score = _sort_score_100(payload)
     distance = _safe_float(payload.get("distance_meters"), 10_000_000.0)
     return (-score, distance)
 
 
 def _sectioned_sort_key(payload: Dict[str, Any]) -> tuple:
-    """Section rank, then display_rank_score_100 desc, then distance asc."""
+    """Section rank, then sort score desc, then distance asc."""
     section_r = _section_rank(payload.get("section"))
-    score = _display_score_100(payload)
+    score = _sort_score_100(payload)
     distance = _safe_float(payload.get("distance_meters"), 10_000_000.0)
     return (section_r, -score, distance)
 

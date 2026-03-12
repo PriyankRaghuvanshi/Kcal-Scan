@@ -30,17 +30,14 @@ beforeEach(async () => {
 });
 
 describe("getAlertId", () => {
-  test("creates deterministic ID from alert_type place_id best_item_name and date", () => {
+  test("creates deterministic ID matching backend format (alert_type::place_id::best_item_name)", () => {
     const c = {
       alert_type: "protein_rescue",
       place_id: "place_123",
       best_item_name: "Grilled Chicken Salad",
     };
     const id = getAlertId(c);
-    expect(id).toContain("protein_rescue");
-    expect(id).toContain("place_123");
-    expect(id).toContain("Grilled Chicken Salad");
-    expect(id).toMatch(/\d{4}-\d{2}-\d{2}/);
+    expect(id).toBe("protein_rescue::place_123::Grilled Chicken Salad");
     expect(getAlertId(c)).toBe(id);
   });
 
@@ -120,6 +117,17 @@ describe("shouldShowAlert", () => {
     const state = await getSmartAlertState();
     const c = { alert_type: "protein_rescue", place_id: "p1", best_item_name: "x" };
     expect(shouldShowAlert(c, state)).toBe(true);
+  });
+
+  test("returns false when alert was opened from push (inbox consistency)", async () => {
+    await updateSmartAlertSettings({ enabled: true });
+    const backendAlertId = "protein_rescue::p1::Chicken Sub";
+    await recordAlertOpened(backendAlertId, "p1");
+    _resetCache();
+    const state = await getSmartAlertState();
+    const c = { alert_type: "protein_rescue", place_id: "p1", best_item_name: "Chicken Sub" };
+    expect(getAlertId(c)).toBe(backendAlertId);
+    expect(shouldShowAlert(c, state)).toBe(false);
   });
 });
 

@@ -24,8 +24,8 @@ except Exception:
 
 @unittest.skipIf(appmod is None, f"main dependencies unavailable: {_IMPORT_ERR}")
 class AnalyzeTimeoutResilienceTests(unittest.TestCase):
-    def _image_bytes(self) -> bytes:
-        img = Image.new("RGB", (24, 24), color=(220, 120, 80))
+    def _image_bytes(self, size=(24, 24)) -> bytes:
+        img = Image.new("RGB", size, color=(220, 120, 80))
         bio = io.BytesIO()
         img.save(bio, format="JPEG")
         return bio.getvalue()
@@ -38,7 +38,7 @@ class AnalyzeTimeoutResilienceTests(unittest.TestCase):
         self.assertNotIn("gemini-3-flash-preview", cands)
         self.assertNotIn("gemini-3-pro", cands)
 
-    def test_compute_scan_nutrition_uses_estimate_when_usda_unavailable(self):
+    def test_compute_scan_nutrition_uses_unverified_when_usda_unavailable(self):
         item = {
             "item_id": "i1",
             "name": "veg curry bowl",
@@ -49,13 +49,16 @@ class AnalyzeTimeoutResilienceTests(unittest.TestCase):
             "candidate_alternatives": ["veg stir fry"],
         }
         with patch.object(appmod, "usda_search_candidates", side_effect=Exception("usda timeout")):
-            results, totals, micros, warnings = appmod._compute_scan_nutrition([item])
+            results, totals, micros, warnings, cache_stats = appmod._compute_scan_nutrition([item])
 
         self.assertEqual(len(results), 1)
-        self.assertTrue(results[0].get("estimated"))
-        self.assertGreater(float(totals.get("kcal", 0.0) or 0.0), 0.0)
+        self.assertTrue(results[0].get("unverified"))
+        self.assertGreaterEqual(float(totals.get("kcal", 0.0) or 0.0), 0.0)
         self.assertGreaterEqual(float(micros.get("fiber_g", 0.0) or 0.0), 0.0)
-        self.assertTrue(any(w.get("warning") == "nutrition_lookup_fallback_estimate" for w in warnings))
+        self.assertTrue(any(w.get("warning") == "nutrition_lookup_failed" for w in warnings))
+        self.assertIsInstance(cache_stats, dict)
+        self.assertIn("hit_count", cache_stats)
+        self.assertIn("miss_count", cache_stats)
 
     @unittest.skipIf(TestClient is None or Image is None, "httpx/TestClient not installed in local env")
     def test_analyze_returns_quick_202_even_if_supabase_persist_is_slow(self):
@@ -90,6 +93,21 @@ class AnalyzeTimeoutResilienceTests(unittest.TestCase):
                     os.remove(path)
             except Exception:
                 pass
+
+    @unittest.skipIf(Image is None, "PIL not installed")
+    def test_resize_image_for_scan_reduces_large_image(self):
+        large = self._image_bytes((2000, 1500))
+        out, orig = appmod._resize_image_for_scan(large)
+        self.assertIsInstance(out, bytes)
+        self.assertLess(len(out), len(large))
+        self.assertEqual(orig, {"w": 2000, "h": 1500})
+
+    @unittest.skipIf(Image is None, "PIL not installed")
+    def test_resize_image_for_scan_passes_through_small_image(self):
+        small = self._image_bytes((640, 480))
+        out, orig = appmod._resize_image_for_scan(small)
+        self.assertEqual(out, small)
+        self.assertEqual(orig, {"w": 640, "h": 480})
 
 
 if __name__ == "__main__":

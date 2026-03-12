@@ -2,10 +2,16 @@
 Deterministic swap intelligence for a chosen menu item.
 
 Outputs structured swaps with deltas. No LLM. No web scraping.
+Prefers chain-specific roadmap swaps when chain_key is available.
 """
 from __future__ import annotations
 
 from typing import Any, Dict, List, Tuple
+
+try:
+    from chain_coverage_roadmap import get_chain_swaps
+except ImportError:
+    get_chain_swaps = None
 
 
 def _norm(text: Any) -> str:
@@ -68,8 +74,55 @@ def generate_swaps_for_item(
 ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
     """
     Generate 1–3 plausible swaps. Returns (swaps, debug).
+    Prefers chain-specific roadmap swaps when place.chain_key is set and roadmap available.
     """
     place_text = _place_text(place)
+    chain_key = str(place.get("chain_key") or "").strip().lower() if isinstance(place, dict) else ""
+    max_swaps_val = max(0, min(3, int(max_swaps or 3)))
+
+    local_payload = place.get("_local_profile_payload") if isinstance(place, dict) else None
+    if local_payload and menu_item_source == "enriched_local_profile":
+        templates = local_payload.get("swap_templates") or []
+        if templates:
+            out = []
+            for s in templates[:max_swaps_val]:
+                if isinstance(s, dict):
+                    out.append({
+                        "swap_label": str(s.get("swap_label") or "").strip(),
+                        "modified_item_name": f"{item_name} ({str(s.get('swap_label') or '').strip()})",
+                        "calories_delta": int(s.get("calories_delta") or 0),
+                        "protein_delta": int(s.get("protein_delta") or 0),
+                        "reason": str(s.get("reason") or "").strip(),
+                        "swap_type": str(s.get("swap_type") or "custom").strip(),
+                    })
+            if out:
+                for sw in out:
+                    sw["_score"] = _score_swap(sw, cut_mode=cut_mode)
+                out.sort(key=lambda x: float(x.get("_score") or 0.0), reverse=True)
+                for sw in out:
+                    sw.pop("_score", None)
+                return out[:max_swaps_val], {"place_text": place_text, "source": "local_profile"}
+
+    if get_chain_swaps and chain_key and menu_item_source == "chain_registry":
+        roadmap_swaps = get_chain_swaps(chain_key)
+        if roadmap_swaps:
+            out = []
+            for s in roadmap_swaps[:max_swaps_val]:
+                out.append({
+                    "swap_label": str(s.get("swap_label") or "").strip(),
+                    "modified_item_name": f"{item_name} ({s.get('swap_label', '').strip()})",
+                    "calories_delta": int(s.get("calories_delta") or 0),
+                    "protein_delta": int(s.get("protein_delta") or 0),
+                    "reason": str(s.get("reason") or "").strip(),
+                    "swap_type": str(s.get("swap_type") or "custom").strip(),
+                })
+            if out:
+                for sw in out:
+                    sw["_score"] = _score_swap(sw, cut_mode=cut_mode)
+                out.sort(key=lambda x: float(x.get("_score") or 0.0), reverse=True)
+                for sw in out:
+                    sw.pop("_score", None)
+                return out[:max_swaps_val], {"place_text": place_text, "source": "chain_roadmap", "chain_key": chain_key}
     name = _norm(item_name)
     cuisine = _norm(cuisine_hint) or place_text
     source = _norm(menu_item_source)

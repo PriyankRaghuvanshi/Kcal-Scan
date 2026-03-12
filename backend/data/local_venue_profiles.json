@@ -1,0 +1,347 @@
+{
+  "version": "v1",
+  "notes": "Top local venues in Sydney-west launch suburbs. Fully enriched profiles for trust. Add place_id when available from Places API.",
+  "profiles": [
+    {
+      "place_id": "",
+      "place_name": "Darbar",
+      "normalized_name": "darbar",
+      "name_variants": ["Darbar", "Darbar Indian", "Darbar Indian Restaurant"],
+      "area_key": "harris_park",
+      "market_tag": "AU",
+      "cuisine_tags": ["indian", "north_indian"],
+      "category_tags": ["restaurant", "indian"],
+      "coverage_status": "strong",
+      "confidence_tier": 0.88,
+      "profile_source": "curated_manual",
+      "specificity_tier": "enriched_local_profile",
+      "active": true,
+      "last_enriched_at": "2026-03-10",
+      "notes": "Popular Harris Park North Indian. Tandoori, dal, roti. Favor grilled over creamy.",
+      "candidate_templates": [
+        {"template_key": "tandoori_half_dal", "template_name": "Tandoori chicken half + dal tadka", "estimated_calories": 520, "estimated_protein_g": 42, "confidence": 0.88, "food_quality_tags": ["grilled", "high_protein"], "negative_flags": [], "cut_friendly": true, "recommended_swap_keys": ["light_raita", "no_naan"]},
+        {"template_key": "chicken_tikka_salad", "template_name": "Chicken tikka + salad", "estimated_calories": 480, "estimated_protein_g": 38, "confidence": 0.85, "food_quality_tags": ["grilled"], "negative_flags": [], "cut_friendly": true, "recommended_swap_keys": ["light_raita"]},
+        {"template_key": "paneer_tikka_dal", "template_name": "Paneer tikka + dal", "estimated_calories": 510, "estimated_protein_g": 28, "confidence": 0.82, "food_quality_tags": ["vegetarian", "grilled"], "negative_flags": [], "cut_friendly": true, "recommended_swap_keys": ["light_raita"]}
+      ],
+      "swap_templates": [
+        {"swap_key": "light_raita", "swap_label": "Light raita on the side", "swap_type": "sauce_modify", "calories_delta": -40, "protein_delta": 0, "reason": "Lower fat", "plausibility_score": 0.92},
+        {"swap_key": "no_naan", "swap_label": "Skip naan, extra salad", "swap_type": "side_swap", "calories_delta": -180, "protein_delta": -2, "reason": "Lower carb", "plausibility_score": 0.85}
+      ]
+    },
+    {
+      "place_id": "",
+      "place_name": "Jasmine Indian",
+      "normalized_name": "jasmine indian",
+      "name_variants": ["Jasmine Indian", "Jasmine Indian Restaurant"],
+      "area_key": "parramatta",
+      "market_tag": "AU",
+      "cuisine_tags": ["indian", "north_indian"],
+      "category_tags": ["restaurant"],
+      "coverage_status": "strong",
+      "confidence_tier": 0.85,
+      "profile_source": "curated_manual",
+      "specificity_tier": "enriched_local_profile",
+      "active": true,
+      "notes": "Parramatta North Indian. Tandoori, biryani. Favor tandoori over butter chicken.",
+      "candidate_templates": [
+        {"template_key": "tandoori_dal", "template_name": "Tandoori chicken + dal tadka", "estimated_calories": 540, "estimated_protein_g": 40, "confidence": 0.85, "food_quality_tags": ["grilled"], "cut_friendly": true, "recommended_swap_keys": ["no_naan"]},
+        {"template_key": "chicken_tikka", "template_name": "Chicken tikka masala, half rice", "estimated_calories": 580, "estimated_protein_g": 35, "confidence": 0.80, "cut_friendly": false, "recommended_swap_keys": ["half_rice"]}
+      ],
+      "swap_templates": [
+        {"swap_key": "no_naan", "swap_label": "Skip naan", "swap_type": "side_omit", "calories_delta": -180, "protein_delta": -2, "reason": "Lower carb", "plausibility_score": 0.88},
+        {"swap_key": "half_rice", "swap_label": "Half rice", "swap_type": "portion_modify", "calories_delta": -80, "protein_delta": 0, "reason": "Portion control", "plausibility_score": 0.90}
+      ]
+    },
+    {
+      "place_id": "",
+      "place_name": "Saravanaa Bhavan",
+      "normalized_name": "saravanaa bhavan",
+      "name_variants": ["Saravanaa Bhavan", "Saravana Bhavan", "Saravana"],
+      "area_key": "parramatta",
+      "market_tag": "AU",
+      "cuisine_tags": ["south_indian", "vegetarian"],
+      "category_tags": ["restaurant"],
+      "coverage_status": "strong",
+      "confidence_tier": 0.88,
+      "profile_source": "curated_manual",
+      "specificity_tier": "enriched_local_profile",
+      "active": true,
+      "notes": "South Indian chain. Idli, dosa, sambar. Favor steamed over fried.",
+      "candidate_templates": [
+        {"template_key": "idli_sambar", "template_name": "Idli (2) + sambar", "estimated_calories": 220, "estimated_protein_g": 8, "confidence": 0.92, "food_quality_tags": ["steamed", "vegetarian"], "cut_friendly": true, "recommended_swap_keys": ["light_chutney"]},
+        {"template_key": "plain_dosa", "template_name": "Plain dosa + sambar", "estimated_calories": 280, "estimated_protein_g": 6, "confidence": 0.88, "food_quality_tags": ["vegetarian"], "cut_friendly": true, "recommended_swap_keys": ["light_ghee"]},
+        {"template_key": "uttapam", "template_name": "Onion uttapam + sambar", "estimated_calories": 320, "estimated_protein_g": 10, "confidence": 0.85, "cut_friendly": true}
+      ],
+      "swap_templates": [
+        {"swap_key": "light_chutney", "swap_label": "Light chutney", "swap_type": "sauce_modify", "calories_delta": -20, "protein_delta": 0, "reason": "Lower calories", "plausibility_score": 0.95},
+        {"swap_key": "light_ghee", "swap_label": "Light ghee", "swap_type": "topping_modify", "calories_delta": -50, "protein_delta": 0, "reason": "Lower fat", "plausibility_score": 0.88}
+      ]
+    },
+    {
+      "place_id": "",
+      "place_name": "Sree Vani",
+      "normalized_name": "sree vani",
+      "name_variants": ["Sree Vani", "Sree Vani Vilas", "Sree Vani Tiffins"],
+      "area_key": "wentworthville",
+      "market_tag": "AU",
+      "cuisine_tags": ["south_indian"],
+      "category_tags": ["restaurant", "cafe"],
+      "coverage_status": "strong",
+      "confidence_tier": 0.86,
+      "profile_source": "curated_manual",
+      "specificity_tier": "enriched_local_profile",
+      "active": true,
+      "notes": "South Indian, idli dosa filter coffee.",
+      "candidate_templates": [
+        {"template_key": "idli", "template_name": "Idli (3) + sambar", "estimated_calories": 250, "estimated_protein_g": 9, "confidence": 0.90, "food_quality_tags": ["steamed"], "cut_friendly": true},
+        {"template_key": "medu_vadai", "template_name": "Medu vadai + sambar", "estimated_calories": 180, "estimated_protein_g": 6, "confidence": 0.85, "cut_friendly": true}
+      ],
+      "swap_templates": [
+        {"swap_key": "light_chutney", "swap_label": "Chutney on the side", "swap_type": "sauce_modify", "calories_delta": -15, "protein_delta": 0, "reason": "Portion control", "plausibility_score": 0.92}
+      ]
+    },
+    {
+      "place_id": "",
+      "place_name": "Cafe 2121",
+      "normalized_name": "cafe 2121",
+      "name_variants": ["Cafe 2121", "2121"],
+      "area_key": "parramatta",
+      "market_tag": "AU",
+      "cuisine_tags": ["cafe", "australian"],
+      "category_tags": ["cafe"],
+      "coverage_status": "strong",
+      "confidence_tier": 0.82,
+      "profile_source": "curated_manual",
+      "specificity_tier": "enriched_local_profile",
+      "active": true,
+      "notes": "Local Parramatta cafe. Eggs, wraps.",
+      "candidate_templates": [
+        {"template_key": "eggs_toast", "template_name": "Eggs on toast", "estimated_calories": 420, "estimated_protein_g": 24, "confidence": 0.85, "food_quality_tags": ["high_protein"], "cut_friendly": true, "recommended_swap_keys": ["no_hash"]},
+        {"template_key": "chicken_wrap", "template_name": "Grilled chicken wrap", "estimated_calories": 480, "estimated_protein_g": 32, "confidence": 0.82, "cut_friendly": true},
+        {"template_key": "omelette", "template_name": "Omelette + toast", "estimated_calories": 450, "estimated_protein_g": 26, "confidence": 0.80, "cut_friendly": true}
+      ],
+      "swap_templates": [
+        {"swap_key": "no_hash", "swap_label": "Skip hash browns", "swap_type": "side_omit", "calories_delta": -150, "protein_delta": -1, "reason": "Lower calories", "plausibility_score": 0.90}
+      ]
+    },
+    {
+      "place_id": "",
+      "place_name": "Gelato Messina Parramatta",
+      "normalized_name": "gelato messina",
+      "name_variants": ["Gelato Messina", "Messina", "Messina Parramatta"],
+      "area_key": "parramatta",
+      "market_tag": "AU",
+      "cuisine_tags": ["gelato", "dessert"],
+      "category_tags": ["cafe", "dessert"],
+      "coverage_status": "partial",
+      "confidence_tier": 0.75,
+      "profile_source": "curated_manual",
+      "specificity_tier": "enriched_local_profile",
+      "active": true,
+      "notes": "Gelato. Single scoop, light options.",
+      "candidate_templates": [
+        {"template_key": "single_scoop", "template_name": "Single scoop (fruit sorbet)", "estimated_calories": 120, "estimated_protein_g": 1, "confidence": 0.80, "cut_friendly": true},
+        {"template_key": "small_cup", "template_name": "Small cup, single scoop", "estimated_calories": 150, "estimated_protein_g": 2, "confidence": 0.75, "cut_friendly": false}
+      ],
+      "swap_templates": []
+    },
+    {
+      "place_id": "",
+      "place_name": "Frangos",
+      "normalized_name": "frangos",
+      "name_variants": ["Frangos", "Frangos Charcoal Chicken"],
+      "area_key": "parramatta",
+      "market_tag": "AU",
+      "cuisine_tags": ["chicken", "grill", "portuguese"],
+      "category_tags": ["restaurant", "fast_food"],
+      "coverage_status": "strong",
+      "confidence_tier": 0.88,
+      "profile_source": "curated_manual",
+      "specificity_tier": "enriched_local_profile",
+      "active": true,
+      "notes": "Charcoal chicken. Half chicken + salad.",
+      "candidate_templates": [
+        {"template_key": "half_chicken_salad", "template_name": "Half chicken + salad", "estimated_calories": 520, "estimated_protein_g": 48, "confidence": 0.90, "food_quality_tags": ["grilled", "high_protein"], "cut_friendly": true, "recommended_swap_keys": ["no_chips"]},
+        {"template_key": "quarter_chicken", "template_name": "Quarter chicken + salad", "estimated_calories": 380, "estimated_protein_g": 36, "confidence": 0.88, "cut_friendly": true}
+      ],
+      "swap_templates": [
+        {"swap_key": "no_chips", "swap_label": "No chips, extra salad", "swap_type": "side_swap", "calories_delta": -280, "protein_delta": -3, "reason": "Lower calories", "plausibility_score": 0.95}
+      ]
+    },
+    {
+      "place_id": "",
+      "place_name": "Burgers by Josh",
+      "normalized_name": "burgers by josh",
+      "name_variants": ["Burgers by Josh", "Burgers By Josh"],
+      "area_key": "parramatta",
+      "market_tag": "AU",
+      "cuisine_tags": ["burger", "american"],
+      "category_tags": ["restaurant"],
+      "coverage_status": "partial",
+      "confidence_tier": 0.78,
+      "profile_source": "curated_manual",
+      "specificity_tier": "enriched_local_profile",
+      "active": true,
+      "notes": "Gourmet burgers. Single patty, skip fries.",
+      "candidate_templates": [
+        {"template_key": "single_burger", "template_name": "Single beef burger, no fries", "estimated_calories": 480, "estimated_protein_g": 28, "confidence": 0.80, "cut_friendly": false, "recommended_swap_keys": ["no_chips"]},
+        {"template_key": "chicken_burger", "template_name": "Grilled chicken burger", "estimated_calories": 450, "estimated_protein_g": 32, "confidence": 0.78, "cut_friendly": true}
+      ],
+      "swap_templates": [
+        {"swap_key": "no_chips", "swap_label": "No chips", "swap_type": "side_omit", "calories_delta": -350, "protein_delta": -4, "reason": "Lower calorie meal", "plausibility_score": 0.92}
+      ]
+    },
+    {
+      "place_id": "",
+      "place_name": "Pho Pasteur",
+      "normalized_name": "pho pasteur",
+      "name_variants": ["Pho Pasteur", "Pasteur"],
+      "area_key": "parramatta",
+      "market_tag": "AU",
+      "cuisine_tags": ["vietnamese", "pho"],
+      "category_tags": ["restaurant"],
+      "coverage_status": "strong",
+      "confidence_tier": 0.85,
+      "profile_source": "curated_manual",
+      "specificity_tier": "enriched_local_profile",
+      "active": true,
+      "notes": "Pho, vermicelli. Small pho, lean meat.",
+      "candidate_templates": [
+        {"template_key": "small_pho", "template_name": "Small beef pho (rare)", "estimated_calories": 420, "estimated_protein_g": 28, "confidence": 0.86, "food_quality_tags": ["soup", "lean"], "cut_friendly": true, "recommended_swap_keys": ["light_noodles"]},
+        {"template_key": "vermicelli_bowl", "template_name": "Vermicelli bowl with grilled chicken", "estimated_calories": 480, "estimated_protein_g": 32, "confidence": 0.82, "cut_friendly": true}
+      ],
+      "swap_templates": [
+        {"swap_key": "light_noodles", "swap_label": "Light noodles", "swap_type": "portion_modify", "calories_delta": -80, "protein_delta": 0, "reason": "Lower carb", "plausibility_score": 0.88}
+      ]
+    },
+    {
+      "place_id": "",
+      "place_name": "Sushi Hub Parramatta",
+      "normalized_name": "sushi hub",
+      "name_variants": ["Sushi Hub", "Sushi Hub Parramatta"],
+      "area_key": "parramatta",
+      "market_tag": "AU",
+      "cuisine_tags": ["japanese", "sushi"],
+      "category_tags": ["restaurant", "fast_food"],
+      "coverage_status": "partial",
+      "confidence_tier": 0.80,
+      "profile_source": "curated_manual",
+      "specificity_tier": "enriched_local_profile",
+      "active": true,
+      "notes": "Sushi chain. Salmon sashimi, edamame.",
+      "candidate_templates": [
+        {"template_key": "sashimi", "template_name": "Salmon sashimi (6 pcs)", "estimated_calories": 180, "estimated_protein_g": 24, "confidence": 0.88, "food_quality_tags": ["high_protein"], "cut_friendly": true},
+        {"template_key": "chicken_teriyaki", "template_name": "Chicken teriyaki rice bowl", "estimated_calories": 520, "estimated_protein_g": 32, "confidence": 0.82, "cut_friendly": false}
+      ],
+      "swap_templates": []
+    },
+    {
+      "place_id": "",
+      "place_name": "Eat Fuh",
+      "normalized_name": "eat fuh",
+      "name_variants": ["Eat Fuh", "Eat Fuh Parramatta"],
+      "area_key": "parramatta",
+      "market_tag": "AU",
+      "cuisine_tags": ["vietnamese", "pho"],
+      "category_tags": ["restaurant"],
+      "coverage_status": "strong",
+      "confidence_tier": 0.84,
+      "profile_source": "curated_manual",
+      "specificity_tier": "enriched_local_profile",
+      "active": true,
+      "notes": "Pho specialist. Lean protein bowls.",
+      "candidate_templates": [
+        {"template_key": "pho_lean", "template_name": "Pho bo (beef pho) small", "estimated_calories": 400, "estimated_protein_g": 26, "confidence": 0.85, "cut_friendly": true},
+        {"template_key": "bowl_chicken", "template_name": "Grilled chicken rice bowl", "estimated_calories": 480, "estimated_protein_g": 34, "confidence": 0.82, "cut_friendly": true}
+      ],
+      "swap_templates": []
+    },
+    {
+      "place_id": "",
+      "place_name": "Coffee Emporium",
+      "normalized_name": "coffee emporium",
+      "name_variants": ["Coffee Emporium", "Coffee Emporium Wentworthville"],
+      "area_key": "wentworthville",
+      "market_tag": "AU",
+      "cuisine_tags": ["cafe", "coffee"],
+      "category_tags": ["cafe"],
+      "coverage_status": "strong",
+      "confidence_tier": 0.80,
+      "profile_source": "curated_manual",
+      "specificity_tier": "enriched_local_profile",
+      "active": true,
+      "notes": "Local cafe. Breakfast, eggs.",
+      "candidate_templates": [
+        {"template_key": "eggs", "template_name": "Eggs on toast", "estimated_calories": 400, "estimated_protein_g": 22, "confidence": 0.82, "cut_friendly": true},
+        {"template_key": "avocado", "template_name": "Avocado toast + egg", "estimated_calories": 450, "estimated_protein_g": 14, "confidence": 0.78, "cut_friendly": false}
+      ],
+      "swap_templates": []
+    },
+    {
+      "place_id": "",
+      "place_name": "Guzman y Gomez Parramatta",
+      "normalized_name": "guzman y gomez",
+      "name_variants": ["GYG Parramatta", "Guzman y Gomez Parramatta"],
+      "area_key": "parramatta",
+      "market_tag": "AU",
+      "cuisine_tags": ["mexican"],
+      "category_tags": ["restaurant", "fast_food"],
+      "coverage_status": "partial",
+      "confidence_tier": 0.82,
+      "profile_source": "hybrid",
+      "specificity_tier": "enriched_local_profile",
+      "active": true,
+      "notes": "Chain but local profile for area. Burrito bowl favored.",
+      "candidate_templates": [
+        {"template_key": "burrito_bowl", "template_name": "Grilled chicken burrito bowl", "estimated_calories": 560, "estimated_protein_g": 40, "confidence": 0.88, "food_quality_tags": ["grilled", "bowl"], "cut_friendly": true}
+      ],
+      "swap_templates": [
+        {"swap_key": "no_sour_cream", "swap_label": "No sour cream", "swap_type": "sauce_omit", "calories_delta": -60, "protein_delta": 0, "reason": "Lower fat", "plausibility_score": 0.95}
+      ]
+    },
+    {
+      "place_id": "",
+      "place_name": "Madras Cafe",
+      "normalized_name": "madras cafe",
+      "name_variants": ["Madras Cafe", "Madras Cafe Parramatta"],
+      "area_key": "parramatta",
+      "market_tag": "AU",
+      "cuisine_tags": ["south_indian"],
+      "category_tags": ["restaurant"],
+      "coverage_status": "strong",
+      "confidence_tier": 0.86,
+      "profile_source": "curated_manual",
+      "specificity_tier": "enriched_local_profile",
+      "active": true,
+      "notes": "South Indian. Idli dosa vada.",
+      "candidate_templates": [
+        {"template_key": "idli", "template_name": "Idli (2) + sambar + chutney", "estimated_calories": 240, "estimated_protein_g": 8, "confidence": 0.90, "cut_friendly": true},
+        {"template_key": "dosa_plain", "template_name": "Plain dosa + sambar", "estimated_calories": 290, "estimated_protein_g": 6, "confidence": 0.86, "cut_friendly": true}
+      ],
+      "swap_templates": []
+    },
+    {
+      "place_id": "",
+      "place_name": "Biryani House",
+      "normalized_name": "biryani house",
+      "name_variants": ["Biryani House", "Biryani House Harris Park"],
+      "area_key": "harris_park",
+      "market_tag": "AU",
+      "cuisine_tags": ["indian", "biryani"],
+      "category_tags": ["restaurant"],
+      "coverage_status": "partial",
+      "confidence_tier": 0.78,
+      "profile_source": "curated_manual",
+      "specificity_tier": "enriched_local_profile",
+      "active": true,
+      "notes": "Biryani specialist. Half biryani, raita.",
+      "candidate_templates": [
+        {"template_key": "half_biryani", "template_name": "Half chicken biryani + raita", "estimated_calories": 620, "estimated_protein_g": 35, "confidence": 0.80, "cut_friendly": false, "recommended_swap_keys": ["light_raita"]},
+        {"template_key": "tandoori", "template_name": "Tandoori chicken half + salad", "estimated_calories": 480, "estimated_protein_g": 42, "confidence": 0.82, "cut_friendly": true}
+      ],
+      "swap_templates": [
+        {"swap_key": "light_raita", "swap_label": "Light raita", "swap_type": "sauce_modify", "calories_delta": -50, "protein_delta": 0, "reason": "Lower fat", "plausibility_score": 0.88}
+      ]
+    }
+  ]
+}

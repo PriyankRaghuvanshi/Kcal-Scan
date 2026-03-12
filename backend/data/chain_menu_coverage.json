@@ -30,6 +30,18 @@
           "notes": "Most popular sub at Subway AU — good protein, moderate calories"
         },
         {
+          "item_name": "6\" Grilled Chicken Sub, extra salad, light sauce",
+          "category": "sub",
+          "estimated_calories": 370,
+          "estimated_protein_g": 32,
+          "estimated_carbs_g": 42,
+          "estimated_fat_g": 7,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.93,
+          "cut_friendly": true,
+          "notes": "Real-order specific: 6-inch, grilled chicken, extra salad, light sauce. Favored default."
+        },
+        {
           "item_name": "6\" Chicken Classic Sub, no mayo, extra salad",
           "category": "sub",
           "estimated_calories": 380,

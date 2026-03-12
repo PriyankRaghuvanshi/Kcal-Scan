@@ -218,29 +218,46 @@ def _build_alert_templates(
     protein_gap = max(0, int(remaining) - 20) if remaining > 0 else 0
     distance_m = _safe_float(place.get("distance_meters"), 500)
     distance_min = max(1, int(distance_m / 80))
+    local_hour = _safe_int(user_context.get("local_hour"), 12)
 
     if alert_type == "protein_rescue":
-        if protein_gap > 0:
-            title = f"You're still {protein_gap}g short on protein."
-            body = f"Best nearby fix: {name} — {protein}g protein."
+        # Time-of-day aware copy; avoid blunt deficit messaging, especially in evening.
+        if local_hour >= 19:
+            if protein >= 30:
+                title = "Best realistic dinner move tonight"
+                body = f"{name} — about {protein}g protein in ~{distance_min} min."
+            else:
+                title = "Lighter protein-focused option tonight"
+                body = f"{name} — a smaller protein boost that still helps this evening."
+        elif 11 <= local_hour <= 15:
+            if protein_gap >= 25 and protein >= 30:
+                title = "A protein-focused meal now would help"
+                body = f"{name} — about {protein}g protein, a strong next move for today."
+            else:
+                title = "You still have a good protein window"
+                body = f"{name} — a protein-focused choice nearby ({protein}g)."
         else:
-            title = "Quick protein catch-up nearby."
-            body = f"{name} has your best option right now — {protein}g protein."
+            if protein_gap >= 25 and protein >= 30:
+                title = "A 30–40g protein meal would help"
+                body = f"{name} — about {protein}g protein in ~{distance_min} min."
+            else:
+                title = "Good protein fit nearby"
+                body = f"{name} — about {protein}g protein."
     elif alert_type == "post_workout_recovery":
-        title = "Post-workout window open."
+        title = "Post-workout recovery nearby"
         body = f"Best nearby recovery: {name} — {protein}g protein in ~{distance_min} min."
     elif alert_type == "late_night_damage_control":
         title = "Hungry late?"
-        body = f"Best nearby option that still fits today: {name}."
+        body = f"This nearby option still fits today: {name}."
     elif alert_type == "worked_before_repeat":
-        title = "You've done well with this before."
+        title = "You've done well with this before"
         body = f"{name} is nearby now."
     elif alert_type == "habit_rescue":
-        title = "Your usual weak window."
-        body = f"Best nearby lower-regret pick: {name}."
-    else:
-        title = "Smart nearby option."
+        title = "Lower-regret pick nearby"
         body = f"{name} — fits your goal."
+    else:
+        title = "Best nearby fit right now"
+        body = f"{name} — {protein}g protein." if protein else f"{name} — fits your goal."
     return title, body
 
 
@@ -283,6 +300,8 @@ def _build_one_candidate(
         "body": body,
         "place_id": str(place.get("place_id") or place.get("id") or ""),
         "place_name": str(place.get("name") or place.get("place_name") or ""),
+        "place_lat": _safe_float(place.get("lat")) if place.get("lat") is not None else None,
+        "place_lng": _safe_float(place.get("lng")) if place.get("lng") is not None else None,
         "best_item_name": str(place.get("best_item_name") or place.get("best_order") or ""),
         "display_rank_score_100": place.get("display_rank_score_100"),
         "distance_m": _safe_int(place.get("distance_meters")),
@@ -291,6 +310,12 @@ def _build_one_candidate(
         "confidence_label": str(place.get("confidence_label") or ""),
         "recommendation_label": str(place.get("recommendation_label") or ""),
         "personal_memory_label": str(place.get("personal_memory_label") or ""),
+        "chosen_candidate_specificity_tier": str(place.get("chosen_candidate_specificity_tier") or ""),
+        "menu_item_source": str(place.get("menu_item_source") or place.get("best_item_source") or ""),
+        "matched_local_profile": bool(place.get("matched_local_profile") or place.get("_matched_local_profile")),
+        "local_profile_source": str(place.get("local_profile_source") or place.get("_local_profile_source") or ""),
+        "used_venue_intelligence_cache": bool(place.get("used_venue_intelligence_cache") or place.get("_used_venue_intelligence_cache")),
+        "best_item_is_generic_fallback": bool(place.get("best_item_is_generic_fallback")),
         "context_mode": str(user_context.get("context_mode") or "default"),
         "why_triggered": _why_triggered(alert_type, place, user_context),
         "suppression_reasons": suppression_reasons,

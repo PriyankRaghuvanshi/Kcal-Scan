@@ -49,6 +49,15 @@ from menu_intelligence_store import (
 )
 from menu_ingestion import ingest_real_menu_for_place
 from chain_menu_registry import resolve_chain_menu_for_place
+from local_venue_enrichment import enrich_place_with_local_profile
+from venue_intelligence_cache import cache_to_menu_payload
+from supabase_intelligence_store import (
+    get_cached_venue_intelligence,
+    get_local_venue_profile,
+    enqueue_place_for_enrichment,
+)
+from launch_area_config import get_area_for_place
+from background_enrichment_queue import should_enqueue_for_low_specificity
 from recommendation_feedback_store import get_place_item_feedback_signal
 from cuisine_candidate_rules import (
     get_candidates_for_place,
@@ -59,6 +68,7 @@ from cuisine_candidate_rules import (
 )
 from menu_normalization import normalize_menu_candidates
 from swap_rules import generate_swaps_for_item
+from diet_filters import filter_candidates_for_diet, normalize_diet_preference
 
 
 MENU_RECOMMENDATION_VERSION = "v1"
@@ -187,6 +197,8 @@ FALLBACK_ITEMS: List[Dict[str, Any]] = [
 SOURCE_RANK_WEIGHTS: Dict[str, float] = {
     "real_menu": 1.00,
     "user_scan": 0.95,
+    "exact_menu_cache": 0.94,
+    "ingested_chain_item": 0.92,
     "chain_registry": 0.90,
     "llm_reasoning": 0.85,
     "llm_inferred": 0.80,
@@ -196,6 +208,9 @@ SOURCE_RANK_WEIGHTS: Dict[str, float] = {
 SOURCE_PRIORITY_WEIGHTS: Dict[str, int] = {
     "real_menu": 4,
     "user_scan": 3,
+    "exact_menu_cache": 4,
+    "ingested_chain_item": 4,
+    "enriched_local_profile": 4,
     "chain_registry": 3,
     "llm_inferred": 2,
     "heuristic": 1,
@@ -354,6 +369,26 @@ def _place_name(place: Dict[str, Any]) -> str:
     return str(payload.get("name") or "").strip()
 
 
+def _pick_enrichment_reason(
+    place: Dict[str, Any],
+    diet: str,
+    area: Optional[Dict[str, Any]],
+    chain_bundle: Dict[str, Any],
+) -> str:
+    """
+    Pick enrichment reason for heuristic fallback path.
+    Used when no cache, local profile, or chain items; we used heuristic/generic.
+    """
+    diet_val = str(diet or "omnivore").strip().lower()
+    if area is None:
+        return "unknown_suburb_visible_result"
+    if diet_val == "vegan":
+        return "missing_vegan_profile"
+    if diet_val == "vegetarian":
+        return "missing_veg_profile"
+    return "candidate_low_specificity"
+
+
 def _infer_cuisine(place: Dict[str, Any]) -> str:
     payload = place if isinstance(place, dict) else {}
     primary_type = str(payload.get("primary_type") or payload.get("primaryType") or "").strip()
@@ -374,6 +409,8 @@ def _menu_item_source_from_menu_source(menu_source: Any) -> str:
         return "user_scan"
     if token == "chain_registry":
         return "chain_registry"
+    if token in ("ingested_chain_item", "exact_menu_cache", "enriched_local_profile"):
+        return token
     if token in {
         "structured_menu",
         "menu_intelligence_store",
@@ -396,7 +433,7 @@ def _display_label_for_menu_item(
     conf = _clamp(_safe_float(confidence, 0.5), 0.0, 1.0)
     if source in {"real_menu", "user_scan"}:
         return "Best Menu Item" if conf >= 0.72 else "Likely Better Choice"
-    if source == "chain_registry":
+    if source in ("chain_registry", "ingested_chain_item", "exact_menu_cache", "enriched_local_profile"):
         if conf >= 0.78:
             return "Likely Better Choice"
         if conf >= 0.60:
@@ -460,6 +497,8 @@ def _source_rank_weight(source: str, raw_source_token: str) -> float:
         return SOURCE_RANK_WEIGHTS["real_menu"]
     if source == "chain_registry":
         return SOURCE_RANK_WEIGHTS["chain_registry"]
+    if source in ("ingested_chain_item", "exact_menu_cache"):
+        return SOURCE_RANK_WEIGHTS.get(source, SOURCE_RANK_WEIGHTS["chain_registry"])
     if source == "llm_reasoning":
         return SOURCE_RANK_WEIGHTS["llm_reasoning"]
     if source == "llm_inferred":
@@ -722,12 +761,14 @@ def _heuristic_menu_items(
     cut_mode: bool = False,
     remaining_calories: float | None = None,
     remaining_protein_g: float | None = None,
+    diet_preference: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
     """
     Up to 3 heuristic candidates. Prefer cuisine_candidate_rules; fallback to PLACE_MENU_RULES/FALLBACK_ITEMS.
+    diet_preference filters for vegetarian/vegan.
     """
     candidates, cuisine_id, confidence, source_label = get_candidates_for_place(
-        place, max_candidates=3, cut_mode=cut_mode
+        place, max_candidates=3, cut_mode=cut_mode, diet_preference=diet_preference
     )
     if candidates:
         best, _ = select_best_candidate(
@@ -932,8 +973,8 @@ def score_menu_item(
         "ocr_menu",
     }:
         menu_item_source = "real_menu"
-    elif raw_item_source in {"chain_registry"}:
-        menu_item_source = "chain_registry"
+    elif raw_item_source in {"chain_registry", "ingested_chain_item", "exact_menu_cache", "enriched_local_profile"}:
+        menu_item_source = str(raw_item_source)
     elif raw_item_source in {"user_scan"}:
         menu_item_source = "user_scan"
     elif raw_item_source in {"llm_inferred", "llm"}:
@@ -1370,6 +1411,7 @@ def recommend_menu_items_for_place(
     mode: NutritionMode | str = NutritionMode.DEFAULT,
     personalization_goal: Any = None,
     use_llm_place_context: bool = True,
+    diet_preference: Optional[str] = None,
 ) -> Dict[str, Any]:
     source_items, has_structured_menu = _menu_source_items(place)
 
@@ -1399,6 +1441,7 @@ def recommend_menu_items_for_place(
 
     ingestion_bundle: Dict[str, Any] = {}
     chain_bundle = resolve_chain_menu_for_place(place, max_items=12) if not has_structured_menu else {}
+    chain_bundle = chain_bundle or {}
     chain_items = chain_bundle.get("menu_items") if isinstance(chain_bundle.get("menu_items"), list) else []
     # Skip menu ingestion when use_llm_place_context=False (bulk /places/healthy, lunch-decision) to avoid 20+ website fetches.
     if (
@@ -1417,24 +1460,99 @@ def recommend_menu_items_for_place(
         else []
     )
 
+    menu_items: List[Dict[str, Any]] = []
+    menu_source = "heuristic"
+    diet = normalize_diet_preference(diet_preference)
+
+    # Live priority order for candidate generation:
+    # 1. venue_intelligence_cache (place_id lookup)
+    # 2. local_venue_profiles (place_id or normalized_name + area_key)
+    # 3. ingested_chain_item (chain menu ingestion)
+    # 4. chain_registry (chain templates)
+    # 5. strong cuisine heuristic
+    # 6. generic fallback
+
+    def _apply_diet_filter(items: List[Dict[str, Any]], diet_val: str) -> Tuple[List[Dict[str, Any]], int]:
+        if not items or diet_val == "omnivore":
+            return items, 0
+        return filter_candidates_for_diet(items, diet_val)
+
     if has_structured_menu:
         menu_source = "structured_menu"
         menu_items = normalize_menu_candidates(place, source_items, default_source="real_menu", default_confidence=0.78)
         _ingest_menu_snapshot(place, menu_items, SOURCE_SCRAPED_MENU)
-    elif chain_items:
-        menu_source = str(chain_bundle.get("menu_source") or "chain_registry")
-        menu_items = normalize_menu_candidates(place, chain_items, default_source="chain_registry", default_confidence=0.86)
-        if not ingestion_bundle:
-            ingestion_bundle = dict(chain_bundle)
-        _ingest_menu_snapshot(place, menu_items, SOURCE_WEBSITE_MENU)
-    elif ingested_items:
+    elif place_id:
+        # Priority 1: venue_intelligence_cache (Supabase then JSON fallback)
+        cached = get_cached_venue_intelligence(place_id)
+        cache_candidates = (cached or {}).get("candidates") or []
+        if cache_candidates:
+            filtered_cache, diet_excluded = _apply_diet_filter(cache_candidates, diet)
+            if diet_excluded:
+                place["_diet_excluded_candidate_count"] = (place.get("_diet_excluded_candidate_count") or 0) + diet_excluded
+            if filtered_cache:
+                cached_for_payload = {**(cached or {}), "candidates": filtered_cache}
+                payload = cache_to_menu_payload(cached_for_payload, place)
+                menu_source = str(cached.get("source_type") or "exact_menu_cache")
+                menu_items = normalize_menu_candidates(
+                    place,
+                    payload.get("top_menu_items") or filtered_cache,
+                    default_source=menu_source,
+                    default_confidence=float(cached.get("confidence") or 0.8),
+                )
+                place["_used_venue_intelligence_cache"] = True
+                place["_cache_source_type"] = str(cached.get("source_type") or "exact_menu_cache")
+                place["_cache_chosen_candidate_specificity_tier"] = str(cached.get("chosen_candidate_specificity_tier") or "exact_menu_match")
+                place["_cache_last_enriched_at"] = cached.get("last_enriched_at")
+                place["_profile_source"] = cached.get("profile_source")
+                place["_source_url"] = str(cached.get("source_url") or "").strip() or None
+
+    if not menu_items:
+        # Priority 2: local_venue_profiles (Supabase then JSON fallback)
+        local_payload = enrich_place_with_local_profile(place)
+        if local_payload and local_payload.get("candidates"):
+            local_cands = local_payload["candidates"]
+            filtered_local, local_excluded = _apply_diet_filter(local_cands, diet)
+            if local_excluded:
+                place["_diet_excluded_candidate_count"] = (place.get("_diet_excluded_candidate_count") or 0) + local_excluded
+            if filtered_local:
+                menu_source = "enriched_local_profile"
+                menu_items = normalize_menu_candidates(
+                    place,
+                    filtered_local,
+                    default_source="enriched_local_profile",
+                    default_confidence=0.78,
+                )
+                ingestion_bundle = dict(local_payload)
+                place["_local_profile_payload"] = local_payload
+                place["_matched_local_profile"] = True
+                place["_local_profile_source"] = local_payload.get("local_profile_source", "curated_manual")
+                place["_chosen_candidate_profile_source"] = (
+                    local_payload.get("chosen_candidate_profile_source") or local_payload.get("local_profile_source") or "curated_manual"
+                )
+                place["_local_profile_confidence"] = local_payload.get("local_profile_confidence", 0.8)
+                place["_local_profile_id"] = local_payload.get("local_profile_id") or local_payload.get("profile_id")
+                place["_profile_store"] = str(local_payload.get("profile_store") or "fallback_local_store").strip()
+                place["_seeded_by_launch_pack"] = bool(local_payload.get("seeded_by_launch_pack"))
+
+    if not menu_items and chain_items:
+        # Priority 3: ingested_chain_item (from chain menu ingestion)
+        filtered_chain, chain_excluded = _apply_diet_filter(chain_items, diet)
+        if chain_excluded:
+            place["_diet_excluded_candidate_count"] = (place.get("_diet_excluded_candidate_count") or 0) + chain_excluded
+        if filtered_chain:
+            menu_source = str(chain_bundle.get("menu_source") or "chain_registry")
+            menu_items = normalize_menu_candidates(place, filtered_chain, default_source="chain_registry", default_confidence=0.86)
+            if not ingestion_bundle:
+                ingestion_bundle = dict(chain_bundle)
+            _ingest_menu_snapshot(place, menu_items, SOURCE_WEBSITE_MENU)
+    elif not menu_items and ingested_items:
         menu_source = str(ingestion_bundle.get("menu_source") or SOURCE_WEBSITE_TEXT)
         menu_items = normalize_menu_candidates(place, ingested_items, default_source="real_menu", default_confidence=0.70)
-    elif stored_items:
+    elif not menu_items and stored_items:
         menu_source = "menu_intelligence_store"
         menu_items = normalize_menu_candidates(place, stored_items, default_source="real_menu", default_confidence=0.70)
-    else:
-        heuristic_items = _heuristic_menu_items(place, cut_mode=cut_mode_active)
+    elif not menu_items:
+        heuristic_items = _heuristic_menu_items(place, cut_mode=cut_mode_active, diet_preference=diet_preference)
         heuristic_items = normalize_menu_candidates(
             place,
             heuristic_items,
@@ -1455,6 +1573,22 @@ def recommend_menu_items_for_place(
             menu_items,
             SOURCE_LLM_INFERRED if menu_source == "llm_inferred" else SOURCE_HEURISTIC,
         )
+        area = get_area_for_place(place)
+        area_key = str(area.get("area_key") or "").strip() if area else None
+        enqueue_reason = _pick_enrichment_reason(place, diet, area, chain_bundle)
+        should_enqueue = should_enqueue_for_low_specificity(place)
+        if should_enqueue:
+            try:
+                enqueue_place_for_enrichment(
+                    place,
+                    reason=enqueue_reason,
+                    area_key=area_key,
+                    chain_key=str(chain_bundle.get("chain_key") or "") if chain_bundle else None,
+                )
+                place["_enqueued_for_enrichment"] = True
+                place["_enrichment_enqueue_reason"] = enqueue_reason
+            except Exception:
+                pass
 
     place_text = _place_text(place)
     cuisine_hint = _infer_cuisine(place)
@@ -1465,6 +1599,9 @@ def recommend_menu_items_for_place(
             # Legacy stored rows may miss source metadata; keep them conservative.
             if not str(item_payload.get("source") or item_payload.get("menu_source") or item_payload.get("menu_item_source") or "").strip():
                 item_payload["menu_source"] = "heuristic"
+        place_for_context = dict(place) if isinstance(place, dict) else {}
+        if chain_bundle and chain_bundle.get("chain_key"):
+            place_for_context["chain_key"] = str(chain_bundle.get("chain_key") or "").strip().lower()
         scored = score_menu_item(
             item_payload,
             context={
@@ -1472,7 +1609,7 @@ def recommend_menu_items_for_place(
                 "cuisine_hint": cuisine_hint,
                 "menu_source": menu_source,
                 "mode": resolved_mode.value,
-                "place": place,
+                "place": place_for_context,
                 "personalization_goal": personalization_goal,
             },
             mode=resolved_mode,
@@ -1501,7 +1638,7 @@ def recommend_menu_items_for_place(
     chain_items_scored = [
         row
         for row in scored_items
-        if str(row.get("menu_item_source") or "").strip().lower() in {"chain_registry"}
+        if str(row.get("menu_item_source") or "").strip().lower() in {"chain_registry", "ingested_chain_item", "exact_menu_cache", "enriched_local_profile"}
     ]
     if real_or_scan_items or chain_items_scored:
         preferred = list(real_or_scan_items) + [r for r in chain_items_scored if r not in real_or_scan_items]
@@ -1511,7 +1648,7 @@ def recommend_menu_items_for_place(
     resolved_source = str(menu_source or "").strip().lower()
     if top_item and isinstance(top_item, dict):
         top_source = str(top_item.get("menu_item_source") or "").strip().lower()
-        if top_source in {"real_menu", "user_scan", "chain_registry", "llm_inferred", "heuristic"}:
+        if top_source in {"real_menu", "user_scan", "exact_menu_cache", "enriched_local_profile", "chain_registry", "ingested_chain_item", "llm_inferred", "heuristic"}:
             resolved_source = top_source
         elif resolved_source in {
             "website_menu",

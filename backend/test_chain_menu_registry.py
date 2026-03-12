@@ -17,9 +17,9 @@ class ChainMenuRegistryTests(unittest.TestCase):
         self.assertTrue(bundle.get("chain_match"))
         self.assertEqual(bundle.get("chain_key"), "subway")
         self.assertGreaterEqual(len(bundle.get("menu_items") or []), 2)
-        self.assertEqual(bundle.get("menu_source"), "website_menu")
+        self.assertIn(bundle.get("menu_source"), ("website_menu", "chain_menu_ingestion"))
         self.assertTrue(str(bundle.get("matched_alias") or "").strip())
-        self.assertEqual(bundle.get("chain_source_used"), "country_chain_registry")
+        self.assertIn(bundle.get("chain_source_used"), ("country_chain_registry", "ingested_chain_item"))
 
     def test_resolves_hungry_jacks_apostrophe_variants(self):
         with_apostrophe = resolve_chain_menu_for_place(
@@ -110,10 +110,10 @@ class ChainMenuRegistryTests(unittest.TestCase):
         )
         self.assertTrue(au.get("chain_match"))
         self.assertEqual(au.get("chain_key"), "hungry_jacks")
-        self.assertEqual(au.get("chain_source_used"), "country_chain_registry")
+        self.assertIn(au.get("chain_source_used"), ("country_chain_registry", "ingested_chain_item"))
         self.assertTrue(us.get("chain_match"))
         self.assertEqual(us.get("chain_key"), "burger_king")
-        self.assertIn(us.get("chain_source_used"), {"country_chain_registry", "global_chain_registry"})
+        self.assertIn(us.get("chain_source_used"), {"country_chain_registry", "global_chain_registry", "ingested_chain_item"})
 
     def test_global_fallback_when_country_variant_missing(self):
         bundle = resolve_chain_menu_for_place(

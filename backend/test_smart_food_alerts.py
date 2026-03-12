@@ -67,6 +67,28 @@ class TestProteinRescue(unittest.TestCase):
         self.assertTrue(c["eligible_to_send"], "should be eligible when context fits")
         self.assertIn("protein", c["why_triggered"].lower())
         self.assertIn("Subway", c["place_name"])
+        # Title/body should use helpful, action-oriented language (no blunt deficit).
+        self.assertNotIn("short on protein", c["title"].lower())
+        self.assertIn("protein", c["body"].lower())
+
+    def test_evening_protein_rescue_uses_best_next_move_tone(self):
+        places = [
+            _place("Grill", "p2", 82, "Grilled chicken bowl", 35, 520, 400, "Verified", "Best pick"),
+        ]
+        user_ctx = {
+            "remaining_protein_g": 60,
+            "remaining_calories": 800,
+            "local_hour": 20,
+        }
+        candidates = build_smart_food_alert_candidates(user_ctx, places, eligible_only=False)
+        protein_rescue = [c for c in candidates if c["alert_type"] == "protein_rescue"]
+        self.assertGreater(len(protein_rescue), 0)
+        c = protein_rescue[0]
+        title = c["title"].lower()
+        body = c["body"].lower()
+        # Evening tone: best realistic move, not giant deficit.
+        self.assertIn("dinner", title) or self.assertIn("tonight", title)
+        self.assertNotIn("short on protein", title)
 
 
 class TestPostWorkoutRecovery(unittest.TestCase):

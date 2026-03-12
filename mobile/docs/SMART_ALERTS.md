@@ -39,7 +39,7 @@ The mobile layer adds a local anti-spam layer on top of backend eligibility:
 2. **Venue suppression**: After open or dismiss, that venue is suppressed locally for ~4 hours
 3. **Same-alert dedupe**: Recently opened alerts are not re-shown within ~1 hour
 4. **Frequency mode "low"**: Extra cooldown after dismissal (~2h) before showing more alerts
-5. **Deterministic IDs**: `alert_type::place_id::best_item_name::date` for stable deduplication
+5. **Deterministic IDs**: `alert_type::place_id::best_item_name` (matches backend; no date for push/inbox consistency)
 
 ## Backend vs Mobile
 
@@ -75,7 +75,104 @@ When user taps a push notification:
 2. `handleNotificationOpen` parses payload (alert_id, place_id, alert_type, etc.)
 3. Calls `recordAlertOpened(alertId, placeId)` for local suppression
 4. Optionally POSTs `recommendation_opened` to `/meal-decision-event` for backend analytics
-5. App can navigate to Healthy Nearby (future deep_link support)
+5. App navigates to the **exact recommendation/place** when possible (deep-link routing)
+
+## Push Deep-Link Routing
+
+Push payload `data` includes deep-link fields so tapping a notification opens the relevant screen directly.
+
+### Expected deep-link payload shape
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `alert_id` | string | Stable ID, e.g. `protein_rescue::ChIJ123::6-inch Grilled Chicken` |
+| `alert_type` | string | protein_rescue, post_workout_recovery, etc. |
+| `place_id` | string | Google Place ID |
+| `place_name` | string | e.g. "Subway" |
+| `best_item_name` | string | Recommended item |
+| `place_lat` | number | Place latitude (for place lookup) |
+| `place_lng` | number | Place longitude |
+| `display_rank_score_100` | number | Display score |
+| `context_mode` | string | default, late_night, etc. |
+| `confidence_label` | string | Trust: Verified, Estimated, Needs menu check |
+| `recommendation_label` | string | Best pick, Strong option, etc. |
+| `chosen_candidate_specificity_tier` | string | Internal tier (used for trust mapping) |
+| `menu_item_source` | string | real_menu, chain_registry, heuristic, etc. |
+| `matched_local_profile` | boolean | Whether enriched local profile matched |
+| `local_profile_source` | string | curated_manual, etc. |
+| `used_venue_intelligence_cache` | boolean | Whether cache was used |
+| `best_item_is_generic_fallback` | boolean | Whether item is generic heuristic |
+| `deep_link` | string | `calorieclick://smart-alert?alert_id=...&place_id=...&place_name=...&best_item_name=...&place_lat=...&place_lng=...` |
+| `route_target` | string | `smart_alert_place` (exact place with coords), `smart_alert_inbox` (fallback), or `smart_alert_nearby` |
+
+### Push tap routing behavior
+
+- **open_place**: place_id + place_lat/lng present → open exact place, load nearby with preferredCard
+- **open_inbox**: place_id but no coords → open inbox (fallback when local alert may be missing)
+- **open_nearby**: no place_id → open Healthy Nearby
+
+| Condition | Behavior |
+|-----------|----------|
+| `place_id` + `place_lat` + `place_lng` present | **open_place**: Healthy Nearby with place pre-selected (or best match) |
+| `place_id` but no coords | **open_inbox**: Smart Alert inbox (highlighted if alert_id matches) |
+| No `place_id` | **open_nearby**: Healthy Nearby list |
+
+### Fallback navigation
+
+- **A.** Exact alert/place in inbox or local state → open that Smart Alert / place detail
+- **B.** Place not in local state → fetch nearby candidates, try to resolve `place_id`, open match if found
+- **C.** Final fallback → Smart Alerts inbox with tapped alert highlighted, or Healthy Nearby
+
+### Key files
+
+- `mobile/deepLinkRouter.js` — `parseSmartAlertDeepLink()`, `resolveSmartAlertNavigationTarget()`
+- `mobile/pushNotifications.js` — `parseSmartAlertNotificationData()`, `handleNotificationOpen()`
+- `mobile/App.js` — `onNotificationResponse`, `openPlaceFromSmartAlert()`
+
+## Trust Labels and Recommendation Quality
+
+Smart Alerts communicate how trustworthy each recommendation is via user-facing trust labels. The same mapping is used for push, inbox, map, and list surfaces so the same place/alert does not appear "Verified" in one surface and "Needs menu check" in another.
+
+### Trust label mapping
+
+| User-facing label | When used |
+|-------------------|-----------|
+| **Verified** | exact/cache, real_menu, user_scan, or very strong trusted source |
+| **Chain-backed** | ingested chain item or strong chain registry item |
+| **Local favorite** | enriched/confirmed local venue profile |
+| **Estimated** | strong heuristic, reasonable inference, Best pick / Strong option |
+| **Needs menu check** | weak/generic fallback or low-confidence inference |
+
+Internal signals (e.g. `exact_menu_match`, `ingested_chain_item`, `heuristic_cuisine_match_strong`) are **not** shown directly to users. They are mapped to the labels above.
+
+### Hero language rules
+
+Title and hero language align with trust level:
+
+| Trust | Example hero/title |
+|-------|--------------------|
+| Strong (Verified, Chain-backed, Local favorite) | "Best nearby right now" |
+| Moderate (Estimated) | "Good nearby option" |
+| Weak (Needs menu check) | "Suggested nearby option", "Check menu before ordering" |
+
+Weak alerts must never use strong hero language such as "Best nearby fit right now".
+
+### When "Menu may vary" appears
+
+The caution note "Menu may vary" is shown only for alerts mapped to **Needs menu check**. It is not shown for Verified, Chain-backed, Local favorite, or Estimated.
+
+### Consistency expectations
+
+- **Push → Inbox**: When a push is tapped and the user lands in the inbox, the alert card shows the same trust label as the push metadata.
+- **Push → Place**: When a push opens the exact place on the map/list, the place card uses the same trust logic (from API or push payload).
+- **Inbox vs API**: Inbox candidates from the API include trust fields; foreground-received push candidates merge trust metadata from the push payload.
+
+### Implementation
+
+- `mobile/smartAlertTrustLabels.js` — canonical mapping, `getAlertTrustLabel()`, `getAlertTrustTone()`, `shouldShowMenuMayVary()`, `getEffectiveAlertTitle()`
+- `mobile/components/ConfidenceBadge.js` — uses smartAlertTrustLabels for consistent tier/label
+- `mobile/components/SmartAlertCard.js` — trust badge, softer styling for weak alerts, "Menu may vary"
+- `mobile/components/RecommendationCard.js` — uses `shouldShowMenuMayVary()` for consistency
 
 ## Foreground Handling
 
@@ -99,7 +196,9 @@ The backend can send eligible Smart Food Alerts as real Expo push notifications:
 - `mobile/smartAlertsApi.js` – API client
 - `mobile/smartAlertState.js` – Settings, suppression, dedupe logic
 - `mobile/pushNotifications.js` – Permission, token, registration, listeners
-- `mobile/components/SmartAlertCard.js` – Single alert card UI
+- `mobile/deepLinkRouter.js` – Parse push payload, resolve navigation target for push tap
+- `mobile/components/SmartAlertCard.js` – Single alert card UI (trust badge, hero language)
 - `mobile/components/SmartAlertInbox.js` – List of alerts
+- `mobile/smartAlertTrustLabels.js` – Trust label mapping and helpers
 - `mobile/components/SmartAlertSettings.js` – Settings UI (includes push status)
-- `mobile/App.js` – Entry point, fetch triggers, modals, push lifecycle
+- `mobile/App.js` – Entry point, fetch triggers, modals, push lifecycle, deep-link routing

@@ -12,7 +12,7 @@ import threading
 import queue
 import random
 from collections import deque
-from typing import Any, Dict, Optional, List, Tuple, Union, Literal
+from typing import Any, Callable, Dict, Optional, List, Tuple, Union, Literal
 from zoneinfo import ZoneInfo
 
 import requests
@@ -61,6 +61,18 @@ from recommendation_feedback_store import (
     get_place_item_feedback_signal,
     log_recommendation_feedback_event,
 )
+from user_venue_contributions import create_contribution
+from contribution_review_flow import (
+    list_pending_contributions,
+    get_contribution_review_bundle,
+    approve_contribution,
+    reject_contribution,
+)
+from contribution_auto_promotion import (
+    run_auto_promotion_for_place,
+    run_auto_promotion_all,
+    get_auto_promotion_status,
+)
 from meal_feedback_store import upsert_meal_feedback_event
 from meal_decision_event_store import log_meal_decision_event
 from push_token_store import (
@@ -84,7 +96,15 @@ from expo_push_service import (
     fetch_expo_push_receipts,
     is_device_not_registered,
 )
-from push_rollout import can_send_real_push, get_push_rollout_mode, get_push_test_user_ids
+from push_rollout import (
+    can_send_real_push,
+    get_push_rollout_mode,
+    get_push_test_user_ids,
+    get_user_push_eligibility,
+    get_rollout_status,
+)
+from user_last_location_store import upsert_user_location, get_user_location
+from push_send_flow import send_smart_alert_for_user as _send_smart_alert_for_user
 from personal_response_summary import get_personal_meal_memory
 from nutrition_mode import NutritionMode
 from better_choice_nearby import build_better_choice_nearby_response
@@ -101,11 +121,61 @@ from healthy_places_audit import (
     build_audit_result_row,
     build_filtered_out_entry,
 )
+from place_trace_debug import build_place_trace
+from healthy_nearby_fastpath import shortlist_places
+from local_venue_enrichment import summarize_launch_area_coverage
+from launch_readiness_report import build_launch_readiness_report, build_all_areas_report
+from suburb_remediation import generate_prioritized_remediation
+from post_sync_remediation_report import (
+    run_post_sync_launch_report,
+    run_post_sync_reports_for_priority_areas,
+    build_next_enrichment_targets_from_fetch,
+)
+from apply_enrichment_targets import apply_next_enrichment_targets, apply_enrichment_targets
+from admin_ops_dashboard import (
+    build_ops_dashboard_summary,
+    run_apply_next_targets,
+    run_push_batch_dry_run,
+    run_check_receipts,
+    run_auto_promote,
+)
+from local_launch_enrichment_pack import (
+    list_priority_launch_areas,
+    seed_launch_area_enrichment,
+    seed_all_priority_launch_areas,
+    get_launch_enrichment_status,
+)
+from local_profile_supabase_sync import (
+    sync_launch_pack_profiles_to_supabase,
+    sync_auto_promoted_profiles_to_supabase,
+    sync_all_trusted_local_profiles,
+    get_sync_status,
+)
+from venue_intelligence_cache import get as venue_cache_get, cache_to_menu_payload, has as venue_cache_has
+from background_enrichment_queue import enqueue as enrichment_enqueue, should_enqueue_for_low_specificity
 from recommendation_safety import has_strong_menu_evidence, sanitize_recommended_item
 from restaurant_reality_check import build_restaurant_reality_check
 from share_card_formatter import build_best_order_share_card
 from swap_intelligence import build_swap_suggestions
 from weekly_coach import build_weekly_coach_payload
+from nutrition_resolution_cache import (
+    normalize_food_lookup_key,
+    get_cached_nutrition_resolution,
+    set_cached_nutrition_resolution,
+    resolve_nutrition_with_cache,
+)
+from scan_performance_analytics import (
+    record_scan_performance_event,
+    build_scan_performance_summary,
+    list_recent_events,
+)
+from vision_result_cache import (
+    compute_image_fingerprint,
+    get_cached_vision_result,
+    set_cached_vision_result,
+    should_reuse_cached_vision_result,
+    vision_cache_skipped_reason as _vision_cache_skipped_reason,
+)
 from personalization_profiles import (
     get_personalized_reason,
     normalize_personalization_goal,
@@ -433,6 +503,19 @@ def root():
 @app.get("/health")
 def health():
     return {"status": "ok", "version": "railway-v1"}
+
+
+@app.get("/scan-performance/summary")
+def scan_performance_summary(window_days: Optional[int] = 7):
+    """Returns median/p90 time-to-first-result, time-to-final-result, and latency breakdown."""
+    return build_scan_performance_summary(window_days=window_days or 7)
+
+
+@app.get("/scan-performance/recent")
+def scan_performance_recent(limit: Optional[int] = 50):
+    """Returns recent scan performance events (newest first)."""
+    return {"events": list_recent_events(limit=limit or 50)}
+
 
 @app.options("/analyze")
 def analyze_options():
@@ -868,6 +951,11 @@ class SwapItemEdit(BaseModel):
     new_name: str
 
 
+class SetItemGramsEdit(BaseModel):
+    item_id: str
+    grams: float
+
+
 class PortionMultiplierEdit(BaseModel):
     item_id: str = ""
     multiplier: float
@@ -878,6 +966,7 @@ class AnalyzeRerunEditsModel(BaseModel):
     set_cooking_method: Optional[SetCookingMethodEdit] = None
     set_oil_added_tsp: Optional[SetOilAddedEdit] = None
     swap_item: Optional[SwapItemEdit] = None
+    set_item_grams: Optional[SetItemGramsEdit] = None
     clarifying_answer: Optional[str] = None
 
 
@@ -1832,6 +1921,7 @@ def _patch_analysis_job(job_id: str, patch: Dict[str, Any]) -> Dict[str, Any]:
             "error": str(updated.get("error") or "").strip() or None,
             "input_path": str(updated.get("input_path") or "").strip() or None,
             "request_id": str(updated.get("request_id") or "").strip() or None,
+            "stage": str(updated.get("stage") or "").strip() or None,
         }
         _sb_patch_with_column_fallback(TBL_ANALYSIS_JOBS, {"id": f"eq.{rid}"}, patch_payload)
     except Exception as e:
@@ -1927,6 +2017,18 @@ def _process_analysis_job(job: Dict[str, Any]) -> None:
             raise HTTPException(status_code=404, detail={"error": "input_not_found", "message": "Job input image not found."})
         with open(input_path, "rb") as f:
             contents = f.read()
+
+        def _on_fast_result(partial: Dict[str, Any]) -> None:
+            _patch_analysis_job(
+                job_id,
+                {
+                    "result_json": partial,
+                    "stage": "enriching",
+                    "updated_at": _now_utc_naive().isoformat(),
+                },
+            )
+            logger.info("analysis_job fast_result written job_id=%s", job_id)
+
         result = _run_analyze_pipeline(
             user_id=user_id,
             image_bytes=contents,
@@ -1935,6 +2037,7 @@ def _process_analysis_job(job: Dict[str, Any]) -> None:
             debug=False,
             request_id=request_id,
             job_id=job_id,
+            on_fast_result=_on_fast_result,
         )
         _patch_analysis_job(
             job_id,
@@ -1951,6 +2054,33 @@ def _process_analysis_job(job: Dict[str, Any]) -> None:
             request_id,
             int(max(0, round((time.time() - started) * 1000))),
         )
+        try:
+            lb = result.get("latency_breakdown_ms") or {}
+            record_scan_performance_event({
+                "request_id": request_id,
+                "analysis_id": str(result.get("analysis_id") or result.get("scan_id") or ""),
+                "user_id": user_id,
+                "job_id": job_id,
+                "time_to_first_result_ms": int(result.get("time_to_first_result_ms") or 0),
+                "time_to_final_result_ms": int(result.get("latency_ms") or result.get("time_to_final_result_ms") or 0),
+                "resize_ms": int(lb.get("resize_ms") or 0),
+                "priors_ms": int(lb.get("priors_ms") or 0),
+                "vision_ms": int(lb.get("vision_ms") or 0),
+                "nutrition_ms": int(lb.get("nutrition_ms") or 0),
+                "meal_qa_ms": int(lb.get("meal_qa_ms") or 0),
+                "enrichment_ms": int(lb.get("enrichment_ms") or 0),
+                "nutrition_cache_hit_count": int(result.get("nutrition_cache_hit_count") or 0),
+                "nutrition_cache_miss_count": int(result.get("nutrition_cache_miss_count") or 0),
+                "vision_cache_reuse_used": bool(result.get("vision_cache_reuse_used")),
+                "vision_cache_skipped_reason": str(result.get("vision_cache_skipped_reason") or ""),
+                "vision_cache_hit_count": int(result.get("vision_cache_hit_count") or 0),
+                "vision_cache_miss_count": int(result.get("vision_cache_miss_count") or 0),
+                "image_was_resized": bool(result.get("image_was_resized")),
+                "image_bytes_before": int(result.get("image_bytes_before") or 0),
+                "image_bytes_after": int(result.get("image_bytes_after") or 0),
+            })
+        except Exception:
+            pass
     except Exception as e:
         err_text = _job_error_text(e)
         logger.error("analysis_job failed job_id=%s user=%s request_id=%s err=%s", job_id, user_id, request_id, err_text)
@@ -10596,29 +10726,15 @@ def coach_daily(
         )
         return _attach_debug_schema(out, bool(debug))
 
+    # IMPORTANT: do not block core experience on LLM.
+    # Daily coach always returns deterministic rules immediately.
+    # (LLM can be layered later via cached_llm or explicit operator tooling.)
     llm_resp: Optional[Dict[str, Any]] = None
     reasoning_source = "rules"
-    llm_reason_code = ""
+    llm_reason_code = "RULES_FAST_PATH"
     llm_model_used = ""
     llm_tried_models: List[str] = []
     llm_error_raw = ""
-    if GEMINI_API_KEY:
-        try:
-            llm_resp = _generate_daily_coach_llm(
-                norm,
-                fat_loss_score,
-                rule_alerts,
-                weekly_behavior=weekly_behavior,
-                weekly_predictive=weekly_predictive,
-                fast_mode=bool(fast),
-                tone_preference=tone_pref,
-            )
-            reasoning_source = "llm"
-            llm_reason_code = ""
-            llm_model_used = str((llm_resp or {}).get("_llm_model_used") or "").strip()
-        except Exception as e:
-            llm_reason_code, llm_tried_models, llm_error_raw = _extract_llm_failure_debug(e)
-            logger.warning(f"Daily coach LLM failed, using fallback: {e}")
 
     if not llm_resp:
         cached_llm = _best_cached_coach_llm(uid, day_iso)
@@ -11460,7 +11576,37 @@ Rules:
     }
 
 
-def _compute_scan_nutrition(detected_items: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], Dict[str, float], Dict[str, float], List[Dict[str, Any]]]:
+def _resolve_nutrition_usda(name: str) -> Dict[str, Any]:
+    """Resolve nutrition via USDA API. Raises if no usable match. Used as resolver for cache."""
+    candidates = usda_search_candidates(name)
+    last_item_err = None
+    for cand in (candidates or [])[:6]:
+        try:
+            fdc_id = int(cand["fdcId"])
+            details = usda_food_details(fdc_id)
+            macros100 = extract_macros_per_100g(details)
+            micros100 = extract_micros_per_100g(details)
+            return {
+                "macros100": macros100,
+                "micros100": micros100,
+                "fdc_id": fdc_id,
+                "description": (details or {}).get("description"),
+                "dataType": (details or {}).get("dataType"),
+                "source": "usda",
+                "resolved_name": (details or {}).get("description", name),
+            }
+        except Exception as e:
+            last_item_err = str(getattr(e, "detail", e))
+            continue
+    raise HTTPException(
+        status_code=502,
+        detail={"error": "nutrition_lookup_failed", "message": (last_item_err or "No usable USDA match")[:220]},
+    )
+
+
+def _compute_scan_nutrition(detected_items: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], Dict[str, float], Dict[str, float], List[Dict[str, Any]], Dict[str, int]]:
+    cache_hit_count = 0
+    cache_miss_count = 0
     results: List[Dict[str, Any]] = []
     total_kcal = 0.0
     total_p = total_c = total_f = 0.0
@@ -11494,25 +11640,71 @@ def _compute_scan_nutrition(detected_items: List[Dict[str, Any]]) -> Tuple[List[
             str(x).strip() for x in ((d or {}).get("candidate_alternatives") or []) if str(x).strip()
         ][:4]
 
-        candidates = usda_search_candidates(name)
         details = None
         macros100 = None
         micros100 = None
         fdc_id = None
         last_item_err = None
-        for cand in candidates[:6]:
+        powder_meta: Optional[Dict[str, Any]] = None
+
+        # Deterministic powder/supplement override (avoid wrong USDA matches).
+        try:
+            from scan_food_rules import detect_powder_like, parse_powder_sentinel, resolve_powder_nutrition
+
+            is_powder, powder_guess, needs_confirm = detect_powder_like(name, candidate_alternatives)
+            sentinel_type = parse_powder_sentinel(name)
+            resolved_type = sentinel_type or powder_guess
+            if is_powder and resolved_type:
+                resolved = resolve_powder_nutrition(powder_type=resolved_type, grams=grams)
+                if resolved.get("macros100"):
+                    macros100 = resolved.get("macros100")
+                    micros100 = resolved.get("micros100") or {}
+                    details = {"description": resolved.get("description"), "dataType": resolved.get("dataType")}
+                    powder_meta = {
+                        "is_powder_like": True,
+                        "powder_type_guess": powder_guess,
+                        "powder_type_resolved": resolved_type,
+                        "needs_powder_confirmation": bool(needs_confirm and not sentinel_type),
+                        "powder_confirmation": resolved.get("powder_confirmation"),
+                        "nutrition_source": "supplement_table",
+                    }
+        except Exception:
+            powder_meta = None
+        try:
+            if macros100 is None:
+                resolved = resolve_nutrition_with_cache({"name": name}, _resolve_nutrition_usda)
+            if resolved.get("macros100"):
+                macros100 = resolved["macros100"]
+                micros100 = resolved.get("micros100")
+                fdc_id = resolved.get("fdc_id")
+                details = {"description": resolved.get("description"), "dataType": resolved.get("dataType")}
+                if resolved.get("_cache_hit"):
+                    cache_hit_count += 1
+                else:
+                    cache_miss_count += 1
+        except Exception as e:
+            last_item_err = str(getattr(e, "detail", str(e)))[:220]
+
+        if not details and not macros100:
             try:
-                fdc_id = int(cand["fdcId"])
-                maybe_details = usda_food_details(fdc_id)
-                maybe_macros = extract_macros_per_100g(maybe_details)
-                maybe_micros = extract_micros_per_100g(maybe_details)
-                details = maybe_details
-                macros100 = maybe_macros
-                micros100 = maybe_micros
-                break
+                candidates = usda_search_candidates(name)
             except Exception as e:
-                last_item_err = str(getattr(e, "detail", e))
-                continue
+                last_item_err = str(getattr(e, "detail", str(e)))[:220]
+                candidates = []
+            for cand in (candidates or [])[:6]:
+                try:
+                    fdc_id = int(cand["fdcId"])
+                    maybe_details = usda_food_details(fdc_id)
+                    maybe_macros = extract_macros_per_100g(maybe_details)
+                    maybe_micros = extract_micros_per_100g(maybe_details)
+                    details = maybe_details
+                    macros100 = maybe_macros
+                    micros100 = maybe_micros
+                    cache_miss_count += 1
+                    break
+                except Exception as e:
+                    last_item_err = str(getattr(e, "detail", e))
+                    continue
 
         if not details or not macros100:
             item_warnings.append(
@@ -11537,6 +11729,7 @@ def _compute_scan_nutrition(detected_items: List[Dict[str, Any]]) -> Tuple[List[
                     "micros": {},
                     "micros_units": None,
                     "unverified": True,
+                    "_powder_meta": powder_meta,
                 }
             )
             continue
@@ -11580,6 +11773,7 @@ def _compute_scan_nutrition(detected_items: List[Dict[str, Any]]) -> Tuple[List[
                     "description": (details or {}).get("description"),
                     "dataType": (details or {}).get("dataType"),
                 },
+                "_powder_meta": powder_meta,
             }
         )
 
@@ -11597,7 +11791,8 @@ def _compute_scan_nutrition(detected_items: List[Dict[str, Any]]) -> Tuple[List[
         "carbs_g": round(total_c, 1),
         "fat_g": round(total_f, 1),
     }
-    return results, totals, total_micros, item_warnings
+    cache_stats = {"hit_count": cache_hit_count, "miss_count": cache_miss_count}
+    return results, totals, total_micros, item_warnings, cache_stats
 
 
 def _build_micros_payload(total_micros: Dict[str, float]) -> Dict[str, Any]:
@@ -12657,6 +12852,7 @@ async def healthy_places(
     local_hour: Optional[int] = None,
     poor_sleep_flag: bool = False,
     high_craving_risk_flag: bool = False,
+    diet_preference: str = "",
 ):
     sort_mode_val = (sort_mode or "").strip().lower()
     if sort_mode_val not in HEALTHY_PLACES_SORT_MODES:
@@ -12671,34 +12867,71 @@ async def healthy_places(
         )
     healthy_sort_mode = sort_mode_val
 
+    uid_for_location = (user_id or "").strip()
+    if uid_for_location and math.isfinite(lat) and math.isfinite(lng):
+        try:
+            upsert_user_location(uid_for_location, lat, lng)
+        except Exception:
+            pass
+
+    t_start = time.perf_counter()
     places, fetch_error_reason, raw_places_count = await fetch_google_places(lat, lng, radius=radius)
+    t_fetch_ms = round((time.perf_counter() - t_start) * 1000, 1)
+
+    use_fast_path = str(os.getenv("USE_FAST_PATH", "1")).strip().lower() in ("1", "true", "yes")
+    shortlist_size = max(8, min(15, int(os.getenv("HEALTHY_SHORTLIST_SIZE", "10") or 10)))
+    places_to_rank = list(places)
+    shortlist_debug = {"fetched_count": len(places), "shortlisted_count": len(places), "skipped_count": 0}
+    if use_fast_path and len(places) > shortlist_size:
+        shortlisted, skipped, shortlist_debug = shortlist_places(
+            places,
+            shortlist_size=shortlist_size,
+            origin_lat=float(lat),
+            origin_lng=float(lng),
+            cache_has=venue_cache_has,
+        )
+        places_to_rank = shortlisted
+    t_shortlist_ms = round((time.perf_counter() - t_start) * 1000 - t_fetch_ms, 1)
+
     nutrition_mode = NutritionMode.CUT if bool(cut_mode) else NutritionMode.DEFAULT
     personalization_goal = normalize_personalization_goal(goal)
     personalization_goal_value_str = personalization_goal_value(personalization_goal)
+    from diet_filters import normalize_diet_preference
+    diet_preference_val = normalize_diet_preference(diet_preference) if str(diet_preference or "").strip() else "omnivore"
     scored: List[Dict[str, Any]] = []
-    for p in places:
-        try:
-            menu_recommendations = recommend_menu_items_for_place(
-                p,
-                mode=nutrition_mode,
-                personalization_goal=personalization_goal,
-                use_llm_place_context=False,
-            )
-        except Exception:
-            menu_recommendations = {
-                "menu_item_scoring_available": False,
-                "menu_items_source": "heuristic",
-                "menu_source": "heuristic",
-                "menu_confidence": 0.0,
-                "extraction_method": "",
-                "parse_method": "",
-                "source_url": "",
-                "top_menu_items": [],
-                "best_menu_items": [],
-                "top_menu_item": None,
-                "top_item": "",
-                "cut_mode_active": bool(cut_mode),
-            }
+    t_rank_start = time.perf_counter()
+    for p in places_to_rank:
+        place_id = str(p.get("place_id") or p.get("id") or "").strip()
+        cached = venue_cache_get(place_id) if place_id else None
+        if cached:
+            try:
+                menu_recommendations = cache_to_menu_payload(cached, p)
+            except Exception:
+                cached = None
+        if not cached:
+            try:
+                menu_recommendations = recommend_menu_items_for_place(
+                    p,
+                    mode=nutrition_mode,
+                    personalization_goal=personalization_goal,
+                    use_llm_place_context=False,
+                    diet_preference=diet_preference_val,
+                )
+            except Exception:
+                menu_recommendations = {
+                    "menu_item_scoring_available": False,
+                    "menu_items_source": "heuristic",
+                    "menu_source": "heuristic",
+                    "menu_confidence": 0.0,
+                    "extraction_method": "",
+                    "parse_method": "",
+                    "source_url": "",
+                    "top_menu_items": [],
+                    "best_menu_items": [],
+                    "top_menu_item": None,
+                    "top_item": "",
+                    "cut_mode_active": bool(cut_mode),
+                }
 
         try:
             scoring = score_healthy_place(
@@ -12732,6 +12965,7 @@ async def healthy_places(
                 mode=nutrition_mode,
                 use_llm_copy=False,
                 allow_llm_macro=False,
+                diet_preference=diet_preference_val,
             )
         except Exception:
             order_suggestion = {}
@@ -12965,6 +13199,7 @@ async def healthy_places(
                     health_score=float(personalized_health_score),
                     mode=nutrition_mode,
                     personalization_goal=personalization_goal,
+                    diet_preference=diet_preference_val,
                 )
                 personalized_best_order = str(
                     personalized_order.get("personalized_best_order")
@@ -13014,6 +13249,9 @@ async def healthy_places(
             "calorie_fit_score_100": decision_today.get("calorie_fit_score_100"),
             "protein_fit_score_100": decision_today.get("protein_fit_score_100"),
             "overshoot_penalty_100": decision_today.get("overshoot_penalty_100"),
+            "chain_key": menu_recommendations.get("chain_key"),
+            "chain_id": menu_recommendations.get("chain_id"),
+            "chain_name": menu_recommendations.get("chain_name"),
         }
         context_info_raw = {
             "remaining_calories": remaining_calories,
@@ -13032,6 +13270,7 @@ async def healthy_places(
             "cut_mode": bool(cut_mode),
             "goal": personalization_goal_value_str,
             "context_info": context_info,
+            "diet_preference": diet_preference_val,
         }
         mem_dict = None
         if str(user_id or "").strip():
@@ -13099,6 +13338,7 @@ async def healthy_places(
 
         scored.append(
             {
+                "place_id": str(p.get("place_id") or p.get("id") or ""),
                 "name": p.get("name"),
                 "lat": p.get("lat"),
                 "lng": p.get("lng"),
@@ -13184,7 +13424,11 @@ async def healthy_places(
                 "top_menu_items": menu_recommendations.get("top_menu_items") if isinstance(menu_recommendations.get("top_menu_items"), list) else [],
                 "best_menu_items": menu_recommendations.get("best_menu_items") if isinstance(menu_recommendations.get("best_menu_items"), list) else [],
                 "top_menu_item": menu_recommendations.get("top_menu_item") if isinstance(menu_recommendations.get("top_menu_item"), dict) else None,
+                "chain_key": menu_recommendations.get("chain_key"),
+                "chain_id": menu_recommendations.get("chain_id"),
                 "top_item": str(menu_recommendations.get("top_item") or ""),
+                "diet_preference": diet_preference_val,
+                "_diet_excluded_candidate_count": p.get("_diet_excluded_candidate_count"),
                 # Optional daily fit decision layer (Can I Eat Here Today).
                 "decision_today": decision_today.get("decision_today"),
                 "decision_reason": str(decision_today.get("decision_reason") or ""),
@@ -13243,6 +13487,9 @@ async def healthy_places(
                     }
                 )
 
+    t_rank_ms = round((time.perf_counter() - t_rank_start) * 1000, 1)
+    t_total_ms = round((time.perf_counter() - t_start) * 1000, 1)
+
     # Add map-friendly metadata; sort by client-requested sort_mode (flat_score = display_rank_score_100 desc, distance; sectioned = sections then score).
     scored = enrich_places_for_healthy_map(
         scored,
@@ -13255,6 +13502,20 @@ async def healthy_places(
         sort_mode=healthy_sort_mode,
     )
     sections_payload = build_sections(scored) if healthy_sort_mode == "sectioned" else None
+
+    # Enqueue visible places with low specificity for background enrichment
+    for p in scored[:10]:
+        if should_enqueue_for_low_specificity(p):
+            try:
+                enrichment_enqueue(
+                    str(p.get("place_id") or p.get("id") or ""),
+                    place_name=str(p.get("name") or ""),
+                    place_types=p.get("types") if isinstance(p.get("types"), list) else None,
+                    chain_match_key=p.get("chain_key") or p.get("chain_id"),
+                    reason_enqueued="candidate_low_specificity",
+                )
+            except Exception:
+                pass
 
     radius_used = int(max(200, min(50000, int(_safe_float(radius, 3000) or 3000))))
     response = {
@@ -13283,11 +13544,329 @@ async def healthy_places(
             "scored_count": len(scored),
             "empty_state_reason": response.get("_no_results_reason") or ("ok" if scored else "no_places_returned_by_api"),
         }
+        if debug:
+            response["_debug"]["timings_ms"] = {
+                "nearby_fetch_ms": t_fetch_ms,
+                "shortlist_ms": t_shortlist_ms,
+                "ranking_ms": t_rank_ms,
+                "total_ms": t_total_ms,
+            }
+            response["_debug"]["fetched_count"] = len(places)
+            response["_debug"]["shortlisted_count"] = shortlist_debug.get("shortlisted_count", len(places_to_rank))
+            response["_debug"]["deeply_ranked_count"] = len(scored)
+            if shortlist_debug:
+                response["_debug"]["shortlist_debug"] = shortlist_debug
     if scored and isinstance(scored[0].get("share_card"), dict):
         response["top_share_card"] = scored[0]["share_card"]
     if scored and isinstance(scored[0].get("reality_check_share_card"), dict):
         response["top_reality_check_share_card"] = scored[0]["reality_check_share_card"]
     return response
+
+
+@app.get("/launch-readiness/report")
+async def launch_readiness_report(area_key: str = "", include_examples: bool = True):
+    """
+    Launch readiness report for a suburb. Measures concrete value beyond Google Places.
+    GET /launch-readiness/report?area_key=parramatta
+    GET /launch-readiness/report?area_key=parramatta&include_examples=false
+    """
+    key = area_key.strip() or "parramatta"
+
+    async def fetcher(lat: float, lng: float):
+        return await healthy_places(
+            lat=lat, lng=lng, radius=3000, cut_mode=True,
+            sort_mode="flat_score", debug=True,
+        )
+
+    return await build_launch_readiness_report(
+        key, fetch_fn=fetcher, include_examples=include_examples,
+    )
+
+
+@app.get("/launch-readiness/report/all")
+async def launch_readiness_report_all(include_examples: bool = False, samples_per_area: int = 1):
+    """Summaries for all configured launch areas. samples_per_area=1 for faster run."""
+    async def fetcher(lat: float, lng: float):
+        return await healthy_places(
+            lat=lat, lng=lng, radius=3000, cut_mode=True,
+            sort_mode="flat_score", debug=True,
+        )
+
+    return await build_all_areas_report(
+        fetch_fn=fetcher, include_examples=include_examples, samples_per_area=samples_per_area,
+    )
+
+
+@app.get("/launch-readiness/remediation")
+async def launch_readiness_remediation(top_n_suburbs: int = 2, samples_per_area: int = 2):
+    """
+    Prioritized remediation for top N worst suburbs. Surfaces missing chains,
+    generic fallback venues, cuisines needing enrichment, duplicate clusters.
+    GET /launch-readiness/remediation?top_n_suburbs=2&samples_per_area=2
+    """
+    async def fetcher(lat: float, lng: float):
+        return await healthy_places(
+            lat=lat, lng=lng, radius=3000, cut_mode=True,
+            sort_mode="flat_score", debug=True,
+        )
+    return await generate_prioritized_remediation(
+        fetch_fn=fetcher,
+        top_n_suburbs=max(1, min(5, top_n_suburbs)),
+        samples_per_area=max(1, min(5, samples_per_area)),
+    )
+
+
+@app.get("/launch-readiness/post-sync-report")
+async def launch_readiness_post_sync_report(area_key: str = ""):
+    """
+    Post-sync launch readiness report for one area. Includes canonical sync metrics.
+    GET /launch-readiness/post-sync-report?area_key=parramatta
+    """
+    key = area_key.strip() or "parramatta"
+
+    async def fetcher(lat: float, lng: float):
+        return await healthy_places(
+            lat=lat, lng=lng, radius=3000, cut_mode=True,
+            sort_mode="flat_score", debug=True,
+        )
+    return await run_post_sync_launch_report(key, fetch_fn=fetcher, include_examples=True)
+
+
+@app.get("/launch-readiness/post-sync-report/all")
+async def launch_readiness_post_sync_report_all(limit_areas: int = 5):
+    """
+    Post-sync reports for priority launch areas. Includes canonical metrics.
+    GET /launch-readiness/post-sync-report/all?limit_areas=5
+    """
+    async def fetcher(lat: float, lng: float):
+        return await healthy_places(
+            lat=lat, lng=lng, radius=3000, cut_mode=True,
+            sort_mode="flat_score", debug=True,
+        )
+    return await run_post_sync_reports_for_priority_areas(
+        fetch_fn=fetcher,
+        limit_areas=max(1, min(10, limit_areas)),
+        include_examples=True,
+    )
+
+
+@app.get("/launch-readiness/next-enrichment-targets")
+async def launch_readiness_next_enrichment_targets(limit: int = 20, limit_areas: int = 5):
+    """
+    Prioritized next-enrichment targets for action planning.
+    GET /launch-readiness/next-enrichment-targets?limit=20&limit_areas=5
+    """
+    async def fetcher(lat: float, lng: float):
+        return await healthy_places(
+            lat=lat, lng=lng, radius=3000, cut_mode=True,
+            sort_mode="flat_score", debug=True,
+        )
+    return await build_next_enrichment_targets_from_fetch(
+        fetch_fn=fetcher,
+        limit_total=max(1, min(50, limit)),
+        limit_areas=max(1, min(10, limit_areas)),
+    )
+
+
+@app.post("/launch-readiness/apply-next-enrichment-targets")
+async def launch_readiness_apply_next_enrichment_targets(payload: Dict[str, Any] = Body(default=None)):
+    """
+    Bulk apply next-enrichment targets. Fetches targets then applies to canonical store.
+    Body: { "limit": 20, "area_keys": ["wentworthville", "parramatta"] } (optional)
+    POST /launch-readiness/apply-next-enrichment-targets
+    """
+    body = payload or {}
+    limit = max(1, min(50, int(body.get("limit") or 20)))
+    area_keys = body.get("area_keys")
+    if isinstance(area_keys, list):
+        area_keys = [str(a).strip().lower() for a in area_keys if a]
+    else:
+        area_keys = None
+
+    async def fetcher(lat: float, lng: float):
+        return await healthy_places(
+            lat=lat, lng=lng, radius=3000, cut_mode=True,
+            sort_mode="flat_score", debug=True,
+        )
+    return await apply_next_enrichment_targets(
+        limit=limit,
+        area_keys=area_keys,
+        fetch_fn=fetcher,
+    )
+
+
+@app.post("/launch-readiness/apply-enrichment-targets")
+async def launch_readiness_apply_enrichment_targets(payload: Dict[str, Any] = Body(default=None)):
+    """
+    Bulk apply an explicit list of enrichment targets (from next-enrichment-targets output).
+    Body: { "targets": [ { area_key, place_name, recommended_enrichment_action, ... } ], "limit": 20 } (optional)
+    POST /launch-readiness/apply-enrichment-targets
+    """
+    body = payload or {}
+    targets = body.get("targets")
+    if not isinstance(targets, list):
+        return {
+            "targets_considered": 0,
+            "targets_applied": 0,
+            "targets_skipped": 0,
+            "applied_by_action": {},
+            "skipped_by_reason": {},
+            "sample_results": [],
+            "error": "body.targets must be a list",
+        }
+    limit = body.get("limit")
+    if limit is not None:
+        limit = max(1, min(50, int(limit)))
+    from apply_enrichment_targets import apply_enrichment_targets
+    return apply_enrichment_targets(targets, limit=limit)
+
+
+@app.get("/admin/ops-dashboard")
+async def admin_ops_dashboard(
+    limit_targets: int = 20,
+    limit_areas: int = 5,
+    scan_window_days: int = 7,
+):
+    """
+    Compact internal ops dashboard summary.
+    GET /admin/ops-dashboard?limit_targets=20&limit_areas=5&scan_window_days=7
+    """
+    async def fetcher(lat: float, lng: float):
+        return await healthy_places(
+            lat=lat, lng=lng, radius=3000, cut_mode=True,
+            sort_mode="flat_score", debug=True,
+        )
+    return await build_ops_dashboard_summary(
+        limit_targets=max(1, min(50, int(limit_targets))),
+        limit_areas=max(1, min(10, int(limit_areas))),
+        scan_window_days=max(1, min(30, int(scan_window_days))),
+        fetch_fn=fetcher,
+    )
+
+
+@app.post("/admin/ops-dashboard/apply-next-targets")
+async def admin_ops_dashboard_apply_next_targets(payload: Dict[str, Any] = Body(default=None)):
+    """
+    Explicit internal operator action: bulk apply next targets into canonical store.
+    Body: { "limit": 20, "area_keys": ["wentworthville", "parramatta"] }
+    """
+    p = payload if isinstance(payload, dict) else {}
+    limit = max(1, min(50, int(p.get("limit") or 20)))
+    area_keys = p.get("area_keys")
+    if isinstance(area_keys, list):
+        area_keys = [str(a).strip().lower() for a in area_keys if a]
+    else:
+        area_keys = None
+
+    async def fetcher(lat: float, lng: float):
+        return await healthy_places(
+            lat=lat, lng=lng, radius=3000, cut_mode=True,
+            sort_mode="flat_score", debug=True,
+        )
+    return await run_apply_next_targets(limit=limit, area_keys=area_keys, fetch_fn=fetcher)
+
+
+@app.post("/admin/ops-dashboard/run-batch-dry-run")
+async def admin_ops_dashboard_run_batch_dry_run(payload: Dict[str, Any] = Body(default=None)):
+    """
+    Explicit internal operator action: run batch push dry-run.
+    Body: { "limit_users": 100 }
+    """
+    p = payload if isinstance(payload, dict) else {}
+    limit_users = max(1, min(2000, int(p.get("limit_users") or 100)))
+    return await run_push_batch_dry_run(limit_users=limit_users)
+
+
+@app.post("/admin/ops-dashboard/check-receipts")
+async def admin_ops_dashboard_check_receipts(payload: Dict[str, Any] = Body(default=None)):
+    """
+    Explicit internal operator action: check pending receipts (safe maintenance).
+    Body: { "limit": 100 }
+    """
+    p = payload if isinstance(payload, dict) else {}
+    limit = max(1, min(500, int(p.get("limit") or 100)))
+    return await run_check_receipts(limit=limit)
+
+
+@app.post("/admin/ops-dashboard/run-auto-promote")
+async def admin_ops_dashboard_run_auto_promote(payload: Dict[str, Any] = Body(default=None)):
+    """
+    Explicit internal operator action: run contribution auto-promotion (evidence-based).
+    Body: { "limit": 100, "area_key": "parramatta" }
+    """
+    p = payload if isinstance(payload, dict) else {}
+    limit = max(1, min(500, int(p.get("limit") or 100)))
+    area_key = str(p.get("area_key") or "").strip() or None
+    return run_auto_promote(limit=limit, area_key=area_key)
+
+
+@app.get("/launch-areas/coverage")
+def launch_areas_coverage(area_key: str = ""):
+    """
+    Launch area coverage summary. Helps track launch readiness.
+    GET /launch-areas/coverage
+    GET /launch-areas/coverage?area_key=wentworthville
+    """
+    summary = summarize_launch_area_coverage(area_key.strip() or None)
+    return summary
+
+
+@app.post("/launch-enrichment/seed")
+def launch_enrichment_seed(payload: Optional[Dict[str, Any]] = Body(default=None)):
+    """
+    Seed local venue profiles from the launch enrichment pack.
+    Body: { area_key?, limit_areas?, limit_per_area? }
+    If area_key provided, seeds that area only. Else seeds all priority areas.
+    Admin/debug utility.
+    """
+    p = payload if isinstance(payload, dict) else {}
+    area_key = str(p.get("area_key") or "").strip() or None
+    limit_areas = max(1, min(10, int(p.get("limit_areas") or 5)))
+    limit_per_area = max(1, min(50, int(p.get("limit_per_area") or 20)))
+    if area_key:
+        return seed_launch_area_enrichment(area_key, limit=limit_per_area)
+    return seed_all_priority_launch_areas(limit_areas=limit_areas, limit_per_area=limit_per_area)
+
+
+@app.get("/launch-enrichment/status")
+def launch_enrichment_status(area_key: Optional[str] = None):
+    """
+    Status of launch enrichment pack: pack definitions vs profiles in store.
+    GET /launch-enrichment/status
+    GET /launch-enrichment/status?area_key=parramatta
+    """
+    return get_launch_enrichment_status(area_key=area_key or None)
+
+
+@app.post("/local-profiles/sync/supabase")
+def local_profiles_sync_supabase(payload: Optional[Dict[str, Any]] = Body(default=None)):
+    """
+    Sync trusted local profiles to Supabase canonical store.
+    Body: { sync_launch_pack?, sync_auto_promoted?, area_key?, limit? }
+    Admin/debug utility. Idempotent.
+    """
+    p = payload if isinstance(payload, dict) else {}
+    sync_launch = bool(p.get("sync_launch_pack", True))
+    sync_auto = bool(p.get("sync_auto_promoted", True))
+    area_key = str(p.get("area_key") or "").strip() or None
+    limit = max(1, min(500, int(p.get("limit") or 100)))
+    if sync_launch and sync_auto:
+        return sync_all_trusted_local_profiles(limit=limit)
+    if sync_launch:
+        return {"launch_pack": sync_launch_pack_profiles_to_supabase(area_key=area_key, limit=limit)}
+    if sync_auto:
+        return {"auto_promoted": sync_auto_promoted_profiles_to_supabase(area_key=area_key, limit=limit)}
+    return {"synced": 0, "message": "No sync type selected"}
+
+
+@app.get("/local-profiles/sync/status")
+def local_profiles_sync_status(area_key: Optional[str] = None):
+    """
+    Status of canonical Supabase store vs local sources.
+    GET /local-profiles/sync/status
+    GET /local-profiles/sync/status?area_key=parramatta
+    """
+    return get_sync_status(area_key=area_key or None)
 
 
 @app.get("/places/healthy/audit")
@@ -13310,6 +13889,7 @@ async def healthy_places_audit(
     local_hour: Optional[int] = None,
     poor_sleep_flag: bool = False,
     high_craving_risk_flag: bool = False,
+    diet_preference: str = "",
 ):
     """
     Developer-only audit: inspect why each place ranked where it did.
@@ -13337,6 +13917,7 @@ async def healthy_places_audit(
         local_hour=local_hour,
         poor_sleep_flag=poor_sleep_flag,
         high_craving_risk_flag=high_craving_risk_flag,
+        diet_preference=diet_preference,
     )
     items = payload.get("items") or payload.get("places") or []
     if not isinstance(items, list):
@@ -13423,6 +14004,129 @@ async def healthy_places_audit(
     return out
 
 
+@app.get("/places/healthy/trace")
+async def healthy_places_trace(
+    lat: float,
+    lng: float,
+    radius: int = 3000,
+    goal: str = "",
+    remaining_calories: Optional[float] = None,
+    remaining_protein_g: Optional[float] = None,
+    user_id: str = "",
+    sort_mode: str = "flat_score",
+    query_place_name: str = "",
+    query_place_id: str = "",
+    include_all_places: bool = False,
+    top_n_visible: int = 20,
+):
+    """
+    Debug tool: explain why a place (e.g. Subway) did or did not appear.
+    Runs same pipeline as /places/healthy. Builds traces for matching places or all.
+    """
+    cut_mode = (goal or "").strip().lower() in ("cut", "fat_loss")
+    payload = await healthy_places(
+        lat=lat,
+        lng=lng,
+        radius=radius,
+        cut_mode=cut_mode,
+        goal=goal,
+        remaining_calories=remaining_calories,
+        remaining_protein_g=remaining_protein_g,
+        sort_mode=sort_mode,
+        user_id=user_id,
+        debug=True,
+    )
+    items = payload.get("items") or payload.get("places") or []
+    if not isinstance(items, list):
+        items = []
+
+    user_context = {
+        "remaining_calories": remaining_calories,
+        "remaining_protein_g": remaining_protein_g,
+        "cut_mode": cut_mode,
+        "goal": goal,
+    }
+
+    query_name = (query_place_name or "").strip().lower()
+    query_id = (query_place_id or "").strip()
+
+    if include_all_places:
+        places_to_trace = items
+    elif query_name or query_id:
+        places_to_trace = []
+        for p in items:
+            name = str(p.get("name") or p.get("place_name") or "").strip().lower()
+            pid = str(p.get("place_id") or p.get("id") or "").strip()
+            if query_name and query_name in name:
+                places_to_trace.append(p)
+            elif query_id and pid == query_id:
+                places_to_trace.append(p)
+    else:
+        places_to_trace = items[:5]
+
+    place_to_rank = {}
+    for i, p in enumerate(items):
+        pid = str(p.get("place_id") or p.get("id") or "").strip()
+        if pid:
+            place_to_rank[pid] = i + 1
+    traces = []
+    for place in places_to_trace:
+        pid = str(place.get("place_id") or place.get("id") or "").strip()
+        rank = place_to_rank.get(pid)
+        visible_places = items[: max(1, top_n_visible)]
+        trace = build_place_trace(
+            place,
+            user_context=user_context,
+            visible_rank=rank,
+            visible_places=visible_places,
+        )
+        trace["visible_rank"] = rank
+        trace["fetched_but_hidden"] = rank is None or rank > top_n_visible
+        if trace["fetched_but_hidden"] and not trace.get("hidden_reason"):
+            trace["hidden_reason"] = "top_n_cutoff" if rank and rank > top_n_visible else "low_score"
+        traces.append(trace)
+
+    fetched_but_hidden = [t for t in traces if t.get("fetched_but_hidden")]
+    top_visible = items[: max(1, min(12, top_n_visible))]
+
+    out = {
+        "ok": True,
+        "query": {
+            "lat": lat,
+            "lng": lng,
+            "radius": radius,
+            "goal": goal,
+            "query_place_name": query_place_name or None,
+            "query_place_id": query_place_id or None,
+            "include_all_places": include_all_places,
+            "top_n_visible": top_n_visible,
+        },
+        "fetched_count": len(items),
+        "visible_count": min(len(items), top_n_visible),
+        "trace_count": len(traces),
+        "traces": traces,
+        "fetched_but_hidden": [{"place_name": t["place_name"], "place_id": t["place_id"], "hidden_reason": t.get("hidden_reason")} for t in fetched_but_hidden],
+        "top_visible": [
+            {
+                "place_name": p.get("name") or p.get("place_name"),
+                "place_id": p.get("place_id") or p.get("id"),
+                "display_rank_score_100": p.get("display_rank_score_100"),
+                "chosen_candidate_specificity_tier": p.get("chosen_candidate_specificity_tier"),
+                "best_item_name": p.get("best_item_name") or p.get("best_order"),
+            }
+            for p in top_visible
+        ],
+    }
+    debug_block = payload.get("_debug") or {}
+    if debug_block:
+        out["shortlist_debug"] = debug_block.get("shortlist_debug")
+        out["timings_ms"] = debug_block.get("timings_ms")
+        out["fetched_count"] = debug_block.get("fetched_count", len(items))
+        out["shortlisted_count"] = debug_block.get("shortlisted_count", len(items))
+        out["deeply_ranked_count"] = debug_block.get("deeply_ranked_count", len(items))
+    return out
+
+
 @app.get("/smart-food-alerts/candidates")
 async def smart_food_alert_candidates(
     lat: float,
@@ -13438,6 +14142,7 @@ async def smart_food_alert_candidates(
     local_hour: Optional[int] = None,
     poor_sleep_flag: bool = False,
     high_craving_risk_flag: bool = False,
+    diet_preference: str = "",
     recent_alerts_count_6h: Optional[int] = None,
     recent_alerts_count_24h: Optional[int] = None,
     weekly_alert_count: Optional[int] = None,
@@ -13496,6 +14201,7 @@ async def smart_food_alert_candidates(
         local_hour=local_hour,
         poor_sleep_flag=poor_sleep_flag,
         high_craving_risk_flag=high_craving_risk_flag,
+        diet_preference=diet_preference,
     )
     items = payload.get("items") or payload.get("places") or []
     if not isinstance(items, list):
@@ -13582,6 +14288,16 @@ async def meal_decision_event(payload: Dict[str, Any] = Body(...)):
     return {"ok": True, "event": saved}
 
 
+@app.get("/push/rollout/status")
+async def push_rollout_status():
+    """
+    Rollout config and observability. Returns sending_enabled, rollout_mode,
+    rollout_percent, active_user_days, max_per_6h, max_per_24h, allowlist_count,
+    recent_sent_count, recent_receipt_ok_count, recent_receipt_error_count.
+    """
+    return get_rollout_status()
+
+
 @app.post("/push/register")
 async def push_register(payload: Dict[str, Any] = Body(...)):
     """
@@ -13627,177 +14343,73 @@ async def push_send_smart_alerts(payload: Dict[str, Any] = Body(...)):
     if not (math.isfinite(lat) and math.isfinite(lng)):
         raise HTTPException(status_code=422, detail={"error": "lat and lng required"})
 
+    try:
+        upsert_user_location(user_id, lat, lng)
+    except Exception:
+        pass
+
     dry_run = bool(p.get("dry_run", True))
     eligible_only = bool(p.get("eligible_only", True))
     goal = str(p.get("goal") or "").strip()
-    cut_mode = (goal or "").strip().lower() in ("cut", "fat_loss")
     radius = max(500, min(5000, int(_safe_float(p.get("radius"), 3000) or 3000)))
 
-    allowed, reason = can_send_real_push(user_id, dry_run=dry_run)
-    rollout_mode = get_push_rollout_mode()
-    effective_dry_run = dry_run or not allowed
-
-    ctx = p.get("context") or {}
-    fatigue = p.get("fatigue") or {}
-    remaining_cal = _safe_float(ctx.get("remaining_calories"), 0.0)
-    remaining_protein = _safe_float(ctx.get("remaining_protein_g"), 0.0)
-    local_hour = int(ctx.get("local_hour") if ctx.get("local_hour") is not None else 12)
-    post_workout = bool(ctx.get("post_workout", False))
-    late_night = bool(ctx.get("late_night", False))
-    poor_sleep = bool(ctx.get("poor_sleep_flag", False))
-    high_craving = bool(ctx.get("high_craving_risk_flag", False))
-    context_mode_override = (ctx.get("context_mode") or "").strip() or None
-
-    context_info_raw = {
-        "remaining_calories": remaining_cal,
-        "remaining_protein_g": remaining_protein,
-        "post_workout": post_workout,
-        "late_night": late_night,
-        "poor_sleep_flag": poor_sleep,
-        "high_craving_risk_flag": high_craving,
-        "context_mode_override": context_mode_override,
-        "local_hour": local_hour,
-    }
-    ctx_modes = infer_context_mode(context_info_raw)
-    context_mode = ctx_modes.get("context_mode", "default")
-
-    recent_6h = int(fatigue.get("recent_alerts_count_6h") if fatigue.get("recent_alerts_count_6h") is not None else 0)
-    recent_24h = int(fatigue.get("recent_alerts_count_24h") if fatigue.get("recent_alerts_count_24h") is not None else 0)
-    weekly = int(fatigue.get("weekly_alert_count") if fatigue.get("weekly_alert_count") is not None else 0)
-    ignored = int(fatigue.get("ignored_streak") if fatigue.get("ignored_streak") is not None else 0)
-    recently_opened = bool(fatigue.get("recently_opened_app", False))
-    recently_viewed = bool(fatigue.get("recently_viewed_nearby", False))
-
-    payload_hp = await healthy_places(
-        lat=lat,
-        lng=lng,
-        radius=radius,
-        cut_mode=cut_mode,
+    return await _send_smart_alert_for_user(
+        healthy_places,
+        user_id,
+        lat,
+        lng,
+        context=p.get("context") or {},
+        fatigue=p.get("fatigue") or {},
         goal=goal,
-        remaining_calories=remaining_cal,
-        remaining_protein_g=remaining_protein,
-        sort_mode="flat_score",
-        user_id=user_id,
-        context_mode=context_mode,
-        post_workout=post_workout,
-        late_night=late_night,
-        local_hour=local_hour,
-        poor_sleep_flag=poor_sleep,
-        high_craving_risk_flag=high_craving,
+        radius=radius,
+        eligible_only=eligible_only,
+        dry_run=dry_run,
     )
-    items = payload_hp.get("items") or payload_hp.get("places") or []
-    if not isinstance(items, list):
-        items = []
 
-    user_context = {
-        "remaining_calories": remaining_cal,
-        "remaining_protein_g": remaining_protein,
-        "post_workout": post_workout,
-        "late_night": late_night,
-        "local_hour": local_hour,
-        "context_mode": context_mode,
-        "poor_sleep_flag": poor_sleep,
-        "high_craving_risk_flag": high_craving,
-        "recent_alerts_count_6h": recent_6h,
-        "recent_alerts_count_24h": recent_24h,
-        "weekly_alert_count": weekly,
-        "ignored_streak": ignored,
-        "recently_opened_app": recently_opened,
-        "recently_viewed_nearby": recently_viewed,
-    }
-    candidates = build_smart_food_alert_candidates(user_context, items, eligible_only=eligible_only)
-    eligible = [c for c in candidates if c.get("eligible_to_send") and c.get("confidence_label") not in ("", "Needs menu check")]
-    top_candidate = eligible[0] if eligible else None
 
-    tokens = list_tokens_for_user(user_id, active_only=True)
-    if not tokens or not top_candidate:
-        return {
-            "ok": True,
-            "dry_run": dry_run,
-            "real_send_allowed": allowed,
-            "real_send_reason": reason,
-            "rollout_mode": rollout_mode,
-            "candidates_considered": len(candidates),
-            "eligible_count": len(eligible),
-            "notifications_attempted": 0,
-            "tickets_received": 0,
-            "suppressed_reasons": "no_tokens" if not tokens else "no_eligible_candidates",
-        }
+@app.post("/push/send-smart-alerts/batch")
+async def push_send_smart_alerts_batch(payload: Optional[Dict[str, Any]] = Body(default=None)):
+    """
+    Batch Smart Alert send for eligible users. Scheduler-friendly.
+    Payload: { "limit_users": 200, "dry_run": true }
+    Default: dry_run=true (requires explicit dry_run=false for real sends).
+    """
+    from push_batch_sender import send_smart_alerts_for_eligible_users, _batch_user_limit
 
-    alert_id = f"{top_candidate.get('alert_type')}::{top_candidate.get('place_id')}::{top_candidate.get('best_item_name')}"
+    p = payload if isinstance(payload, dict) else {}
+    limit_users = max(1, min(2000, int(p.get("limit_users") or _batch_user_limit())))
+    dry_run = bool(p.get("dry_run", True))
 
-    messages = []
-    delivery_records = []
-    for t in tokens:
-        token = t.get("expo_push_token") or ""
-        if not token or not token.startswith("ExponentPushToken["):
-            continue
-        if was_recently_sent(user_id, token, alert_id):
-            continue
-        msg = build_expo_push_message(top_candidate, token)
-        messages.append(msg)
-        rec = create_delivery_record(
-            user_id=user_id,
-            expo_push_token=token,
-            alert_id=alert_id,
-            alert_type=str(top_candidate.get("alert_type") or ""),
-            place_id=str(top_candidate.get("place_id") or ""),
-            place_name=str(top_candidate.get("place_name") or ""),
-            best_item_name=str(top_candidate.get("best_item_name") or ""),
-            title=str(top_candidate.get("title") or ""),
-            body=str(top_candidate.get("body") or ""),
-            payload_data=msg.get("data"),
-            dry_run=effective_dry_run,
-        )
-        delivery_records.append(rec)
+    result = await send_smart_alerts_for_eligible_users(
+        limit_users=limit_users,
+        dry_run=dry_run,
+    )
+    return result
 
-    if not messages:
-        return {
-            "ok": True,
-            "dry_run": dry_run,
-            "real_send_allowed": allowed,
-            "real_send_reason": reason,
-            "rollout_mode": rollout_mode,
-            "candidates_considered": len(candidates),
-            "eligible_count": len(eligible),
-            "notifications_attempted": 0,
-            "tickets_received": 0,
-            "suppressed_reasons": "duplicate_recently_sent",
-        }
 
-    result = send_expo_push_messages(messages, dry_run=effective_dry_run)
-    tickets = result.get("tickets") or []
-    if not effective_dry_run:
-        for i, ticket in enumerate(tickets):
-            if i >= len(delivery_records):
-                break
-            rec = delivery_records[i]
-            if ticket.get("status") == "ok":
-                tid = ticket.get("id")
-                update_delivery_status(rec["delivery_id"], status="sent", expo_ticket_id=tid)
-            else:
-                err_msg = ticket.get("message") or "unknown"
-                err_details = ticket.get("details") or {}
-                err_code = err_details.get("error") if isinstance(err_details, dict) else None
-                update_delivery_status(
-                    rec["delivery_id"],
-                    status="ticket_error",
-                    error_code=str(err_code) if err_code else None,
-                    error_message=err_msg[:500],
-                )
+@app.get("/push/send-smart-alerts/batch/status")
+async def push_send_smart_alerts_batch_status():
+    """
+    Lightweight config/health summary for batch Smart Alert sending.
+    """
+    from push_rollout import get_rollout_status
+    from push_batch_sender import (
+        _batch_user_limit,
+        _sample_results_limit,
+        list_users_with_active_push_tokens,
+    )
+    from user_last_location_store import list_user_ids_with_location
 
-    return {
-        "ok": result.get("ok", True),
-        "dry_run": dry_run,
-        "real_send_allowed": allowed,
-        "real_send_reason": reason,
-        "rollout_mode": rollout_mode,
-        "candidates_considered": len(candidates),
-        "eligible_count": len(eligible),
-        "notifications_attempted": len(messages),
-        "tickets_received": result.get("sent_count", 0),
-        "ticket_errors": result.get("error_count", 0),
-    }
+    status = get_rollout_status()
+    status["batch_user_limit"] = _batch_user_limit()
+    status["batch_sample_results_limit"] = _sample_results_limit()
+    users_with_tokens = list_users_with_active_push_tokens(limit=10000)
+    users_with_location = set(list_user_ids_with_location(limit=10000))
+    batch_eligible_count = sum(1 for u in users_with_tokens if (u.get("user_id") or "").strip() in users_with_location)
+    status["users_with_active_tokens"] = len(users_with_tokens)
+    status["users_with_stored_location"] = len(users_with_location)
+    status["batch_eligible_estimate"] = batch_eligible_count
+    return status
 
 
 @app.post("/push/check-receipts")
@@ -14269,6 +14881,135 @@ def recommendation_feedback_summary(place_id: str = "", item: str = ""):
     item_name = " ".join(str(item or "").strip().split())
     return get_feedback_summary(place_id=pid, item=item_name)
 
+
+# -------------------- VENUE CONTRIBUTIONS (REVIEW) --------------------
+@app.post("/venue-contributions")
+def create_venue_contribution(payload: Dict[str, Any] = Body(...)):
+    """
+    Create a venue contribution (user suggestion). Payload: place_id, place_name, area_key,
+    contribution_type (better_order_suggestion, vegetarian_option_missing, etc.), user_id, payload.
+    """
+    ctype = str(payload.get("contribution_type") or "better_order_suggestion").strip().lower()
+    if ctype not in ("better_order_suggestion", "item_not_on_menu", "vegetarian_option_missing",
+                     "vegan_option_missing", "recommendation_accurate", "recommendation_inaccurate", "menu_item_correction"):
+        raise HTTPException(status_code=400, detail="invalid_contribution_type")
+    place_name = str(payload.get("place_name") or "").strip()
+    area_key = str(payload.get("area_key") or "").strip()
+    if not place_name or not area_key:
+        raise HTTPException(status_code=400, detail="place_name and area_key required")
+    rec = create_contribution(
+        place_id=str(payload.get("place_id") or "").strip(),
+        place_name=place_name,
+        area_key=area_key,
+        contribution_type=ctype,
+        user_id=str(payload.get("user_id") or "").strip(),
+        payload=payload.get("payload") if isinstance(payload.get("payload"), dict) else None,
+    )
+    return {"ok": True, "contribution_id": rec.get("contribution_id"), "created_at": rec.get("created_at")}
+
+
+@app.get("/venue-contributions/pending")
+def venue_contributions_pending(area_key: str = "", limit: int = 50):
+    """
+    List pending venue contributions for review.
+    Optional area_key filter. limit 1-200.
+    """
+    limit = max(1, min(200, int(limit) if limit else 50))
+    ak = str(area_key or "").strip().lower() or None
+    return {"contributions": list_pending_contributions(area_key=ak, limit=limit)}
+
+
+@app.get("/venue-contributions/review-bundle")
+def venue_contributions_review_bundle(contribution_id: str = ""):
+    """
+    Get review bundle for a contribution: contribution + profile + templates + related.
+    """
+    cid = str(contribution_id or "").strip()
+    if not cid:
+        raise HTTPException(status_code=400, detail="contribution_id required")
+    bundle = get_contribution_review_bundle(cid)
+    if bundle.get("error"):
+        raise HTTPException(status_code=404, detail=bundle.get("error", "not_found"))
+    return bundle
+
+
+@app.post("/venue-contributions/review/approve")
+def venue_contributions_review_approve(payload: Dict[str, Any] = Body(...)):
+    """
+    Approve a contribution. Payload: contribution_id, reviewer_id, action_type,
+    template_payload (for accept_as_new_template), swap_payload (for accept_as_swap),
+    reviewer_notes.
+    """
+    cid = str(payload.get("contribution_id") or "").strip()
+    if not cid:
+        raise HTTPException(status_code=400, detail="contribution_id required")
+    result = approve_contribution(
+        cid,
+        reviewer_id=str(payload.get("reviewer_id") or "").strip(),
+        action_payload=payload,
+    )
+    if result.get("outcome") == "error":
+        raise HTTPException(status_code=400, detail=result.get("error", "approval_failed"))
+    return result
+
+
+@app.post("/venue-contributions/review/reject")
+def venue_contributions_review_reject(payload: Dict[str, Any] = Body(...)):
+    """
+    Reject a contribution. Payload: contribution_id, reviewer_id, reviewer_notes.
+    """
+    cid = str(payload.get("contribution_id") or "").strip()
+    if not cid:
+        raise HTTPException(status_code=400, detail="contribution_id required")
+    result = reject_contribution(
+        cid,
+        reviewer_id=str(payload.get("reviewer_id") or "").strip(),
+        reviewer_notes=str(payload.get("reviewer_notes") or "").strip(),
+    )
+    if result.get("outcome") == "error":
+        raise HTTPException(status_code=400, detail=result.get("error", "rejection_failed"))
+    return result
+
+
+@app.post("/venue-contributions/auto-promote/run")
+def venue_contributions_auto_promote_run(
+    payload: Dict[str, Any] = Body(default={}),
+):
+    """
+    Run evidence-based auto-promotion. Optional place_id, area_key, place_name to scope.
+    Body: { place_id?, area_key?, place_name?, limit? }. Admin/debug utility.
+    """
+    p = payload if isinstance(payload, dict) else {}
+    place_id = str(p.get("place_id") or "").strip() or None
+    area_key = str(p.get("area_key") or "").strip() or None
+    place_name = str(p.get("place_name") or "").strip() or None
+    limit = max(1, min(int(p.get("limit") or 100), 500))
+    if place_id or area_key or place_name:
+        result = run_auto_promotion_for_place(
+            place_id=place_id,
+            area_key=area_key,
+            place_name=place_name,
+        )
+    else:
+        result = run_auto_promotion_all(limit=limit)
+    return result
+
+
+@app.get("/venue-contributions/auto-promote/status")
+def venue_contributions_auto_promote_status(
+    place_id: Optional[str] = None,
+    area_key: Optional[str] = None,
+):
+    """
+    Get auto-promotion status for a place: aggregates, scores, would_promote.
+    """
+    result = get_auto_promotion_status(
+        place_id=place_id or None,
+        area_key=area_key or None,
+    )
+    return result
+
+
 # -------------------- COACHING (PRO+) --------------------
 def clamp(x: float, lo: float, hi: float) -> float:
     try:
@@ -14554,6 +15295,15 @@ def _apply_rerun_edits(base_items: List[Dict[str, Any]], edits: AnalyzeRerunEdit
                     it["name"] = new_name
                     break
 
+    if getattr(edits, "set_item_grams", None):
+        target = str(edits.set_item_grams.item_id or "").strip()
+        grams = max(0.0, float(_safe_float(edits.set_item_grams.grams, 0.0) or 0.0))
+        if target and grams > 0:
+            for it in out:
+                if str(it.get("item_id") or "") == target:
+                    it["grams"] = round(grams, 1)
+                    break
+
     answer = str(edits.clarifying_answer or "").strip().lower()
     if answer:
         if "deep" in answer:
@@ -14615,6 +15365,26 @@ def _build_scan_response(
             "remaining_month": int(usage_row.get("remaining_month") or 0),
         },
     }
+    # Powder-specific top-level metadata for UI.
+    powder_items = [
+        it for it in (results or [])
+        if isinstance(it, dict) and isinstance(it.get("_powder_meta"), dict) and it["_powder_meta"].get("is_powder_like")
+    ]
+    if powder_items:
+        meta = powder_items[0].get("_powder_meta") or {}
+        response["powder_detected"] = True
+        response["powder_type_guess"] = meta.get("powder_type_guess")
+        response["powder_requires_confirmation"] = bool(meta.get("needs_powder_confirmation"))
+        response["powder_confirmed_type"] = meta.get("powder_type_resolved")
+        response["powder_confirmed_grams"] = (powder_items[0] or {}).get("grams")
+        response["nutrition_resolution_mode"] = meta.get("nutrition_source") or "supplement_table"
+    else:
+        response["powder_detected"] = False
+        response["powder_type_guess"] = None
+        response["powder_requires_confirmation"] = False
+        response["powder_confirmed_type"] = None
+        response["powder_confirmed_grams"] = None
+        response["nutrition_resolution_mode"] = "usda"
     if item_warnings:
         response["warnings"] = item_warnings[:8]
     if plan_at_least(plan, "pro"):
@@ -14625,6 +15395,28 @@ def _build_scan_response(
 
 
 # -------------------- ANALYZE (PHOTO) --------------------
+_SCAN_MAX_IMAGE_PIXELS = 1280 * 1280
+_SCAN_MAX_EDGE_PX = 1280
+
+
+def _resize_image_for_scan(image_bytes: bytes) -> Tuple[bytes, Optional[Dict[str, int]]]:
+    """Resize image to reduce Gemini payload and latency. Returns (resized_bytes, original_size)."""
+    try:
+        img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+        w, h = img.size
+        if w * h <= _SCAN_MAX_IMAGE_PIXELS and max(w, h) <= _SCAN_MAX_EDGE_PX:
+            return image_bytes, {"w": w, "h": h}
+        scale = min(1.0, (_SCAN_MAX_IMAGE_PIXELS / (w * h)) ** 0.5, _SCAN_MAX_EDGE_PX / max(w, h))
+        nw, nh = max(1, int(w * scale)), max(1, int(h * scale))
+        resized = img.resize((nw, nh), Image.Resampling.LANCZOS)
+        buf = io.BytesIO()
+        resized.save(buf, format="JPEG", quality=88, optimize=True)
+        return buf.getvalue(), {"w": w, "h": h}
+    except Exception as e:
+        logger.warning("scan image resize skipped: %s", str(e)[:120])
+        return image_bytes, None
+
+
 def _run_analyze_pipeline(
     *,
     user_id: str,
@@ -14634,11 +15426,19 @@ def _run_analyze_pipeline(
     debug: bool = False,
     request_id: str = "",
     job_id: str = "",
+    on_fast_result: Optional[Callable[[Dict[str, Any]], None]] = None,
 ) -> Dict[str, Any]:
     uid = str(user_id or "").strip()
     if not uid:
         raise HTTPException(status_code=400, detail="Missing user_id")
     started = time.time()
+    latency_ms: Dict[str, int] = {}
+    _t = time.time()
+
+    contents, _resize_info = _resize_image_for_scan(image_bytes)
+    latency_ms["resize_ms"] = int(max(0, round((time.time() - _t) * 1000)))
+    _t = time.time()
+
     calibration_settings = load_confidence_calibration_settings()
     vision_threshold = _calibration_setting_value(calibration_settings, "vision", "confidence_threshold", 0.72)
     portion_threshold = _calibration_setting_value(calibration_settings, "portion", "confidence_threshold", 0.75)
@@ -14647,7 +15447,6 @@ def _run_analyze_pipeline(
     day_local_iso = today_local.isoformat()
 
     usage_row = consume_one_scan(uid, today=today_local)
-    contents = image_bytes or b""
     if not contents:
         raise HTTPException(status_code=400, detail="Empty file")
 
@@ -14657,13 +15456,51 @@ def _run_analyze_pipeline(
         raise HTTPException(status_code=400, detail="Uploaded file is not a valid image")
 
     priors_context = _build_user_priors_context_for_candidates(uid, candidate_food_keys=[], limit=14)
-    vision_scan = gemini_vision_scan_v1(
-        contents,
-        personalization_context=priors_context,
-        vision_threshold=vision_threshold,
-        request_id=request_id,
-        job_id=job_id,
-    )
+    latency_ms["priors_ms"] = int(max(0, round((time.time() - _t) * 1000)))
+    _t = time.time()
+
+    vision_cache_hit = False
+    vision_cache_reuse_used = False
+    vision_cache_skipped_reason: Optional[str] = None
+    fingerprint = compute_image_fingerprint(contents)
+    cached = get_cached_vision_result(fingerprint) if fingerprint else None
+    if cached and should_reuse_cached_vision_result(cached, min_confidence=vision_threshold):
+        try:
+            vision_scan = _coerce_vision_scan_payload(cached, vision_threshold=vision_threshold)
+            vision_cache_hit = True
+            vision_cache_reuse_used = True
+            latency_ms["vision_ms"] = 0
+        except Exception:
+            vision_cache_skipped_reason = "coerce_failed"
+            cached = None
+    if not cached or not vision_cache_reuse_used:
+        if cached and not vision_cache_reuse_used:
+            vision_cache_skipped_reason = vision_cache_skipped_reason or _vision_cache_skipped_reason(
+                cached, min_confidence=vision_threshold
+            )
+        vision_scan = gemini_vision_scan_v1(
+            contents,
+            personalization_context=priors_context,
+            vision_threshold=vision_threshold,
+            request_id=request_id,
+            job_id=job_id,
+        )
+        latency_ms["vision_ms"] = int(max(0, round((time.time() - _t) * 1000)))
+        if fingerprint:
+            try:
+                set_cached_vision_result(
+                    fingerprint,
+                    {
+                        "items": [_model_dump(x) for x in (vision_scan.items or [])],
+                        "top_candidates": [_model_dump(x) for x in (vision_scan.top_candidates or [])],
+                        "vision_confidence": float(vision_scan.vision_confidence or 0),
+                    },
+                    ttl_hours=72,
+                )
+            except Exception:
+                pass
+    _t = time.time()
+
     detected_items = [_model_dump(x) for x in (vision_scan.items or [])]
     detected_items, personalization_used = _apply_scan_user_priors(
         uid,
@@ -14686,8 +15523,11 @@ def _run_analyze_pipeline(
         if float(_safe_float(vision_scan.vision_confidence, 0.65) or 0.65) < vision_threshold:
             personalization_used["asked_clarifying_question_reason"] = "low_confidence"
     logger.info("Detected items: %s job_id=%s request_id=%s", detected_items, job_id, request_id)
+    latency_ms["vision_ms"] = int(max(0, round((time.time() - _t) * 1000)))
+    _t = time.time()
 
-    results, totals, total_micros, item_warnings = _compute_scan_nutrition(detected_items)
+    results, totals, total_micros, item_warnings, nutrition_cache_stats = _compute_scan_nutrition(detected_items)
+    latency_ms["nutrition_ms"] = int(max(0, round((time.time() - _t) * 1000)))
     micros_payload = _build_micros_payload(total_micros)
     total_kcal = float(_safe_float(totals.get("kcal"), 0.0) or 0.0)
     total_p = float(_safe_float(totals.get("protein_g"), 0.0) or 0.0)
@@ -14701,6 +15541,42 @@ def _run_analyze_pipeline(
         fat_g=total_f,
         mps_threshold_g=2.5,
     )
+    analysis_id = str(uuid.uuid4())
+    meal_qa_fallback = _coerce_meal_qa_payload({}, vision_scan)
+    data_quality = _build_scan_data_quality(vision_scan, vision_threshold=vision_threshold)
+    fast_result = _build_scan_response(
+        source="photo",
+        analysis_id=analysis_id,
+        usage_row=usage_row,
+        vision=vision_scan,
+        results=results,
+        totals=totals,
+        micros_payload=micros_payload,
+        meal_qa=meal_qa_fallback,
+        plan=str(usage_row.get("plan") or DEFAULT_PLAN).lower(),
+        coaching=scan_coaching,
+        item_warnings=item_warnings,
+        data_quality=data_quality,
+    )
+    for k in ("meal_id", "input_scan_id"):
+        fast_result[k] = analysis_id
+    fast_result["request_id"] = request_id
+    fast_result["job_id"] = job_id
+    fast_result["_fast_result"] = True
+    fast_result["latency_breakdown_ms"] = dict(latency_ms)
+    fast_result["nutrition_cache_hit_count"] = nutrition_cache_stats.get("hit_count", 0)
+    fast_result["nutrition_cache_miss_count"] = nutrition_cache_stats.get("miss_count", 0)
+    fast_result["vision_cache_reuse_used"] = vision_cache_reuse_used
+    fast_result["vision_cache_skipped_reason"] = vision_cache_skipped_reason
+    time_to_first_result_ms = int(max(0, round((time.time() - started) * 1000)))
+    fast_result["time_to_first_result_ms"] = time_to_first_result_ms
+    if on_fast_result and callable(on_fast_result):
+        try:
+            on_fast_result(fast_result)
+        except Exception as e:
+            logger.warning("on_fast_result callback failed: %s", str(e)[:120])
+
+    _t = time.time()
     meal_qa = gemini_meal_qa_v1(
         contents,
         vision_scan,
@@ -14712,8 +15588,9 @@ def _run_analyze_pipeline(
         request_id=request_id,
         job_id=job_id,
     )
-    data_quality = _build_scan_data_quality(vision_scan, vision_threshold=vision_threshold)
-    analysis_id = str(uuid.uuid4())
+    latency_ms["meal_qa_ms"] = int(max(0, round((time.time() - _t) * 1000)))
+    _t = time.time()
+
     image_hash = _sha256_bytes(contents)
     plan = str(usage_row.get("plan") or DEFAULT_PLAN).lower()
 
@@ -14922,7 +15799,20 @@ def _run_analyze_pipeline(
         int(_safe_float((response.get("daily_signals") or {}).get("scan_count"), 0) or 0),
         totals_hash,
     )
+    latency_ms["enrichment_ms"] = int(max(0, round((time.time() - _t) * 1000)))
     response["latency_ms"] = int(max(0, round((time.time() - started) * 1000)))
+    response["time_to_first_result_ms"] = time_to_first_result_ms
+    response["time_to_final_result_ms"] = response["latency_ms"]
+    response["latency_breakdown_ms"] = latency_ms
+    response["nutrition_cache_hit_count"] = nutrition_cache_stats.get("hit_count", 0)
+    response["nutrition_cache_miss_count"] = nutrition_cache_stats.get("miss_count", 0)
+    response["vision_cache_reuse_used"] = vision_cache_reuse_used
+    response["vision_cache_skipped_reason"] = vision_cache_skipped_reason
+    response["vision_cache_hit_count"] = 1 if vision_cache_reuse_used else 0
+    response["vision_cache_miss_count"] = 0 if vision_cache_reuse_used else 1
+    response["image_bytes_before"] = len(image_bytes)
+    response["image_bytes_after"] = len(contents)
+    response["image_was_resized"] = len(contents) < len(image_bytes)
     return _attach_debug_schema(response, bool(debug))
 
 
@@ -15016,20 +15906,23 @@ def get_analysis_job(
     if owner and owner != uid:
         raise HTTPException(status_code=403, detail="Job does not belong to this user.")
     status = str(row.get("status") or "queued").strip().lower() or "queued"
+    progress_stage = str(row.get("stage") or row.get("progress_stage") or "").strip() or None
     out = {
         "job_id": str(row.get("id") or job_id),
         "status": status,
         "progress": _analysis_job_progress(status),
+        "progress_stage": progress_stage,
         "request_id": str(row.get("request_id") or ""),
         "created_at": row.get("created_at"),
         "updated_at": row.get("updated_at"),
         "error": str(row.get("error") or "") if status in {"failed", "done"} else "",
     }
-    if status == "done":
-        result_obj = row.get("result_json")
+    result_obj = row.get("result_json")
+    if result_obj is not None:
         if isinstance(result_obj, str):
             result_obj = _parse_jsonish(result_obj, {})
         out["result"] = result_obj if isinstance(result_obj, dict) else {}
+        out["result_complete"] = status == "done"
     return _attach_debug_schema(out, bool(debug))
 
 
@@ -15172,7 +16065,7 @@ def analyze_rerun(
         if float(_safe_float(vision_scan.vision_confidence, 0.65) or 0.65) < vision_threshold:
             personalization_used["asked_clarifying_question_reason"] = "low_confidence"
 
-    results, totals, total_micros, item_warnings = _compute_scan_nutrition([_model_dump(x) for x in vision_scan.items])
+    results, totals, total_micros, item_warnings, _ = _compute_scan_nutrition([_model_dump(x) for x in vision_scan.items])
     micros_payload = _build_micros_payload(total_micros)
     total_kcal = float(_safe_float(totals.get("kcal"), 0.0) or 0.0)
     total_p = float(_safe_float(totals.get("protein_g"), 0.0) or 0.0)

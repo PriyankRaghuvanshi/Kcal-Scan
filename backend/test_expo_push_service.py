@@ -51,6 +51,24 @@ class TestBuildExpoPushMessage(unittest.TestCase):
         msg = build_expo_push_message(candidate, "ExponentPushToken[x]")
         self.assertEqual(msg["data"]["alert_id"], "protein_rescue::p1::Salad")
 
+    def test_deep_link_and_route_target_in_data(self):
+        candidate = {
+            "alert_type": "protein_rescue",
+            "place_id": "ChIJ123",
+            "place_name": "Subway",
+            "best_item_name": "6-inch Grilled Chicken",
+            "place_lat": -33.8,
+            "place_lng": 151.0,
+        }
+        msg = build_expo_push_message(candidate, "ExponentPushToken[x]")
+        data = msg["data"]
+        self.assertIn("deep_link", data)
+        self.assertIn("calorieclick://smart-alert", data["deep_link"])
+        self.assertIn("place_id=ChIJ123", data["deep_link"])
+        self.assertEqual(data["route_target"], "smart_alert_place")
+        self.assertEqual(data["place_lat"], -33.8)
+        self.assertEqual(data["place_lng"], 151.0)
+
 
 class TestSendExpoPushMessages(unittest.TestCase):
     def test_dry_run_returns_simulated_tickets(self):

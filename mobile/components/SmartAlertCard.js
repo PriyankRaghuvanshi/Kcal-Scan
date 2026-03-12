@@ -1,9 +1,21 @@
 /**
- * SmartAlertCard - Single alert candidate card for inbox/preview.
+ * SmartAlertCard – Single alert candidate. Uses design tokens + shared components.
+ * Visually aligned with RecommendationCard for coherent product language.
+ * Trust labels and hero language reflect recommendation quality.
  */
 
 import React from "react";
-import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
+import { View, Text, StyleSheet } from "react-native";
+import { colors, spacing, radius, typography, shadows } from "../designTokens";
+import { ConfidenceBadge } from "./ConfidenceBadge";
+import { ScoreBadge } from "./ScoreBadge";
+import { RecommendationActionRow } from "./RecommendationActionRow";
+import {
+  getEffectiveAlertTitle,
+  getAlertTrustTone,
+  shouldShowMenuMayVary,
+  TRUST_TONES,
+} from "../smartAlertTrustLabels";
 
 const ALERT_TYPE_LABELS = {
   protein_rescue: "Protein rescue",
@@ -19,6 +31,12 @@ function formatDistance(m) {
   return `${Math.round(m)} m`;
 }
 
+function num(v) {
+  if (v == null || v === "") return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
 export function SmartAlertCard({
   candidate,
   onOpen,
@@ -27,16 +45,17 @@ export function SmartAlertCard({
 }) {
   if (!candidate || typeof candidate !== "object") return null;
 
-  const title = candidate.title || "Nearby option";
+  const effectiveTitle = getEffectiveAlertTitle(candidate);
   const body = candidate.body || "";
   const placeName = candidate.place_name || "Nearby spot";
   const bestItem = candidate.best_item_name || "";
   const score = candidate.display_rank_score_100;
-  const conf = candidate.confidence_label || "";
   const alertType = candidate.alert_type || "";
   const distanceM = candidate.distance_m;
   const protein = candidate.estimated_protein_g;
   const personalLabel = candidate.personal_memory_label || "";
+  const trustTone = getAlertTrustTone(candidate);
+  const showMenuMayVary = shouldShowMenuMayVary(candidate);
 
   const typeLabel = ALERT_TYPE_LABELS[alertType] || alertType.replace(/_/g, " ");
   const whyLine = personalLabel
@@ -45,18 +64,30 @@ export function SmartAlertCard({
     ? `${typeLabel} • ${protein}g protein • ${formatDistance(distanceM) || "nearby"}`
     : `${typeLabel} • ${formatDistance(distanceM) || "nearby"}`;
 
+  // Pass full candidate so ConfidenceBadge uses canonical trust mapping
+  const isWeak = trustTone === TRUST_TONES.weak;
+  const cardStyle = [styles.card, compact && styles.cardCompact, isWeak && styles.cardWeak];
+
   return (
-    <View style={styles.card}>
+    <View style={cardStyle}>
       <View style={styles.header}>
-        <Text style={styles.typeBadge}>{typeLabel}</Text>
-        {score != null && <Text style={styles.score}>Score {score}</Text>}
+        <Text style={[styles.typeBadge, isWeak && styles.typeBadgeWeak]} numberOfLines={1}>
+          {typeLabel}
+        </Text>
+        {Number.isFinite(num(score)) && (
+          <ScoreBadge score={score} size="sm" />
+        )}
       </View>
-      <Text style={styles.title} numberOfLines={2}>
-        {title}
+
+      <Text style={[styles.title, isWeak && styles.titleWeak]} numberOfLines={2}>
+        {effectiveTitle}
       </Text>
-      <Text style={styles.body} numberOfLines={2}>
-        {body}
-      </Text>
+      {body ? (
+        <Text style={[styles.body, isWeak && styles.bodyWeak]} numberOfLines={2}>
+          {body}
+        </Text>
+      ) : null}
+
       {!compact && (
         <>
           {bestItem ? (
@@ -68,112 +99,99 @@ export function SmartAlertCard({
               {placeName}
             </Text>
           )}
-          <Text style={styles.why}>{whyLine}</Text>
-          {conf ? (
-            <Text style={styles.conf}>Confidence: {conf}</Text>
-          ) : null}
+          <Text style={styles.why} numberOfLines={2}>{whyLine}</Text>
+          <View style={styles.confRow}>
+            <ConfidenceBadge place={candidate} />
+          </View>
+          {showMenuMayVary && (
+            <Text style={styles.menuMayVary} numberOfLines={1}>
+              Menu may vary
+            </Text>
+          )}
         </>
       )}
-      <View style={styles.actions}>
-        <TouchableOpacity
-          style={styles.primaryBtn}
-          onPress={() => onOpen && onOpen(candidate)}
-          activeOpacity={0.8}
-        >
-          <Text style={styles.primaryBtnText}>View nearby option</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.dismissBtn}
-          onPress={() => onDismiss && onDismiss(candidate)}
-          activeOpacity={0.8}
-        >
-          <Text style={styles.dismissBtnText}>Dismiss</Text>
-        </TouchableOpacity>
-      </View>
+
+      <RecommendationActionRow
+        primaryLabel="View nearby option"
+        onPrimary={() => onOpen && onOpen(candidate)}
+        secondaryLabel="Dismiss"
+        onSecondary={() => onDismiss && onDismiss(candidate)}
+        primaryIcon=""
+        variant="light"
+        style={styles.actions}
+      />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 10,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 2,
+    backgroundColor: colors.surfaceLight.card,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
+    marginBottom: spacing.base,
+    borderWidth: 1,
+    borderColor: colors.surfaceLight.cardBorder,
+    ...shadows.sm,
+  },
+  cardCompact: {
+    padding: spacing.base,
+    marginBottom: spacing.sm,
+  },
+  cardWeak: {
+    borderColor: colors.slate.primary,
+    opacity: 0.95,
   },
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 6,
+    marginBottom: spacing.sm,
   },
   typeBadge: {
-    fontSize: 11,
-    fontWeight: "600",
-    color: "#555",
-    textTransform: "uppercase",
+    fontSize: typography.xs,
+    fontWeight: typography.weight.semibold,
+    color: colors.textLight.muted,
   },
-  score: {
-    fontSize: 11,
-    color: "#888",
+  typeBadgeWeak: {
+    color: colors.slate.text,
   },
   title: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: "#222",
-    marginBottom: 4,
+    fontSize: typography.lg,
+    fontWeight: typography.weight.semibold,
+    color: colors.textLight.primary,
+  },
+  titleWeak: {
+    color: colors.textLight.secondary,
   },
   body: {
-    fontSize: 14,
-    color: "#444",
-    marginBottom: 6,
+    fontSize: typography.md,
+    color: colors.textLight.secondary,
+    marginTop: spacing.xs,
+  },
+  bodyWeak: {
+    color: colors.slate.text,
   },
   meta: {
-    fontSize: 12,
-    color: "#666",
-    marginBottom: 2,
+    fontSize: typography.sm,
+    color: colors.textLight.muted,
+    marginTop: spacing.sm,
   },
   why: {
-    fontSize: 11,
-    color: "#888",
-    marginBottom: 4,
+    fontSize: typography.xs,
+    color: colors.slate.text,
+    marginTop: spacing.xs,
   },
-  conf: {
-    fontSize: 10,
-    color: "#999",
-    marginBottom: 10,
+  confRow: {
+    marginTop: spacing.sm,
+  },
+  menuMayVary: {
+    fontSize: typography.xs,
+    color: colors.slate.text,
+    fontStyle: "italic",
+    marginTop: spacing.xs,
   },
   actions: {
-    flexDirection: "row",
-    gap: 8,
-    marginTop: 4,
-  },
-  primaryBtn: {
-    flex: 1,
-    backgroundColor: "#2563eb",
-    paddingVertical: 10,
-    borderRadius: 8,
-    alignItems: "center",
-  },
-  primaryBtnText: {
-    color: "#fff",
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  dismissBtn: {
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderRadius: 8,
-    backgroundColor: "#f1f5f9",
-    justifyContent: "center",
-  },
-  dismissBtnText: {
-    color: "#64748b",
-    fontSize: 13,
+    marginTop: spacing.base,
   },
 });

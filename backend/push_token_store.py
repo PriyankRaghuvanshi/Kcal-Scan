@@ -179,3 +179,46 @@ def list_tokens_for_user(user_id: str, active_only: bool = True) -> List[Dict[st
 def deactivate_token_by_value(user_id: str, expo_push_token: str) -> bool:
     """Deactivate a token by user_id + expo_push_token. Returns True if found and deactivated."""
     return unregister_push_token({"user_id": user_id, "expo_push_token": expo_push_token}).get("ok", False)
+
+
+def list_users_with_active_push_tokens(limit: int = 1000) -> List[Dict[str, Any]]:
+    """
+    Return distinct users with at least one active push token, for batch sending.
+    Each row: user_id, active_tokens_count, last_seen_at (most recent), updated_at.
+    """
+    with _LOCK:
+        store = _load_store()
+    tokens = store.get("tokens") or []
+    if not isinstance(tokens, list):
+        return []
+
+    by_user: Dict[str, Dict[str, Any]] = {}
+    for t in tokens:
+        if not isinstance(t, dict):
+            continue
+        if not t.get("active", True):
+            continue
+        token = _normalize_space(t.get("expo_push_token"))
+        if not token or not token.startswith("ExponentPushToken["):
+            continue
+        uid = _normalize_space(t.get("user_id"))
+        if not uid:
+            continue
+        if uid not in by_user:
+            by_user[uid] = {
+                "user_id": uid,
+                "active_tokens_count": 0,
+                "last_seen_at": None,
+                "updated_at": None,
+            }
+        by_user[uid]["active_tokens_count"] += 1
+        for key in ("last_seen_at", "updated_at"):
+            val = t.get(key) or ""
+            if val:
+                existing = by_user[uid][key]
+                if not existing or (val > existing):
+                    by_user[uid][key] = val
+
+    out = list(by_user.values())
+    out.sort(key=lambda r: (r.get("last_seen_at") or r.get("updated_at") or ""), reverse=True)
+    return out[: max(1, min(10000, limit))]

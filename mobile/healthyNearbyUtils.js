@@ -62,6 +62,37 @@ export function getHealthyItemLineLabel(recommendationLabel) {
 }
 
 /**
+ * Hero label for card (Best nearby right now, Best fit for your goal, etc.).
+ * Strong only when confident; weak fallback uses softer wording.
+ * Aligns with mapUtils.getBestNearbyLabel logic.
+ */
+export function getRecommendationHeroLabel(place, rankPosition) {
+  if (!place || typeof place !== "object") return "";
+  const isGeneric = Boolean(place.best_item_is_generic_fallback);
+  const conf = String(place.confidence_label || "").trim();
+  const rec = String(place.recommendation_label || "").trim();
+  const needsCheck = conf === "Needs menu check" || rec === "Needs menu check";
+  const score = Number(place.display_rank_score_100 ?? place.health_score_100 ?? 0);
+  const source = String(place.menu_item_source || place.menu_items_source || "").toLowerCase();
+  const strong =
+    !isGeneric &&
+    !needsCheck &&
+    Number.isFinite(score) &&
+    score >= 65 &&
+    (source === "real_menu" || source === "real menu" || rec === "Best pick" || rec === "Strong option");
+
+  if (rankPosition === 1) {
+    if (strong) return "Best nearby right now";
+    if (rec === "Best pick" || rec === "Strong option") return "Best fit for your goal";
+    if (needsCheck || isGeneric) return "Likely best nearby";
+    return "Top pick nearby";
+  }
+  if (rankPosition === 2) return "#2 nearby";
+  if (rankPosition === 3) return "#3 nearby";
+  return "";
+}
+
+/**
  * Panel item heading for selected place. Avoids strong certainty when
  * confidence is "Needs menu check" or best_item_is_generic_fallback.
  */
@@ -87,5 +118,6 @@ if (typeof module !== "undefined" && module.exports) {
     normalizeHealthyPlacesResponse,
     getHealthyItemLineLabel,
     getHealthyPanelItemHeading,
+    getRecommendationHeroLabel,
   };
 }

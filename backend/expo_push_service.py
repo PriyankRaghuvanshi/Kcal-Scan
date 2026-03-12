@@ -6,7 +6,12 @@ Direct HTTP integration; batches messages; supports dry-run.
 from __future__ import annotations
 
 import logging
+from urllib.parse import quote
 from typing import Any, Dict, List, Optional, Tuple
+
+
+def _url_encode(s: str) -> str:
+    return quote(str(s or ""), safe="")
 
 try:
     import requests
@@ -39,16 +44,60 @@ def build_expo_push_message(
     context_mode = str(alert_candidate.get("context_mode") or "").strip()
     alert_id = f"{alert_type}::{place_id}::{best_item_name}"
 
+    place_lat = alert_candidate.get("place_lat")
+    place_lng = alert_candidate.get("place_lng")
+    has_coords = (
+        place_lat is not None and isinstance(place_lat, (int, float)) and
+        place_lng is not None and isinstance(place_lng, (int, float))
+    )
+    query_parts = [f"alert_id={_url_encode(alert_id)}", f"place_id={_url_encode(place_id)}"]
+    if place_name:
+        query_parts.append(f"place_name={_url_encode(place_name)}")
+    if best_item_name:
+        query_parts.append(f"best_item_name={_url_encode(best_item_name)}")
+    if has_coords:
+        query_parts.append(f"place_lat={place_lat}&place_lng={place_lng}")
+    deep_link = f"calorieclick://smart-alert?{'&'.join(query_parts)}"
+    route_target = "smart_alert_place" if (place_id and has_coords) else ("smart_alert_inbox" if place_id else "smart_alert_nearby")
+
     data: Dict[str, Any] = {
         "alert_id": alert_id,
         "alert_type": alert_type,
         "place_id": place_id,
         "place_name": place_name,
         "best_item_name": best_item_name,
+        "display_rank_score_100": display_score,
         "context_mode": context_mode,
+        "deep_link": deep_link,
+        "route_target": route_target,
     }
-    if display_score is not None:
-        data["display_rank_score_100"] = display_score
+    if place_lat is not None and isinstance(place_lat, (int, float)):
+        data["place_lat"] = float(place_lat)
+    if place_lng is not None and isinstance(place_lng, (int, float)):
+        data["place_lng"] = float(place_lng)
+
+    # Trust metadata for inbox/card consistency when user opens from push
+    conf_label = str(alert_candidate.get("confidence_label") or "").strip()
+    rec_label = str(alert_candidate.get("recommendation_label") or "").strip()
+    if conf_label:
+        data["confidence_label"] = conf_label
+    if rec_label:
+        data["recommendation_label"] = rec_label
+    tier = str(alert_candidate.get("chosen_candidate_specificity_tier") or "").strip()
+    if tier:
+        data["chosen_candidate_specificity_tier"] = tier
+    menu_src = str(alert_candidate.get("menu_item_source") or "").strip()
+    if menu_src:
+        data["menu_item_source"] = menu_src
+    if alert_candidate.get("matched_local_profile"):
+        data["matched_local_profile"] = True
+    local_src = str(alert_candidate.get("local_profile_source") or "").strip()
+    if local_src:
+        data["local_profile_source"] = local_src
+    if alert_candidate.get("used_venue_intelligence_cache"):
+        data["used_venue_intelligence_cache"] = True
+    if alert_candidate.get("best_item_is_generic_fallback"):
+        data["best_item_is_generic_fallback"] = True
 
     msg: Dict[str, Any] = {
         "to": expo_push_token,

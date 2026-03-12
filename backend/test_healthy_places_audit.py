@@ -147,6 +147,40 @@ class TestAuditResultRow(unittest.TestCase):
         self.assertEqual(row["best_item_calories"], 480)
         self.assertEqual(row["best_item_protein"], 36)
 
+    def test_audit_result_row_includes_cache_and_local_profile_fields(self):
+        """Audit row includes matched_local_profile, used_venue_intelligence_cache, cache_last_enriched_at, local_profile_id, enqueued_for_enrichment."""
+        place = _minimal_place(
+            _matched_local_profile=True,
+            _local_profile_source="curated_manual",
+            _local_profile_confidence=0.85,
+            _local_profile_id="prof-uuid-123",
+            _used_venue_intelligence_cache=False,
+        )
+        row = build_audit_result_row(place, 1)
+        self.assertTrue(row["matched_local_profile"])
+        self.assertEqual(row["local_profile_source"], "curated_manual")
+        self.assertEqual(row["local_profile_confidence"], 0.85)
+        self.assertEqual(row["local_profile_id"], "prof-uuid-123")
+        self.assertFalse(row["used_venue_intelligence_cache"])
+
+        place_cache = _minimal_place(
+            _used_venue_intelligence_cache=True,
+            _cache_source_type="exact_menu_cache",
+            _cache_last_enriched_at="2025-03-01T10:00:00Z",
+        )
+        row_cache = build_audit_result_row(place_cache, 3)
+        self.assertTrue(row_cache["used_venue_intelligence_cache"])
+        self.assertEqual(row_cache["cache_source_type"], "exact_menu_cache")
+        self.assertEqual(row_cache["cache_last_enriched_at"], "2025-03-01T10:00:00Z")
+
+        place2 = _minimal_place(
+            _enqueued_for_enrichment=True,
+            _enrichment_enqueue_reason="candidate_low_specificity",
+        )
+        row2 = build_audit_result_row(place2, 2)
+        self.assertTrue(row2["enqueued_for_enrichment"])
+        self.assertEqual(row2["enrichment_enqueue_reason"], "candidate_low_specificity")
+
 
 class TestFilteredOutEntry(unittest.TestCase):
     def test_filtered_out_entry_has_place_name_and_reason(self):

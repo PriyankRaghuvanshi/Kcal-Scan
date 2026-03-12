@@ -86,6 +86,9 @@ class TestCanonicalBuilderConsistency(unittest.TestCase):
             "context_reason",
             "context_applied",
             "context_components",
+            "chosen_candidate_specificity_tier",
+            "specificity_bonus_100",
+            "display_sort_score_100",
         ]
         for k in required:
             self.assertIn(k, out, f"missing field: {k}")
@@ -283,6 +286,54 @@ class TestContextIncludedInDisplayScore(unittest.TestCase):
         out = build_ranked_place_profile(place, user_ctx)
         self.assertEqual(out.get("context_net_100"), 0)
         self.assertFalse(out.get("context_applied"))
+
+
+class TestSpecificityAwareRanking(unittest.TestCase):
+    """Chain/menu-backed candidates preferred over generic when scores are close."""
+
+    def test_specificity_tier_and_bonus_present(self):
+        place = _place("Subway", "6-inch Chicken Sub", menu_item_source="chain_registry", chain_key="subway")
+        place["decision_today"] = "YES"
+        place["fit_for_today"] = True
+        user_ctx = {"remaining_protein_g": 40, "cut_mode": True, "goal": "fat_loss"}
+        out = build_ranked_place_profile(place, user_ctx)
+        self.assertEqual(out["chosen_candidate_specificity_tier"], "chain_registry")
+        self.assertEqual(out["specificity_bonus_100"], 4)
+        self.assertAlmostEqual(
+            out["display_sort_score_100"],
+            out["display_rank_score_100"] + 4,
+            delta=1.0,
+            msg="display_sort_score should be display_rank + specificity_bonus",
+        )
+
+    def test_chain_outranks_generic_when_same_core_score(self):
+        """When both have same core score, chain should rank higher due to +4 vs -4."""
+        subway = _place("Subway", "6-inch Chicken Sub", menu_item_source="chain_registry", chain_key="subway")
+        darbar = _place("Darbar", "Tandoori + dal + roti", menu_item_source="heuristic")
+        for p in (subway, darbar):
+            p["decision_today"] = "YES"
+            p["fit_for_today"] = True
+            p["estimated_calories"] = 520
+            p["estimated_protein_g"] = 35
+            p["distance_meters"] = 200
+        user_ctx = {"remaining_protein_g": 40, "cut_mode": True, "goal": "fat_loss"}
+
+        places = [subway, darbar]
+        for p in places:
+            p.update(build_ranked_place_profile(p, user_ctx))
+        enriched = enrich_places_for_healthy_map(
+            places, origin_lat=28.6, origin_lng=77.2, sort_mode="flat_score"
+        )
+        self.assertEqual(enriched[0]["name"], "Subway", "Chain-backed should rank first when scores close")
+
+    def test_generic_gets_negative_bonus(self):
+        place = _place("Cafe", "Lighter menu option", menu_item_source="heuristic")
+        place["decision_today"] = "YES"
+        place["fit_for_today"] = True
+        user_ctx = {"remaining_protein_g": 40, "cut_mode": True}
+        out = build_ranked_place_profile(place, user_ctx)
+        self.assertEqual(out["chosen_candidate_specificity_tier"], "generic_fallback")
+        self.assertEqual(out["specificity_bonus_100"], -4)
 
 
 class TestGenericFallbackLabel(unittest.TestCase):

@@ -26,13 +26,13 @@ The backend can send eligible Smart Food Alerts as real Expo push notifications.
    - Calls `healthy_places` to get ranked nearby places
    - Builds candidates via `build_smart_food_alert_candidates`
    - Filters by `eligible_to_send` and confidence
-   - Takes **top 1** only (initial conservative rule)
+   - **Fallback send logic**: Iterates ranked eligible candidates. If #1 is suppressed (duplicate_recently_sent for all tokens), tries #2, then #3, etc. Sends at most one total.
    - Gets active tokens via `list_tokens_for_user`
    - Skips tokens that recently received same alert (6h dedupe)
    - Creates delivery records
    - Sends to Expo (or simulated if dry_run)
 
-3. Response: candidates_considered, eligible_count, notifications_attempted, tickets_received, dry_run
+3. Response: candidates_considered, eligible_count, candidates_skipped_as_duplicate, candidate_sent_rank, notifications_attempted, tickets_received, final_suppressed_reason (when none sent), dry_run
 
 ## Dry-Run Mode
 
@@ -56,12 +56,14 @@ The backend can send eligible Smart Food Alerts as real Expo push notifications.
 - Token no longer returned by `list_tokens_for_user(active_only=True)`
 - Audit trail in delivery store (status `token_deactivated`)
 
-## Rollout Recommendations
+## Rollout and Staged Release
 
-1. **Dev/staging**: `dry_run=true` only
-2. **Prod**: Set `EXPO_PUSH_SENDING_ENABLED=true` only when ready
-3. **Internal users**: Enable for selected user IDs first
-4. **Top 1 per run**: Currently enforced; can relax later
+See **PUSH_ROLLOUT.md** for staged rollout modes (allowlist_only, active_users_only, percentage, all), active-user eligibility, frequency guardrails, and recommended production progression.
+
+Quick reference:
+- `EXPO_PUSH_SENDING_ENABLED=true` – master switch
+- `PUSH_REAL_SEND_MODE` – allowlist_only (default when enabled), active_users_only, percentage, all
+- `GET /push/rollout/status` – config and observability
 
 ## Batching
 
@@ -69,9 +71,36 @@ The backend can send eligible Smart Food Alerts as real Expo push notifications.
 - Expo allows up to 100 per request
 - Receipt lookup: up to 1000 IDs per request
 
+## Batch Smart Alert Sending
+
+See **PUSH_BATCH_SENDING.md** for:
+- `POST /push/send-smart-alerts/batch` – scheduler-friendly batch send
+- `GET /push/send-smart-alerts/batch/status` – config and eligible-user estimate
+- User location storage for batch (from `/places/healthy` and `/push/send-smart-alerts`)
+
+## Push payload deep-link fields
+
+Every push message `data` object includes deep-link fields so the mobile app can route the user to the exact recommendation when they tap:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `alert_id` | string | Stable ID: `{alert_type}::{place_id}::{best_item_name}` |
+| `alert_type` | string | protein_rescue, post_workout_recovery, etc. |
+| `place_id` | string | Google Place ID |
+| `place_name` | string | Display name, e.g. "Subway" |
+| `best_item_name` | string | Top recommended item |
+| `place_lat` | number | Place latitude (required for direct place opening) |
+| `place_lng` | number | Place longitude |
+| `display_rank_score_100` | number | Display score |
+| `context_mode` | string | default, late_night, etc. |
+| `deep_link` | string | `calorieclick://smart-alert?alert_id=...&place_id=...&place_name=...&best_item_name=...&place_lat=...&place_lng=...` |
+| `route_target` | string | `smart_alert_place` (coords present), `smart_alert_inbox` (place_id only), or `smart_alert_nearby` |
+
+Mobile routing: if `place_id` + `place_lat` + `place_lng` are present, the app opens Healthy Nearby with that place pre-selected. Otherwise it opens the Smart Alert inbox. See `mobile/docs/SMART_ALERTS.md` for details.
+
 ## Key Files
 
-- `backend/expo_push_service.py` – message build, send, receipts
+- `backend/expo_push_service.py` – message build, send, receipts, deep-link payload
 - `backend/push_delivery_store.py` – delivery logging
 - `backend/push_token_store.py` – token registry, deactivation
 - `backend/main.py` – `/push/send-smart-alerts`, `/push/check-receipts`, `/push/check-pending-receipts`

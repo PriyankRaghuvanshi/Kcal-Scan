@@ -558,6 +558,114 @@ class MenuItemScoringTests(unittest.TestCase):
         self.assertIsInstance(top.get("skip_items"), list)
         self.assertIsInstance(top.get("add_items"), list)
 
+    def test_venue_intelligence_cache_hit_wins_over_heuristic(self):
+        """Cached venue intelligence exists for place_id; candidate comes from cache, heuristic not used."""
+        place = {
+            "place_id": "cache-hit-venue-1",
+            "name": "Mystery Grill",
+            "types": ["restaurant", "meal_takeaway"],
+        }
+        cached = {
+            "place_id": "cache-hit-venue-1",
+            "candidates": [
+                {
+                    "item_name": "Grilled salmon bowl with quinoa",
+                    "estimated_calories": 520,
+                    "estimated_protein_g": 42,
+                    "menu_item_source": "exact_menu_cache",
+                    "menu_item_confidence": 0.88,
+                }
+            ],
+            "swap_templates": [{"swap_label": "Light dressing on the side"}],
+            "source_type": "exact_menu_cache",
+            "chosen_candidate_specificity_tier": "exact_menu_match",
+            "confidence": 0.88,
+        }
+        with patch("menu_item_scoring.get_cached_venue_intelligence", return_value=cached):
+            with patch("menu_item_scoring.resolve_chain_menu_for_place", return_value=None):
+                out = recommend_menu_items_for_place(place)
+        top = out.get("top_menu_item") or {}
+        self.assertIn("salmon", str(top.get("item_name") or "").lower())
+        self.assertIn(
+            str(top.get("menu_item_source") or "").lower(),
+            ("exact_menu_cache", "chain_ingested"),
+            msg="Cache should provide candidate; heuristic should not win",
+        )
+
+    def test_chain_still_works_when_no_cache_or_local_profile(self):
+        """No cache, no local profile; ingested chain item used."""
+        place = {"place_id": "p-sub", "name": "Subway", "types": ["restaurant", "sandwich"]}
+        chain_bundle = {
+            "menu_source": "chain_registry",
+            "chain_key": "subway",
+            "menu_items": [
+                {
+                    "item_name": "6-inch grilled chicken sub",
+                    "estimated_calories": 390,
+                    "estimated_protein_g": 30,
+                    "menu_item_source": "chain_registry",
+                }
+            ],
+        }
+        with patch("menu_item_scoring.get_cached_venue_intelligence", return_value=None):
+            with patch("menu_item_scoring.resolve_chain_menu_for_place", return_value=chain_bundle):
+                out = recommend_menu_items_for_place(place)
+        top = out.get("top_menu_item") or {}
+        self.assertEqual(str(top.get("menu_item_source") or ""), "chain_registry")
+        self.assertIn("grilled chicken", str(top.get("item_name") or "").lower())
+
+    def test_generic_fallback_enqueues_for_enrichment(self):
+        """F. When heuristic path used (no cache/local/chain), place is enqueued for enrichment."""
+        place = {
+            "place_id": "generic-venue-1",
+            "name": "XYZ Eatery",
+            "types": ["restaurant"],
+            "lat": -34.5,
+            "lng": 150.5,  # Outside launch area -> no local profile
+        }
+        with patch("menu_item_scoring.get_cached_venue_intelligence", return_value=None):
+            with patch("menu_item_scoring.enrich_place_with_local_profile", return_value=None):
+                with patch("menu_item_scoring.resolve_chain_menu_for_place", return_value=None):
+                    with patch("menu_item_scoring.get_menu_items_by_place_id", return_value=[]):
+                        with patch("menu_item_scoring.enqueue_place_for_enrichment") as mock_enqueue:
+                            recommend_menu_items_for_place(place, use_llm_place_context=False)
+        mock_enqueue.assert_called_once()
+        call_kw = mock_enqueue.call_args[1] if mock_enqueue.call_args[1] else {}
+        # Outside launch area -> unknown_suburb_visible_result
+        self.assertEqual(call_kw.get("reason"), "unknown_suburb_visible_result")
+        self.assertTrue(place.get("_enqueued_for_enrichment"))
+        self.assertEqual(place.get("_enrichment_enqueue_reason"), "unknown_suburb_visible_result")
+
+    def test_generic_fallback_vegan_enqueues_missing_vegan_profile(self):
+        """G. Vegan user + heuristic path -> missing_vegan_profile reason."""
+        place = {
+            "place_id": "vegan-test-1",
+            "name": "Unknown Cafe XYZ",
+            "types": ["cafe"],
+            "lat": -33.815,
+            "lng": 151.0,  # Inside Parramatta launch area
+        }
+        with patch("menu_item_scoring.get_cached_venue_intelligence", return_value=None):
+            with patch("menu_item_scoring.enrich_place_with_local_profile", return_value=None):
+                with patch("menu_item_scoring.resolve_chain_menu_for_place", return_value=None):
+                    with patch("menu_item_scoring.get_menu_items_by_place_id", return_value=[]):
+                        with patch("menu_item_scoring.enqueue_place_for_enrichment") as mock_enqueue:
+                            recommend_menu_items_for_place(place, diet_preference="vegan", use_llm_place_context=False)
+        mock_enqueue.assert_called_once()
+        call_kw = mock_enqueue.call_args[1] if mock_enqueue.call_args[1] else {}
+        self.assertEqual(call_kw.get("reason"), "missing_vegan_profile")
+
+    def test_diet_filtering_vegetarian_excludes_chicken(self):
+        """Diet filtering applied: vegetarian excludes chicken items from heuristic."""
+        place = {"name": "Generic Indian", "types": ["indian"], "place_id": "d1", "lat": -33.82, "lng": 151.01}
+        with patch("menu_item_scoring.get_cached_venue_intelligence", return_value=None):
+            with patch("menu_item_scoring.enrich_place_with_local_profile", return_value=None):
+                with patch("menu_item_scoring.resolve_chain_menu_for_place", return_value=None):
+                    out = recommend_menu_items_for_place(place, diet_preference="vegetarian", use_llm_place_context=False)
+        top = out.get("top_menu_item") or {}
+        name = str(top.get("item_name") or "").lower()
+        self.assertNotIn("chicken", name, f"Vegetarian should not get chicken: {name}")
+
 
 if __name__ == "__main__":
     unittest.main()

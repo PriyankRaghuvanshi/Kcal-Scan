@@ -127,6 +127,65 @@ class TestSubwayStyleCandidateSelection(unittest.TestCase):
         self.assertNotIn("meatball", primary)
 
 
+class TestDietAwareCandidateSelection(unittest.TestCase):
+    """C. vegetarian and vegan candidates differ for Indian/cafe examples."""
+
+    def test_indian_vegetarian_candidates_no_meat_chicken_fish(self):
+        place = _place("Darbar Indian Restaurant")
+        candidates, cuisine_id, _, _ = get_candidates_for_place(place, diet_preference="vegetarian")
+        self.assertEqual(cuisine_id, "north_indian")
+        self.assertGreater(len(candidates), 0)
+        names = [str(c.get("candidate_name") or "").lower() for c in candidates]
+        excluded = ("chicken", "beef", "meat", "fish", "salmon")
+        for n in names:
+            for word in excluded:
+                self.assertNotIn(word, n, f"Vegetarian should not get {word}: {n}")
+        self.assertTrue(
+            any("paneer" in n or "dal" in n or "chana" in n or "roti" in n for n in names),
+            f"Expected paneer/dal/chana/roti in vegetarian Indian, got: {names}",
+        )
+
+    def test_indian_vegan_candidates_no_egg_dairy(self):
+        place = _place("Generic Indian Restaurant")
+        candidates, cuisine_id, _, _ = get_candidates_for_place(place, diet_preference="vegan")
+        self.assertEqual(cuisine_id, "north_indian")
+        self.assertGreater(len(candidates), 0)
+        names = [str(c.get("candidate_name") or "").lower() for c in candidates]
+        for n in names:
+            self.assertNotIn("paneer", n, f"Paneer is dairy; vegan: {n}")
+            self.assertNotIn("egg", n, f"Vegan should not get egg: {n}")
+            self.assertNotIn("yogurt", n)
+        self.assertTrue(
+            any("dal" in n or "chana" in n or "roti" in n for n in names),
+            f"Expected dal/chana/roti in vegan Indian, got: {names}",
+        )
+
+    def test_cafe_vegetarian_allows_eggs(self):
+        place = _place("Local Cafe", types=["cafe"])
+        candidates, cuisine_id, _, _ = get_candidates_for_place(place, diet_preference="vegetarian")
+        self.assertEqual(cuisine_id, "cafe")
+        names = [str(c.get("candidate_name") or "").lower() for c in candidates]
+        self.assertTrue(
+            any("egg" in n or "wrap" in n or "veggie" in n for n in names),
+            f"Vegetarian cafe should get eggs/wrap/veggie, got: {names}",
+        )
+
+    def test_cafe_vegan_no_eggs(self):
+        place = _place("Local Cafe", types=["cafe"])
+        candidates, cuisine_id, _, _ = get_candidates_for_place(place, diet_preference="vegan")
+        self.assertEqual(cuisine_id, "cafe")
+        names = [str(c.get("candidate_name") or "").lower() for c in candidates]
+        for n in names:
+            words = set(n.split())
+            self.assertNotIn("egg", words, f"Vegan should not get egg: {n}")
+            self.assertNotIn("eggs", words, f"Vegan should not get eggs: {n}")
+            self.assertNotIn("omelette", words, f"Vegan should not get omelette: {n}")
+        self.assertTrue(
+            any("avocado" in n or "vegan" in n or "bowl" in n or "veggie" in n for n in names),
+            f"Vegan cafe should get avocado/vegan/bowl/veggie, got: {names}",
+        )
+
+
 class TestGenericFallbackSuppression(unittest.TestCase):
     def test_no_strong_cuisine_does_not_use_global_generic_as_primary(self):
         place = _place("Unknown Place XYZ")

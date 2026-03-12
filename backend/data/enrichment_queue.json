@@ -1,0 +1,38 @@
+{
+  "version": "v1",
+  "records": [
+    {
+      "place_id": "d1",
+      "place_name": "Generic Indian",
+      "place_types": [],
+      "chain_match_key": null,
+      "market": "parramatta",
+      "reason_enqueued": "missing_veg_profile",
+      "created_at": "2026-03-11T01:06:46Z",
+      "processed_at": null,
+      "status": "pending"
+    },
+    {
+      "place_id": "ChIJ-invalid-reason",
+      "place_name": "Invalid Reason",
+      "place_types": [],
+      "chain_match_key": null,
+      "market": "",
+      "reason_enqueued": "candidate_low_specificity",
+      "created_at": "2026-03-11T02:07:00Z",
+      "processed_at": null,
+      "status": "pending"
+    },
+    {
+      "place_id": "ChIJ-enqueue-test",
+      "place_name": "Enqueue Test",
+      "place_types": [],
+      "chain_match_key": null,
+      "market": "",
+      "reason_enqueued": "candidate_low_specificity",
+      "created_at": "2026-03-11T02:07:00Z",
+      "processed_at": null,
+      "status": "pending"
+    }
+  ]
+}

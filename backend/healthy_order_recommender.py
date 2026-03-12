@@ -13,6 +13,10 @@ from personalization_profiles import (
 from recommendation_safety import sanitize_recommended_item
 from restaurant_macro_estimator import estimate_restaurant_macros
 from cuisine_candidate_rules import get_best_order_for_place_heuristic
+from launch_area_config import get_area_for_place
+from local_venue_profiles import profile_to_candidates, profile_to_swaps
+from supabase_intelligence_store import get_local_venue_profile
+from diet_filters import filter_candidates_for_diet, is_item_allowed_for_diet, normalize_diet_preference
 
 
 RECOMMENDATION_VERSION = "v1"
@@ -423,6 +427,7 @@ def _fallback_recommendation(
         "personalized_best_order": "",
         "personalized_reason": "",
         "order_display_label": order_display_label,
+        "matched_local_profile": False,
     }
     out["order_type"] = "estimated"
 
@@ -466,6 +471,145 @@ def _fallback_recommendation(
     return out
 
 
+def _recommendation_from_local_profile(
+    place: Dict[str, Any],
+    profile: Dict[str, Any],
+    place_text: str,
+    *,
+    health_score: float,
+    resolved_mode: NutritionMode | str,
+    resolved_goal: Any,
+    goal_value: str,
+    cut_mode_active: bool,
+    use_llm_copy: bool = True,
+    allow_llm_macro: bool = True,
+) -> Dict[str, Any]:
+    """Build recommendation from local venue profile. Used before heuristic path."""
+    candidates = profile_to_candidates(profile, max_items=6)
+    if not candidates:
+        raise ValueError("profile has no candidates")
+    top = candidates[0]
+    template_key = top.get("template_key")
+    swaps = profile_to_swaps(profile, template_key=template_key)
+
+    best_order_raw = str(top.get("item_name") or "").strip()
+    if not best_order_raw:
+        raise ValueError("top candidate has no item_name")
+    estimated_calories = int(top.get("estimated_calories") or 520)
+    estimated_protein_g = int(top.get("estimated_protein_g") or 28)
+    confidence = float(top.get("menu_item_confidence") or 0.78)
+    specificity_tier = str(profile.get("specificity_tier") or "enriched_local_profile")
+    profile_source = str(profile.get("profile_source") or "curated_manual")
+    profile_confidence = float(
+        profile.get("confidence_tier", 0.8) if isinstance(profile.get("confidence_tier"), (int, float)) else 0.8
+    )
+
+    better_swap = "Choose light dressing on the side"
+    if swaps:
+        better_swap = str(swaps[0].get("swap_label") or swaps[0].get("swap_key") or better_swap).strip()
+
+    hs = float(health_score or 0.0)
+    if hs >= 7.5:
+        confidence += 0.08
+    elif hs >= 6.0:
+        confidence += 0.04
+    elif hs > 0 and hs < 4.5:
+        confidence -= 0.07
+    confidence = round(_clamp(confidence, 0.35, 0.93), 2)
+
+    safe_best_order, order_display_label = _sanitize_order_name(
+        best_order=best_order_raw,
+        place_text=place_text,
+        confidence=confidence,
+    )
+    best_order_for_cut = _best_order_for_cut(safe_best_order) if cut_mode_active else safe_best_order
+
+    macro_item = best_order_for_cut if cut_mode_active else safe_best_order
+    macro = estimate_restaurant_macros(
+        item_name=macro_item,
+        cuisine_hint=_cuisine_hint(place),
+        place=place,
+        input_calories=estimated_calories,
+        input_protein_g=estimated_protein_g,
+        allow_llm=allow_llm_macro,
+    )
+    estimated_calories = int(macro.get("estimated_calories", estimated_calories))
+    estimated_protein_g = int(macro.get("estimated_protein_g", estimated_protein_g))
+    cut_friendly = _is_cut_friendly_order(estimated_calories, estimated_protein_g)
+    cut_warning = "" if cut_friendly else "Can run calorie-heavy on cut days."
+    order_strategy_tags = list(top.get("food_quality_tags") or []) or ["high_protein", "local_profile"]
+    short_reason = "Curated local profile for this venue."
+
+    if cut_mode_active:
+        best_order_for_cut = _best_order_for_cut(safe_best_order)
+        order_strategy_tags = list(dict.fromkeys([*order_strategy_tags, "cut_mode"]))
+        better_swap = "Skip calorie-dense sides and keep sauces light"
+        short_reason = "Cut-friendly pick from local profile."
+
+    personalized_best_order = ""
+    personalized_reason = ""
+    if resolved_goal:
+        personalized_best_order = personalize_order_for_goal(best_order_for_cut, resolved_goal)
+        personalized_reason = get_personalized_reason(resolved_goal)
+
+    swap_details = _swap_details(safe_best_order, better_swap, place_text)
+    result = {
+        "best_order": safe_best_order,
+        "better_swap": better_swap,
+        "swap_suggestion": swap_details["swap_suggestion"],
+        "skip_items": swap_details["skip_items"],
+        "add_items": swap_details["add_items"],
+        "order_type": _order_type_from_confidence(confidence),
+        "order_display_label": order_display_label,
+        "avoid_if_cutting": "Large fried combo meals",
+        "estimated_calories": estimated_calories,
+        "estimated_protein_g": estimated_protein_g,
+        "estimated_carbs_g": int(macro.get("estimated_carbs_g", 45)),
+        "estimated_fat_g": int(macro.get("estimated_fat_g", 18)),
+        "estimated_satiety": str(macro.get("estimated_satiety") or "high"),
+        "macro_confidence": round(float(macro.get("macro_confidence", 0.55)), 2),
+        "macro_estimation_version": str(macro.get("macro_estimation_version") or "v1"),
+        "order_confidence": confidence,
+        "short_reason": short_reason,
+        "order_strategy_tags": order_strategy_tags,
+        "recommendation_version": RECOMMENDATION_VERSION,
+        "cut_mode_active": cut_mode_active,
+        "cut_friendly": cut_friendly if cut_mode_active else False,
+        "cut_warning": cut_warning,
+        "best_order_for_cut": best_order_for_cut,
+        "personalization_goal": goal_value,
+        "personalized_best_order": personalized_best_order,
+        "personalized_reason": personalized_reason,
+        "menu_item_source": "local_venue_profile",
+        "chosen_candidate_specificity_tier": specificity_tier,
+        "local_profile_source": profile_source,
+        "local_profile_confidence": profile_confidence,
+        "matched_local_profile": True,
+    }
+    if use_llm_copy:
+        rewritten = maybe_rewrite_explanation_copy(
+            place_name=str((place or {}).get("name") or "").strip(),
+            cuisine=_cuisine_hint(place),
+            recommended_order=result["best_order_for_cut"] if cut_mode_active else result["best_order"],
+            estimated_calories=result["estimated_calories"],
+            estimated_protein_g=result["estimated_protein_g"],
+            goal=goal_value,
+            confidence=result["order_confidence"],
+            recommendation_source="local_venue_profile",
+            menu_item_confidence=result["order_confidence"],
+            base_why_this_works=result["short_reason"],
+            base_short_reason=result["short_reason"],
+        )
+    else:
+        rewritten = {}
+    result["short_reason"] = str(rewritten.get("short_reason") or result["short_reason"])
+    result["why_this_works"] = str(rewritten.get("why_this_works") or result["short_reason"])
+    result["copy_method"] = str(rewritten.get("copy_method") or "deterministic")
+    result["copy_confidence"] = round(_clamp(_safe_float(rewritten.get("copy_confidence"), result["order_confidence"]), 0.2, 0.95), 2)
+    result["copy_version"] = str(rewritten.get("copy_version") or "v1")
+    return result
+
+
 def suggest_best_order_for_place(
     place: Dict[str, Any],
     health_score: float | None = None,
@@ -473,6 +617,7 @@ def suggest_best_order_for_place(
     personalization_goal: Any = None,
     use_llm_copy: bool = True,
     allow_llm_macro: bool = True,
+    diet_preference: str | None = None,
 ) -> Dict[str, Any]:
     resolved_mode = normalize_nutrition_mode(mode)
     resolved_goal = normalize_personalization_goal(personalization_goal)
@@ -488,6 +633,52 @@ def suggest_best_order_for_place(
             allow_llm_macro=allow_llm_macro,
         )
 
+    diet = normalize_diet_preference(diet_preference)
+
+    # Local venue profile before heuristic: DB-backed intelligence beats generic rules.
+    try:
+        place_id = str(place.get("place_id") or place.get("id") or "").strip()
+        normalized_name = str(place.get("name") or place.get("place_name") or "").strip()
+        area = get_area_for_place(place)
+        area_key = str(area.get("area_key") or "").strip() if area else None
+        profile = get_local_venue_profile(
+            place_id=place_id or None,
+            normalized_name=normalized_name or None,
+            area_key=area_key or None,
+        )
+        if profile:
+            candidates = profile_to_candidates(profile, max_items=6)
+            if diet != "omnivore":
+                candidates, _ = filter_candidates_for_diet(candidates, diet)
+            if candidates:
+                profile_filtered = {
+                    **profile,
+                    "candidate_templates": [
+                        {
+                            "template_key": c.get("template_key", f"t{i+1}"),
+                            "template_name": c.get("item_name", c.get("candidate_name", "")),
+                            "estimated_calories": c.get("estimated_calories", 520),
+                            "estimated_protein_g": c.get("estimated_protein_g", 28),
+                            "confidence": c.get("menu_item_confidence", 0.78),
+                        }
+                        for i, c in enumerate(candidates[:6])
+                    ],
+                }
+                return _recommendation_from_local_profile(
+                    place=place,
+                    profile=profile_filtered,
+                place_text=place_text,
+                health_score=float(health_score or 0.0),
+                resolved_mode=resolved_mode,
+                resolved_goal=resolved_goal,
+                goal_value=goal_value,
+                cut_mode_active=cut_mode_active,
+                use_llm_copy=use_llm_copy,
+                allow_llm_macro=allow_llm_macro,
+            )
+    except (ValueError, Exception):
+        pass
+
     rule, hits = _match_rule(place_text)
     if not rule:
         return _fallback_recommendation(
@@ -500,12 +691,18 @@ def suggest_best_order_for_place(
 
     # Prefer cuisine_candidate_rules for candidate name and macros when available.
     heuristic_name, heuristic_cal, heuristic_pro, heuristic_conf, _src_label, _ = get_best_order_for_place_heuristic(
-        place, cut_mode=cut_mode_active
+        place, cut_mode=cut_mode_active, diet_preference=diet_preference
     )
     use_heuristic_candidate = bool(
         heuristic_name and heuristic_name.strip()
         and "lighter menu option" not in (heuristic_name or "").strip().lower()
     )
+    # For vegetarian/vegan, never use rule's best_order if it contains meat; prefer heuristic (diet-filtered)
+    if diet != "omnivore" and not use_heuristic_candidate:
+        rule_best = str(rule.get("best_order") or "")
+        if rule_best and not is_item_allowed_for_diet({"item_name": rule_best, "candidate_name": rule_best}, diet):
+            if heuristic_name and heuristic_name.strip():
+                use_heuristic_candidate = True
     if use_heuristic_candidate:
         estimated_calories = int(heuristic_cal)
         estimated_protein_g = int(heuristic_pro)
@@ -555,6 +752,15 @@ def suggest_best_order_for_place(
         place_text=place_text,
         confidence=confidence,
     )
+    # Diet safety: never return meat/fish/egg/dairy for veg/vegan
+    if diet != "omnivore" and not is_item_allowed_for_diet({"item_name": safe_best_order}, diet):
+        diet_fallback = "Dal + roti (needs menu check)" if diet == "vegan" else "Vegetarian option (needs menu check)"
+        safe_best_order, order_display_label = _sanitize_order_name(
+            best_order=diet_fallback, place_text=place_text, confidence=0.45
+        )
+        estimated_calories = 480 if diet == "vegan" else 450
+        estimated_protein_g = 16
+        confidence = 0.45
     if cut_mode_active:
         best_order_for_cut = _best_order_for_cut(safe_best_order)
 
@@ -615,6 +821,7 @@ def suggest_best_order_for_place(
         "personalization_goal": goal_value,
         "personalized_best_order": personalized_best_order,
         "personalized_reason": personalized_reason,
+        "matched_local_profile": False,
     }
     if use_llm_copy:
         rewritten = maybe_rewrite_explanation_copy(

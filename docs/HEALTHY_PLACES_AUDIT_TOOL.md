@@ -34,7 +34,7 @@ Developer-only tool to inspect **why each restaurant ranked where it did** for H
 | `user_id` | No | - | If provided, results include personal memory fields (worked_before, personal_memory_label, averages, rates) |
 
 Notes:
-- Results now include **`selected_candidate_source`**, **`candidate_source_priority`**, and **`best_item_swaps`** (when available) so you can see whether the best item came from **real_menu** vs **chain_registry** vs heuristics, and what swaps we recommend.
+- Results now include **`selected_candidate_source`**, **`candidate_source_priority`**, **`chosen_candidate_specificity_tier`**, **`specificity_bonus_100`**, **`fetched_but_hidden`**, **`hidden_reason`**, and **`best_item_swaps`** (when available). The **`audit_one_liner`** includes specificity tier when available (e.g. `chain_registry (+4 specificity)`).
 - With `user_id`, results can also include: **`personal_memory_label`**, **`worked_before`**, **`avg_fullness`**, **`avg_craving_score`**, **`times_chosen`**, **`repeat_success_rate`**, **`swap_accept_rate`**.
 - Personal-memory scoring fields:
   - `personal_history_bonus_100`, `personal_history_penalty_100`, `personal_history_net_100` (bounded in \[-6, +6])
@@ -125,7 +125,45 @@ With `include_filtered_out=true`, the response also includes a `filtered_out` ar
 
 ---
 
-## 2. CLI usage
+## 2. Trace endpoint (debug missing places)
+
+**Path:** `GET /places/healthy/trace`
+
+Use this to answer: **"Why is Subway missing?"** or **"Why did generic Indian beat Subway?"**
+
+**Query parameters:**
+
+| Param | Required | Default | Description |
+|-------|----------|---------|-------------|
+| `lat` | Yes | - | Latitude |
+| `lng` | Yes | - | Longitude |
+| `radius` | No | 3000 | Search radius in metres |
+| `goal` | No | - | e.g. `cut`, `fat_loss` |
+| `remaining_calories` | No | - | Remaining calories |
+| `remaining_protein_g` | No | - | Remaining protein (g) |
+| `user_id` | No | - | User ID |
+| `sort_mode` | No | `flat_score` | `flat_score` or `sectioned` |
+| `query_place_name` | No | - | Filter traces to places matching this name (substring) |
+| `query_place_id` | No | - | Filter to exact place_id |
+| `include_all_places` | No | false | If true, trace all fetched places |
+| `top_n_visible` | No | 20 | Places beyond this rank are "fetched_but_hidden" |
+
+**Response fields per trace:**
+- `place_id`, `place_name`, `chosen_candidate_name`, `chosen_candidate_source`, `chosen_candidate_specificity_tier`
+- `specificity_bonus_100` — used for display sort
+- `meal_fitness_score_100`, `display_rank_score_100`
+- `visible_in_results`, `visible_rank`
+- `fetched_but_hidden`, `hidden_reason` — e.g. `top_n_cutoff`, `low_score`, `generic_fallback_demoted`, `chain_match_failed`
+
+**Example:**
+
+```bash
+curl "http://localhost:8000/places/healthy/trace?lat=-33.80&lng=150.97&query_place_name=Subway"
+```
+
+---
+
+## 3. CLI usage
 
 **Script:** `backend/tools/audit_healthy_places.py`
 
@@ -164,7 +202,7 @@ python backend/tools/audit_healthy_places.py --lat -33.80 --lng 150.97 --limit 5
 
 ---
 
-## 3. Inspecting a real suburb / area
+## 4. Inspecting a real suburb / area
 
 1. Get lat/lng for the area (e.g. map click or a known venue).
 2. Call the audit endpoint or CLI with that `lat`, `lng`, and a `radius_m` (e.g. 2000–5000).
@@ -174,7 +212,7 @@ python backend/tools/audit_healthy_places.py --lat -33.80 --lng 150.97 --limit 5
 
 ---
 
-## 4. Comparing Pizza Hut vs Indian / Subway / cafe
+## 5. Comparing Pizza Hut vs Indian / Subway / cafe
 
 - Candidate generation is cuisine-specific: Indian → tandoori/dal/tikka; South Indian → idli/dosa/egg dosa; cafe → eggs on toast / wrap; juice → lower confidence, no invented protein bowl; pizza → thin-crust controlled portion; Subway → grilled chicken sub/salad bowl.
 - Run the same query (same lat/lng, radius, goal, remaining calories/protein) and compare:
@@ -188,7 +226,7 @@ python backend/tools/audit_healthy_places.py --lat -33.80 --lng 150.97 --limit 5
 
 ---
 
-## 5. Interpreting key fields
+## 6. Interpreting key fields
 
 - **display_rank_score_100** – Final ranking score 0–100 (= core + personal + context). Order in `flat_score` mode is by this (descending).
 - **eligibility_band** – Integer band (e.g. 1–3); higher = stronger tier; used for sectioning and labels.
@@ -212,17 +250,18 @@ When `include_alert_candidates=true`, the response includes an **`alert_candidat
 
 ---
 
-## 6. Safety / scope
+## 7. Safety / scope
 
 - This is a **dev/debug** tool. If your project restricts debug routes, protect this endpoint (e.g. behind a debug flag or only in non-production).
 - The audit path **reuses** the same retrieval and canonical ranking as `GET /places/healthy`; it does not change ranking math.
 
 ---
 
-## 7. Files and tests
+## 8. Files and tests
 
-- **Endpoint:** `backend/main.py` – `GET /places/healthy/audit`
+- **Endpoints:** `backend/main.py` – `GET /places/healthy/audit`, `GET /places/healthy/trace`
 - **Helpers:** `backend/healthy_places_audit.py` – `build_audit_one_liner`, `build_audit_result_row`, `build_filtered_out_entry`
+- **Trace:** `backend/place_trace_debug.py` – `build_place_trace`, `infer_specificity_tier`, `infer_hidden_reason`
 - **CLI:** `backend/tools/audit_healthy_places.py`
 - **Tests:** `backend/test_healthy_places_audit.py` – required fields, flat order, include_filtered_out, markdown columns, candidate_debug
 - **Smart alerts:** `backend/smart_food_alerts.py` – `build_smart_food_alert_candidates()`; `backend/test_smart_food_alerts.py` – protein rescue, post-workout, late-night, worked-before, suppression, payload shape

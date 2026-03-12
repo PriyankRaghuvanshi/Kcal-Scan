@@ -62,7 +62,8 @@ async function save(state) {
 }
 
 /**
- * Deterministic alert ID for dedupe.
+ * Deterministic alert ID for dedupe. Must match backend format for push/inbox consistency.
+ * Backend: alert_type::place_id::best_item_name
  * @param {object} c - Alert candidate
  * @returns {string}
  */
@@ -71,8 +72,7 @@ export function getAlertId(c) {
   const type = String(c.alert_type || "").trim();
   const placeId = String(c.place_id || "").trim();
   const item = String(c.best_item_name || "").trim();
-  const day = new Date().toISOString().slice(0, 10);
-  return [type, placeId || "?", item || "?", day].join("::");
+  return [type, placeId || "?", item || "?"].join("::");
 }
 
 /**
