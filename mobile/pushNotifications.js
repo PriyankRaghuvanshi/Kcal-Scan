@@ -266,17 +266,21 @@ export async function handleNotificationOpen(response, opts = {}) {
   }
 
   if (userId && (alertId || placeId)) {
-    const payload = buildDecisionEventPayload(
-      {
-        place_id: placeId,
-        name: parsed.place_name,
-        best_item_name: parsed.best_item_name,
-        display_rank_score_100: parsed.display_rank_score_100,
-      },
-      "recommendation_opened",
-      { userId }
-    );
-    postMealDecisionEvent(payload);
+    try {
+      const payload = buildDecisionEventPayload(
+        {
+          place_id: placeId,
+          name: parsed.place_name,
+          best_item_name: parsed.best_item_name,
+          display_rank_score_100: parsed.display_rank_score_100,
+        },
+        "recommendation_opened",
+        { userId }
+      );
+      postMealDecisionEvent(payload);
+    } catch (e) {
+      devLog("handleNotificationOpen postMealDecisionEvent error", String(e?.message || e));
+    }
   }
 
   return { parsed, alertId, placeId };

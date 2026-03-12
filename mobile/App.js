@@ -1728,6 +1728,8 @@ export default function App() {
     try {
       Notifications.setNotificationHandler({
         handleNotification: async () => ({
+          shouldShowBanner: true,
+          shouldShowList: true,
           shouldShowAlert: true,
           shouldPlaySound: true,
           shouldSetBadge: false,
@@ -2007,67 +2009,85 @@ export default function App() {
   useEffect(() => {
     const subs = setupNotificationListeners({
       onNotificationReceived: (notification) => {
-        const data = notification?.request?.content?.data;
-        if (data?.place_id && data?.alert_type) {
-          const candidate = {
-            place_id: data.place_id,
-            place_name: data.place_name,
-            best_item_name: data.best_item_name,
-            alert_type: data.alert_type,
-            title: notification?.request?.content?.title || "Smart alert",
-            body: notification?.request?.content?.body || "",
-            display_rank_score_100: data.display_rank_score_100,
-            confidence_label: data.confidence_label,
-            recommendation_label: data.recommendation_label,
-            chosen_candidate_specificity_tier: data.chosen_candidate_specificity_tier,
-            menu_item_source: data.menu_item_source,
-            matched_local_profile: data.matched_local_profile,
-            local_profile_source: data.local_profile_source,
-            used_venue_intelligence_cache: data.used_venue_intelligence_cache,
-            best_item_is_generic_fallback: data.best_item_is_generic_fallback,
-          };
-          setSmartAlertCandidates((prev) => {
-            const key = (c) => (c.place_id || "") + (c.alert_type || "");
-            if (prev.some((p) => key(p) === key(candidate))) return prev;
-            return [candidate, ...prev].slice(0, 10);
-          });
+        try {
+          const data = notification?.request?.content?.data;
+          if (data?.place_id && data?.alert_type) {
+            const candidate = {
+              place_id: data.place_id,
+              place_name: data.place_name,
+              best_item_name: data.best_item_name,
+              alert_type: data.alert_type,
+              title: notification?.request?.content?.title || "Smart alert",
+              body: notification?.request?.content?.body || "",
+              display_rank_score_100: data.display_rank_score_100,
+              confidence_label: data.confidence_label,
+              recommendation_label: data.recommendation_label,
+              chosen_candidate_specificity_tier: data.chosen_candidate_specificity_tier,
+              menu_item_source: data.menu_item_source,
+              matched_local_profile: data.matched_local_profile,
+              local_profile_source: data.local_profile_source,
+              used_venue_intelligence_cache: data.used_venue_intelligence_cache,
+              best_item_is_generic_fallback: data.best_item_is_generic_fallback,
+            };
+            setSmartAlertCandidates((prev) => {
+              const key = (c) => (c.place_id || "") + (c.alert_type || "");
+              if (prev.some((p) => key(p) === key(candidate))) return prev;
+              return [candidate, ...prev].slice(0, 10);
+            });
+          }
+        } catch (err) {
+          console.log("notification receive handler error", String(err?.message || err));
         }
       },
       onNotificationResponse: (response) => {
-        handleNotificationOpen(response, {
+        void handleNotificationOpen(response, {
           userId: userId || session?.user?.id,
           recordAlertOpened,
-        }).then(({ parsed }) => {
-          setSmartAlertState(null);
-          getSmartAlertState().then(setSmartAlertState);
-          const resolved = resolveSmartAlertNavigationTarget(parseSmartAlertDeepLink(parsed || response?.notification?.request?.content?.data || {}));
-          if (resolved.action === "open_place" && resolved.place_id) {
-            setActiveScreen("healthy_nearby");
-            setSmartAlertInboxVisible(false);
-            setHealthyNearbyTab("decision");
-            const coords = Number.isFinite(resolved.place_lat) && Number.isFinite(resolved.place_lng)
-              ? { lat: resolved.place_lat, lng: resolved.place_lng }
-              : healthyPlaceCoords;
-            const preferredCard = {
-              place_id: resolved.place_id,
-              place_name: resolved.place_name,
-              place_lat: resolved.place_lat,
-              place_lng: resolved.place_lng,
-              best_item_name: resolved.best_item_name,
-            };
-            if (coords) {
-              void loadHealthyPlacesNearby({ coords, preferredCard });
-            } else {
-              void loadHealthyPlacesNearby();
+        })
+          .then(({ parsed }) => {
+            try {
+              setSmartAlertState(null);
+              void getSmartAlertState().then(setSmartAlertState).catch(() => {});
+              const resolved = resolveSmartAlertNavigationTarget(
+                parseSmartAlertDeepLink(parsed || response?.notification?.request?.content?.data || {})
+              );
+              if (resolved.action === "open_place" && resolved.place_id) {
+                setActiveScreen("healthy_nearby");
+                setSmartAlertInboxVisible(false);
+                setHealthyNearbyTab("decision");
+                const coords = Number.isFinite(resolved.place_lat) && Number.isFinite(resolved.place_lng)
+                  ? { lat: resolved.place_lat, lng: resolved.place_lng }
+                  : healthyPlaceCoords;
+                const preferredCard = {
+                  place_id: resolved.place_id,
+                  place_name: resolved.place_name,
+                  place_lat: resolved.place_lat,
+                  place_lng: resolved.place_lng,
+                  best_item_name: resolved.best_item_name,
+                };
+                if (coords) {
+                  void loadHealthyPlacesNearby({ coords, preferredCard });
+                } else {
+                  void loadHealthyPlacesNearby();
+                }
+              } else if (resolved.action === "open_inbox" || resolved.place_id) {
+                setActiveScreen("healthy_nearby");
+                setSmartAlertInboxVisible(true);
+                void fetchSmartAlerts({ force: true });
+              } else {
+                setActiveScreen("healthy_nearby");
+              }
+            } catch (err) {
+              console.log("notification response handler error", String(err?.message || err));
+              setActiveScreen("healthy_nearby");
+              setSmartAlertInboxVisible(true);
             }
-          } else if (resolved.action === "open_inbox" || resolved.place_id) {
+          })
+          .catch((err) => {
+            console.log("handleNotificationOpen failed", String(err?.message || err));
             setActiveScreen("healthy_nearby");
             setSmartAlertInboxVisible(true);
-            void fetchSmartAlerts({ force: true });
-          } else {
-            setActiveScreen("healthy_nearby");
-          }
-        });
+          });
       },
     });
     pushNotificationSubsRef.current = subs;
