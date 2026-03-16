@@ -278,3 +278,29 @@ def was_recently_sent(user_id: str, expo_push_token: str, alert_id: str, within_
             if created >= cutoff:
                 return True
     return False
+
+
+def get_recently_sent_place_ids(user_id: str, within_hours: float = 24.0) -> set:
+    """Return set of place_ids sent to this user in the last within_hours (for alert variety)."""
+    from datetime import timedelta
+
+    cutoff = (datetime.now(timezone.utc) - timedelta(hours=within_hours)).isoformat()
+    uid = _normalize_space(user_id)
+    with _LOCK:
+        store = _load_store()
+    deliveries = store.get("deliveries") or []
+    out: set = set()
+    for d in reversed(deliveries):
+        if not isinstance(d, dict):
+            continue
+        if _normalize_space(d.get("user_id")) != uid:
+            continue
+        if d.get("status") not in (STATUS_SENT, STATUS_RECEIPT_OK, STATUS_DRY_RUN):
+            continue
+        created = d.get("created_at") or ""
+        if created < cutoff:
+            break
+        pid = _normalize_space(d.get("place_id") or "")
+        if pid:
+            out.add(pid)
+    return out

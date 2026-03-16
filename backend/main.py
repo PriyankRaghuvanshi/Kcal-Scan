@@ -75,6 +75,8 @@ from contribution_auto_promotion import (
 )
 from meal_feedback_store import upsert_meal_feedback_event
 from meal_decision_event_store import log_meal_decision_event
+from goal_coach_action_tracking import log_goal_coach_event
+from yieldpilot_case_routes import router as yieldpilot_case_router
 from push_token_store import (
     register_push_token,
     unregister_push_token,
@@ -132,6 +134,28 @@ from post_sync_remediation_report import (
     build_next_enrichment_targets_from_fetch,
 )
 from apply_enrichment_targets import apply_next_enrichment_targets, apply_enrichment_targets
+from goal_coach import (
+    build_starter_plan,
+    build_daily_coach_state,
+    build_daily_suggested_actions,
+    build_weekly_review,
+    build_weekly_next_step_action,
+    compute_kickoff_status,
+)
+from goal_plan_store import (
+    create_goal_plan,
+    get_active_goal_plan,
+    update_goal_plan_status,
+)
+from journey_store import (
+    add_weight_entry,
+    add_check_in,
+    add_photo_entry,
+    get_weight_entries,
+    get_check_ins,
+    get_photo_entries,
+    get_journey_summary,
+)
 from admin_ops_dashboard import (
     build_ops_dashboard_summary,
     run_apply_next_targets,
@@ -219,6 +243,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.include_router(yieldpilot_case_router, prefix="/yieldpilot")
 
 # -------------------- ENV --------------------
 USDA_API_KEY = os.getenv("USDA_API_KEY", "").strip()
@@ -904,6 +929,7 @@ class EditableItemModel(BaseModel):
     oil_added_tsp: float = 0.0
     confidence: float = 0.0
     candidate_alternatives: List[str] = Field(default_factory=list)
+    ingredient_hints: Optional[Dict[str, str]] = None
 
 
 class EditableContextModel(BaseModel):
@@ -968,6 +994,7 @@ class AnalyzeRerunEditsModel(BaseModel):
     swap_item: Optional[SwapItemEdit] = None
     set_item_grams: Optional[SetItemGramsEdit] = None
     clarifying_answer: Optional[str] = None
+    clarifying_answers: Optional[List[Dict[str, str]]] = None
 
 
 class AnalyzeRerunRequestModel(BaseModel):
@@ -1213,6 +1240,14 @@ def _coerce_rerun_payload(
         clarifying_txt = str(clarifying_raw or "").strip()
         if clarifying_txt:
             edits["clarifying_answer"] = clarifying_txt
+
+    clarifying_answers_raw = src.get("clarifying_answers") or edits.get("clarifying_answers")
+    if isinstance(clarifying_answers_raw, list):
+        edits["clarifying_answers"] = [
+            {"key": str(x.get("key") or "").strip(), "value": str(x.get("value") or "").strip()}
+            for x in clarifying_answers_raw
+            if isinstance(x, dict) and (str(x.get("key") or "").strip() or str(x.get("value") or "").strip())
+        ]
 
     # Allow legacy shape: set_oil_added_tsp: 0 (or "0.5"), and coerce it into the structured object.
     oil_raw = edits.get("set_oil_added_tsp")
@@ -3386,6 +3421,64 @@ def get_daily_metrics_window(user_id: str, week_start_iso: str) -> List[Dict[str
         if week_start_iso <= day <= week_end_iso:
             filtered.append(r)
     return filtered
+
+
+def _get_goal_coach_daily_consumed(user_id: str, day_iso: str) -> Optional[Dict[str, Any]]:
+    """Return consumed_calories and consumed_protein_g for one day from daily_metrics, or None."""
+    if not (SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY):
+        return None
+    try:
+        row = sb_get_one(
+            TBL_DAILY_METRICS,
+            params={
+                "select": "*",
+                "user_id": f"eq.{user_id}",
+                "day": f"eq.{day_iso}",
+                "limit": "1",
+            },
+        )
+        if not row:
+            return None
+        mj = row.get("metrics_json") if isinstance(row.get("metrics_json"), dict) else {}
+        consumed = mj.get("consumed") if isinstance(mj.get("consumed"), dict) else {}
+        kcal = float(_safe_float(consumed.get("kcal"), 0.0) or 0.0)
+        protein_g = float(_safe_float(consumed.get("protein_g"), 0.0) or 0.0)
+        return {"consumed_calories": round(kcal, 1), "consumed_protein_g": round(protein_g, 1)}
+    except Exception:
+        return None
+
+
+def _goal_coach_metrics_rows_to_days(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Map daily_metrics rows to weekly_coach day shape: date, consumed_calories, target_calories, consumed_protein_g, target_protein_g."""
+    out: List[Dict[str, Any]] = []
+    for r in rows or []:
+        if not isinstance(r, dict):
+            continue
+        day = str((r.get("day") or ""))[:10]
+        if not day:
+            continue
+        mj = r.get("metrics_json") if isinstance(r.get("metrics_json"), dict) else {}
+        consumed = mj.get("consumed") if isinstance(mj.get("consumed"), dict) else {}
+        goals = mj.get("goals") if isinstance(mj.get("goals"), dict) else {}
+        out.append({
+            "date": day,
+            "day": day,
+            "consumed_calories": float(_safe_float(consumed.get("kcal"), 0.0) or 0.0),
+            "target_calories": float(_safe_float(goals.get("kcal"), 0.0) or 0.0),
+            "consumed_protein_g": float(_safe_float(consumed.get("protein_g"), 0.0) or 0.0),
+            "target_protein_g": float(_safe_float(goals.get("protein_g"), 0.0) or 0.0),
+        })
+    return out
+
+
+def _goal_coach_plan_merged(plan_row: Dict[str, Any]) -> Dict[str, Any]:
+    """Merge starter_plan into plan so target_calories, target_protein_g etc. are top-level for goal_coach helpers."""
+    out = dict(plan_row)
+    starter = plan_row.get("starter_plan") if isinstance(plan_row.get("starter_plan"), dict) else {}
+    for k, v in (starter or {}).items():
+        if out.get(k) is None and v is not None:
+            out[k] = v
+    return out
 
 
 def build_weekly_insight_payload(
@@ -5683,12 +5776,13 @@ _DAILY_TOTALS_VERSION_MEM: Dict[str, Dict[str, Any]] = {}
 _USER_COACH_PROFILE_CACHE: Dict[str, Dict[str, Any]] = {}
 
 _COACH_SYSTEM_PROMPT = (
-    "You are a nutrition coaching assistant. "
-    "Provide behavior-focused suggestions only. "
-    "Do not provide medical advice, diagnosis, treatment, drug, or supplement recommendations. "
-    "Use ONLY the provided numbers and context. "
-    "Do not invent metrics. "
-    "Output strict JSON only."
+    "You are a real human nutrition coach talking to a client. "
+    "You have seen their meal scans, today's totals, protein/fiber gaps, fat loss stats, and weekly patterns. "
+    "Talk like a coach who actually looked at their data: reference their numbers and meals in natural language. "
+    "Use different words and sentence structures every time—never repeat the same phrases. Sound like a person, not a template. "
+    "Provide behavior-focused suggestions only. No medical advice, diagnosis, treatment, or supplement recommendations. "
+    "Use ONLY the provided numbers and context; do not invent metrics. Output strict JSON only. "
+    "Your voice must feel distinctly different by the requested tone (supportive/strict/funny/indian_coach): each tone has its own energy and way of speaking so the user can tell which coach they chose."
 )
 
 _DAILY_TONE_ALIASES = {
@@ -5704,20 +5798,24 @@ _DAILY_TONE_ALIASES = {
 
 _DAILY_TONE_PROMPTS = {
     "supportive": (
-        "Tone supportive: warm and encouraging, acknowledge effort, no guilt language, "
-        "practical next step phrasing, zero shame language."
+        "Tone supportive: warm and encouraging like a real coach. Acknowledge what they've scanned and their effort. "
+        "Use different words each time—rephrase naturally. No guilt or shame. Reference their actual protein/fiber gaps, "
+        "meal timing, or scan patterns in plain language. Sound like a person, not a script."
     ),
     "strict": (
-        "Tone strict: direct and accountable, command-style short phrasing, no emoji, "
-        "must include one concise consequence line without medical claims."
+        "Tone strict: direct and accountable, like a coach who tells it straight. Short, clear phrasing. No emoji. "
+        "One concise consequence line (no medical claims). Vary your wording—don't repeat the same commands. "
+        "Reference their numbers and meals naturally."
     ),
     "funny": (
-        "Tone funny: playful coach voice with one hook phrase like 'Plot twist' or 'Cheat code', "
-        "max 2 emoji total, keep facts unchanged and practical."
+        "Tone funny: playful, human coach. Use fresh hook phrases (not only 'Plot twist' or 'Cheat code'—vary: 'Here's the thing', "
+        "'Real talk', 'Pro move', etc.). Max 2 emoji. Keep facts and advice solid. Change how you say it every time."
     ),
     "indian_coach": (
-        "Tone indian_coach: Hinglish-light, include 1-2 Hinglish phrases only (e.g. 'chalo', 'boss', 'scene'), "
-        "keep guidance practical and respectful, no slang abuse."
+        "Tone indian_coach: talk like a real Indian coach—natural Hinglish. Mix Hindi and English the way people actually speak "
+        "(e.g. 'bhai', 'dost', 'yaar', 'chalo', 'karo', 'thoda', 'bilkul', 'sahi hai', 'theek hai', 'ab', 'dekho', 'simple', 'pakka', "
+        "'mast', 'solid', 'kya baat', 'no tension', 'ho jayega'). Vary your phrases; don't limit to 2–3 words. "
+        "Practical, respectful, and conversational. Reference their scans and stats in natural Hinglish."
     ),
 }
 
@@ -5731,30 +5829,48 @@ _DAILY_TONE_TAG_MAP = {
 _DAILY_TONE_PACK = {
     "supportive": {
         "emoji_max": 1,
-        "signature_phrases": ["Small win", "Let's make it easy", "You're building momentum"],
+        "signature_phrases": [
+            "Small win", "Let's make it easy", "You're building momentum",
+            "Good direction", "Nice progress", "One step at a time", "You've got this",
+        ],
         "banned_words": ["lazy", "failure", "punishment", "worthless"],
-        "must_include_any": ["small win", "let's", "momentum", "try", "aim for"],
+        "must_include_any": [],  # LLM varies naturally; no fixed phrase required
     },
     "strict": {
         "emoji_max": 0,
-        "signature_phrases": ["Minimum standard", "Do this today", "Non-negotiable"],
+        "signature_phrases": [
+            "Minimum standard", "Do this today", "Non-negotiable",
+            "Fix this", "Lock it in", "No drift", "Execute",
+        ],
         "banned_words": ["lol", "maybe", "kinda", "sort of"],
-        "must_include_any": ["do this today", "minimum standard", "fix", "target"],
+        "must_include_any": [],
     },
     "funny": {
         "emoji_max": 2,
-        "signature_phrases": ["Plot twist", "Cheat code", "Boss move", "Side quest"],
+        "signature_phrases": [
+            "Plot twist", "Cheat code", "Boss move", "Side quest",
+            "Here's the thing", "Real talk", "Pro move", "Unlock", "Level up",
+        ],
         "banned_words": ["stupid", "idiot", "pathetic"],
-        "must_include_any": ["plot twist", "cheat code", "boss move", "side quest"],
+        "must_include_any": [],
     },
     "indian_coach": {
         "emoji_max": 1,
-        "signature_phrases": ["Scene simple hai", "Chalo", "Boss", "Bhai", "Sorted"],
-        "hinglish_phrases": ["bhai", "boss", "chalo", "scene", "sorted", "pakka", "thoda", "done hai"],
+        "signature_phrases": [
+            "Chalo", "Boss", "Bhai", "Dost", "Yaar", "Sahi hai", "Theek hai",
+            "Scene simple hai", "Ho jayega", "Pakka", "Mast", "Solid", "Kya baat",
+            "No tension", "Thoda adjust", "Dekho", "Bilkul", "Simple",
+        ],
+        "hinglish_phrases": [
+            "bhai", "boss", "dost", "yaar", "chalo", "karo", "thoda", "bilkul",
+            "sahi hai", "theek hai", "ab", "dekho", "simple", "pakka", "mast",
+            "solid", "kya baat", "no tension", "ho jayega", "scene", "sorted",
+            "done hai", "accha", "badhiya", "chalo ab",
+        ],
         "banned_words": ["hopeless", "bakwaas", "useless"],
-        "must_include_any": ["scene", "chalo", "boss", "bhai", "sorted"],
+        "must_include_any": [],  # LLM uses natural Hinglish; no single phrase required
         "hinglish_min": 1,
-        "hinglish_max": 2,
+        "hinglish_max": 4,
     },
 }
 
@@ -5870,6 +5986,8 @@ _COACH_ACTION_STYLE_BANK = {
 _COACH_TONE_REWRITE_SYSTEM_PROMPT = (
     "You are a coaching tone rewriter. "
     "Rewrite coaching content into the requested tone while preserving factual meaning and numbers. "
+    "Use natural, varied language—change wording so it sounds like a real person in that tone. "
+    "For indian_coach: use natural Hinglish (mix of Hindi and English as people actually speak), not just 2–3 canned words; vary phrases (bhai, dost, chalo, sahi hai, theek hai, dekho, pakka, mast, etc.). "
     "Output valid JSON only, no markdown, no extra keys. "
     "Do not add medical claims, diagnosis, treatment advice, shame, or insults. "
     "Preserve all numeric values exactly."
@@ -5898,11 +6016,11 @@ _COACH_PERSONA_PROMPTS = {
     ),
 }
 _COACH_VOICE_SYSTEM_PROMPT = (
-    "You are a nutrition coaching assistant for a consumer app. "
+    "You are a real human coach who has seen this user's meals and stats. "
+    "Talk in natural, varied language—change your wording every time. Reference their actual scans, gaps, and patterns like a coach would. "
     "Output strict JSON only, no markdown, no extra keys. "
-    "Never provide medical diagnosis, treatment, or disease claims. "
-    "Never guarantee body-weight outcomes. "
-    "Always keep empathy_line effort-acknowledging and practical."
+    "Never provide medical diagnosis, treatment, or disease claims. Never guarantee body-weight outcomes. "
+    "Keep empathy_line effort-acknowledging and practical."
 )
 _UNCERTAINTY_HINTS = ("likely", "might", "looks like", "appears", "could")
 
@@ -6466,6 +6584,7 @@ def _build_coach_voice_prompt(
     )
     return (
         f"{_COACH_PERSONA_PROMPTS.get(_normalize_persona_mode(mode), _COACH_PERSONA_PROMPTS['supportive'])}\n"
+        "Voice: Talk like a real human coach who has seen their meals and stats. Use different words each time; reference their actual data (scans, gaps, timing) naturally. Do not sound like a template.\n"
         "Contract:\n"
         "- JSON only, no markdown.\n"
         "- No extra keys.\n"
@@ -6647,6 +6766,13 @@ def _get_cached_user_coach_profile(user_id: str) -> Dict[str, Any]:
         return {}
     src = _USER_COACH_PROFILE_CACHE.get(uid)
     return dict(src) if isinstance(src, dict) else {}
+
+
+def get_user_tone_for_push(user_id: str) -> str:
+    """Return coach tone preference for push notifications. Uses in-memory profile cache (set when user hits coach/voice or daily coach)."""
+    profile = _get_cached_user_coach_profile(user_id)
+    tone = str(profile.get("tone_preference") or "supportive").strip().lower()
+    return _normalize_tone_preference(tone)
 
 
 def _normalize_tone_preference(v: Any) -> str:
@@ -8940,6 +9066,8 @@ def _coach_user_prompt(
         }
         return (
             "FAST_MODE: produce concise high-signal coaching from compact metrics only.\n"
+            "Voice: Write like a real human coach who has seen this user's meal scans and fat loss stats. "
+            "Reference their actual numbers (gaps, scans, timing) in natural language. Use different words and sentence structures—never sound like a template or repeat the same phrases.\n"
             "Rules:\n"
             "- Strict JSON only.\n"
             f"- Tone mode: {tone_pref}. {tone_prompt}\n"
@@ -8947,13 +9075,18 @@ def _coach_user_prompt(
             "- No exact body-weight promises.\n"
             "- Max 2 actions.\n"
             "- one_sentence_summary <= 18 words.\n"
-            "- Avoid repeating the same point across sections.\n\n"
+            "- Avoid repeating the same point across sections.\n"
+            "- Balance levers: do not default to glycemic; weight protein and fiber gaps equally. Vary if_you_do_one_thing angle (protein vs fiber vs timing) when possible.\n\n"
             f"Allowed suggestion palette:\n{json.dumps(allowed_palette, ensure_ascii=True)}\n\n"
             f"Compact payload:\n{json.dumps(fast_payload, ensure_ascii=True)}\n\n"
             f"Output JSON shape:\n{json.dumps(template, ensure_ascii=True)}"
         )
     return (
         "Use this daily nutrition summary and produce coaching insight, not a stat report.\n"
+        "Voice: You are a real human coach who has seen this user's meal scans, today's totals, protein/fiber gaps, and fat loss stats. "
+        "Talk like you understand their data: reference their actual numbers and patterns in natural, varied language. "
+        "Use different words and sentence structures every time—do not repeat the same phrases or sound like a script. "
+        "Coach the client like a real person would.\n"
         "Rules:\n"
         f"- Tone mode: {tone_pref}. {tone_prompt}\n"
         "- Keep deterministic numbers as truth; do not invent any number.\n"
@@ -8976,7 +9109,10 @@ def _coach_user_prompt(
         "- Every action must clearly reference at least one metric keyword from this set: "
         "protein, fiber, glycemic load, ultra-processed, leucine, late calories, kcal, carbs, fat.\n"
         "- Max 3 actions.\n"
-        "- Keep language concise.\n\n"
+        "- Keep language concise.\n"
+        "- Balance levers: do not default to glycemic load every day. Weight protein gap and fiber gap equally with glycemic/UPF/timing; only make glycemic the primary lever when it is clearly the biggest risk from the data.\n"
+        "- Vary the primary lever day to day: e.g. protein one day, fiber another, timing or UPF another. Avoid repeating the same main lever two days in a row unless data strongly demands it.\n"
+        "- Vary if_you_do_one_thing and tomorrow_focus: do not repeat the same focus or same phrasing three days in a row. Pick a different angle (protein vs fiber vs timing vs quality) when possible.\n\n"
         f"Allowed suggestion palette:\n{json.dumps(allowed_palette, ensure_ascii=True)}\n\n"
         f"Input payload:\n{json.dumps(compact, ensure_ascii=True)}\n\n"
         f"Output JSON shape:\n{json.dumps(template, ensure_ascii=True)}"
@@ -10455,6 +10591,297 @@ def program_status(
         return {"ok": True, "program": None}
 
 
+# -------------------- GOAL COACH (Let's Go) --------------------
+
+@app.post("/goal-coach/plan/create")
+def goal_coach_plan_create(
+    payload: Dict[str, Any] = Body(...),
+    user_id: Optional[str] = None,
+    x_user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
+):
+    """Create a new goal plan and return it with kickoff status."""
+    uid = require_user_id(x_user_id, user_id or (payload.get("user_id") if isinstance(payload, dict) else None))
+    body = payload if isinstance(payload, dict) else {}
+    plan_input = {
+        "goal_type": body.get("goal_type", "fat_loss"),
+        "goal_preset": body.get("goal_preset"),
+        "timeframe_weeks": body.get("timeframe_weeks"),
+        "target_date": body.get("target_date"),
+        "pace_mode": body.get("pace_mode", "balanced"),
+        "training_days_per_week": body.get("training_days_per_week"),
+        "diet_preference": body.get("diet_preference"),
+        "current_weight": body.get("current_weight"),
+        "target_weight": body.get("target_weight"),
+    }
+    starter = build_starter_plan(plan_input)
+    plan_row = create_goal_plan(uid, plan_input, starter)
+    kickoff = compute_kickoff_status(plan_row)
+    plan_str = get_user_plan(uid)
+    sub_required = kickoff.get("requires_subscription", False)
+    requires_advanced = sub_required and not plan_at_least(plan_str, "advanced")
+    return {
+        "ok": True,
+        "plan": plan_row,
+        "kickoff_day": kickoff.get("kickoff_days_used", 1),
+        "kickoff_days_total": kickoff.get("free_kickoff_days", 21),
+        "kickoff_active": kickoff.get("in_kickoff", True),
+        "subscription_required": sub_required,
+        "requires_advanced_plan": requires_advanced,
+    }
+
+
+@app.get("/goal-coach/plan")
+def goal_coach_plan_get(
+    user_id: Optional[str] = None,
+    x_user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
+):
+    """Get active goal plan and kickoff status."""
+    uid = require_user_id(x_user_id, user_id)
+    plan = get_active_goal_plan(uid)
+    if not plan:
+        return {"has_plan": False, "plan": None, "kickoff_day": 0, "kickoff_days_total": 21, "kickoff_active": False, "subscription_required": False, "requires_advanced_plan": False}
+    kickoff = compute_kickoff_status(plan)
+    plan_str = get_user_plan(uid)
+    sub_required = kickoff.get("requires_subscription", False)
+    requires_advanced = sub_required and not plan_at_least(plan_str, "advanced")
+    return {
+        "has_plan": True,
+        "plan": plan,
+        "kickoff_day": kickoff.get("kickoff_days_used", 0),
+        "kickoff_days_total": kickoff.get("free_kickoff_days", 21),
+        "kickoff_active": kickoff.get("in_kickoff", True),
+        "subscription_required": sub_required,
+        "requires_advanced_plan": requires_advanced,
+    }
+
+
+@app.get("/goal-coach/daily")
+def goal_coach_daily_get(
+    user_id: Optional[str] = None,
+    day: Optional[str] = None,
+    tz: Optional[str] = None,
+    tz_offset_min: Optional[int] = None,
+    current_hour: Optional[int] = None,
+    x_user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
+):
+    """Daily coach state: targets, consumed so far, one best action, coach summary, suggested_actions. Gated after kickoff if no subscription."""
+    uid = require_user_id(x_user_id, user_id)
+    day_iso = _day_iso(day, tz=tz, tz_offset_min=tz_offset_min)
+    plan_row = get_active_goal_plan(uid)
+    if not plan_row:
+        return {"ok": True, "has_plan": False, "today_targets": None, "consumed_so_far": None, "coach_focus": "", "best_action_today": "", "coach_summary": "", "risk_flags": [], "suggested_actions": {}, "subscription_required": False, "requires_advanced_plan": False, "kickoff_days_total": 21}
+    plan = _goal_coach_plan_merged(plan_row)
+    kickoff = compute_kickoff_status(plan_row)
+    consumed = _get_goal_coach_daily_consumed(uid, day_iso) or {}
+    daily_metrics = {"date": day_iso, "day": day_iso, **consumed}
+    memory_signals: Dict[str, Any] = {}
+    state = build_daily_coach_state(plan, daily_metrics, memory_signals)
+    hour_local: Optional[int] = None
+    if current_hour is not None and 0 <= current_hour <= 23:
+        hour_local = int(current_hour)
+    suggested_actions = build_daily_suggested_actions(state, hour_local)
+    today_targets = {
+        "calories": int(state.get("targets", {}).get("calories", 0) or 0),
+        "protein_g": int(state.get("targets", {}).get("protein_g", 0) or 0),
+        "carbs_g": int((plan.get("starter_plan") or {}).get("target_carbs_g", 0) or 0),
+        "fat_g": int((plan.get("starter_plan") or {}).get("target_fat_g", 0) or 0),
+    }
+    consumed_so_far = {
+        "calories": int(state.get("consumed", {}).get("calories", 0) or 0),
+        "protein_g": int(state.get("consumed", {}).get("protein_g", 0) or 0),
+    }
+    plan_str = get_user_plan(uid)
+    sub_required = kickoff.get("requires_subscription", False)
+    requires_advanced = sub_required and not plan_at_least(plan_str, "advanced")
+    return {
+        "ok": True,
+        "has_plan": True,
+        "today_targets": today_targets,
+        "consumed_so_far": consumed_so_far,
+        "coach_focus": str(state.get("coach_focus", "")),
+        "best_action_today": str(state.get("one_action_today", "")),
+        "coach_summary": str(state.get("headline", "")),
+        "risk_flags": list(state.get("risk_flags", [])),
+        "suggested_actions": suggested_actions,
+        "subscription_required": sub_required,
+        "requires_advanced_plan": requires_advanced,
+        "kickoff_active": kickoff.get("in_kickoff", True),
+        "kickoff_day": kickoff.get("kickoff_days_used", 0),
+        "kickoff_days_total": kickoff.get("free_kickoff_days", 21),
+    }
+
+
+@app.get("/goal-coach/weekly")
+def goal_coach_weekly_get(
+    user_id: Optional[str] = None,
+    week_start: Optional[str] = None,
+    day: Optional[str] = None,
+    tz: Optional[str] = None,
+    tz_offset_min: Optional[int] = None,
+    x_user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
+):
+    """Weekly review: adherence, resilience, main win, bottleneck, next week focus. Plan remains visible; gated after kickoff."""
+    uid = require_user_id(x_user_id, user_id)
+    anchor_day = _day_iso(day, tz=tz, tz_offset_min=tz_offset_min)
+    week_start_iso = _week_start_monday(week_start or anchor_day)
+    plan_row = get_active_goal_plan(uid)
+    if not plan_row:
+        return {"ok": True, "has_plan": False, "review": None, "subscription_required": False}
+    plan = _goal_coach_plan_merged(plan_row)
+    kickoff = compute_kickoff_status(plan_row)
+    rows: List[Dict[str, Any]] = []
+    try:
+        rows = get_daily_metrics_window(uid, week_start_iso)
+    except Exception:
+        pass
+    days = _goal_coach_metrics_rows_to_days(rows)
+    review = build_weekly_review(plan, days, None)
+    next_step_action = build_weekly_next_step_action(review)
+    plan_str = get_user_plan(uid)
+    sub_required = kickoff.get("requires_subscription", False)
+    requires_advanced = sub_required and not plan_at_least(plan_str, "advanced")
+    return {
+        "ok": True,
+        "has_plan": True,
+        "week_start": week_start_iso,
+        "week_end": _week_end_from_start(week_start_iso),
+        "review": review,
+        "next_step_action": next_step_action,
+        "subscription_required": sub_required,
+        "requires_advanced_plan": requires_advanced,
+        "kickoff_active": kickoff.get("in_kickoff", True),
+    }
+
+
+@app.post("/goal-coach/plan/pause")
+def goal_coach_plan_pause(
+    user_id: Optional[str] = None,
+    x_user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
+):
+    uid = require_user_id(x_user_id, user_id)
+    updated = update_goal_plan_status(uid, "paused")
+    return {"ok": True, "plan": updated}
+
+
+@app.post("/goal-coach/plan/resume")
+def goal_coach_plan_resume(
+    user_id: Optional[str] = None,
+    x_user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
+):
+    uid = require_user_id(x_user_id, user_id)
+    updated = update_goal_plan_status(uid, "active")
+    return {"ok": True, "plan": updated}
+
+
+def _goal_coach_require_advanced_if_past_kickoff(uid: str) -> None:
+    """Raise 402 if user has active plan, past kickoff, and plan < Advanced (for journey writes)."""
+    plan_row = get_active_goal_plan(uid)
+    if not plan_row:
+        return
+    kickoff = compute_kickoff_status(plan_row)
+    if not kickoff.get("requires_subscription"):
+        return
+    plan_str = get_user_plan(uid)
+    if plan_at_least(plan_str, "advanced"):
+        return
+    raise HTTPException(
+        status_code=402,
+        detail={
+            "error": "upgrade_required",
+            "feature": "lets_go_journey",
+            "required_plan": "advanced",
+            "message": "Upgrade to Advanced to continue your Let's Go journey after the 3-week trial.",
+        },
+    )
+
+
+@app.post("/goal-coach/weight")
+def goal_coach_weight_log(
+    payload: Dict[str, Any] = Body(...),
+    user_id: Optional[str] = None,
+    x_user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
+):
+    """Log a weight measurement (kg). Body: value_kg, day (optional YYYY-MM-DD)."""
+    uid = require_user_id(x_user_id, user_id or (payload.get("user_id") if isinstance(payload, dict) else None))
+    _goal_coach_require_advanced_if_past_kickoff(uid)
+    body = payload if isinstance(payload, dict) else {}
+    value_kg = float(_safe_float(body.get("value_kg"), 0.0) or 0.0)
+    if value_kg <= 0:
+        raise HTTPException(status_code=422, detail={"error": "value_kg_required"})
+    day_iso = (body.get("day") or "").strip() or None
+    entry = add_weight_entry(uid, value_kg, day_iso)
+    return {"ok": True, "entry": entry}
+
+
+@app.post("/goal-coach/check-in")
+def goal_coach_check_in(
+    payload: Dict[str, Any] = Body(...),
+    user_id: Optional[str] = None,
+    x_user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
+):
+    """Record a check-in (e.g. after a meal). Body: day (optional), analysis_id (optional), meal (optional)."""
+    uid = require_user_id(x_user_id, user_id or (payload.get("user_id") if isinstance(payload, dict) else None))
+    _goal_coach_require_advanced_if_past_kickoff(uid)
+    body = payload if isinstance(payload, dict) else {}
+    entry = add_check_in(
+        uid,
+        day_iso=(body.get("day") or "").strip() or None,
+        analysis_id=(body.get("analysis_id") or "").strip() or None,
+        meal_label=(body.get("meal") or body.get("meal_label") or "").strip() or None,
+    )
+    return {"ok": True, "entry": entry}
+
+
+@app.post("/goal-coach/photo")
+def goal_coach_photo_log(
+    payload: Dict[str, Any] = Body(...),
+    user_id: Optional[str] = None,
+    x_user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
+):
+    """Log a weekly progress photo. Body: week_start (YYYY-MM-DD Monday), uri_or_ref, note (optional)."""
+    uid = require_user_id(x_user_id, user_id or (payload.get("user_id") if isinstance(payload, dict) else None))
+    _goal_coach_require_advanced_if_past_kickoff(uid)
+    body = payload if isinstance(payload, dict) else {}
+    week_start = (body.get("week_start") or "").strip()
+    uri_or_ref = (body.get("uri_or_ref") or body.get("uri") or "").strip()
+    if not week_start or not uri_or_ref:
+        raise HTTPException(status_code=422, detail={"error": "week_start_and_uri_required"})
+    entry = add_photo_entry(uid, week_start, uri_or_ref, note=(body.get("note") or "").strip() or None)
+    return {"ok": True, "entry": entry}
+
+
+@app.get("/goal-coach/journey")
+def goal_coach_journey_get(
+    user_id: Optional[str] = None,
+    day: Optional[str] = None,
+    x_user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
+):
+    """Journey summary: weight entries, check-ins, photos. Optional day for today's check-ins."""
+    uid = require_user_id(x_user_id, user_id)
+    summary = get_journey_summary(uid, today_iso=day)
+    weights = get_weight_entries(uid, limit=90)
+    photos = get_photo_entries(uid, limit=24)
+    return {
+        "ok": True,
+        "summary": summary,
+        "weight_entries": weights,
+        "photo_entries": photos,
+    }
+
+
+@app.post("/goal-coach/events")
+def goal_coach_events(payload: Dict[str, Any] = Body(...)):
+    """
+    Log Goal Coach funnel events: shown, clicked, destination_opened, action_completed.
+    Payload must include event_type and user_id; optional metadata (source_surface, action_type, etc.).
+    """
+    try:
+        saved = log_goal_coach_event(payload if isinstance(payload, dict) else {})
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail={"error": str(e)})
+    return {"ok": True, "event": saved}
+
+
 @app.post("/coach/daily")
 def coach_daily(
     payload: Dict[str, Any] = Body(...),
@@ -11272,21 +11699,23 @@ def _coerce_vision_scan_payload(raw: Dict[str, Any], vision_threshold: float = 0
         grams = max(0.0, float(_safe_float(it.get("grams"), 0.0) or 0.0))
         if not name or grams <= 0:
             continue
-        cleaned_items.append(
-            {
-                "item_id": str(it.get("item_id") or f"i{idx + 1}"),
-                "name": name,
-                "grams": round(grams, 1),
-                "cooking_method": str(it.get("cooking_method") or "unknown").strip().lower() or "unknown",
-                "oil_added_tsp": max(0.0, float(_safe_float(it.get("oil_added_tsp"), 0.0) or 0.0)),
-                "confidence": round(_clamp01(it.get("confidence"), 0.65), 3),
-                "candidate_alternatives": [
-                    str(x).strip()
-                    for x in (it.get("candidate_alternatives") or [])
-                    if str(x).strip()
-                ][:4],
-            }
-        )
+        entry: Dict[str, Any] = {
+            "item_id": str(it.get("item_id") or f"i{idx + 1}"),
+            "name": name,
+            "grams": round(grams, 1),
+            "cooking_method": str(it.get("cooking_method") or "unknown").strip().lower() or "unknown",
+            "oil_added_tsp": max(0.0, float(_safe_float(it.get("oil_added_tsp"), 0.0) or 0.0)),
+            "confidence": round(_clamp01(it.get("confidence"), 0.65), 3),
+            "candidate_alternatives": [
+                str(x).strip()
+                for x in (it.get("candidate_alternatives") or [])
+                if str(x).strip()
+            ][:4],
+        }
+        hints_in = it.get("ingredient_hints")
+        if isinstance(hints_in, dict):
+            entry["ingredient_hints"] = {str(k): str(v).strip() for k, v in hints_in.items() if v is not None and str(v).strip()}
+        cleaned_items.append(entry)
 
     if not cleaned_items:
         raise ValueError("No usable items from scan payload.")
@@ -11454,10 +11883,20 @@ Return ONLY valid JSON (no markdown) with this exact shape:
       "cooking_method": "grilled",
       "oil_added_tsp": 0,
       "confidence": 0.0,
-      "candidate_alternatives": ["chicken thigh", "chicken breast"]
+      "candidate_alternatives": ["chicken thigh", "chicken breast"],
+      "ingredient_hints": {}
     }
   ]
 }
+
+Ingredient hints (optional): When you can clearly see ingredients that affect nutrition, add "ingredient_hints" to that item with keys/values below. Only include what is visible; omit the key if unsure. Use these exact values:
+- Coffee/tea/latte/chai: milk_type = None|Whole|Low-fat|Skim|Almond|Oat|Soy|Coconut; sweetener = None|Sugar|Artificial|Honey|Other
+- Smoothie/shake: milk_base = Dairy|Almond|Oat|Soy|None / water; sweetener = None|Sugar|Honey|Syrup|Other
+- Salad: dressing = None|Light|Normal|Heavy
+- Sandwich/wrap/burger/bagel/toast: spread = None|Butter|Mayo|Both|Other
+- Yogurt/parfait: toppings = None|Honey|Jam|Granola|Fruit only|Other
+- Oatmeal/porridge: milk_type = Water|Whole|Skim|Almond|Oat|Soy; sweetener = None|Sugar|Honey|Maple|Other
+If you cannot tell from the image, use empty object {} or omit ingredient_hints.
 
 Rules:
 - Use simple USDA-friendly item names.
@@ -11740,7 +12179,8 @@ def _compute_scan_nutrition(detected_items: List[Dict[str, Any]]) -> Tuple[List[
         c = macros100["carbs_g_per_100g"] * factor
         f = macros100["fat_g_per_100g"] * factor
 
-        # Minimal deterministic correction for user-specified cooking/oil edits.
+        # User oil edit: when set_oil_added_tsp is 0 (no oil) we do not add oil kcal; when > 0 we add ~40.5 kcal/tsp.
+        # Rerun applies edits then calls this; so "no oil" / "less oil" correctly reduce displayed totals.
         if oil_added_tsp > 0:
             kcal += oil_added_tsp * 40.5
             f += oil_added_tsp * 4.5
@@ -12834,6 +13274,11 @@ HEALTHY_PLACES_SORT_MODES = ("flat_score", "sectioned")
 HEALTHY_PLACES_SORT_MODE_DEFAULT = "sectioned"
 
 
+# Default and max places to rank for /places/healthy (speeds up initial load).
+HEALTHY_PLACES_LIMIT_DEFAULT = 12
+HEALTHY_PLACES_LIMIT_MAX = 40
+
+
 @app.get("/places/healthy")
 async def healthy_places(
     lat: float,
@@ -12853,6 +13298,7 @@ async def healthy_places(
     poor_sleep_flag: bool = False,
     high_craving_risk_flag: bool = False,
     diet_preference: str = "",
+    limit: Optional[int] = None,
 ):
     sort_mode_val = (sort_mode or "").strip().lower()
     if sort_mode_val not in HEALTHY_PLACES_SORT_MODES:
@@ -12879,7 +13325,8 @@ async def healthy_places(
     t_fetch_ms = round((time.perf_counter() - t_start) * 1000, 1)
 
     use_fast_path = str(os.getenv("USE_FAST_PATH", "1")).strip().lower() in ("1", "true", "yes")
-    shortlist_size = max(8, min(15, int(os.getenv("HEALTHY_SHORTLIST_SIZE", "10") or 10)))
+    rank_limit = max(1, min(HEALTHY_PLACES_LIMIT_MAX, int(limit or os.getenv("HEALTHY_PLACES_LIMIT", str(HEALTHY_PLACES_LIMIT_DEFAULT)) or HEALTHY_PLACES_LIMIT_DEFAULT)))
+    shortlist_size = min(rank_limit, max(8, min(15, int(os.getenv("HEALTHY_SHORTLIST_SIZE", "10") or 10))))
     places_to_rank = list(places)
     shortlist_debug = {"fetched_count": len(places), "shortlisted_count": len(places), "skipped_count": 0}
     if use_fast_path and len(places) > shortlist_size:
@@ -12891,6 +13338,8 @@ async def healthy_places(
             cache_has=venue_cache_has,
         )
         places_to_rank = shortlisted
+    places_to_rank = places_to_rank[:rank_limit]
+    shortlist_debug["rank_limit"] = rank_limit
     t_shortlist_ms = round((time.perf_counter() - t_start) * 1000 - t_fetch_ms, 1)
 
     nutrition_mode = NutritionMode.CUT if bool(cut_mode) else NutritionMode.DEFAULT
@@ -13726,10 +14175,11 @@ async def admin_ops_dashboard(
     limit_targets: int = 20,
     limit_areas: int = 5,
     scan_window_days: int = 7,
+    goal_coach_window_days: int = 7,
 ):
     """
     Compact internal ops dashboard summary.
-    GET /admin/ops-dashboard?limit_targets=20&limit_areas=5&scan_window_days=7
+    GET /admin/ops-dashboard?limit_targets=20&limit_areas=5&scan_window_days=7&goal_coach_window_days=7
     """
     async def fetcher(lat: float, lng: float):
         return await healthy_places(
@@ -13740,6 +14190,7 @@ async def admin_ops_dashboard(
         limit_targets=max(1, min(50, int(limit_targets))),
         limit_areas=max(1, min(10, int(limit_areas))),
         scan_window_days=max(1, min(30, int(scan_window_days))),
+        goal_coach_window_days=max(1, min(30, int(goal_coach_window_days))),
         fetch_fn=fetcher,
     )
 
@@ -14352,13 +14803,16 @@ async def push_send_smart_alerts(payload: Dict[str, Any] = Body(...)):
     eligible_only = bool(p.get("eligible_only", True))
     goal = str(p.get("goal") or "").strip()
     radius = max(500, min(5000, int(_safe_float(p.get("radius"), 3000) or 3000)))
+    context = dict(p.get("context") or {})
+    if "tone_preference" not in context:
+        context["tone_preference"] = get_user_tone_for_push(user_id)
 
     return await _send_smart_alert_for_user(
         healthy_places,
         user_id,
         lat,
         lng,
-        context=p.get("context") or {},
+        context=context,
         fatigue=p.get("fatigue") or {},
         goal=goal,
         radius=radius,
@@ -15204,6 +15658,284 @@ _LOW_CONF_CLARIFY_QUESTION = {
     "options": ["No", "Yes - light", "Yes - normal", "Yes - heavy"],
 }
 
+# Ingredient clarification (Issues 9/11): infer from name when possible, ask only when unclear.
+# Each question can have "name_hints": [(phrase_regex_or_substring, option_value), ...] for inference.
+_CLARIFICATION_RULES: List[Dict[str, Any]] = [
+    {
+        "pattern": re.compile(r"^(coffee|espresso|latte|cappuccino|flat white|mocha|americano|chai|tea)\b", re.I),
+        "questions": [
+            {
+                "key": "milk_type",
+                "label": "Milk?",
+                "options": ["None", "Whole", "Low-fat", "Skim", "Almond", "Oat", "Soy", "Coconut"],
+                "name_hints": [
+                    ("black|no milk|without milk|no dairy", "None"),
+                    ("whole milk|full.?cream", "Whole"),
+                    ("low.?fat|lowfat|semi.?skim", "Low-fat"),
+                    ("skim|skimmed", "Skim"),
+                    ("almond|almond milk", "Almond"),
+                    ("oat milk|oat.?milk|oat latte", "Oat"),
+                    ("soy|soya|soy milk", "Soy"),
+                    ("coconut milk|coconut", "Coconut"),
+                ],
+            },
+            {
+                "key": "sweetener",
+                "label": "Sweetener?",
+                "options": ["None", "Sugar", "Artificial", "Honey", "Other"],
+                "name_hints": [
+                    ("no sugar|unsweetened|no sweetener|without sugar", "None"),
+                    ("sugar|sweetened|with sugar", "Sugar"),
+                    ("artificial|stevia|sucralose|sweet.?n.?low|equal", "Artificial"),
+                    ("honey", "Honey"),
+                ],
+            },
+        ],
+    },
+    {
+        "pattern": re.compile(r"^(smoothie|shake|milkshake)\b", re.I),
+        "questions": [
+            {
+                "key": "milk_base",
+                "label": "Milk base?",
+                "options": ["Dairy", "Almond", "Oat", "Soy", "None / water"],
+                "name_hints": [
+                    ("dairy|milk base|whole milk|yogurt base", "Dairy"),
+                    ("almond|almond milk", "Almond"),
+                    ("oat milk|oat.?milk", "Oat"),
+                    ("soy|soya", "Soy"),
+                    ("water|no milk|water base", "None / water"),
+                ],
+            },
+            {
+                "key": "sweetener",
+                "label": "Added sweetener?",
+                "options": ["None", "Sugar", "Honey", "Syrup", "Other"],
+                "name_hints": [
+                    ("no sugar|unsweetened", "None"),
+                    ("sugar|sweetened", "Sugar"),
+                    ("honey", "Honey"),
+                    ("syrup|maple|agave", "Syrup"),
+                ],
+            },
+        ],
+    },
+    {
+        "pattern": re.compile(r"^(salad|green salad|mixed salad|garden salad|caesar|side salad)\b", re.I),
+        "questions": [
+            {
+                "key": "dressing",
+                "label": "Dressing/oil?",
+                "options": ["None", "Light", "Normal", "Heavy"],
+                "name_hints": [
+                    ("no dressing|undressed|dry|naked", "None"),
+                    ("light dressing|light oil|drizzle", "Light"),
+                    ("heavy|extra dressing|creamy", "Heavy"),
+                ],
+            },
+        ],
+    },
+    {
+        "pattern": re.compile(r"^(sandwich|wrap|burger|bagel|toast)\b", re.I),
+        "questions": [
+            {
+                "key": "spread",
+                "label": "Spread/butter?",
+                "options": ["None", "Butter", "Mayo", "Both", "Other"],
+                "name_hints": [
+                    ("no spread|dry|plain", "None"),
+                    ("butter|buttered", "Butter"),
+                    ("mayo|mayonnaise", "Mayo"),
+                    ("both|butter and mayo", "Both"),
+                ],
+            },
+        ],
+    },
+    {
+        "pattern": re.compile(r"^(yogurt|yoghurt|parfait)\b", re.I),
+        "questions": [
+            {
+                "key": "toppings",
+                "label": "Sweet toppings?",
+                "options": ["None", "Honey", "Jam", "Granola", "Fruit only", "Other"],
+                "name_hints": [
+                    ("plain|no toppings|unsweetened", "None"),
+                    ("honey", "Honey"),
+                    ("jam|preserve", "Jam"),
+                    ("granola|muesli", "Granola"),
+                    ("fruit|berries", "Fruit only"),
+                ],
+            },
+        ],
+    },
+    {
+        "pattern": re.compile(r"^(oatmeal|porridge|oats)\b", re.I),
+        "questions": [
+            {
+                "key": "milk_type",
+                "label": "Made with milk?",
+                "options": ["Water", "Whole", "Skim", "Almond", "Oat", "Soy"],
+                "name_hints": [
+                    ("water|just oats", "Water"),
+                    ("milk|whole milk", "Whole"),
+                    ("skim", "Skim"),
+                    ("almond", "Almond"),
+                    ("oat milk", "Oat"),
+                    ("soy", "Soy"),
+                ],
+            },
+            {
+                "key": "sweetener",
+                "label": "Sweetener?",
+                "options": ["None", "Sugar", "Honey", "Maple", "Other"],
+                "name_hints": [
+                    ("plain|no sugar|unsweetened", "None"),
+                    ("sugar|brown sugar", "Sugar"),
+                    ("honey", "Honey"),
+                    ("maple|syrup", "Maple"),
+                ],
+            },
+        ],
+    },
+]
+
+
+def _infer_ingredient_choices_from_name(name: str, questions: List[Dict[str, Any]]) -> Dict[str, str]:
+    """Infer clarification choices from item name when possible (e.g. 'oat milk latte' -> milk_type Oat)."""
+    if not name or not questions:
+        return {}
+    phrase = " ".join(name.strip().lower().split())
+    out: Dict[str, str] = {}
+    for q in questions:
+        key = str(q.get("key") or "").strip()
+        if not key or key in out:
+            continue
+        options = [str(o) for o in (q.get("options") or []) if str(o).strip()]
+        name_hints = list(q.get("name_hints") or [])
+        for hint_phrase, value in name_hints:
+            if not value:
+                continue
+            try:
+                if re.search(hint_phrase, phrase, re.I):
+                    out[key] = value
+                    break
+            except re.error:
+                if hint_phrase.lower() in phrase:
+                    out[key] = value
+                    break
+        if key in out:
+            continue
+        for opt in options:
+            if not opt or opt.lower() in ("other", "none / water"):
+                continue
+            if opt.lower() in phrase or opt.lower().replace("-", " ") in phrase:
+                out[key] = opt
+                break
+    return out
+
+
+def _get_ingredient_clarification_questions(user_id: str, items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Return clarification_questions only for keys we can't infer from name or from stored choices."""
+    try:
+        from user_ingredient_choices import get_user_ingredient_choices, get_food_token_from_item
+    except ImportError:
+        return []
+    if not items or not user_id:
+        return []
+    seen_keys: set = set()
+    out: List[Dict[str, Any]] = []
+    for it in items:
+        name = str((it or {}).get("name") or "").strip()
+        if not name:
+            continue
+        token = get_food_token_from_item(it)
+        if not token:
+            continue
+        stored = get_user_ingredient_choices(user_id, token)
+        vision_hints = (it or {}).get("ingredient_hints") or {}
+        if not isinstance(vision_hints, dict):
+            vision_hints = {}
+        for rule in _CLARIFICATION_RULES:
+            if not rule.get("pattern") or not rule.get("questions"):
+                continue
+            if not rule["pattern"].search(name):
+                continue
+            inferred = _infer_ingredient_choices_from_name(name, rule["questions"])
+            for q in rule["questions"]:
+                key = str(q.get("key") or "").strip()
+                if not key or key in seen_keys:
+                    continue
+                if stored and key in stored:
+                    continue
+                if key in inferred:
+                    continue
+                if key in vision_hints and vision_hints.get(key):
+                    continue
+                seen_keys.add(key)
+                out.append({
+                    "key": key,
+                    "label": str(q.get("label") or key),
+                    "options": [str(o) for o in (q.get("options") or []) if str(o).strip()],
+                })
+    return out
+
+
+def _apply_stored_ingredient_choices_to_items(user_id: str, items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Enrich item names from stored + inferred-from-name choices for better nutrition lookup."""
+    try:
+        from user_ingredient_choices import get_user_ingredient_choices, get_food_token_from_item
+    except ImportError:
+        return items
+    if not items or not user_id:
+        return items
+    first = items[0] if isinstance(items[0], dict) else None
+    if not first:
+        return items
+    token = get_food_token_from_item(first)
+    if not token:
+        return items
+    stored = get_user_ingredient_choices(user_id, token)
+    name = str(first.get("name") or "").strip()
+    vision_hints = (first or {}).get("ingredient_hints") or {}
+    if not isinstance(vision_hints, dict):
+        vision_hints = {}
+    inferred: Dict[str, str] = {}
+    for rule in _CLARIFICATION_RULES:
+        if not rule.get("pattern") or not rule.get("questions"):
+            continue
+        if rule["pattern"].search(name):
+            inferred = _infer_ingredient_choices_from_name(name, rule["questions"])
+            break
+    merged = dict(inferred)
+    for k, v in (vision_hints or {}).items():
+        if v is not None and str(v).strip():
+            merged[k] = str(v).strip()
+    if isinstance(stored, dict):
+        for k, v in stored.items():
+            if v is not None and str(v).strip():
+                merged[k] = str(v).strip()
+    if not merged:
+        return items
+    parts = [name]
+    _skip = ("none", "no", "", "water")
+    if merged.get("milk_type") and str(merged["milk_type"]).lower() not in _skip:
+        parts.append(f"with {merged['milk_type'].lower()} milk")
+    if merged.get("sweetener") and str(merged["sweetener"]).lower() not in _skip:
+        parts.append(merged["sweetener"].lower())
+    if merged.get("milk_base") and str(merged.get("milk_base", "")).lower() not in _skip:
+        parts.append(f"({merged['milk_base'].lower()} base)")
+    if merged.get("dressing") and str(merged["dressing"]).lower() not in _skip:
+        parts.append(f"({merged['dressing'].lower()} dressing)")
+    if merged.get("spread") and str(merged["spread"]).lower() not in _skip:
+        parts.append(f"with {merged['spread'].lower()}")
+    if merged.get("toppings") and str(merged["toppings"]).lower() not in _skip:
+        parts.append(f"with {merged['toppings'].lower()}")
+    if len(parts) > 1:
+        first = dict(first)
+        first["name"] = " ".join(parts).strip()
+        return [first] + list(items[1:])
+    return items
+
 
 def _norm_phrase(text: Any) -> str:
     return str(text or "").strip().lower().replace("_", " ").replace("-", " ")
@@ -15395,8 +16127,10 @@ def _build_scan_response(
 
 
 # -------------------- ANALYZE (PHOTO) --------------------
-_SCAN_MAX_IMAGE_PIXELS = 1280 * 1280
-_SCAN_MAX_EDGE_PX = 1280
+# Slightly smaller default to speed up scan (Issue 12); env can override.
+_SCAN_MAX_IMAGE_PIXELS = int(os.getenv("SCAN_MAX_IMAGE_PIXELS", str(1024 * 1024)))
+_SCAN_MAX_EDGE_PX = int(os.getenv("SCAN_MAX_EDGE_PX", "1024"))
+_SCAN_JPEG_QUALITY = max(60, min(95, int(os.getenv("SCAN_JPEG_QUALITY", "85"))))
 
 
 def _resize_image_for_scan(image_bytes: bytes) -> Tuple[bytes, Optional[Dict[str, int]]]:
@@ -15410,7 +16144,7 @@ def _resize_image_for_scan(image_bytes: bytes) -> Tuple[bytes, Optional[Dict[str
         nw, nh = max(1, int(w * scale)), max(1, int(h * scale))
         resized = img.resize((nw, nh), Image.Resampling.LANCZOS)
         buf = io.BytesIO()
-        resized.save(buf, format="JPEG", quality=88, optimize=True)
+        resized.save(buf, format="JPEG", quality=_SCAN_JPEG_QUALITY, optimize=True)
         return buf.getvalue(), {"w": w, "h": h}
     except Exception as e:
         logger.warning("scan image resize skipped: %s", str(e)[:120])
@@ -15522,6 +16256,8 @@ def _run_analyze_pipeline(
     ).strip():
         if float(_safe_float(vision_scan.vision_confidence, 0.65) or 0.65) < vision_threshold:
             personalization_used["asked_clarifying_question_reason"] = "low_confidence"
+    ingredient_clarification_questions = _get_ingredient_clarification_questions(uid, detected_items)
+    detected_items = _apply_stored_ingredient_choices_to_items(uid, detected_items)
     logger.info("Detected items: %s job_id=%s request_id=%s", detected_items, job_id, request_id)
     latency_ms["vision_ms"] = int(max(0, round((time.time() - _t) * 1000)))
     _t = time.time()
@@ -15568,6 +16304,8 @@ def _run_analyze_pipeline(
     fast_result["nutrition_cache_miss_count"] = nutrition_cache_stats.get("miss_count", 0)
     fast_result["vision_cache_reuse_used"] = vision_cache_reuse_used
     fast_result["vision_cache_skipped_reason"] = vision_cache_skipped_reason
+    if ingredient_clarification_questions:
+        fast_result["clarification_questions"] = ingredient_clarification_questions
     time_to_first_result_ms = int(max(0, round((time.time() - started) * 1000)))
     fast_result["time_to_first_result_ms"] = time_to_first_result_ms
     if on_fast_result and callable(on_fast_result):
@@ -15609,6 +16347,8 @@ def _run_analyze_pipeline(
         data_quality=data_quality,
     )
     response["personalization_used"] = personalization_used
+    if ingredient_clarification_questions:
+        response["clarification_questions"] = ingredient_clarification_questions
     response["learning_applied"] = bool(
         personalization_used.get("portion_prior_used")
         or personalization_used.get("oil_prior_used")
@@ -16065,7 +16805,44 @@ def analyze_rerun(
         if float(_safe_float(vision_scan.vision_confidence, 0.65) or 0.65) < vision_threshold:
             personalization_used["asked_clarifying_question_reason"] = "low_confidence"
 
-    results, totals, total_micros, item_warnings, _ = _compute_scan_nutrition([_model_dump(x) for x in vision_scan.items])
+    items_for_nutrition = [_model_dump(x) for x in vision_scan.items]
+    if getattr(req.edits, "clarifying_answers", None) and isinstance(req.edits.clarifying_answers, list):
+        try:
+            from user_ingredient_choices import save_user_ingredient_choices, get_food_token_from_item
+        except ImportError:
+            pass
+        else:
+            first_item = (items_for_nutrition or [{}])[0] if items_for_nutrition else None
+            if first_item and isinstance(first_item, dict):
+                token = get_food_token_from_item(first_item)
+                if token:
+                    choices_to_save = {}
+                    for a in req.edits.clarifying_answers:
+                        if isinstance(a, dict):
+                            k = str(a.get("key") or "").strip()
+                            v = str(a.get("value") or "").strip()
+                            if k and v:
+                                choices_to_save[k] = v
+                    if choices_to_save:
+                        save_user_ingredient_choices(uid, token, choices_to_save)
+                        _s = ("none", "no", "", "water")
+                        parts = [str(first_item.get("name") or "").strip()]
+                        if choices_to_save.get("milk_type") and choices_to_save["milk_type"].lower() not in _s:
+                            parts.append(f"with {choices_to_save['milk_type'].lower()} milk")
+                        if choices_to_save.get("sweetener") and choices_to_save["sweetener"].lower() not in _s:
+                            parts.append(choices_to_save["sweetener"].lower())
+                        if choices_to_save.get("milk_base") and choices_to_save.get("milk_base", "").lower() not in _s:
+                            parts.append(f"({choices_to_save['milk_base'].lower()} base)")
+                        if choices_to_save.get("dressing") and choices_to_save["dressing"].lower() not in _s:
+                            parts.append(f"({choices_to_save['dressing'].lower()} dressing)")
+                        if choices_to_save.get("spread") and choices_to_save["spread"].lower() not in _s:
+                            parts.append(f"with {choices_to_save['spread'].lower()}")
+                        if choices_to_save.get("toppings") and choices_to_save["toppings"].lower() not in _s:
+                            parts.append(f"with {choices_to_save['toppings'].lower()}")
+                        if len(parts) > 1:
+                            items_for_nutrition = [dict(first_item, name=" ".join(parts).strip())] + list(items_for_nutrition[1:])
+
+    results, totals, total_micros, item_warnings, _ = _compute_scan_nutrition(items_for_nutrition)
     micros_payload = _build_micros_payload(total_micros)
     total_kcal = float(_safe_float(totals.get("kcal"), 0.0) or 0.0)
     total_p = float(_safe_float(totals.get("protein_g"), 0.0) or 0.0)

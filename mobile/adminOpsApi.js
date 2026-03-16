@@ -28,11 +28,13 @@ export async function fetchOpsDashboard(params = {}) {
   const limitTargets = Number.isFinite(Number(p.limit_targets)) ? Number(p.limit_targets) : 20;
   const limitAreas = Number.isFinite(Number(p.limit_areas)) ? Number(p.limit_areas) : 5;
   const scanWindowDays = Number.isFinite(Number(p.scan_window_days)) ? Number(p.scan_window_days) : 7;
+  const goalCoachWindowDays = Number.isFinite(Number(p.goal_coach_window_days)) ? Number(p.goal_coach_window_days) : 7;
   const url =
     `${API_BASE}/admin/ops-dashboard?` +
     `limit_targets=${encodeURIComponent(limitTargets)}` +
     `&limit_areas=${encodeURIComponent(limitAreas)}` +
-    `&scan_window_days=${encodeURIComponent(scanWindowDays)}`;
+    `&scan_window_days=${encodeURIComponent(scanWindowDays)}` +
+    `&goal_coach_window_days=${encodeURIComponent(goalCoachWindowDays)}`;
   try {
     const res = await fetch(url, { method: "GET", headers: { accept: "application/json" } });
     if (!res.ok) {

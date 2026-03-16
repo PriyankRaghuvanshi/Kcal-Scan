@@ -9,6 +9,7 @@ One compact internal dashboard (mobile internal modal) backed by one aggregation
 - **Enrichment health**: weak suburbs + next enrichment targets + canonical sync context
 - **Push rollout health**: rollout config + batch eligibility estimate + recent delivery snapshot
 - **Scan performance health**: TTFR/TTFinal p50/p90 + cache hit rates + latency breakdown
+- **Goal Coach funnel**: shown → clicked → opened → completed + conversion rates + top action types + drop-off summary
 - **Actions**: safe, explicit operator buttons (apply targets, batch dry-run, check receipts, auto-promote)
 
 Internal tool: compact, action-oriented, no extra auth, no ranking changes, no LLM, no live menu fetch on `/places/healthy`.
@@ -22,6 +23,7 @@ Internal tool: compact, action-oriented, no extra auth, no ranking changes, no L
     - `limit_targets` (default 20)
     - `limit_areas` (default 5)
     - `scan_window_days` (default 7)
+    - `goal_coach_window_days` (default 7) — window in days for Goal Coach funnel events
 
 ### Action endpoints (explicit mutations / operations)
 
@@ -55,6 +57,9 @@ Internal tool: compact, action-oriented, no extra auth, no ranking changes, no L
   - `backend/expo_push_service.py`
 - Scan:
   - `backend/scan_performance_analytics.py`
+- Goal Coach funnel:
+  - `backend/goal_coach_action_tracking.py` (event store)
+  - `backend/admin_ops_dashboard.py` (`build_goal_coach_funnel_summary`, `summarize_goal_coach_events`)
 
 ## Dashboard summary JSON structure (high level)
 
@@ -104,6 +109,37 @@ Internal tool: compact, action-oriented, no extra auth, no ranking changes, no L
     "median_nutrition_ms": 220,
     "vision_cache_skipped_reasons": { "image_changed": 12 }
   },
+  "goal_coach": {
+    "window_days": 7,
+    "totals": {
+      "actions_shown": 120,
+      "actions_clicked": 48,
+      "destinations_opened": 41,
+      "actions_completed": 19
+    },
+    "conversion_rates": {
+      "shown_to_clicked_pct": 40.0,
+      "clicked_to_opened_pct": 85.4,
+      "opened_to_completed_pct": 46.3,
+      "shown_to_completed_pct": 15.8
+    },
+    "by_source_surface": {
+      "daily_coach": { "shown": 80, "clicked": 32, "opened": 28, "completed": 14 },
+      "weekly_review": { "shown": 40, "clicked": 16, "opened": 13, "completed": 5 }
+    },
+    "by_action_type": {
+      "open_healthy_nearby": { "shown": 60, "clicked": 30, "opened": 28, "completed": 15, "shown_to_completed_pct": 25.0 },
+      "open_scan_camera": { "shown": 40, "clicked": 12, "opened": 10, "completed": 3, "shown_to_completed_pct": 7.5 }
+    },
+    "top_action_types": [
+      { "action_type": "open_healthy_nearby", "shown_to_completed_pct": 25.0, "completed": 15 }
+    ],
+    "dropoff_summary": {
+      "largest_dropoff_step": "opened_to_completed",
+      "largest_dropoff_action_type": "open_scan_camera",
+      "best_action_type": "open_healthy_nearby"
+    }
+  },
   "actions": {
     "apply_next_targets_endpoint": "/admin/ops-dashboard/apply-next-targets",
     "batch_push_dry_run_endpoint": "/admin/ops-dashboard/run-batch-dry-run",
@@ -121,6 +157,19 @@ Internal tool: compact, action-oriented, no extra auth, no ranking changes, no L
   - Tap the coach title **7 times quickly** to toggle debug.
   - In debug, tap **Ops Dashboard** to open the modal.
 
+## Goal Coach funnel section
+
+The dashboard includes a **Goal Coach** block when the backend returns `goal_coach`:
+
+- **Summary cards**: Actions shown, click rate (shown→clicked %), completion rate (shown→completed %), best action type.
+- **Funnel row**: shown → clicked → opened → completed counts.
+- **Top action types**: action type label, shown→completed %, completed count.
+- **Drop-off note**: Largest drop-off step (e.g. opened→completed), weakest action type, best action type.
+
+Use this to answer: how often actions are shown, clicked, opened, and completed; which action types convert best; where the biggest drop-offs are. See **GOAL_COACH_ACTION_FUNNEL.md** for event definitions and how to interpret funnel drop-off.
+
+**Recommended weekly addition:** Review Goal Coach funnel → compare best vs weakest action types → inspect largest drop-off step → improve CTA copy or destination UX accordingly.
+
 ## Recommended weekly operator workflow
 
 1. Open **Admin Ops Dashboard**
@@ -132,5 +181,6 @@ Internal tool: compact, action-oriented, no extra auth, no ranking changes, no L
 6. Check **Push rollout** health + optionally run **batch dry-run**
 7. Check **Receipts** and address token churn
 8. Check **Scan health** (TTFR p50/p90, cache hit rates)
-9. Repeat weekly
+9. **Review Goal Coach funnel** (shown → clicked → opened → completed; top action types; drop-off note)
+10. Repeat weekly
 

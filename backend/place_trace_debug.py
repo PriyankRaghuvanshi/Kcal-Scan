@@ -270,4 +270,9 @@ def build_place_trace(
     if chain_match_key:
         trace["debug_notes"].append(f"Chain match: {chain_match_key}")
 
+    # Forward chain/Supabase diagnostics from place when present (rollout trace)
+    for key in ("matched_chain_key", "chain_match_status", "chain_menu_store", "menu_item_source", "profile_source", "specificity_tier", "last_ingested_at", "chain_menu_item_count_for_match"):
+        if key in place and place[key] is not None:
+            trace[key] = place[key]
+
     return trace

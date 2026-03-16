@@ -199,12 +199,13 @@ async def send_smart_alerts_for_eligible_users(
             continue
 
         fatigue = _get_fatigue_context(uid)
+        tone = getattr(main_mod, "get_user_tone_for_push", lambda u: "supportive")(uid)
         result = await send_smart_alert_fn(
             healthy_places_fn,
             uid,
             float(lat),
             float(lng),
-            context={},
+            context={"tone_preference": tone},
             fatigue=fatigue,
             eligible_only=True,
             dry_run=dry_run,

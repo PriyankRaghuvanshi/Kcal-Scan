@@ -14,12 +14,30 @@ TBL_LOCAL_VENUE_PROFILES = "local_venue_profiles"
 TBL_LOCAL_VENUE_TEMPLATES = "local_venue_templates"
 TBL_LOCAL_VENUE_SWAPS = "local_venue_swaps"
 TBL_ENRICHMENT_QUEUE = "enrichment_queue"
+TBL_CHAIN_MENU_ITEMS = "chain_menu_items"
+TBL_CHAIN_MENU_PROFILES = "chain_menu_profiles"
 
 
 def _supabase_available() -> bool:
     url = str(os.getenv("SUPABASE_URL") or "").strip()
     key = str(os.getenv("SUPABASE_SERVICE_ROLE_KEY") or "").strip()
     return bool(url and key)
+
+
+def _supabase_base_url() -> str:
+    return f"{str(os.getenv('SUPABASE_URL') or '').strip().rstrip('/')}/rest/v1"
+
+
+def _supabase_headers(prefer: Optional[str] = None) -> Dict[str, str]:
+    key = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
+    h = {
+        "apikey": key,
+        "Authorization": f"Bearer {key}",
+        "Content-Type": "application/json",
+    }
+    if prefer:
+        h["Prefer"] = prefer
+    return h
 
 
 def _sb_safe_get_one(table: str, params: Dict[str, str]) -> Optional[Dict[str, Any]]:
@@ -114,6 +132,122 @@ def get_cached_venue_intelligence(place_id: str) -> Optional[Dict[str, Any]]:
         return cached
     except Exception:
         return None
+
+
+def get_chain_menu_items(
+    chain_key: str,
+    market_tag: Optional[str] = None,
+) -> List[Dict[str, Any]]:
+    """
+    Get chain menu items for a chain/market. Tries Supabase chain_menu_items first;
+    falls back to chain_menu_ingestion (file store). Returns [] on any error. Fail-open.
+    """
+    key = str(chain_key or "").strip().lower()
+    market = str(market_tag or "AU").strip().upper()
+    if not key:
+        return []
+    if _supabase_available():
+        try:
+            rows = _sb_safe_get_many(
+                TBL_CHAIN_MENU_ITEMS,
+                {"chain_key": f"eq.{key}", "market_tag": f"eq.{market}", "select": "*", "order": "item_key"},
+            )
+            if rows:
+                return [dict(r) for r in rows]
+            rows_au = _sb_safe_get_many(
+                TBL_CHAIN_MENU_ITEMS,
+                {"chain_key": f"eq.{key}", "market_tag": "eq.AU", "select": "*", "order": "item_key"},
+            )
+            if rows_au:
+                return [dict(r) for r in rows_au]
+        except Exception:
+            pass
+    try:
+        from chain_menu_ingestion import get_chain_items
+        return get_chain_items(key, market) or []
+    except Exception:
+        return []
+
+
+def _chain_sync_debug() -> bool:
+    """True if CHAIN_MENU_SYNC_DEBUG or SUPABASE_CHAIN_DEBUG is set (1/true/yes)."""
+    v = (os.getenv("CHAIN_MENU_SYNC_DEBUG") or os.getenv("SUPABASE_CHAIN_DEBUG") or "").strip().lower()
+    return v in ("1", "true", "yes", "on")
+
+
+def upsert_chain_menu_profile(row: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """Upsert one chain_menu_profiles row. Fail-open: returns None on error."""
+    if not _supabase_available():
+        if _chain_sync_debug():
+            print("SUPABASE DEBUG upsert_chain_menu_profile: supabase not available")
+        return None
+    try:
+        import requests
+        url = f"{_supabase_base_url()}/{TBL_CHAIN_MENU_PROFILES}"
+        headers = _supabase_headers("resolution=merge-duplicates,return=representation")
+        params = {"on_conflict": "chain_key,market_tag"}
+        if _chain_sync_debug():
+            print("SUPABASE DEBUG PROFILE POST url:", url, "params:", params, "row keys:", list(row.keys()))
+        resp = requests.post(url, headers=headers, params=params, json=[row], timeout=30)
+        if _chain_sync_debug():
+            print("SUPABASE DEBUG PROFILE POST status:", resp.status_code)
+        resp.raise_for_status()
+        rows = resp.json() or []
+        return dict(rows[0]) if rows else dict(row)
+    except Exception as e:
+        if _chain_sync_debug():
+            print("SUPABASE DEBUG upsert_chain_menu_profile ERROR:", repr(e))
+        return None
+
+
+def upsert_chain_menu_items(chain_key: str, market_tag: str, items: List[Dict[str, Any]]) -> int:
+    """Upsert chain menu items. Fail-open: returns 0 on error."""
+    if not _supabase_available():
+        if _chain_sync_debug():
+            print("SUPABASE DEBUG upsert_chain_menu_items: supabase not available")
+        return 0
+    key = str(chain_key or "").strip().lower()
+    market = str(market_tag or "AU").strip().upper()
+    if not key:
+        return 0
+    rows = []
+    for item in items or []:
+        if not isinstance(item, dict):
+            continue
+        r = dict(item)
+        r["chain_key"] = key
+        r["market_tag"] = market
+        rows.append(r)
+    if _chain_sync_debug():
+        print("SUPABASE DEBUG upsert_chain_menu_items rows_count:", len(rows))
+    if not rows:
+        return 0
+    try:
+        import requests
+        url = f"{_supabase_base_url()}/{TBL_CHAIN_MENU_ITEMS}"
+        headers = _supabase_headers("resolution=merge-duplicates,return=minimal")
+        params = {"on_conflict": "chain_key,market_tag,item_key"}
+        resp = requests.post(url, headers=headers, params=params, json=rows, timeout=30)
+        if _chain_sync_debug():
+            print("SUPABASE DEBUG upsert_chain_menu_items POST status:", resp.status_code)
+        resp.raise_for_status()
+        return len(rows)
+    except Exception as e:
+        if _chain_sync_debug():
+            print("SUPABASE DEBUG upsert_chain_menu_items ERROR:", repr(e))
+        return 0
+
+
+def list_chain_menu_chain_keys() -> List[str]:
+    """Return sorted unique chain_key values from chain_menu_profiles. Fail-open: returns []."""
+    if not _supabase_available():
+        return []
+    try:
+        rows = _sb_safe_get_many(TBL_CHAIN_MENU_PROFILES, {"select": "chain_key"})
+        keys = [str(r.get("chain_key") or "").strip() for r in rows if r.get("chain_key")]
+        return sorted(set(k for k in keys if k))
+    except Exception:
+        return []
 
 
 def get_local_venue_profile(

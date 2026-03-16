@@ -6,7 +6,7 @@ import re
 import unicodedata
 from functools import lru_cache
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from chain_registry import resolve_chain_identity
 
@@ -97,6 +97,54 @@ _COUNTRY_ALIASES = {
     "india": "IN",
     "global": "GLOBAL",
 }
+
+# Simple alias matcher for Supabase-backed chain rollout (Chipotle, Faasos, etc.)
+CHAIN_KEYS: Dict[str, List[str]] = {
+    "subway": ["subway", "subway restaurant"],
+    "grilld": ["grilld", "grill'd"],
+    "oporto": ["oporto"],
+    "boost_juice": ["boost juice", "boost juice bars", "boost"],
+    "guzman_y_gomez": ["guzman y gomez", "gyg"],
+    "mcdonalds": ["mcdonalds", "mcdonald's", "mcdonald's", "maccas", "macca's", "macca's"],
+    "hungry_jacks": ["hungry jacks", "hungry jack's", "hungry jack's", "hjs", "hj's"],
+    "kfc": ["kfc", "kentucky fried chicken"],
+    "red_rooster": ["red rooster"],
+    "nandos": ["nandos", "nando's", "nando's"],
+    "chipotle": ["chipotle", "chipotle mexican grill"],
+    "taco_bell": ["taco bell"],
+    "panera": ["panera", "panera bread", "panera bread bakery cafe"],
+    "faasos": ["faasos", "faasos wraps", "faasos by eatsure"],
+    "wow_momo": ["wow momo", "wow! momo", "wowmomo"],
+    "haldirams": ["haldirams", "haldiram's", "haldiram's", "haldiram"],
+    "barbeque_nation": ["barbeque nation", "bbq nation", "barbequenation"],
+}
+
+_SUFFIX_RE = re.compile(
+    r"\b(soma|times square|5th avenue|indiranagar|khar|salt lake|restaurant|restaurants|store|outlet|branch)\b",
+    re.IGNORECASE,
+)
+
+
+def _normalize_chain_text(text: str) -> str:
+    s = str(text or "").strip().lower()
+    s = s.replace("\u2019", "'")
+    s = re.sub(r"[^a-z0-9\s']", " ", s)
+    s = _SUFFIX_RE.sub(" ", s)
+    s = re.sub(r"\s+", " ", s).strip()
+    return s
+
+
+def match_chain_key(place_name: str, brand_hint: Optional[str] = None) -> Optional[str]:
+    candidates = [_normalize_chain_text(brand_hint or ""), _normalize_chain_text(place_name or "")]
+    candidates = [c for c in candidates if c]
+
+    for candidate in candidates:
+        for chain_key, aliases in CHAIN_KEYS.items():
+            for alias in aliases:
+                normalized_alias = _normalize_chain_text(alias)
+                if candidate == normalized_alias or candidate.startswith(normalized_alias + " "):
+                    return chain_key
+    return None
 
 
 def _env_bool(name: str, default: bool = False) -> bool:

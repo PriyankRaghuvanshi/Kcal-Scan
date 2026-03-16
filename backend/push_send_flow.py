@@ -31,7 +31,7 @@ async def send_smart_alert_for_user(
     """
     from push_rollout import can_send_real_push, get_push_rollout_mode, get_user_push_eligibility
     from push_token_store import list_tokens_for_user
-    from push_delivery_store import create_delivery_record, update_delivery_status, was_recently_sent
+    from push_delivery_store import create_delivery_record, update_delivery_status, was_recently_sent, get_recently_sent_place_ids
     from expo_push_service import build_expo_push_message, send_expo_push_messages
     from context_modes import infer_context_mode
     from smart_food_alerts import build_smart_food_alert_candidates
@@ -91,11 +91,14 @@ async def send_smart_alert_for_user(
         local_hour=local_hour,
         poor_sleep_flag=poor_sleep,
         high_craving_risk_flag=high_craving,
+        limit=12,
     )
     items = payload_hp.get("items") or payload_hp.get("places") or []
     if not isinstance(items, list):
         items = []
 
+    recent_sent_place_ids = get_recently_sent_place_ids(user_id, within_hours=24.0)
+    tone_preference = (context or {}).get("tone_preference") or "supportive"
     user_context = {
         "remaining_calories": remaining_cal,
         "remaining_protein_g": remaining_protein,
@@ -111,6 +114,8 @@ async def send_smart_alert_for_user(
         "ignored_streak": ignored,
         "recently_opened_app": recently_opened,
         "recently_viewed_nearby": recently_viewed,
+        "recent_sent_place_ids_24h": recent_sent_place_ids,
+        "tone_preference": tone_preference,
     }
     candidates = build_smart_food_alert_candidates(user_context, items, eligible_only=eligible_only)
     eligible = [c for c in candidates if c.get("eligible_to_send") and c.get("confidence_label") not in ("", "Needs menu check")]

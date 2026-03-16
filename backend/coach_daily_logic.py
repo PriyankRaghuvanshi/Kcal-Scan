@@ -625,12 +625,23 @@ def build_fallback_coach_response(norm_payload: Dict[str, Any], fat_loss_score: 
     ]
     actions = actions[:3]
 
+    # Balance levers: do not let glycemic dominate when protein/fiber gaps are significant.
+    protein_gap_score = clamp(1.0 - p_ratio, 0.0, 1.0)
+    fiber_gap_score = clamp(1.0 - f_ratio, 0.0, 1.0)
+    glycemic_score = clamp((gl - 15.0) / 25.0, 0.0, 1.0)  # slightly reduced weight vs protein/fiber
+    upf_score = clamp((upf - 4.0) / 4.0, 0.0, 1.0)
+    timing_score = clamp((late_pct - 35.0) / 35.0, 0.0, 1.0)
+    # When protein or fiber gap is large (e.g. >20g), boost that lever so it competes with glycemic.
+    if p_left >= 20:
+        protein_gap_score = max(protein_gap_score, 0.75)
+    if f_left >= 15:
+        fiber_gap_score = max(fiber_gap_score, 0.7)
     bottlenecks: List[Tuple[str, float]] = []
-    bottlenecks.append(("protein", clamp(1.0 - p_ratio, 0.0, 1.0)))
-    bottlenecks.append(("fiber", clamp(1.0 - f_ratio, 0.0, 1.0)))
-    bottlenecks.append(("glycemic", clamp((gl - 15.0) / 20.0, 0.0, 1.0)))
-    bottlenecks.append(("upf", clamp((upf - 4.0) / 4.0, 0.0, 1.0)))
-    bottlenecks.append(("timing", clamp((late_pct - 35.0) / 35.0, 0.0, 1.0)))
+    bottlenecks.append(("protein", protein_gap_score))
+    bottlenecks.append(("fiber", fiber_gap_score))
+    bottlenecks.append(("glycemic", glycemic_score))
+    bottlenecks.append(("upf", upf_score))
+    bottlenecks.append(("timing", timing_score))
     bottlenecks.sort(key=lambda x: x[1], reverse=True)
     top_key = bottlenecks[0][0] if bottlenecks else "protein"
     second_key = bottlenecks[1][0] if len(bottlenecks) > 1 else ""

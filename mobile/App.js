@@ -23,6 +23,7 @@ import {
 } from "react-native";
 
 import { CameraView, useCameraPermissions } from "expo-camera";
+import * as ImagePicker from "expo-image-picker";
 import * as FileSystem from "expo-file-system";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { createClient } from "@supabase/supabase-js";
@@ -48,6 +49,7 @@ import MealFeedbackPrompt from "./MealFeedbackPrompt";
 import {
   fetchSmartFoodAlertCandidates,
   buildSmartAlertFetchParams,
+  requestSmartAlertPush,
 } from "./smartAlertsApi";
 import {
   getSmartAlertState,
@@ -64,6 +66,41 @@ import { HealthyNearbyMapScreen } from "./components/HealthyNearbyMapScreen";
 import { HealthyPlaceListCard } from "./components/HealthyPlaceListCard";
 import { AdminOpsDashboard } from "./components/AdminOpsDashboard";
 import { ScanConfirmationChips } from "./components/ScanConfirmationChips";
+import { LetsGoSetupModal } from "./components/LetsGoSetupModal";
+import { GoalPlanCard } from "./components/GoalPlanCard";
+import { JourneyCard } from "./components/JourneyCard";
+import { DailyCoachCard } from "./components/DailyCoachCard";
+import { WeeklyPlanReviewCard } from "./components/WeeklyPlanReviewCard";
+import { PlanPaywallCard } from "./components/PlanPaywallCard";
+import { VenueContributionSheet } from "./components/VenueContributionSheet";
+import {
+  createGoalPlan,
+  getGoalPlan,
+  submitGoalCoachCheckIn,
+  submitWeightEntry,
+  submitPhotoEntry,
+  getJourney,
+  getGoalCoachDaily,
+  getGoalCoachWeekly,
+  getDailyActions,
+  getWeeklyNextStepAction,
+  ACTION_OPEN_HEALTHY_NEARBY,
+  ACTION_OPEN_SCAN_CAMERA,
+  ACTION_OPEN_SUPPLEMENT_SCAN,
+  ACTION_OPEN_DAILY_SUMMARY,
+  ACTION_OPEN_GOAL_PLAN,
+  derivePreferredModeFromContext,
+  preferredModeToFilterKey,
+  trackGoalCoachActionClicked,
+  trackGoalCoachDestinationOpened,
+  trackGoalCoachActionCompleted,
+  trackGoalCoachActionShown,
+} from "./utils/goalCoachUtils";
+import {
+  buildHealthyNearbyContextKey,
+  hasMaterialLocationChange,
+  shouldApplyHealthyNearbyResponse,
+} from "./utils/healthyNearbyRequestState";
 import {
   createLaunchTracer,
   installGlobalErrorHandler,
@@ -86,6 +123,12 @@ import {
   parseSmartAlertNotificationData,
 } from "./pushNotifications";
 import { parseSmartAlertDeepLink, resolveSmartAlertNavigationTarget } from "./deepLinkRouter";
+import {
+  initAppleHealth,
+  writeNutritionToHealth,
+  writeWeightToHealth,
+  isAppleHealthAvailable,
+} from "./utils/appleHealth";
 
 import * as WebBrowser from "expo-web-browser";
 // RevenueCat
@@ -101,6 +144,19 @@ const TERMS_URL = "https://www.apple.com/legal/internet-services/itunes/dev/stde
 // Pricing note for App Review & international launch
 const SUBSCRIPTION_PRICE_NOTE =
   "Prices are shown in the App Store and may vary by country or region.";
+
+// Safe link open (avoids crash if URL invalid or Linking fails)
+async function openURLSafe(url, fallbackMessage = "Could not open link.") {
+  const u = String(url || "").trim();
+  if (!u || !u.startsWith("http")) return;
+  try {
+    const can = await Linking.canOpenURL(u);
+    if (can) await Linking.openURL(u);
+    else if (fallbackMessage) Alert.alert("", fallbackMessage);
+  } catch (e) {
+    if (fallbackMessage) Alert.alert("", fallbackMessage);
+  }
+}
 
 
 // Health / medical info disclaimer + citations (App Review 1.4.1)
@@ -143,6 +199,8 @@ const COACH_VOICE_MEMORY_KEY = "kcal_coach_voice_memory_v1";
 const coachVoiceMemoryKey = (uid, day) => `${COACH_VOICE_MEMORY_KEY}:${uid}:${day}`;
 const UPGRADE_NUDGE_KEY = "kcal_upgrade_nudge_v1";
 const upgradeNudgeKey = (uid) => `${UPGRADE_NUDGE_KEY}:${uid}`;
+const POST_SCAN_BANNER_KEY = "kcal_post_scan_upgrade_banner_dismissed_v1";
+const postScanBannerKey = (uid) => `${POST_SCAN_BANNER_KEY}:${uid}`;
 const COACH_FEEDBACK_QUEUE_KEY = "kcal_coach_feedback_queue_v1";
 const coachFeedbackQueueKey = (uid) => `${COACH_FEEDBACK_QUEUE_KEY}:${uid}`;
 const WEEKLY_COACH_CHOICES_KEY = "kcal_weekly_coach_choices_v1";
@@ -241,6 +299,17 @@ function localDayFromISO(ts) {
   } catch {
     return "";
   }
+}
+function localWeekStartISO() {
+  const d = new Date();
+  const dayOfWeek = d.getDay();
+  const diff = d.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1);
+  const monday = new Date(d);
+  monday.setDate(diff);
+  const y = monday.getFullYear();
+  const m = String(monday.getMonth() + 1).padStart(2, "0");
+  const day = String(monday.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 }
 function normalizeGoals(raw, fallback = DEFAULT_GOALS) {
   const src = raw || {};
@@ -893,6 +962,13 @@ function normalizeRerunPatch(patch, editableItems = []) {
       out.set_item_grams = { item_id: itemId || "", grams };
     }
   }
+  if (Array.isArray(src?.clarifying_answers)) {
+    out.clarifying_answers = src.clarifying_answers.map((a) =>
+      typeof a === "object" && a && ("key" in a || "value" in a)
+        ? { key: String(a.key || "").trim(), value: String(a.value || "").trim() }
+        : null
+    ).filter(Boolean);
+  }
   return out;
 }
 function rerunPatchToActions(patch) {
@@ -956,8 +1032,17 @@ function rerunPatchToActions(patch) {
 }
 function normalizeAnalyzeResult(data) {
   const src = data && typeof data === "object" ? data : {};
+  const rawKcal = num(src.total_kcal ?? src.totals?.kcal ?? src.totals?.total_kcal);
+  const totalKcal = Number.isFinite(rawKcal) ? rawKcal : (src.total_kcal ?? src.totals?.kcal ?? src.totals?.total_kcal);
+  const totals = src.totals && typeof src.totals === "object" ? { ...src.totals } : {};
+  if (Number.isFinite(totalKcal)) {
+    totals.kcal = totalKcal;
+    totals.total_kcal = totalKcal;
+  }
   return {
     ...src,
+    total_kcal: totalKcal,
+    totals,
     analysis_id: String(src.analysis_id || "").trim() || null,
     vision_confidence: Math.max(0, Math.min(1, num(src.vision_confidence))),
     top_candidates: normalizeTopCandidates(src.top_candidates),
@@ -970,6 +1055,13 @@ function normalizeAnalyzeResult(data) {
               : [],
           }
         : null,
+    clarification_questions: Array.isArray(src.clarification_questions)
+      ? src.clarification_questions.filter((q) => q && (q.key || q.label)).map((q) => ({
+          key: String(q.key || "").trim(),
+          label: String(q.label || q.key || "").trim(),
+          options: Array.isArray(q.options) ? q.options.map((o) => String(o || "").trim()).filter(Boolean) : [],
+        }))
+      : [],
     editable_context: { items: normalizeEditableItems(src.editable_context) },
     meal_qa: normalizeMealQA(src.meal_qa),
     micros: normalizeMicros(src?.micros || src?.totals?.micros),
@@ -1550,6 +1642,7 @@ export default function App() {
   const [busy, setBusy] = useState(false);
   const [scanProgress, setScanProgress] = useState("");
   const [rerunBusy, setRerunBusy] = useState(false);
+  const [clarificationSelections, setClarificationSelections] = useState({});
   const [supplementFrontUri, setSupplementFrontUri] = useState(null);
   const [supplementBackUri, setSupplementBackUri] = useState(null);
   const [sealImage, setSealImage] = useState(null);
@@ -1577,6 +1670,7 @@ export default function App() {
   const [healthyViewMode, setHealthyViewMode] = useState("map");
   const [healthyMapFilter, setHealthyMapFilter] = useState("all");
   const [selectedHealthyPlaceId, setSelectedHealthyPlaceId] = useState("");
+  const [healthyNearbyRefreshing, setHealthyNearbyRefreshing] = useState(false);
   const [activeScreen, setActiveScreen] = useState("home");
   const [healthyNearbyTab, setHealthyNearbyTab] = useState("decision");
   const [lunchDecisionBusy, setLunchDecisionBusy] = useState(false);
@@ -1586,9 +1680,14 @@ export default function App() {
   const [menuScanBusy, setMenuScanBusy] = useState(false);
   const [menuScanError, setMenuScanError] = useState("");
   const [menuScanResult, setMenuScanResult] = useState(null);
+  const [upfScanBusy, setUpfScanBusy] = useState(false);
+  const [upfScanResult, setUpfScanResult] = useState(null);
+  const [upfScanError, setUpfScanError] = useState("");
   const [cameraMode, setCameraMode] = useState("meal");
   const [pendingMealFeedback, setPendingMealFeedback] = useState(null);
   const [showMealFeedbackPrompt, setShowMealFeedbackPrompt] = useState(false);
+  const [contributionSheetVisible, setContributionSheetVisible] = useState(false);
+  const [contributionPlace, setContributionPlace] = useState(null);
 
   // ===== History (isolated by user id) =====
   const [history, setHistory] = useState([]);
@@ -1626,6 +1725,10 @@ export default function App() {
   const rerunReqSeqRef = useRef(0);
   const mainScrollRef = useRef(null);
   const analyzeCancelRef = useRef(false);
+  const goalCoachPendingCompletionRef = useRef(null);
+  const goalCoachAutoAnalyzeAfterPhotoRef = useRef(false);
+  const healthyNearbyContextKeyRef = useRef("");
+  const healthyNearbyStaleIgnoredCountRef = useRef(0);
 
   // ===== Camera Modal =====
   const [camOpen, setCamOpen] = useState(false);
@@ -1648,6 +1751,29 @@ export default function App() {
   const [adminOpsVisible, setAdminOpsVisible] = useState(false);
   const smartAlertsLastFetchRef = useRef(0);
   const SMART_ALERTS_COOLDOWN_MS = 5 * 60 * 1000; // 5 min between fetches
+
+  // ===== Goal Coach (Let's Go) =====
+  const [goalPlan, setGoalPlan] = useState(null);
+  const [goalPlanLoading, setGoalPlanLoading] = useState(false);
+  const [goalCoachDaily, setGoalCoachDaily] = useState(null);
+  const [goalCoachWeekly, setGoalCoachWeekly] = useState(null);
+  const [goalCoachDailyLoading, setGoalCoachDailyLoading] = useState(false);
+  const [goalCoachWeeklyLoading, setGoalCoachWeeklyLoading] = useState(false);
+  const [letsGoModalVisible, setLetsGoModalVisible] = useState(false);
+  const [paywallOpen, setPaywallOpen] = useState(false);
+  /** "advanced" | "pro" | null — which plan to highlight in paywall modal (null = Advanced). */
+  const [paywallPlanHint, setPaywallPlanHint] = useState(null);
+  const [postScanUpgradeBannerVisible, setPostScanUpgradeBannerVisible] = useState(false);
+  const openPaywall = (planHint) => {
+    setPaywallPlanHint(planHint || "advanced");
+    setPaywallOpen(true);
+  };
+  const [journeyWeightInput, setJourneyWeightInput] = useState("");
+  const [journeyWeightBusy, setJourneyWeightBusy] = useState(false);
+  const [journeyPhotoBusy, setJourneyPhotoBusy] = useState(false);
+  const [journeyData, setJourneyData] = useState(null);
+  const [goalCoachCreateBusy, setGoalCoachCreateBusy] = useState(false);
+  const [goalCoachContext, setGoalCoachContext] = useState(null);
 
   // ===== Push Notifications =====
   const [pushPermissionStatus, setPushPermissionStatus] = useState(null);
@@ -1791,6 +1917,10 @@ export default function App() {
   );
 
   useEffect(() => {
+    setClarificationSelections({});
+  }, [result?.analysis_id, (result?.clarification_questions || []).length]);
+
+  useEffect(() => {
     let cancelled = false;
     let unsub = null;
     markLaunchPhase("auth_hydration_start");
@@ -1899,6 +2029,9 @@ export default function App() {
     if (!userId) {
       setGoals(null);
       setGoalsDraft(DEFAULT_GOALS);
+      setGoalPlan(null);
+      setGoalCoachDaily(null);
+      setGoalCoachWeekly(null);
       setUsage(null);
       setSupplementFrontUri(null);
       setSupplementBackUri(null);
@@ -1951,6 +2084,21 @@ export default function App() {
     loadHistory();
     void fetchAiConsent(userId);
     void flushCoachFeedbackQueue(userId);
+    void fetchGoalPlan();
+  }, [userId]);
+
+  useEffect(() => {
+    if (!userId || !goalPlan) return;
+    void fetchGoalCoachDaily();
+    void fetchGoalCoachWeekly();
+    void fetchGoalCoachJourney();
+  }, [userId, goalPlan?.plan_id]);
+
+  useEffect(() => {
+    if (Platform.OS !== "ios" || !userId || !isAppleHealthAvailable()) return;
+    initAppleHealth((err) => {
+      if (err) console.log("Apple Health init:", err);
+    });
   }, [userId]);
 
   useEffect(() => {
@@ -3460,9 +3608,11 @@ export default function App() {
       unregisterPushTokenWithBackend({ userId: regUid, expoPushToken: regToken });
       pushRegistrationRef.current = { userId: null, token: null };
     }
-    try {
-      await supabase.auth.signOut();
-    } catch {}
+    if (supabase) {
+      try {
+        await supabase.auth.signOut();
+      } catch (_) {}
+    }
     setPhotoUri(null);
     setResult(null);
     setDailySummary(null);
@@ -3486,6 +3636,7 @@ export default function App() {
     setGoals(null);
     setGoalsDraft(DEFAULT_GOALS);
     setGoalsModal(false);
+    setLetsGoModalVisible(false);
     setBarcodeManual("");
     setBarcodeOpen(false);
     setBarcodeMode("lookup");
@@ -3781,6 +3932,30 @@ export default function App() {
 
 async function openCamera(mode = "meal") {
     if (!ensureAiConsentOrAlert()) return;
+    const normalizedMode = String(mode || "meal").trim().toLowerCase();
+    if (normalizedMode === "upf_scan") {
+      const remDay = num(usage?.remaining_day);
+      const remMonth = num(usage?.remaining_month);
+      if (remDay === 0 && remMonth === 0) {
+        Alert.alert(
+          "Out of scans",
+          "Upgrade for more scans to use UPF Scanner.",
+          [{ text: "Not now", style: "cancel" }, { text: "Upgrade", onPress: () => openPaywall("advanced") }]
+        );
+        return;
+      }
+      if (remDay <= 2 || remMonth <= 5) {
+        Alert.alert(
+          "Uses 1 scan",
+          `You have ${remDay} left today, ${remMonth} this month.`,
+          [
+            { text: "Upgrade", onPress: () => openPaywall("advanced") },
+            { text: "Continue", onPress: () => { setCameraMode("upf_scan"); setCamOpen(true); } },
+          ]
+        );
+        return;
+      }
+    }
     try {
       const { granted } = permission || {};
       if (!granted) {
@@ -3794,7 +3969,7 @@ async function openCamera(mode = "meal") {
       Alert.alert("Camera permission", String((e && e.message) || e || "Please allow camera access.").slice(0, 180));
       return;
     }
-    setCameraMode(String(mode || "meal"));
+    setCameraMode(normalizedMode);
     setCamOpen(true);
   }
 
@@ -3820,8 +3995,25 @@ async function openCamera(mode = "meal") {
         setCameraMode("meal");
         void scanRestaurantMenu(photo.uri);
         return;
+      } else if (mode === "upf_scan") {
+        setUpfScanError("");
+        setUpfScanResult(null);
+        setCamOpen(false);
+        setCameraMode("meal");
+        void scanUPFProduct(photo.uri);
+        return;
       } else {
         setPhotoUri(photo.uri);
+        const pending = goalCoachPendingCompletionRef.current;
+        if (pending?.action_type === ACTION_OPEN_SCAN_CAMERA) {
+          goalCoachAutoAnalyzeAfterPhotoRef.current = true;
+          setActiveScreen("home");
+          try {
+            if (mainScrollRef.current && typeof mainScrollRef.current.scrollTo === "function") {
+              mainScrollRef.current.scrollTo({ y: 0, animated: false });
+            }
+          } catch {}
+        }
       }
       setCamOpen(false);
       setCameraMode("meal");
@@ -3917,6 +4109,147 @@ async function openCamera(mode = "meal") {
     }
   }
 
+  async function fetchGoalPlan() {
+    const uid = userId || session?.user?.id;
+    if (!uid) return;
+    setGoalPlanLoading(true);
+    try {
+      const data = await getGoalPlan(API_BASE, uid);
+      setGoalPlan(data?.has_plan ? data.plan : null);
+    } catch (e) {
+      console.log("fetchGoalPlan failed", e);
+      setGoalPlan(null);
+    } finally {
+      setGoalPlanLoading(false);
+    }
+  }
+
+  async function fetchGoalCoachDaily() {
+    const uid = userId || session?.user?.id;
+    if (!uid) return;
+    setGoalCoachDailyLoading(true);
+    try {
+      const day = localDayISO();
+      const hour = new Date().getHours();
+      const url = withTimezoneQuery(`${API_BASE}/goal-coach/daily?user_id=${encodeURIComponent(uid)}&day=${encodeURIComponent(day)}&current_hour=${hour}`);
+      const res = await fetch(url, { method: "GET", headers: { Accept: "application/json", "X-User-Id": uid } });
+      const data = res.ok ? await res.json().catch(() => ({})) : {};
+      setGoalCoachDaily(data);
+    } catch (e) {
+      console.log("fetchGoalCoachDaily failed", e);
+      setGoalCoachDaily(null);
+    } finally {
+      setGoalCoachDailyLoading(false);
+    }
+  }
+
+  async function fetchGoalCoachWeekly() {
+    const uid = userId || session?.user?.id;
+    if (!uid) return;
+    setGoalCoachWeeklyLoading(true);
+    try {
+      const url = withTimezoneQuery(`${API_BASE}/goal-coach/weekly?user_id=${encodeURIComponent(uid)}`);
+      const res = await fetch(url, { method: "GET", headers: { Accept: "application/json", "X-User-Id": uid } });
+      const data = res.ok ? await res.json().catch(() => ({})) : {};
+      setGoalCoachWeekly(data);
+    } catch (e) {
+      console.log("fetchGoalCoachWeekly failed", e);
+      setGoalCoachWeekly(null);
+    } finally {
+      setGoalCoachWeeklyLoading(false);
+    }
+  }
+
+  async function fetchGoalCoachJourney() {
+    const uid = userId || session?.user?.id;
+    if (!uid) return;
+    try {
+      const data = await getJourney(API_BASE, uid, { day: localDayISO() });
+      setJourneyData(data?.ok ? data : null);
+    } catch (e) {
+      setJourneyData(null);
+    }
+  }
+
+  async function handleLetsGoSubmit(body) {
+    const uid = userId || session?.user?.id;
+    if (!uid) return;
+    setGoalCoachCreateBusy(true);
+    try {
+      const data = await createGoalPlan(API_BASE, uid, body);
+      if (data?.ok && data?.plan) {
+        setGoalPlan(data.plan);
+        setLetsGoModalVisible(false);
+        await fetchGoalCoachDaily();
+        await fetchGoalCoachWeekly();
+      } else {
+        Alert.alert("Could not create plan", "Please try again.");
+      }
+    } catch (e) {
+      Alert.alert("Error", String(e?.message || e).slice(0, 120));
+    } finally {
+      setGoalCoachCreateBusy(false);
+    }
+  }
+
+  function handleGoalCoachAction(action) {
+    if (!action || !action.action_type) return;
+    const uid = userId || session?.user?.id ?? "";
+    const ctx = action.context || {};
+    const sourceSurface = action.source_surface || "daily_coach";
+    const meta = {
+      source_surface: sourceSurface,
+      action_type: action.action_type,
+      goal_type: ctx.goal,
+      reason: action.reason || ctx.reason,
+      remaining_protein_g: ctx.remaining_protein_g,
+      remaining_calories: ctx.remaining_calories,
+      kickoff_active: ctx.kickoff_active,
+      subscription_required: ctx.subscription_required,
+    };
+    trackGoalCoachActionClicked(API_BASE, uid, meta);
+
+    const preferredMode = derivePreferredModeFromContext(ctx, action.action_type);
+    const extendedContext = {
+      ...ctx,
+      source_surface: sourceSurface,
+      action_type: action.action_type,
+      action_reason: action.reason,
+      coach_focus: ctx.coach_focus,
+      preferred_mode: preferredMode,
+    };
+    setGoalCoachContext(extendedContext);
+
+    switch (action.action_type) {
+      case ACTION_OPEN_HEALTHY_NEARBY:
+        setHealthyMapFilter(preferredModeToFilterKey(preferredMode));
+        setActiveScreen("healthy_nearby");
+        void loadHealthyPlacesNearby({ preserveFilter: true });
+        break;
+      case ACTION_OPEN_SCAN_CAMERA:
+        goalCoachPendingCompletionRef.current = { ...meta, action_type: ACTION_OPEN_SCAN_CAMERA };
+        setCamOpen(true);
+        break;
+      case ACTION_OPEN_SUPPLEMENT_SCAN:
+        goalCoachPendingCompletionRef.current = { ...meta, action_type: ACTION_OPEN_SUPPLEMENT_SCAN };
+        setBarcodeMode("supplement");
+        setBarcodeOpen(true);
+        break;
+      case ACTION_OPEN_DAILY_SUMMARY:
+        setActiveScreen("home");
+        if (mainScrollRef.current && typeof mainScrollRef.current.scrollTo === "function") {
+          mainScrollRef.current.scrollTo({ y: 0, animated: true });
+        }
+        break;
+      case ACTION_OPEN_GOAL_PLAN:
+        setActiveScreen("home");
+        break;
+      default:
+        break;
+    }
+    trackGoalCoachDestinationOpened(API_BASE, uid, meta);
+  }
+
   async function maybeSendScanUpgradeNudge(photoScansAfterThisAnalyze) {
     const uid = userId || session?.user?.id;
     if (!uid) return;
@@ -3957,6 +4290,23 @@ async function openCamera(mode = "meal") {
     }
   }
 
+  async function showPostScanBannerIfNeeded() {
+    const uid = userId || session?.user?.id;
+    if (!uid || planAtLeast(plan, "pro")) return;
+    try {
+      const dismissed = await AsyncStorage.getItem(postScanBannerKey(uid));
+      if (dismissed === "1") return;
+      setPostScanUpgradeBannerVisible(true);
+    } catch {}
+  }
+
+  function dismissPostScanBanner() {
+    setPostScanUpgradeBannerVisible(false);
+    const uid = userId || session?.user?.id;
+    if (uid) {
+      AsyncStorage.setItem(postScanBannerKey(uid), "1").catch(() => {});
+    }
+  }
 
   async function analyzePhoto() {
     if (!userId) return;
@@ -4123,6 +4473,14 @@ async function openCamera(mode = "meal") {
         scanCount: Math.round(num(data?.daily_signals?.scan_count ?? data?.daily_signals?.meals_count)),
         totalsHash,
       });
+      const pending = goalCoachPendingCompletionRef.current;
+      if (pending?.action_type === ACTION_OPEN_SCAN_CAMERA && (userId || session?.user?.id)) {
+        trackGoalCoachActionCompleted(API_BASE, userId || session?.user?.id, {
+          ...pending,
+          completion_type: "scan_result_returned",
+        });
+        goalCoachPendingCompletionRef.current = null;
+      }
       await pushHistory({
         ts: nowISO(),
         kind: "photo",
@@ -4148,10 +4506,45 @@ async function openCamera(mode = "meal") {
         fastMode: true,
         trigger: "analyze",
       });
+      const uid = userId || session?.user?.id;
+      if (uid && goalPlan && (latestScanId || normalized?.analysis_id)) {
+        submitGoalCoachCheckIn(API_BASE, uid, {
+          day: localDayISO(),
+          analysis_id: latestScanId || String(normalized?.analysis_id || "").trim(),
+        })
+          .then(() => { void fetchGoalCoachJourney(); })
+          .catch((e) => {
+            if (e?.status === 402) openPaywall("advanced");
+          });
+      }
       void fetchCoachVoice(normalized, true);
       void fetchWeeklyReport(true);
       void fetchWeeklyCoachProgress(true);
       await maybeSendScanUpgradeNudge(photoScansAfterThisAnalyze);
+      if (photoScansAfterThisAnalyze === 1 && !planAtLeast(plan, "pro")) {
+        void showPostScanBannerIfNeeded();
+      }
+      if (Platform.OS === "ios" && isAppleHealthAvailable()) {
+        const kcal = num(normalized?.totals?.kcal ?? normalized?.totals?.total_kcal ?? data?.total_kcal);
+        const protein = num(normalized?.totals?.protein_g ?? data?.totals?.protein_g);
+        const carbs = num(normalized?.totals?.carbs_g ?? data?.totals?.carbs_g);
+        const fat = num(normalized?.totals?.fat_g ?? data?.totals?.fat_g);
+        const fiber = num(normalized?.micros?.fiber_g ?? data?.totals?.micros?.fiber_g);
+        if (Number.isFinite(kcal) && kcal >= 0) {
+          writeNutritionToHealth(
+            {
+              dateIso: latestScanTs || nowISO(),
+              energyKcal: kcal,
+              proteinG: protein,
+              carbsG: carbs,
+              fatG: fat,
+              fiberG: fiber,
+              foodName: "CalorieClick meal",
+            },
+            () => {}
+          );
+        }
+      }
     } catch (e) {
       setFliPending(false);
       const msg = String((e && e.message) || e || "").trim();
@@ -4162,8 +4555,21 @@ async function openCamera(mode = "meal") {
       setBusy(false);
       setScanProgress("");
       analyzeCancelRef.current = false;
+      goalCoachAutoAnalyzeAfterPhotoRef.current = false;
     }
   }
+
+  useEffect(() => {
+    if (!goalCoachAutoAnalyzeAfterPhotoRef.current) return;
+    if (!photoUri) return;
+    if (busy) return;
+    // Best-effort auto-analyze to reduce Goal Coach scan completion friction.
+    setTimeout(() => {
+      if (goalCoachAutoAnalyzeAfterPhotoRef.current && !busy && photoUri) {
+        void analyzePhoto();
+      }
+    }, 250);
+  }, [photoUri, busy]);
 
   function cancelAnalyzeJob() {
     analyzeCancelRef.current = true;
@@ -4244,6 +4650,14 @@ async function openCamera(mode = "meal") {
       setSupplementStep(SUPPLEMENT_TOTAL_STEPS);
       if (String(data?.barcode || "").trim()) setSupplementBarcode(String(data?.barcode || "").trim());
       if (String(data?.batch_number || "").trim()) setSupplementBatchNumber(String(data?.batch_number || "").trim());
+      const pending = goalCoachPendingCompletionRef.current;
+      if (data && pending?.action_type === ACTION_OPEN_SUPPLEMENT_SCAN && (userId || session?.user?.id)) {
+        trackGoalCoachActionCompleted(API_BASE, userId || session?.user?.id, {
+          ...pending,
+          completion_type: "supplement_scan_completed",
+        });
+        goalCoachPendingCompletionRef.current = null;
+      }
     } catch (e) {
       Alert.alert(
         "Verification unavailable",
@@ -4309,21 +4723,46 @@ async function openCamera(mode = "meal") {
   }
 
   async function loadHealthyPlacesNearby(options = {}) {
-    const reqSeq = healthyPlacesReqSeqRef.current + 1;
-    healthyPlacesReqSeqRef.current = reqSeq;
     const opts = options && typeof options === "object" ? options : {};
-    setHealthyPlacesBusy(true);
-    setHealthyPlacesError("");
     try {
       const seedCoords = opts?.coords && typeof opts.coords === "object" ? opts.coords : null;
       const coords = seedCoords || healthyPlaceCoords || (await getCurrentCoords());
-      if (reqSeq !== healthyPlacesReqSeqRef.current) return;
       const lat = num(coords?.lat);
       const lng = num(coords?.lng);
       if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
         throw new Error("Could not read location.");
       }
-      setHealthyPlaceCoords({ lat, lng });
+      const radiusM = Number.isFinite(num(opts?.radius_m))
+        ? Math.max(500, Math.min(50000, num(opts.radius_m)))
+        : DEFAULT_HEALTHY_RADIUS_M;
+
+      const goal = String(opts?.goal || resolveLunchGoal()).trim();
+      const cutMode = typeof opts?.cut_mode === "boolean" ? opts.cut_mode : goal === "fat_loss";
+
+      const contextKey = buildHealthyNearbyContextKey({
+        lat,
+        lng,
+        radiusM,
+        goal,
+        cutMode,
+        filterKey: healthyMapFilter,
+      });
+
+      const prevCoords = healthyPlaceCoords;
+      const materialMove = hasMaterialLocationChange(prevCoords, { lat, lng }, 200);
+      const keyChanged = contextKey && contextKey !== healthyNearbyContextKeyRef.current;
+
+      if (materialMove || keyChanged || !healthyPlaces.length) {
+        healthyNearbyContextKeyRef.current = contextKey;
+        setHealthyPlaceCoords({ lat, lng });
+        setHealthyPlacesBusy(true);
+        setHealthyPlacesError("");
+        setHealthyNearbyRefreshing(true);
+        setSelectedHealthyPlaceId("");
+      }
+
+      const reqSeq = healthyPlacesReqSeqRef.current + 1;
+      healthyPlacesReqSeqRef.current = reqSeq;
 
       const remainingCalories = Number.isFinite(num(opts?.remaining_calories))
         ? Math.max(0, num(opts?.remaining_calories))
@@ -4335,14 +4774,11 @@ async function openCamera(mode = "meal") {
         : Number.isFinite(num(remainingToday?.protein_g))
         ? Math.max(0, num(remainingToday?.protein_g))
         : null;
-      const goal = String(opts?.goal || resolveLunchGoal()).trim();
-      const cutMode = typeof opts?.cut_mode === "boolean" ? opts.cut_mode : goal === "fat_loss";
-
-      const radiusM = Number.isFinite(num(opts?.radius_m)) ? Math.max(500, Math.min(50000, num(opts.radius_m))) : DEFAULT_HEALTHY_RADIUS_M;
       const params = [
         "lat=" + encodeURIComponent(lat),
         "lng=" + encodeURIComponent(lng),
         "radius=" + encodeURIComponent(radiusM),
+        "limit=" + encodeURIComponent(Math.max(8, Math.min(40, num(opts?.limit) || 12))),
       ];
       if (remainingCalories !== null) params.push("remaining_calories=" + encodeURIComponent(remainingCalories));
       if (remainingProtein !== null) params.push("remaining_protein_g=" + encodeURIComponent(remainingProtein));
@@ -4362,7 +4798,10 @@ async function openCamera(mode = "meal") {
       const url = withTimezoneQuery(`${API_BASE}/places/healthy?${params.join("&")}`);
       const res = await fetch(url, { method: "GET", headers: { accept: "application/json" } });
       const data = await safeJson(res);
-      if (reqSeq !== healthyPlacesReqSeqRef.current) return;
+      if (!shouldApplyHealthyNearbyResponse(reqSeq, healthyPlacesReqSeqRef.current, contextKey, healthyNearbyContextKeyRef.current)) {
+        healthyNearbyStaleIgnoredCountRef.current += 1;
+        return;
+      }
       const normalized = normalizeHealthyPlacesResponse(data);
       const list = normalized.items;
       setHealthySortMode(normalized.sortMode);
@@ -4403,6 +4842,17 @@ async function openCamera(mode = "meal") {
 
       void fetchSmartAlerts({ coords: { lat, lng }, force: false });
 
+      if (uid && smartAlertState?.enabled === true && Number.isFinite(lat) && Number.isFinite(lng)) {
+        requestSmartAlertPush({
+          userId: uid,
+          lat,
+          lng,
+          tonePreference: coachProfile?.tone_preference || "supportive",
+          goal: goal || "",
+          dryRun: false,
+        }).catch(() => {});
+      }
+
       if (!list.length) {
         const noResultsReason = String(data?._no_results_reason || "").trim();
         if (noResultsReason === "places_api_key_not_configured") {
@@ -4418,17 +4868,18 @@ async function openCamera(mode = "meal") {
         }
       }
     } catch (e) {
-      if (reqSeq !== healthyPlacesReqSeqRef.current) return;
+      if (!shouldApplyHealthyNearbyResponse(healthyPlacesReqSeqRef.current, healthyPlacesReqSeqRef.current, healthyNearbyContextKeyRef.current, healthyNearbyContextKeyRef.current)) {
+        return;
+      }
       const msg = String((e && e.message) || e || "").trim() || "Could not load nearby places.";
       setHealthyPlacesError(msg.slice(0, 220));
       setHealthyPlaces([]);
-    setHealthySections(null);
+      setHealthySections(null);
       setSelectedHealthyPlaceId("");
       setHealthyMapFocusCoords(null);
     } finally {
-      if (reqSeq === healthyPlacesReqSeqRef.current) {
-        setHealthyPlacesBusy(false);
-      }
+      setHealthyPlacesBusy(false);
+      setHealthyNearbyRefreshing(false);
     }
   }
 
@@ -4853,6 +5304,84 @@ async function openCamera(mode = "meal") {
     }
   }
 
+  async function scanUPFProduct(photoUri) {
+    const uid = userId || session?.user?.id;
+    if (!uid) {
+      setUpfScanError("Please sign in to scan.");
+      return;
+    }
+    setUpfScanBusy(true);
+    setUpfScanError("");
+    setUpfScanResult(null);
+    try {
+      const { prepareImageForScan } = await import("./utils/imageCompress");
+      const uriToUpload = await prepareImageForScan(photoUri);
+      const form = new FormData();
+      form.append("file", {
+        uri: uriToUpload,
+        name: "product.jpg",
+        type: "image/jpeg",
+      });
+      const analyzeUrl = withTimezoneQuery(`${API_BASE}/analyze?user_id=${encodeURIComponent(uid)}`);
+      const res = await fetch(analyzeUrl, {
+        method: "POST",
+        headers: { accept: "application/json" },
+        body: form,
+      });
+      let data = await safeJson(res);
+      const queuedStatus = String(data?.status || "").trim().toLowerCase();
+      if (res.status === 202 || queuedStatus === "queued" || queuedStatus === "running") {
+        const jobId = String(data?.job_id || "").trim();
+        if (!jobId) {
+          throw new Error("Analysis was queued without a job_id.");
+        }
+        const startedAt = Date.now();
+        let pollDelay = 800;
+        let finalPayload = null;
+        while (Date.now() - startedAt < 120000) {
+          const jobUrl = withTimezoneQuery(
+            `${API_BASE}/jobs/${encodeURIComponent(jobId)}?user_id=${encodeURIComponent(uid)}`
+          );
+          const pollRes = await fetch(jobUrl, { method: "GET", headers: { accept: "application/json" } });
+          const pollData = await safeJson(pollRes);
+          const status = String(pollData?.status || "").trim().toLowerCase();
+          const resultObj = pollData?.result && typeof pollData.result === "object" ? pollData.result : null;
+          if (resultObj && !finalPayload) finalPayload = resultObj;
+          if (status === "done") {
+            finalPayload = resultObj;
+            break;
+          }
+          if (status === "failed") {
+            throw new Error(errorToMessage(pollData?.error || pollData?.message || "Scan failed.", 0) || "Scan failed.");
+          }
+          await sleepMs(pollDelay);
+          pollDelay = Math.min(5000, Math.round(pollDelay * 1.2));
+        }
+        if (!finalPayload) throw new Error("Scan timed out. Please try again.");
+        data = finalPayload;
+      }
+      const score =
+        (data?.coaching?.ultra_processed_score != null ? num(data.coaching.ultra_processed_score) : null) ??
+        (data?.signals?.ultra_processed_avg != null ? num(data.signals.ultra_processed_avg) : null);
+      if (score != null && Number.isFinite(score)) {
+        const s = Math.max(0, Math.min(10, score));
+        const label =
+          s <= 2.5 ? "Not much processed" : s <= 6 ? "Processed" : "Ultra processed";
+        const symbol = s <= 2.5 ? "😊" : s <= 6 ? "😐" : "😟";
+        setUpfScanResult({ score: round1(s), label, symbol });
+        setUpfScanError("");
+      } else {
+        setUpfScanResult(null);
+        setUpfScanError("Couldn't assess — try a clearer photo of the product.");
+      }
+    } catch (e) {
+      setUpfScanResult(null);
+      setUpfScanError(errorToMessage(e?.message || e, 0) || "Scan failed. Try again.");
+    } finally {
+      setUpfScanBusy(false);
+    }
+  }
+
   async function handleLunchDecisionCTA(card) {
     const payload = card && typeof card === "object" ? card : {};
     const cta = String(payload?.cta_label || "").trim().toLowerCase();
@@ -5119,6 +5648,12 @@ async function openCamera(mode = "meal") {
     );
   }
 
+  function openContributionSheet(place, sourceSurface) {
+    if (!place) return;
+    setContributionPlace({ place, sourceSurface });
+    setContributionSheetVisible(true);
+  }
+
   async function reportSupplementIssue(reasonKey, notes) {
     if (!userId) return;
     const scanId = String(supplementResult?.scan_id || "").trim();
@@ -5310,6 +5845,15 @@ async function openCamera(mode = "meal") {
     void sendCoachFeedback("cooking", { cooking_method: cookingMethod, oil_added_tsp: oilGuess });
   }
 
+  async function applyClarificationAnswers() {
+    const qs = result?.clarification_questions || [];
+    if (!qs.length) return;
+    const answers = Object.entries(clarificationSelections).filter(([, v]) => v).map(([key, value]) => ({ key, value }));
+    if (!answers.length) return;
+    setFliPending(true);
+    await rerunAnalyzeWithPatch({ clarifying_answers: answers });
+  }
+
   async function applyQaFix(fix) {
     const rawPatch = fix?.patch && typeof fix.patch === "object" ? fix.patch : null;
     const patch = rawPatch ? normalizeRerunPatch(rawPatch, result?.editable_context?.items || []) : null;
@@ -5350,7 +5894,11 @@ async function openCamera(mode = "meal") {
     if (!ensureAiConsentOrAlert()) return;
     const scannerMode = String(mode || "lookup").trim().toLowerCase() === "supplement" ? "supplement" : "lookup";
     if (scannerMode === "lookup" && !canBarcode) {
-      Alert.alert("Locked 🔒", "Barcode scanning is Elite+.");
+      Alert.alert(
+        "Barcode scanning is an Elite feature",
+        "Upgrade to Elite to scan barcodes for instant macros.",
+        [{ text: "Not now", style: "cancel" }, { text: "See plans", onPress: () => openPaywall("elite") }]
+      );
       return;
     }
     const { granted } = permission || {};
@@ -5379,7 +5927,13 @@ async function openCamera(mode = "meal") {
       const res = await fetch(barcodeUrl, { headers: { accept: "application/json" } });
       const data = await safeJson(res);
 
-      Alert.alert("Barcode result", `${data?.name || "Product"}\n${round1(data?.per_100g?.kcal)} kcal / 100g`);
+      const p100 = data?.per_100g || {};
+      const kcal = round1(p100.kcal);
+      const p = round1(p100.protein_g);
+      const c = round1(p100.carbs_g);
+      const f = round1(p100.fat_g);
+      const macroLine = [kcal, p, c, f].every((x) => x !== undefined && x !== "") ? `${kcal} kcal • P ${p}g • C ${c}g • F ${f}g (per 100g)` : `${round1(p100.kcal)} kcal / 100g`;
+      Alert.alert("Barcode result", `${data?.name || "Product"}\n${macroLine}`);
       await refreshUsage();
       await pushHistory({
         ts: nowISO(),
@@ -5631,6 +6185,8 @@ async function openCamera(mode = "meal") {
       ? "Capture seal photo"
       : cameraMode === "menu_scan"
       ? "Capture menu photo"
+      : cameraMode === "upf_scan"
+      ? "Scan product"
       : "Take a photo";
   const barcodeModalTitle = barcodeMode === "supplement" ? "Scan supplement barcode" : "Scan barcode";
 
@@ -5665,9 +6221,16 @@ async function openCamera(mode = "meal") {
               Plan: <Text style={styles.plan}>{plan}</Text>
             </Text>
           </View>
-          <TouchableOpacity style={styles.smallBtn} onPress={signOut}>
-            <Text style={styles.smallBtnText}>Logout</Text>
-          </TouchableOpacity>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            {!planAtLeast(plan, "pro") ? (
+              <TouchableOpacity style={styles.smallBtn} onPress={() => openPaywall(null)}>
+                <Text style={styles.smallBtnText}>Plans</Text>
+              </TouchableOpacity>
+            ) : null}
+            <TouchableOpacity style={styles.smallBtn} onPress={signOut}>
+              <Text style={styles.smallBtnText}>Logout</Text>
+            </TouchableOpacity>
+          </View>
         </View>
         ) : (
         <View style={styles.nearbyScreenHeader}>
@@ -5730,9 +6293,68 @@ async function openCamera(mode = "meal") {
                 </Text>
               </View>
             </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.launcherActionCard}
+              activeOpacity={0.85}
+              onPress={() => openCamera("upf_scan")}
+              disabled={upfScanBusy}
+            >
+              <Text style={styles.launcherActionIcon}>🏷️</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.launcherActionTitle}>UPF Scanner</Text>
+                <Text style={styles.launcherActionSubtitle}>
+                  {upfScanBusy ? "Assessing…" : "Point at a product — see how processed it is"}
+                </Text>
+              </View>
+            </TouchableOpacity>
           </View>
 
+          <Text style={[styles.launcherCoachLine, { marginTop: 6 }]}>
+            Scan Food or Scan Menu → tap Analyse below to see your result in the "Scan a meal" section.
+          </Text>
           <Text style={styles.launcherCoachLine}>{homeCoachLine}</Text>
+          {!planAtLeast(plan, "pro") ? (
+            <View style={styles.launcherValueRow}>
+              <Text style={styles.launcherValueText}>Track meals in seconds. Upgrade for more scans and a personal coach.</Text>
+              <TouchableOpacity style={styles.launcherValueBtn} onPress={() => openPaywall(null)}>
+                <Text style={styles.launcherValueBtnText}>See plans</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
+
+          {(upfScanResult || upfScanError || upfScanBusy) ? (
+            <View style={[styles.card, { marginTop: 12 }]}>
+              <Text style={styles.cardTitle}>Processed?</Text>
+              {upfScanBusy ? (
+                <Text style={styles.p}>Assessing…</Text>
+              ) : upfScanError ? (
+                <>
+                  <Text style={styles.p}>{upfScanError}</Text>
+                  <TouchableOpacity
+                    style={[styles.secondaryBtn, { marginTop: 10 }]}
+                    onPress={() => { setUpfScanError(""); openCamera("upf_scan"); }}
+                  >
+                    <Text style={styles.secondaryBtnText}>Try again</Text>
+                  </TouchableOpacity>
+                </>
+              ) : upfScanResult ? (
+                <>
+                  <View style={{ alignItems: "center", marginVertical: 8 }}>
+                    <Text style={{ fontSize: 48, marginBottom: 4 }}>{upfScanResult.symbol}</Text>
+                    <Text style={[styles.p, { fontWeight: "600", marginBottom: 2 }]}>{upfScanResult.label}</Text>
+                    <Text style={styles.tiny}>{upfScanResult.score}/10</Text>
+                  </View>
+                  <TouchableOpacity
+                    style={[styles.secondaryBtn, { marginTop: 8 }]}
+                    onPress={() => { setUpfScanResult(null); openCamera("upf_scan"); }}
+                  >
+                    <Text style={styles.secondaryBtnText}>Scan another</Text>
+                  </TouchableOpacity>
+                </>
+              ) : null}
+            </View>
+          ) : null}
         </View>
         ) : null}
 
@@ -5817,11 +6439,204 @@ async function openCamera(mode = "meal") {
             </View>
           );
         })()}
+        {/* Goal Coach (Let's Go) */}
+        <View style={styles.card}>
+          <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+            <Text style={styles.cardTitle}>Goal Coach</Text>
+            {!goalPlan && (
+              <TouchableOpacity
+                style={[styles.smallBtn, { backgroundColor: "#22c55e20", borderColor: "#22c55e" }]}
+                onPress={() => setLetsGoModalVisible(true)}
+                disabled={goalPlanLoading}
+              >
+                <Text style={[styles.smallBtnText, { color: "#4ade80" }]}>{goalPlanLoading ? "…" : "Let's Go"}</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+          {goalPlan ? (
+            <>
+              <GoalPlanCard
+                plan={goalPlan}
+                kickoffDay={goalCoachDaily?.kickoff_day ?? 0}
+                kickoffDaysTotal={goalCoachDaily?.kickoff_days_total ?? 21}
+                kickoffActive={goalCoachDaily?.kickoff_active ?? true}
+                hasDailyAction={!!(getDailyActions(goalCoachDaily).primaryAction)}
+                onViewToday={() => {
+                  const { primaryAction } = getDailyActions(goalCoachDaily);
+                  if (primaryAction) handleGoalCoachAction({ ...primaryAction, source_surface: "goal_plan" });
+                }}
+              />
+              <View style={{ marginTop: 12 }}>
+                <JourneyCard
+                  dayNumber={goalCoachDaily?.kickoff_day ?? 0}
+                  kickoffDaysTotal={goalCoachDaily?.kickoff_days_total ?? 21}
+                  summary={journeyData?.summary ?? null}
+                  photoEntries={journeyData?.photo_entries ?? []}
+                  weekStartISO={localWeekStartISO()}
+                />
+              </View>
+              <View style={{ marginTop: 12 }}>
+                <DailyCoachCard
+                  apiBase={API_BASE}
+                  userId={userId || session?.user?.id}
+                  daily={goalCoachDaily}
+                  subscriptionRequired={goalCoachDaily?.subscription_required ?? false}
+                  primaryAction={getDailyActions(goalCoachDaily).primaryAction}
+                  secondaryAction={getDailyActions(goalCoachDaily).secondaryAction}
+                  onPrimaryAction={(a) => handleGoalCoachAction({ ...a, source_surface: "daily_coach" })}
+                  onSecondaryAction={(a) => handleGoalCoachAction({ ...a, source_surface: "daily_coach" })}
+                />
+              </View>
+              <View style={{ marginTop: 12 }}>
+                <WeeklyPlanReviewCard
+                  apiBase={API_BASE}
+                  userId={userId || session?.user?.id}
+                  review={goalCoachWeekly?.review}
+                  weekStart={goalCoachWeekly?.week_start}
+                  weekEnd={goalCoachWeekly?.week_end}
+                  subscriptionRequired={goalCoachWeekly?.subscription_required ?? false}
+                  nextStepAction={getWeeklyNextStepAction(goalCoachWeekly)}
+                  onNextStepAction={(a) => handleGoalCoachAction({ ...a, source_surface: "weekly_review" })}
+                />
+              </View>
+              <View style={{ marginTop: 12 }}>
+                <Text style={styles.label}>Progress</Text>
+                <Text style={styles.tiny}>Log weight and weekly photos to track your journey.</Text>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 8 }}>
+                  <TextInput
+                    style={[styles.input, { flex: 1, minWidth: 80 }]}
+                    value={journeyWeightInput}
+                    onChangeText={setJourneyWeightInput}
+                    keyboardType="decimal-pad"
+                    placeholder="Weight (kg)"
+                    placeholderTextColor="#666"
+                  />
+                  <TouchableOpacity
+                    style={[styles.secondaryBtn, journeyWeightBusy && { opacity: 0.7 }]}
+                    onPress={async () => {
+                      const v = parseFloat(journeyWeightInput);
+                      if (!Number.isFinite(v) || v <= 0) {
+                        Alert.alert("Invalid weight", "Enter a valid weight in kg.");
+                        return;
+                      }
+                      const uid = userId || session?.user?.id;
+                      if (!uid) return;
+                      setJourneyWeightBusy(true);
+                      try {
+                        await submitWeightEntry(API_BASE, uid, { value_kg: v, day: localDayISO() });
+                        setJourneyWeightInput("");
+                        void fetchGoalCoachJourney();
+                        if (Platform.OS === "ios" && isAppleHealthAvailable()) {
+                          writeWeightToHealth({ dateIso: localDayISO(), valueKg: v }, () => {});
+                        }
+                      } catch (e) {
+                        if (e?.status === 402) openPaywall("advanced");
+                        else Alert.alert("Error", e?.message || "Could not log weight.");
+                      } finally {
+                        setJourneyWeightBusy(false);
+                      }
+                    }}
+                    disabled={journeyWeightBusy}
+                  >
+                    <Text style={styles.btnText}>{journeyWeightBusy ? "…" : "Log weight"}</Text>
+                  </TouchableOpacity>
+                </View>
+                <TouchableOpacity
+                  style={[styles.secondaryBtn, { marginTop: 8 }, journeyPhotoBusy && { opacity: 0.7 }]}
+                  onPress={async () => {
+                    const uid = userId || session?.user?.id;
+                    if (!uid) return;
+                    try {
+                      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+                      if (status !== "granted") {
+                        Alert.alert("Permission needed", "Allow photo library access to add progress photos.");
+                        return;
+                      }
+                      setJourneyPhotoBusy(true);
+                      const result = await ImagePicker.launchImageLibraryAsync({
+                        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                        allowsEditing: true,
+                        quality: 0.8,
+                      });
+                      if (result.canceled || !result.assets?.[0]?.uri) {
+                        setJourneyPhotoBusy(false);
+                        return;
+                      }
+                      const uri = result.assets[0].uri;
+                      await submitPhotoEntry(API_BASE, uid, {
+                        week_start: localWeekStartISO(),
+                        uri_or_ref: uri,
+                      });
+                      void fetchGoalCoachJourney();
+                      Alert.alert("Saved", "Progress photo logged for this week.");
+                    } catch (e) {
+                      if (e?.status === 402) openPaywall("advanced");
+                      else Alert.alert("Error", e?.message || "Could not add photo.");
+                    } finally {
+                      setJourneyPhotoBusy(false);
+                    }
+                  }}
+                  disabled={journeyPhotoBusy}
+                >
+                  <Text style={styles.btnText}>{journeyPhotoBusy ? "…" : "Add progress photo"}</Text>
+                </TouchableOpacity>
+              </View>
+              {goalPlan &&
+                goalCoachDaily?.kickoff_active &&
+                !(goalCoachDaily?.subscription_required || goalCoachWeekly?.subscription_required) &&
+                (() => {
+                  const day = num(goalCoachDaily?.kickoff_day) ?? 0;
+                  const total = num(goalCoachDaily?.kickoff_days_total) ?? 21;
+                  const daysLeft = Math.max(0, total - day);
+                  return daysLeft >= 1 && daysLeft <= 4;
+                })() ? (
+                <View style={styles.trialEndingBanner}>
+                  <Text style={styles.trialEndingText}>
+                    Your free trial ends in{" "}
+                    {Math.max(1, (num(goalCoachDaily?.kickoff_days_total) ?? 21) - (num(goalCoachDaily?.kickoff_day) ?? 0))} day(s).
+                    Upgrade to Advanced to keep your journey, check-ins, and progress.
+                  </Text>
+                  <TouchableOpacity style={styles.trialEndingBtn} onPress={() => openPaywall("advanced")}>
+                    <Text style={styles.trialEndingBtnText}>Upgrade to Advanced</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : null}
+              {(goalCoachDaily?.subscription_required || goalCoachWeekly?.subscription_required) ? (
+                <View style={{ marginTop: 12 }}>
+                  <PlanPaywallCard
+                    kickoffDay={goalCoachDaily?.kickoff_day ?? 0}
+                    kickoffDaysTotal={goalCoachDaily?.kickoff_days_total ?? 21}
+                  requiresAdvancedPlan={goalCoachDaily?.requires_advanced_plan ?? goalCoachWeekly?.requires_advanced_plan ?? false}
+                  onUnlock={() => openPaywall("advanced")}
+                  />
+                </View>
+              ) : null}
+            </>
+          ) : (
+            <>
+              <Text style={styles.tiny}>Set a goal and get a starter plan plus daily check-ins. Start free for 3 weeks—then upgrade to Advanced to continue your journey.</Text>
+              <Text style={[styles.tiny, { marginTop: 6, color: "#94a3b8" }]}>Tap Let's Go to start.</Text>
+            </>
+          )}
+        </View>
+
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Scans left</Text>
           <Text style={styles.big}>
             {usage ? `${usage.remaining_day} today • ${usage.remaining_month} this month` : "…"}
           </Text>
+          {(num(usage?.remaining_day) <= 2 || num(usage?.remaining_month) <= 5) && usage ? (
+            <View style={styles.scansLowBanner}>
+              <Text style={styles.scansLowText}>
+                {num(usage.remaining_day) === 0 || num(usage.remaining_month) === 0
+                  ? "You've used your scans for this period. Upgrade for more."
+                  : "Running low on scans. Upgrade for more."}
+              </Text>
+              <TouchableOpacity style={styles.scansLowBtn} onPress={() => openPaywall("advanced")}>
+                <Text style={styles.scansLowBtnText}>Upgrade</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
           <View style={styles.row}>
             <TouchableOpacity style={styles.secondaryBtn} onPress={refreshUsage}>
               <Text style={styles.btnText}>Refresh</Text>
@@ -5830,7 +6645,7 @@ async function openCamera(mode = "meal") {
               <Text style={styles.btnText}>{rcBusy ? "…" : "Restore"}</Text>
             </TouchableOpacity>
           </View>
-          <Text style={styles.tiny}>Restore does NOT refill scans (only syncs your plan).</Text>
+          <Text style={styles.tiny}>Restore does NOT refill scans (only syncs your plan). Already subscribed? Tap Restore to sync.</Text>
           <View style={{ marginTop: 12, flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
             <Text style={styles.tiny}>
               Goals: {Math.round(goals?.kcal || 0)} kcal • P {round1(goals?.protein_g || 0)}g • C {round1(goals?.carbs_g || 0)}g • F {round1(goals?.fat_g || 0)}g
@@ -5924,6 +6739,16 @@ async function openCamera(mode = "meal") {
               <Text style={[styles.tiny, { marginTop: 8 }]}>
                 After your 5th scan, we send: "Ready to unlock deeper coaching?"
               </Text>
+              <TouchableOpacity
+                style={styles.unlockProBtn}
+                onPress={() => openPaywall("pro")}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.unlockProBtnText}>Unlock with Pro</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={{ marginTop: 8 }} onPress={() => openPaywall(null)} activeOpacity={0.8}>
+                <Text style={[styles.tiny, { color: "#60a5fa", textDecorationLine: "underline" }]}>See all plans</Text>
+              </TouchableOpacity>
             </View>
           ) : (
             <>
@@ -6321,6 +7146,17 @@ async function openCamera(mode = "meal") {
 
           {result ? (
             <View style={{ marginTop: 14 }}>
+              {postScanUpgradeBannerVisible ? (
+                <View style={[styles.card, { marginBottom: 12, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }]}>
+                  <Text style={[styles.p, { flex: 1 }]}>Get more scans + daily coaching — Upgrade</Text>
+                  <TouchableOpacity style={styles.smallBtn} onPress={() => { dismissPostScanBanner(); openPaywall(null); }}>
+                    <Text style={styles.smallBtnText}>See plans</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={{ padding: 4 }} onPress={dismissPostScanBanner} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                    <Text style={styles.tiny}>✕</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : null}
               <Text style={styles.big}>Total: {round1(result.total_kcal)} kcal</Text>
               <Text style={styles.p}>
                 Protein {round1(result?.totals?.protein_g)}g • Carbs {round1(result?.totals?.carbs_g)}g • Fat{" "}
@@ -6389,6 +7225,36 @@ async function openCamera(mode = "meal") {
                       </TouchableOpacity>
                     ))}
                   </View>
+                </View>
+              ) : null}
+
+              {(result?.clarification_questions || []).length > 0 ? (
+                <View style={{ marginTop: 10 }}>
+                  <Text style={styles.cardTitle}>Confirm details (we'll remember)</Text>
+                  {(result.clarification_questions || []).map((q, qIdx) => (
+                    <View key={q.key || qIdx} style={{ marginTop: 8 }}>
+                      <Text style={styles.p}>{q.label}</Text>
+                      <View style={styles.rowWrap}>
+                        {(q.options || []).map((opt, idx) => (
+                          <TouchableOpacity
+                            key={`${q.key}-${idx}`}
+                            style={[styles.chip, clarificationSelections[q.key] === opt ? { borderColor: "#22c55e", borderWidth: 2 } : null]}
+                            onPress={() => setClarificationSelections((prev) => ({ ...prev, [q.key]: opt }))}
+                            disabled={rerunBusy}
+                          >
+                            <Text style={styles.chipText}>{String(opt)}</Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    </View>
+                  ))}
+                  <TouchableOpacity
+                    style={[styles.primaryBtn, { marginTop: 10 }]}
+                    onPress={() => applyClarificationAnswers()}
+                    disabled={rerunBusy || !Object.keys(clarificationSelections).some((k) => clarificationSelections[k])}
+                  >
+                    <Text style={styles.btnText}>Apply and update kcal</Text>
+                  </TouchableOpacity>
                 </View>
               ) : null}
 
@@ -6558,7 +7424,7 @@ async function openCamera(mode = "meal") {
                   {HEALTH_SOURCES.map((s) => (
                     <TouchableOpacity
                       key={s.url}
-                      onPress={() => Linking.openURL(s.url)}
+                      onPress={() => openURLSafe(s?.url, "Could not open source link.")}
                       style={{ marginBottom: 8 }}
                     >
                       <Text style={styles.link}>• {s.title}</Text>
@@ -6756,7 +7622,7 @@ async function openCamera(mode = "meal") {
                       const q = `https://www.google.com/search?q=${encodeURIComponent(
                         `FSSAI license ${supplementFssaiNumber}`
                       )}`;
-                      void Linking.openURL(q);
+                      void openURLSafe(q, "Could not open search.");
                     }}
                   >
                     <Text style={styles.btnText}>Verify on official portal</Text>
@@ -7525,10 +8391,24 @@ async function openCamera(mode = "meal") {
               filterKey={healthyMapFilter}
               onFilterChange={setHealthyMapFilter}
               selectedPlace={healthySelectedPlace}
+              goalCoachContext={goalCoachContext}
               onSelectPlace={(place, idx) => {
                 setSelectedHealthyPlaceId(place ? healthyPlaceStableId(place, idx) : "");
                 if (place && Number.isFinite(num(place?.lat)) && Number.isFinite(num(place?.lng))) {
                   setHealthyMapFocusCoords({ lat: num(place.lat), lng: num(place.lng) });
+                }
+                const uid = userId || session?.user?.id;
+                if (uid && goalCoachContext?.action_type === ACTION_OPEN_HEALTHY_NEARBY) {
+                  trackGoalCoachActionCompleted(API_BASE, uid, {
+                    source_surface: goalCoachContext.source_surface,
+                    action_type: ACTION_OPEN_HEALTHY_NEARBY,
+                    completion_type: "place_selected",
+                    place_id: place?.place_id,
+                    place_name: place?.place_name || place?.name,
+                    goal_type: goalCoachContext.goal,
+                    remaining_protein_g: goalCoachContext.remaining_protein_g,
+                    remaining_calories: goalCoachContext.remaining_calories,
+                  });
                 }
               }}
               userCoords={healthyPlaceCoords}
@@ -7546,6 +8426,22 @@ async function openCamera(mode = "meal") {
               onScanMenu={(place) => {
                 void openCamera("menu_scan");
               }}
+              onOpenDirections={(place) => {
+                openPlaceInMaps(place);
+                const uid = userId || session?.user?.id;
+                if (uid && goalCoachContext?.action_type === ACTION_OPEN_HEALTHY_NEARBY) {
+                  trackGoalCoachActionCompleted(API_BASE, uid, {
+                    source_surface: goalCoachContext.source_surface,
+                    action_type: ACTION_OPEN_HEALTHY_NEARBY,
+                    completion_type: "directions_opened",
+                    place_id: place?.place_id,
+                    place_name: place?.place_name || place?.name,
+                    goal_type: goalCoachContext.goal,
+                    remaining_protein_g: goalCoachContext.remaining_protein_g,
+                    remaining_calories: goalCoachContext.remaining_calories,
+                  });
+                }
+              }}
             />
           ) : null}
 
@@ -7555,6 +8451,18 @@ async function openCamera(mode = "meal") {
                   const stableId = healthyPlaceStableId(place, idx);
                   const handleOpenInMaps = (p) => {
                     const uid = userId || (session?.user?.id ?? null);
+                    if (uid && goalCoachContext?.action_type === ACTION_OPEN_HEALTHY_NEARBY) {
+                      trackGoalCoachActionCompleted(API_BASE, uid, {
+                        source_surface: goalCoachContext.source_surface,
+                        action_type: ACTION_OPEN_HEALTHY_NEARBY,
+                        completion_type: "directions_opened",
+                        place_id: p?.place_id,
+                        place_name: p?.place_name || p?.name,
+                        goal_type: goalCoachContext.goal,
+                        remaining_protein_g: goalCoachContext.remaining_protein_g,
+                        remaining_calories: goalCoachContext.remaining_calories,
+                      });
+                    }
                     if (uid) {
                       const payload = buildDecisionEventPayload(p, "place_opened", {
                         userId: uid,
@@ -7585,6 +8493,7 @@ async function openCamera(mode = "meal") {
                         place={place}
                         indexInSection={idx}
                         onOpenInMaps={handleOpenInMaps}
+                        onFeedbackImprove={(p) => openContributionSheet(p, "healthy_nearby_list")}
                       />
                     </View>
                   );
@@ -7650,6 +8559,7 @@ async function openCamera(mode = "meal") {
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Upgrade</Text>
           <Text style={styles.p}>Upgrade to unlock more scans and features.</Text>
+          <Text style={styles.socialProofLine}>Join thousands staying on track with CalorieClick.</Text>
 
           <View style={styles.rowWrap}>
             {["elite", "advanced", "pro", "infinite"].map((p) => (
@@ -7693,10 +8603,10 @@ async function openCamera(mode = "meal") {
             </Text>
 
             <View style={{ marginTop: 10, flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
-              <TouchableOpacity onPress={() => Linking.openURL(PRIVACY_URL)}>
+              <TouchableOpacity onPress={() => openURLSafe(PRIVACY_URL, "Could not open Privacy Policy.")}>
                 <Text style={styles.link}>Privacy Policy</Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={() => Linking.openURL(TERMS_URL)}>
+              <TouchableOpacity onPress={() => openURLSafe(TERMS_URL, "Could not open Terms of Use.")}>
                 <Text style={styles.link}>Terms of Use (EULA)</Text>
               </TouchableOpacity>
             </View>
@@ -7712,7 +8622,7 @@ async function openCamera(mode = "meal") {
             {HEALTH_SOURCES.map((s) => (
               <TouchableOpacity
                 key={s.url}
-                onPress={() => Linking.openURL(s.url)}
+                onPress={() => openURLSafe(s?.url, "Could not open source link.")}
                 style={{ marginBottom: 8 }}
               >
                 <Text style={styles.link}>• {s.title}</Text>
@@ -7797,6 +8707,84 @@ async function openCamera(mode = "meal") {
 
         <View style={{ height: 30 }} />
       
+        <LetsGoSetupModal
+          visible={letsGoModalVisible}
+          onClose={() => setLetsGoModalVisible(false)}
+          onSubmit={handleLetsGoSubmit}
+          loading={goalCoachCreateBusy}
+        />
+
+        <Modal
+          visible={paywallOpen}
+          transparent
+          animationType="fade"
+          onRequestClose={() => { setPaywallOpen(false); setPaywallPlanHint(null); }}
+        >
+          <View style={styles.modalBackdrop}>
+            <View style={styles.modalCard}>
+              {(() => {
+                const isPro = paywallPlanHint === "pro";
+                const isElite = paywallPlanHint === "elite";
+                const planKey = isPro ? "pro" : isElite ? "elite" : "advanced";
+                const title = isPro ? "Upgrade to Pro" : isElite ? "Upgrade to Elite" : "Upgrade to Advanced";
+                const benefits = isPro
+                  ? [
+                      "Daily diagnosis & risk alerts",
+                      "Personalized action coaching (1–3 swaps)",
+                      "Weekly report card & resilience score",
+                    ]
+                  : isElite
+                  ? [
+                      "Scan barcodes for instant macros",
+                      "More daily and monthly scans",
+                      "OpenFoodFacts nutrition data",
+                    ]
+                  : [
+                      "Keep daily check-ins & journey",
+                      "Log weight & progress photos",
+                      "No limit on goal coaching",
+                    ];
+                const price = subscriptionPriceText(planKey);
+                const planLabel = planKey.charAt(0).toUpperCase() + planKey.slice(1);
+                return (
+                  <>
+                    <Text style={styles.cardTitle}>{title}</Text>
+                    <View style={{ marginTop: 8 }}>
+                      {benefits.map((b, i) => (
+                        <Text key={i} style={[styles.tiny, { marginTop: i ? 4 : 0 }]}>
+                          • {b}
+                        </Text>
+                      ))}
+                    </View>
+                    {price ? (
+                      <Text style={[styles.p, { marginTop: 10, fontWeight: "700" }]}>{planLabel} — {price}/month</Text>
+                    ) : null}
+                    <View style={{ flexDirection: "row", gap: 10, marginTop: 14 }}>
+                      <TouchableOpacity
+                        style={[styles.btn, { flex: 1, backgroundColor: "#2c2c2c" }]}
+                        onPress={() => { setPaywallOpen(false); setPaywallPlanHint(null); }}
+                      >
+                        <Text style={styles.btnText}>Not now</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.btn, { flex: 1 }]}
+                        onPress={async () => {
+                          setPaywallOpen(false);
+                          setPaywallPlanHint(null);
+                          await purchaseEntitlement(planKey);
+                        }}
+                        disabled={rcBusy || !rcReady}
+                      >
+                        <Text style={styles.btnText}>{rcBusy ? "…" : "Upgrade"}</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </>
+                );
+              })()}
+            </View>
+          </View>
+        </Modal>
+
         <Modal visible={goalsModal} transparent animationType="fade" onRequestClose={() => closeBooleanStateSafely(setGoalsModal)}>
           <View style={styles.modalBackdrop}>
             <View style={styles.modalCard}>
@@ -8220,6 +9208,23 @@ async function openCamera(mode = "meal") {
         }}
       />
 
+      <VenueContributionSheet
+        visible={contributionSheetVisible}
+        onClose={() => setContributionSheetVisible(false)}
+        onSubmit={async ({ contributionType, suggestedItemText }) => {
+          const uid = userId || (session?.user?.id ?? null);
+          if (!uid || !contributionPlace?.place) return;
+          await postVenueContribution({
+            place: contributionPlace.place,
+            userId: uid,
+            contributionType,
+            suggestedItemText,
+            sourceSurface: contributionPlace.sourceSurface || "healthy_nearby_map",
+            dietContext: { goal: resolveLunchGoal() },
+          });
+        }}
+      />
+
       {/* CAMERA MODAL */}
       <Modal visible={camOpen} animationType="slide">
         <SafeAreaView style={styles.modalSafe}>
@@ -8230,6 +9235,13 @@ async function openCamera(mode = "meal") {
             <Text style={styles.modalTitle}>{cameraTitle}</Text>
             <View style={{ width: 70 }} />
           </View>
+          {goalCoachPendingCompletionRef.current?.action_type === ACTION_OPEN_SCAN_CAMERA ? (
+            <View style={{ paddingHorizontal: 14, paddingBottom: 8 }}>
+              <Text style={styles.tiny}>
+                Goal Coach: take a meal photo — we’ll analyze it automatically.
+              </Text>
+            </View>
+          ) : null}
 
           <CameraView ref={camRef} style={styles.camera} facing="back" />
 
@@ -8328,8 +9340,55 @@ const styles = StyleSheet.create({
   launcherActionTitle: { color: "#fff", fontSize: 17, fontWeight: "800", lineHeight: 21 },
   launcherActionSubtitle: { color: "#aac0de", fontSize: 13, marginTop: 2, lineHeight: 18 },
   launcherCoachLine: { color: "#c6daf6", fontSize: 12, lineHeight: 18, marginTop: 3 },
+  launcherValueRow: { marginTop: 12, paddingTop: 10, borderTopWidth: 1, borderTopColor: "rgba(41, 98, 255, 0.25)" },
+  launcherValueText: { color: "#94b8d9", fontSize: 13, lineHeight: 18 },
+  launcherValueBtn: { marginTop: 8, alignSelf: "flex-start", paddingVertical: 6, paddingHorizontal: 12, borderRadius: 8, backgroundColor: "rgba(34, 197, 94, 0.2)", borderWidth: 1, borderColor: "#22c55e" },
+  launcherValueBtnText: { color: "#4ade80", fontSize: 13, fontWeight: "700" },
+  socialProofLine: { fontSize: 12, color: "#86efac", fontStyle: "italic", marginTop: 4 },
   cardTitle: { color: "#fff", fontWeight: "800", fontSize: 18, lineHeight: 23, letterSpacing: 0.2 },
   big: { color: "#fff", fontWeight: "800", fontSize: 20, lineHeight: 25, marginTop: 7 },
+
+  scansLowBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    flexWrap: "wrap",
+    gap: 8,
+    marginTop: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    backgroundColor: "rgba(245, 158, 11, 0.12)",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(245, 158, 11, 0.35)",
+  },
+  scansLowText: { flex: 1, fontSize: 13, color: "#fcd34d", lineHeight: 18 },
+  scansLowBtn: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 10, backgroundColor: "#22c55e" },
+  scansLowBtnText: { fontSize: 14, fontWeight: "700", color: "#fff" },
+
+  trialEndingBanner: {
+    marginTop: 12,
+    padding: 14,
+    backgroundColor: "rgba(34, 197, 94, 0.12)",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(34, 197, 94, 0.35)",
+  },
+  trialEndingText: { fontSize: 13, color: "#86efac", lineHeight: 19 },
+  trialEndingBtn: { marginTop: 10, paddingVertical: 10, paddingHorizontal: 14, borderRadius: 10, backgroundColor: "#22c55e", alignItems: "center" },
+  trialEndingBtnText: { fontSize: 14, fontWeight: "700", color: "#fff" },
+
+  unlockProBtn: {
+    marginTop: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    backgroundColor: "#2563eb",
+    borderWidth: 1,
+    borderColor: "#3b82f6",
+    alignItems: "center",
+  },
+  unlockProBtnText: { fontSize: 15, fontWeight: "700", color: "#fff" },
 
   input: {
     backgroundColor: "#111",

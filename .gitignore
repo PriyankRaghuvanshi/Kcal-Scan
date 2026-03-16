@@ -25,3 +25,6 @@ mobile/.env
 supabase/.temp/
 mobile/.env
 backend/*bk*.py
+
+# Backend runtime data (e.g. user ingredient choices store)
+backend/data/

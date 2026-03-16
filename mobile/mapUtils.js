@@ -76,6 +76,22 @@ export function getTopRankedMarkers(places, limit = 3) {
   return rows.slice(0, limit);
 }
 
+export function haversineKm(lat1, lng1, lat2, lng2) {
+  const a1 = num(lat1);
+  const o1 = num(lng1);
+  const a2 = num(lat2);
+  const o2 = num(lng2);
+  if (!Number.isFinite(a1) || !Number.isFinite(o1) || !Number.isFinite(a2) || !Number.isFinite(o2)) return NaN;
+  const r = 6371;
+  const toRad = (d) => (d * Math.PI) / 180;
+  const dLat = toRad(a2 - a1);
+  const dLng = toRad(o2 - o1);
+  const s1 = Math.sin(dLat / 2) ** 2;
+  const s2 = Math.cos(toRad(a1)) * Math.cos(toRad(a2)) * Math.sin(dLng / 2) ** 2;
+  const c = 2 * Math.atan2(Math.sqrt(s1 + s2), Math.sqrt(1 - (s1 + s2)));
+  return r * c;
+}
+
 /**
  * Which place to show selected: current if still visible, else top visible.
  * @param {object[]} visiblePlaces

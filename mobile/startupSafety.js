@@ -79,6 +79,7 @@ export function safeGetOpsDashboardSummary(raw) {
   const enrichment = safeObject(src.enrichment, {});
   const push = safeObject(src.push, {});
   const scan = safeObject(src.scan, {});
+  const goalCoach = safeObject(src.goal_coach, {});
   return {
     enrichment: {
       weak_suburbs: safeArray(enrichment.weak_suburbs),
@@ -86,6 +87,7 @@ export function safeGetOpsDashboardSummary(raw) {
     },
     push,
     scan,
+    goal_coach: goalCoach,
   };
 }
 

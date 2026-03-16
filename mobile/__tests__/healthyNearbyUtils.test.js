@@ -9,6 +9,8 @@ const {
   getHealthyItemLineLabel,
   getHealthyPanelItemHeading,
   getRecommendationHeroLabel,
+  getGoalCoachBannerText,
+  getGoalCoachHeroLabel,
 } = require("../healthyNearbyUtils.js");
 
 describe("normalizeHealthyPlacesResponse", () => {
@@ -127,5 +129,47 @@ describe("getRecommendationHeroLabel", () => {
 
   test("rank 3 returns #3 nearby", () => {
     expect(getRecommendationHeroLabel({}, 3)).toBe("#3 nearby");
+  });
+});
+
+describe("getGoalCoachBannerText", () => {
+  test("protein_rescue with remaining protein returns coach line", () => {
+    const ctx = { preferred_mode: "protein_rescue", remaining_protein_g: 42, remaining_calories: 500 };
+    expect(getGoalCoachBannerText(ctx)).toContain("42");
+    expect(getGoalCoachBannerText(ctx)).toContain("protein");
+  });
+
+  test("lighter_option returns calories tighter copy", () => {
+    const ctx = { preferred_mode: "lighter_option" };
+    expect(getGoalCoachBannerText(ctx)).toContain("calories");
+    expect(getGoalCoachBannerText(ctx)).toContain("lighter");
+  });
+
+  test("dinner_recovery with protein returns close gap copy", () => {
+    const ctx = { preferred_mode: "dinner_recovery", remaining_protein_g: 30 };
+    expect(getGoalCoachBannerText(ctx)).toContain("protein");
+  });
+
+  test("null or empty context returns null", () => {
+    expect(getGoalCoachBannerText(null)).toBeNull();
+    expect(getGoalCoachBannerText({})).toBeNull();
+  });
+});
+
+describe("getGoalCoachHeroLabel", () => {
+  test("protein_rescue returns protein-focused copy", () => {
+    expect(getGoalCoachHeroLabel("protein_rescue")).toBe("Best protein-focused next move");
+  });
+
+  test("lighter_option returns lighter option copy", () => {
+    expect(getGoalCoachHeroLabel("lighter_option")).toBe("Lighter option that still helps your target");
+  });
+
+  test("best_fit_today returns default", () => {
+    expect(getGoalCoachHeroLabel("best_fit_today")).toBe("Best fit for today");
+  });
+
+  test("unknown mode returns best fit for today", () => {
+    expect(getGoalCoachHeroLabel("unknown")).toBe("Best fit for today");
   });
 });

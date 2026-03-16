@@ -1508,7 +1508,7 @@ def recommend_menu_items_for_place(
 
     if not menu_items:
         # Priority 2: local_venue_profiles (Supabase then JSON fallback)
-        local_payload = enrich_place_with_local_profile(place)
+        local_payload = enrich_place_with_local_profile(place, diet_preference=diet_preference)
         if local_payload and local_payload.get("candidates"):
             local_cands = local_payload["candidates"]
             filtered_local, local_excluded = _apply_diet_filter(local_cands, diet)

@@ -14,6 +14,16 @@ function pct(x) {
   return `${Math.round(n)}%`;
 }
 
+function goalCoachActionLabel(actionType) {
+  const t = String(actionType || "").trim().toLowerCase();
+  if (t === "open_healthy_nearby") return "Healthy Nearby";
+  if (t === "open_scan_camera") return "Scan Meal";
+  if (t === "open_supplement_scan") return "Supplement Scan";
+  if (t === "open_daily_summary") return "Daily Summary";
+  if (t === "open_goal_plan") return "Goal Plan";
+  return actionType || "Unknown";
+}
+
 function badge(val, color = "#9bb7ff") {
   return { backgroundColor: `${color}22`, borderColor: `${color}55`, color };
 }
@@ -46,6 +56,7 @@ export function AdminOpsDashboard({ onClose }) {
   const enrichment = safeObject(data?.enrichment, {});
   const push = safeObject(data?.push, {});
   const scan = safeObject(data?.scan, {});
+  const goalCoach = safeObject(data?.goal_coach, {});
 
   const weakest = enrichment?.weak_suburbs?.[0] || null;
   const weakestGeneric = weakest ? num(weakest.percent_top_5_generic_fallback) : null;
@@ -129,6 +140,64 @@ export function AdminOpsDashboard({ onClose }) {
               </Text>
               <Text style={styles.tiny}>window_days={String(scan?.window_days || 7)}</Text>
             </View>
+          </View>
+
+          {/* Goal Coach funnel */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Goal Coach funnel</Text>
+            <Text style={styles.tiny}>window_days={String(goalCoach?.window_days ?? 7)}</Text>
+            <View style={styles.cardRow}>
+              <View style={styles.card}>
+                <Text style={styles.cardKicker}>Actions shown</Text>
+                <Text style={styles.cardValue}>{String(goalCoach?.totals?.actions_shown ?? 0)}</Text>
+              </View>
+              <View style={styles.card}>
+                <Text style={styles.cardKicker}>Click rate</Text>
+                <Text style={styles.cardValue}>{pct(goalCoach?.conversion_rates?.shown_to_clicked_pct)}</Text>
+              </View>
+              <View style={styles.card}>
+                <Text style={styles.cardKicker}>Completion rate</Text>
+                <Text style={styles.cardValue}>{pct(goalCoach?.conversion_rates?.shown_to_completed_pct)}</Text>
+              </View>
+              <View style={styles.card}>
+                <Text style={styles.cardKicker}>Best action</Text>
+                <Text style={[styles.cardValue, { fontSize: 12 }]} numberOfLines={1}>
+                  {goalCoachActionLabel(goalCoach?.dropoff_summary?.best_action_type)}
+                </Text>
+              </View>
+            </View>
+            <View style={[styles.row, { marginTop: 8 }]}>
+              <Text style={styles.rowTitle}>Funnel</Text>
+              <View style={styles.rowRight}>
+                <Text style={styles.rowMetric}>shown {goalCoach?.totals?.actions_shown ?? 0}</Text>
+                <Text style={styles.rowMetric}>→ clicked {goalCoach?.totals?.actions_clicked ?? 0}</Text>
+                <Text style={styles.rowMetric}>→ opened {goalCoach?.totals?.destinations_opened ?? 0}</Text>
+                <Text style={styles.rowMetric}>→ completed {goalCoach?.totals?.actions_completed ?? 0}</Text>
+              </View>
+            </View>
+            <Text style={[styles.sectionTitle, { marginTop: 12, fontSize: 12 }]}>Top action types</Text>
+            {(safeArray(goalCoach?.top_action_types) || []).slice(0, 5).map((row, idx) => (
+              <View key={`${row.action_type || idx}`} style={styles.row}>
+                <Text style={styles.rowTitle}>{goalCoachActionLabel(row.action_type)}</Text>
+                <View style={styles.rowRight}>
+                  <Text style={styles.rowMetric}>shown→done {pct(row.shown_to_completed_pct)}</Text>
+                  <Text style={styles.rowMetric}>completed {row.completed ?? 0}</Text>
+                </View>
+              </View>
+            ))}
+            {(goalCoach?.dropoff_summary?.largest_dropoff_step || goalCoach?.dropoff_summary?.largest_dropoff_action_type) ? (
+              <View style={{ marginTop: 10, padding: 10, borderWidth: 1, borderColor: "#1b2a41", borderRadius: 10 }}>
+                <Text style={styles.tiny}>
+                  Largest drop-off: {String(goalCoach?.dropoff_summary?.largest_dropoff_step || "-").replace(/_/g, " → ")}
+                </Text>
+                <Text style={styles.tiny}>
+                  Weakest action: {goalCoachActionLabel(goalCoach?.dropoff_summary?.largest_dropoff_action_type)}
+                </Text>
+                <Text style={styles.tiny}>
+                  Best action: {goalCoachActionLabel(goalCoach?.dropoff_summary?.best_action_type)}
+                </Text>
+              </View>
+            ) : null}
           </View>
 
           {/* Weak suburbs */}

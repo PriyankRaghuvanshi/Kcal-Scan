@@ -136,3 +136,59 @@ export async function fetchSmartFoodAlertCandidates(params, eligibleOnly = false
 export async function fetchEligibleSmartAlerts(params, appendQuery = null) {
   return fetchSmartFoodAlertCandidates(params, true, appendQuery);
 }
+
+/**
+ * Request backend to send a Smart Food Alert push (if eligible).
+ * Pass tone_preference so notification title/body match the user's coach tone.
+ * Non-blocking; safe to call after loading healthy places.
+ * @param {object} opts - { userId, lat, lng, tonePreference, goal?, fatigue?, dryRun?, headers? }
+ * @returns {Promise<{ ok: boolean, notifications_attempted?: number, ... }>}
+ */
+export async function requestSmartAlertPush(opts = {}) {
+  const {
+    userId,
+    lat,
+    lng,
+    tonePreference = "supportive",
+    goal = "",
+    fatigue = {},
+    dryRun = false,
+    headers: customHeaders = {},
+  } = opts;
+  if (!userId || !Number.isFinite(lat) || !Number.isFinite(lng)) {
+    devLog("requestSmartAlertPush: missing userId, lat, or lng");
+    return { ok: false };
+  }
+  const tone = ["supportive", "strict", "funny", "indian_coach"].includes(String(tonePreference || "").toLowerCase())
+    ? String(tonePreference).toLowerCase()
+    : "supportive";
+  try {
+    const res = await fetch(`${API_BASE}/push/send-smart-alerts`, {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        ...customHeaders,
+      },
+      body: JSON.stringify({
+        user_id: userId,
+        lat: Number(lat),
+        lng: Number(lng),
+        context: { tone_preference: tone },
+        goal: goal || undefined,
+        fatigue: fatigue && typeof fatigue === "object" ? fatigue : undefined,
+        dry_run: Boolean(dryRun),
+        eligible_only: true,
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      devLog("requestSmartAlertPush non-200", res.status, data);
+      return { ok: false, ...data };
+    }
+    return { ok: true, ...data };
+  } catch (e) {
+    devLog("requestSmartAlertPush error", String(e?.message || e));
+    return { ok: false };
+  }
+}

@@ -1,6 +1,7 @@
 /**
  * Healthy Nearby map screen: real MapView with markers, filters, bottom card.
- * Uses design tokens for overlay and empty states.
+ * Engaging store-locator style (like McDonald's / Hungry Jack's): numbered pins,
+ * "X places nearby" header, place strip, bottom sheet card, recenter FAB.
  */
 
 import React, { useEffect, useRef, useState } from "react";
@@ -11,12 +12,14 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Platform,
+  ScrollView,
 } from "react-native";
 import MapView, { Marker } from "react-native-maps";
 import { HealthyMapFilters } from "./HealthyMapFilters";
 import { HealthyPlaceBottomCard } from "./HealthyPlaceBottomCard";
 import { getPlaceCoords } from "../mapUtils";
-import { colors, spacing, radius, typography } from "../designTokens";
+import { getGoalCoachBannerText, getGoalCoachHeroLabel } from "../healthyNearbyUtils";
+import { colors, spacing, radius, typography, shadows } from "../designTokens";
 
 const DEFAULT_REGION = {
   latitude: 37.7749,
@@ -30,6 +33,38 @@ function num(v) {
   const n = Number(v);
   return Number.isFinite(n) ? n : null;
 }
+
+/** Numbered marker for top 3 (store-locator style). */
+function NumberedMarker({ number, isSelected, tierColor }) {
+  return (
+    <View
+      style={[
+        markerStyles.bubble,
+        { backgroundColor: isSelected ? colors.success.primary : tierColor },
+      ]}
+    >
+      <Text style={markerStyles.bubbleText}>{number}</Text>
+    </View>
+  );
+}
+
+const markerStyles = StyleSheet.create({
+  bubble: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
+    borderColor: "#fff",
+    ...shadows.sm,
+  },
+  bubbleText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "800",
+  },
+});
 
 export function HealthyNearbyMapScreen({
   places = [],
@@ -46,6 +81,8 @@ export function HealthyNearbyMapScreen({
   formatDistanceFromMeters,
   getPlaceStableId,
   onScanMenu,
+  onOpenDirections,
+  goalCoachContext = null,
 }) {
   const mapRef = useRef(null);
   const [mapReady, setMapReady] = useState(false);
@@ -81,6 +118,26 @@ export function HealthyNearbyMapScreen({
     }
   }, [mapReady, focusCoords, userCoords, markersWithCoords.length]);
 
+  // When user selects a place, animate map to that marker (store-locator feel)
+  const selectedCoordsRef = useRef(null);
+  useEffect(() => {
+    if (!mapRef.current || !mapReady || !selectedPlace) return;
+    const idx = (places || []).findIndex((p, i) =>
+      getPlaceStableId && getPlaceStableId(p, i) === selectedStableId
+    );
+    const item = idx >= 0 ? markersWithCoords.find((m) => m.idx === idx) : null;
+    const coords = item?.coords || getPlaceCoords(selectedPlace);
+    if (coords && Number.isFinite(coords.lat) && Number.isFinite(coords.lng)) {
+      selectedCoordsRef.current = coords;
+      mapRef.current.animateToRegion({
+        latitude: coords.lat,
+        longitude: coords.lng,
+        latitudeDelta: 0.012,
+        longitudeDelta: 0.012,
+      });
+    }
+  }, [selectedPlace, selectedStableId, mapReady, places, markersWithCoords]);
+
   const region = (() => {
     const c = focusCoords || userCoords || (markersWithCoords[0]?.coords);
     if (c && Number.isFinite(c.lat) && Number.isFinite(c.lng)) {
@@ -100,8 +157,44 @@ export function HealthyNearbyMapScreen({
     }
   };
 
+  const ctx = goalCoachContext && typeof goalCoachContext === "object" ? goalCoachContext : null;
+  const bannerText = ctx ? getGoalCoachBannerText(ctx) : null;
+  const heroLabelOverride = ctx?.preferred_mode ? getGoalCoachHeroLabel(ctx.preferred_mode) : null;
+
+  const handleRecenter = () => {
+    if (!mapRef.current || !userCoords || !Number.isFinite(userCoords.lat)) return;
+    mapRef.current.animateToRegion({
+      latitude: userCoords.lat,
+      longitude: userCoords.lng,
+      latitudeDelta: 0.03,
+      longitudeDelta: 0.03,
+    });
+  };
+
+  const placeCount = markersWithCoords.length;
+
   return (
     <View style={styles.container}>
+      {bannerText ? (
+        <View style={styles.goalCoachBanner}>
+          <Text style={styles.goalCoachBannerText} numberOfLines={2}>
+            {bannerText}
+          </Text>
+        </View>
+      ) : null}
+
+      {/* Header: "X places nearby" – store-locator style */}
+      <View style={styles.headerBar}>
+        <Text style={styles.headerTitle}>
+          {placeCount > 0
+            ? `${placeCount} place${placeCount !== 1 ? "s" : ""} nearby`
+            : "Places nearby"}
+        </Text>
+        <Text style={styles.headerSubtitle}>
+          {placeCount > 0 ? "Tap a place or pick from the list below" : "Finding restaurants near you…"}
+        </Text>
+      </View>
+
       <View style={styles.mapWrap}>
         <MapView
           ref={mapRef}
@@ -117,29 +210,54 @@ export function HealthyNearbyMapScreen({
             const isSelected = Boolean(selectedStableId && stableId === selectedStableId);
             const tier = idx === 0 ? 1 : idx === 1 ? 2 : idx === 2 ? 3 : 0;
             const tierColor =
-              isSelected ? colors.success.primary
-              : tier === 1 ? colors.success.primary
+              tier === 1 ? colors.success.primary
               : tier === 2 ? colors.success.muted
               : tier === 3 ? colors.success.border
               : colors.slate.primary;
+            const useNumberedPin = tier >= 1 && tier <= 3;
 
             return (
               <Marker
                 key={stableId || `m-${idx}`}
                 coordinate={{ latitude: coords.lat, longitude: coords.lng }}
                 onPress={() => handleMarkerPress(place, idx)}
-                pinColor={tierColor}
-                opacity={isSelected ? 1 : tier > 0 ? 0.95 : 0.85}
+                tracksViewChanges={false}
                 title={String(place?.place_name ?? place?.name ?? "Place").slice(0, 40)}
-              />
+                {...(useNumberedPin
+                  ? {}
+                  : {
+                      pinColor: isSelected ? colors.success.primary : tierColor,
+                      opacity: isSelected ? 1 : 0.9,
+                    })}
+              >
+                {useNumberedPin ? (
+                  <NumberedMarker
+                    number={tier}
+                    isSelected={isSelected}
+                    tierColor={tierColor}
+                  />
+                ) : null}
+              </Marker>
             );
           })}
         </MapView>
 
-        {/* Filter chips */}
+        {/* Filter chips – horizontal scroll */}
         <View style={styles.filtersOverlay}>
           <HealthyMapFilters activeKey={filterKey} onSelect={onFilterChange} />
         </View>
+
+        {/* Recenter FAB */}
+        {userCoords && Number.isFinite(userCoords.lat) && (
+          <TouchableOpacity
+            style={styles.recenterFab}
+            onPress={handleRecenter}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.recenterFabIcon}>◎</Text>
+            <Text style={styles.recenterFabLabel}>Me</Text>
+          </TouchableOpacity>
+        )}
 
         {/* Loading overlay */}
         {busy && (
@@ -166,8 +284,52 @@ export function HealthyNearbyMapScreen({
         ) : null}
       </View>
 
-      {/* Bottom card: selected place or empty state */}
+      {/* Place strip: tap to select (like McDonald's store list) */}
+      {placeCount > 0 && (
+        <View style={styles.placeStripWrap}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.placeStripContent}
+          >
+            {markersWithCoords.slice(0, 12).map(({ place, idx }, i) => {
+              const stableId = getPlaceStableId ? getPlaceStableId(place, idx) : null;
+              const isSelected = Boolean(selectedStableId && stableId === selectedStableId);
+              const name = String(place?.place_name ?? place?.name ?? "Place").trim() || "Place";
+              const dist = place?.distance_meters != null && formatDistanceFromMeters
+                ? formatDistanceFromMeters(place.distance_meters)
+                : null;
+              const rank = idx < 3 ? idx + 1 : null;
+              return (
+                <TouchableOpacity
+                  key={stableId || `strip-${idx}`}
+                  style={[styles.placePill, isSelected && styles.placePillSelected]}
+                  onPress={() => handleMarkerPress(place, idx)}
+                  activeOpacity={0.8}
+                >
+                  {rank != null && (
+                    <View style={styles.placePillRank}>
+                      <Text style={styles.placePillRankText}>{rank}</Text>
+                    </View>
+                  )}
+                  <Text style={[styles.placePillName, isSelected && styles.placePillNameSelected]} numberOfLines={1}>
+                    {name}
+                  </Text>
+                  {dist ? (
+                    <Text style={styles.placePillDist} numberOfLines={1}>{dist}</Text>
+                  ) : null}
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        </View>
+      )}
+
+      {/* Bottom card: sheet style with handle */}
       <View style={styles.bottomCard}>
+        <View style={styles.sheetHandleWrap}>
+          <View style={styles.sheetHandle} />
+        </View>
         {selectedPlace ? (
           <HealthyPlaceBottomCard
             place={selectedPlace}
@@ -179,6 +341,8 @@ export function HealthyNearbyMapScreen({
                 return idx >= 0 && idx < 3 ? idx + 1 : null;
               })()
             }
+            heroLabelOverride={heroLabelOverride}
+            onDirections={onOpenDirections}
             onScanMenu={onScanMenu}
           />
         ) : (
@@ -227,6 +391,17 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.surface.primary,
+  },
+  goalCoachBanner: {
+    backgroundColor: colors.success.bg,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.success.border,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.base,
+  },
+  goalCoachBannerText: {
+    fontSize: typography.sm,
+    color: colors.success.text,
   },
   mapWrap: {
     flex: 1,
@@ -283,8 +458,119 @@ const styles = StyleSheet.create({
     fontSize: typography.base,
     fontWeight: typography.weight.semibold,
   },
+  headerBar: {
+    backgroundColor: colors.surface.elevated,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.surface.cardBorder,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+  },
+  headerTitle: {
+    fontSize: typography.xl,
+    fontWeight: typography.weight.bold,
+    color: colors.text.primary,
+  },
+  headerSubtitle: {
+    fontSize: typography.sm,
+    color: colors.slate.text,
+    marginTop: 2,
+  },
+  recenterFab: {
+    position: "absolute",
+    bottom: 24,
+    right: 16,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: colors.surface.card,
+    borderWidth: 1,
+    borderColor: colors.surface.cardBorder,
+    alignItems: "center",
+    justifyContent: "center",
+    ...shadows.md,
+  },
+  recenterFabIcon: {
+    fontSize: 18,
+    color: colors.success.primary,
+  },
+  recenterFabLabel: {
+    fontSize: 10,
+    color: colors.slate.text,
+    marginTop: -2,
+  },
+  placeStripWrap: {
+    backgroundColor: colors.surface.elevated,
+    borderTopWidth: 1,
+    borderTopColor: colors.surface.cardBorder,
+    maxHeight: 88,
+  },
+  placeStripContent: {
+    flexDirection: "row",
+    gap: spacing.sm,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+    paddingRight: spacing.xxl,
+  },
+  placePill: {
+    minWidth: 120,
+    maxWidth: 160,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.base,
+    borderRadius: radius.lg,
+    backgroundColor: colors.surface.card,
+    borderWidth: 1,
+    borderColor: colors.surface.cardBorder,
+  },
+  placePillSelected: {
+    borderColor: colors.success.primary,
+    backgroundColor: colors.success.bg,
+  },
+  placePillRank: {
+    position: "absolute",
+    top: 4,
+    right: 6,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: colors.success.primary,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  placePillRankText: {
+    fontSize: 10,
+    fontWeight: "800",
+    color: "#fff",
+  },
+  placePillName: {
+    fontSize: typography.sm,
+    fontWeight: typography.weight.semibold,
+    color: colors.text.primary,
+    paddingRight: 20,
+  },
+  placePillNameSelected: {
+    color: colors.success.text,
+  },
+  placePillDist: {
+    fontSize: typography.xs,
+    color: colors.slate.text,
+    marginTop: 2,
+  },
   bottomCard: {
     backgroundColor: colors.surface.card,
+    borderTopLeftRadius: radius.xl,
+    borderTopRightRadius: radius.xl,
+    ...shadows.md,
+  },
+  sheetHandleWrap: {
+    alignItems: "center",
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.xs,
+  },
+  sheetHandle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: colors.slate.muted,
   },
   emptyState: {
     padding: spacing.lg,

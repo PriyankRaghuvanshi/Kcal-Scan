@@ -92,6 +92,62 @@ export function getRecommendationHeroLabel(place, rankPosition) {
   return "";
 }
 
+/** Goal Coach preferred modes (align with goalCoachUtils.PREFERRED_MODES). */
+const PREFERRED_MODES = {
+  PROTEIN_RESCUE: "protein_rescue",
+  LIGHTER_OPTION: "lighter_option",
+  DINNER_RECOVERY: "dinner_recovery",
+  LOGGING_SUPPORT: "logging_support",
+  BEST_FIT_TODAY: "best_fit_today",
+};
+
+/**
+ * Banner text when Healthy Nearby is opened from Goal Coach context.
+ * Uses preferred_mode and remaining numbers for concise copy.
+ */
+export function getGoalCoachBannerText(ctx) {
+  if (!ctx || typeof ctx !== "object") return null;
+  const mode = String(ctx.preferred_mode || "").trim();
+  const protein = ctx.remaining_protein_g != null ? Number(ctx.remaining_protein_g) : null;
+  const cal = ctx.remaining_calories != null ? Number(ctx.remaining_calories) : null;
+  const proteinOk = Number.isFinite(protein) && protein > 0;
+  const calOk = Number.isFinite(cal) && cal > 0;
+
+  if (mode === PREFERRED_MODES.PROTEIN_RESCUE && proteinOk) {
+    return `Goal Coach: you still need ~${Math.round(protein)}g protein today${calOk ? ` • ${Math.round(cal)} kcal left` : ""}`;
+  }
+  if (mode === PREFERRED_MODES.LIGHTER_OPTION) {
+    return "Goal Coach: calories are tighter now — lighter protein option recommended";
+  }
+  if (mode === PREFERRED_MODES.DINNER_RECOVERY && proteinOk) {
+    return `Goal Coach: close your protein gap (~${Math.round(protein)}g left)`;
+  }
+  if (mode === PREFERRED_MODES.LOGGING_SUPPORT) {
+    return "Goal Coach: find a place that fits your plan";
+  }
+  if (proteinOk || calOk) {
+    return [
+      proteinOk ? `~${Math.round(protein)}g protein left` : "",
+      calOk ? `${Math.round(cal)} kcal left` : "",
+    ]
+      .filter(Boolean)
+      .join(" • ") || null;
+  }
+  return null;
+}
+
+/**
+ * Hero label for bottom card when opened from Goal Coach (overrides default rank copy).
+ */
+export function getGoalCoachHeroLabel(preferredMode) {
+  const mode = String(preferredMode || "").trim();
+  if (mode === PREFERRED_MODES.PROTEIN_RESCUE) return "Best protein-focused next move";
+  if (mode === PREFERRED_MODES.LIGHTER_OPTION) return "Lighter option that still helps your target";
+  if (mode === PREFERRED_MODES.DINNER_RECOVERY) return "Best protein-focused next move";
+  if (mode === PREFERRED_MODES.LOGGING_SUPPORT) return "Best fit for your goal";
+  return "Best fit for today";
+}
+
 /**
  * Panel item heading for selected place. Avoids strong certainty when
  * confidence is "Needs menu check" or best_item_is_generic_fallback.
@@ -119,5 +175,7 @@ if (typeof module !== "undefined" && module.exports) {
     getHealthyItemLineLabel,
     getHealthyPanelItemHeading,
     getRecommendationHeroLabel,
+    getGoalCoachBannerText,
+    getGoalCoachHeroLabel,
   };
 }

@@ -18,6 +18,7 @@ export function HealthyPlaceListCard({
   indexInSection,
   onOpenInMaps,
   onPress,
+  onFeedbackImprove,
 }) {
   if (!place || typeof place !== "object") return null;
 
@@ -32,6 +33,8 @@ export function HealthyPlaceListCard({
       actions={{
         primaryLabel: "Open in Maps",
         onPrimary: () => onOpenInMaps && onOpenInMaps(place),
+        secondaryLabel: onFeedbackImprove ? "Improve" : undefined,
+        onSecondary: onFeedbackImprove ? () => onFeedbackImprove(place) : undefined,
         primaryIcon: "📍",
       }}
       dark

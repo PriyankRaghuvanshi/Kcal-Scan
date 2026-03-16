@@ -1,23 +1,115 @@
 """
 Local venue enrichment: match places to local profiles, build candidates, integrate with cache.
 No LLM. No live scraping. Deterministic.
+Diet-aware: when diet_preference is vegetarian/vegan, only diet-safe candidates are used for top item.
 """
 from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Tuple
 
+from chain_menu_registry import match_chain_key
+from diet_filters import is_item_allowed_for_diet, normalize_diet_preference
 from launch_area_config import get_area_for_place, is_place_in_launch_area
 from local_venue_profiles import (
     match_local_profile,
     profile_to_candidates,
     profile_to_swaps,
 )
+from supabase_intelligence_store import get_chain_menu_items
 
 # Specificity bonuses for local profiles (tie-break only)
 BONUS_EXACT_LOCAL = 5
 BONUS_ENRICHED_LOCAL = 4
 BONUS_HEURISTIC_LOCAL = 1
 PENALTY_GENERIC_FALLBACK = -4
+
+
+def _safe_float(value: Any, default: float = 0.0) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _sort_chain_candidates_by_fitness(candidates: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """
+    Sort Supabase chain candidates for default Healthy Nearby ordering.
+    Favors fitness-relevant items: fat_loss_fit_score, protein_density_score,
+    estimated_protein_g, confidence (all descending). Deterministic.
+    """
+    if not candidates:
+        return []
+    def key(c: Dict[str, Any]) -> tuple:
+        return (
+            _safe_float(c.get("fat_loss_fit_score"), 0.0),
+            _safe_float(c.get("protein_density_score"), 0.0),
+            _safe_float(c.get("estimated_protein_g"), 0.0),
+            _safe_float(c.get("confidence") or c.get("menu_confidence"), 0.0),
+        )
+    return sorted(candidates, key=key, reverse=True)
+
+
+def _item_safe_for_diet(item: Dict[str, Any], diet: str) -> bool:
+    """
+    True if item is allowed for the given diet. Prefers explicit vegetarian_possible/vegan_possible
+    when present (from chain seed/Supabase); otherwise falls back to diet_filters inference.
+    Omnivore: all allowed.
+    """
+    if diet == "omnivore":
+        return True
+    # Explicit flags from seed/Supabase take precedence
+    if diet == "vegetarian":
+        veg = item.get("vegetarian_possible")
+        if veg is True:
+            return True
+        if veg is False:
+            return False
+    if diet == "vegan":
+        v = item.get("vegan_possible")
+        if v is True:
+            return True
+        if v is False:
+            return False
+    return is_item_allowed_for_diet(item, diet)
+
+
+def _filter_chain_candidates_for_diet(
+    candidates: List[Dict[str, Any]],
+    diet: str,
+) -> Tuple[List[Dict[str, Any]], int]:
+    """
+    Filter chain candidates to diet-safe only. Returns (filtered_list, excluded_count).
+    When diet is omnivore, returns all. Deterministic.
+    """
+    if not candidates or diet == "omnivore":
+        return candidates, 0
+    filtered = [c for c in candidates if _item_safe_for_diet(c, diet)]
+    return filtered, len(candidates) - len(filtered)
+
+
+def _infer_market_tag_from_place(place: Dict[str, Any]) -> str:
+    """Infer market_tag (AU/US/IN) from place when not provided."""
+    for key in ("country_code", "countryCode", "country", "region"):
+        val = place.get(key)
+        if not val:
+            continue
+        v = str(val).strip().upper()
+        if v in ("US", "USA"):
+            return "US"
+        if v in ("IN", "IND", "INDIA"):
+            return "IN"
+        if v in ("AU", "AUS", "AUSTRALIA"):
+            return "AU"
+    text = " ".join(
+        str(place.get(k) or "") for k in ("vicinity", "address", "formatted_address", "formattedAddress")
+    ).lower()
+    if "india" in text or " ind " in text:
+        return "IN"
+    if "united states" in text or " usa " in f" {text} " or " u.s." in text:
+        return "US"
+    if "australia" in text or " au " in text:
+        return "AU"
+    return "AU"
 
 
 def get_local_profile_for_place(
@@ -61,11 +153,73 @@ def get_local_profile_for_place(
 
 def enrich_place_with_local_profile(
     place: Dict[str, Any],
+    *,
+    market_tag: Optional[str] = None,
+    diet_preference: Optional[str] = None,
 ) -> Optional[Dict[str, Any]]:
     """
-    If place has a local profile, return menu payload (candidates, swaps, source).
+    If place matches a chain with Supabase menu items, return chain-backed payload.
+    Else if place has a local profile, return menu payload (candidates, swaps, source).
     Otherwise return None. Caller uses this before heuristic fallback.
+
+    When diet_preference is vegetarian or vegan, only diet-safe candidates are used for
+    top_menu_item; if none exist, top_menu_item is None and no_diet_safe_candidates is True.
     """
+    place_name = str(place.get("name") or place.get("place_name") or "").strip()
+    brand_hint = place.get("brand_hint") or None
+    chain_key = match_chain_key(place_name, brand_hint) if place_name else None
+    diet = normalize_diet_preference(diet_preference or place.get("diet_preference"))
+
+    if chain_key:
+        market = market_tag or _infer_market_tag_from_place(place)
+        items = get_chain_menu_items(chain_key, market)
+        if items:
+            candidates = []
+            for it in items:
+                c = dict(it)
+                c["menu_item_source"] = "ingested_chain_item"
+                c["profile_source"] = "chain_menu_supabase"
+                c["specificity_tier"] = "exact_menu_match"
+                candidates.append(c)
+            # Diet-aware: hard filter to diet-safe candidates before sort
+            if diet != "omnivore":
+                candidates, _excluded = _filter_chain_candidates_for_diet(candidates, diet)
+            candidates = _sort_chain_candidates_by_fitness(candidates)
+            top = candidates[0] if candidates else {}
+            no_diet_safe = diet != "omnivore" and not candidates
+            # When no diet-safe candidates, return payload with empty top but same shape
+            return {
+                "matched_chain_key": chain_key,
+                "chain_match_status": "matched",
+                "chain_menu_store": "supabase",
+                "chain_menu_item_count_for_match": len(items),
+                "supabase_chain_candidates": candidates,
+                "top_menu_items": candidates[:6],
+                "best_menu_items": candidates[:6],
+                "top_menu_item": top if not no_diet_safe else None,
+                "top_item": str(top.get("item_name") or "") if not no_diet_safe else "",
+                "chain_key": chain_key,
+                "chain_match": True,
+                "menu_items_source": "ingested_chain_item",
+                "menu_source": "chain_menu_supabase",
+                "menu_confidence": float(top.get("confidence") or top.get("menu_confidence") or 0.78) if top else 0.0,
+                "from_venue_cache": False,
+                "from_local_profile": False,
+                "local_profile_id": None,
+                "profile_id": None,
+                "profile_store": None,
+                "seeded_by_launch_pack": False,
+                "extraction_method": "chain_menu_supabase",
+                "parse_method": "chain_menu_supabase",
+                "source_url": str(top.get("source_url") or "").strip() if top else "",
+                "chosen_candidate_profile_source": "chain_menu_supabase",
+                "chosen_candidate_specificity_tier": "exact_menu_match",
+                "swap_templates": [],
+                "candidates": candidates,
+                "diet_filter_applied": diet != "omnivore",
+                "no_diet_safe_candidates": no_diet_safe,
+            }
+
     profile, area_key, match_reason, profile_store = get_local_profile_for_place(place)
     if not profile:
         return None

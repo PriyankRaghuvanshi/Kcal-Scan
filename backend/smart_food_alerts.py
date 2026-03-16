@@ -207,6 +207,55 @@ def _score_fatigue(user_context: Dict[str, Any]) -> float:
     return min(30, recent_6h * 15 + recent_24h * 5 + weekly * 2 + ignored * 8)
 
 
+def _normalize_notification_tone(tone: Any) -> str:
+    t = str(tone or "supportive").strip().lower()
+    if t in ("strict", "funny", "indian_coach", "indian"):
+        return "indian_coach" if t in ("indian_coach", "indian") else t
+    return "supportive"
+
+
+def _apply_notification_tone(title: str, body: str, tone: str, name: str, protein: int, distance_min: int) -> Tuple[str, str]:
+    """Rewrite title/body for push notification tone (strict, funny, indian_coach)."""
+    if tone == "supportive":
+        return title, body
+    if tone == "strict":
+        # Shorter, direct
+        if "protein" in title.lower() or "protein" in body.lower():
+            return "Protein fix nearby", f"{name} — {protein}g protein." if protein else f"{name}. Lock it in."
+        if "recovery" in title.lower():
+            return "Recovery option nearby", f"{name} — {protein}g protein."
+        if "late" in title.lower():
+            return "Late option that still fits", f"{name}."
+        if "done well" in title.lower():
+            return "You repeated this before", f"{name} nearby."
+        return "Good fit nearby", body
+    if tone == "funny":
+        # One hook phrase
+        if "protein" in title.lower() or "protein" in body.lower():
+            return "Pro move: protein nearby", f"{name} — {protein}g in ~{distance_min} min."
+        if "recovery" in title.lower():
+            return "Recovery cheat code", f"{name} — {protein}g protein."
+        if "late" in title.lower():
+            return "Plot twist: still fits", f"{name}."
+        if "done well" in title.lower():
+            return "Boss move: you liked this before", f"{name} is nearby."
+        return "Solid pick nearby", body
+    if tone == "indian_coach":
+        # Natural Hinglish
+        if "protein" in title.lower() or "protein" in body.lower():
+            return "Protein fix passand hai", f"{name} — {protein}g protein, thoda door (~{distance_min} min)."
+        if "recovery" in title.lower():
+            return "Recovery ke liye sahi", f"{name} — {protein}g protein."
+        if "late" in title.lower():
+            return "Late night bhi theek", f"{name} abhi bhi fit hai."
+        if "done well" in title.lower():
+            return "Pehle bhi try kiya tha", f"{name} ab nearby hai."
+        if "habit" in title.lower() or "regret" in title.lower():
+            return "Lower-regret pick", f"{name} — goal ke hisaab se."
+        return "Best nearby fit", f"{name} — {protein}g protein." if protein else f"{name} — fits your goal."
+    return title, body
+
+
 def _build_alert_templates(
     alert_type: str,
     place: Dict[str, Any],
@@ -219,6 +268,7 @@ def _build_alert_templates(
     distance_m = _safe_float(place.get("distance_meters"), 500)
     distance_min = max(1, int(distance_m / 80))
     local_hour = _safe_int(user_context.get("local_hour"), 12)
+    tone = _normalize_notification_tone(user_context.get("tone_preference"))
 
     if alert_type == "protein_rescue":
         # Time-of-day aware copy; avoid blunt deficit messaging, especially in evening.
@@ -258,7 +308,7 @@ def _build_alert_templates(
     else:
         title = "Best nearby fit right now"
         body = f"{name} — {protein}g protein." if protein else f"{name} — fits your goal."
-    return title, body
+    return _apply_notification_tone(title, body, tone, name, protein, distance_min)
 
 
 def _why_triggered(alert_type: str, place: Dict[str, Any], user_context: Dict[str, Any]) -> str:
@@ -287,6 +337,11 @@ def _build_one_candidate(
     personal = _score_personal_relevance(place, alert_type)
     fatigue = _score_fatigue(user_context)
     alert_score = max(0, min(100, int(round(need + timing + quality + personal - fatigue))))
+    # Prefer different venues day to day: down-rank places we already suggested in last 24h
+    place_id_val = str(place.get("place_id") or place.get("id") or "")
+    recent_place_ids = user_context.get("recent_sent_place_ids_24h")
+    if isinstance(recent_place_ids, (set, list)) and place_id_val in (recent_place_ids or ()):
+        alert_score = max(0, alert_score - 30)
     title, body = _build_alert_templates(alert_type, place, user_context)
     eligible = (
         alert_score >= ALERT_SCORE_THRESHOLD

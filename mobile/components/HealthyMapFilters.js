@@ -1,9 +1,10 @@
 /**
- * Filter chips for Healthy Nearby map.
+ * Filter chips for Healthy Nearby map – horizontal scroll, store-locator style.
  */
 
 import React from "react";
-import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
+import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from "react-native";
+import { colors, spacing, radius, typography } from "../designTokens";
 
 const CHIPS = [
   { key: "all", label: "All" },
@@ -16,7 +17,11 @@ const CHIPS = [
 
 export function HealthyMapFilters({ activeKey, onSelect, style }) {
   return (
-    <View style={[styles.row, style]}>
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={[styles.row, style]}
+    >
       {CHIPS.map((chip) => {
         const active = activeKey === chip.key;
         return (
@@ -24,41 +29,41 @@ export function HealthyMapFilters({ activeKey, onSelect, style }) {
             key={chip.key}
             style={[styles.chip, active && styles.chipActive]}
             onPress={() => onSelect(chip.key)}
-            activeOpacity={0.7}
+            activeOpacity={0.8}
           >
             <Text style={[styles.chipText, active && styles.chipTextActive]}>{chip.label}</Text>
           </TouchableOpacity>
         );
       })}
-    </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   row: {
     flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-    paddingHorizontal: 4,
+    gap: spacing.sm,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
   },
   chip: {
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 20,
-    backgroundColor: "#0c1a2e",
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.base,
+    borderRadius: radius.pill,
+    backgroundColor: colors.surface.card,
     borderWidth: 1,
-    borderColor: "#274869",
+    borderColor: colors.surface.cardBorder,
   },
   chipActive: {
-    backgroundColor: "#1e3a5f",
-    borderColor: "#3b82f6",
+    backgroundColor: colors.success.bg,
+    borderColor: colors.success.primary,
   },
   chipText: {
-    color: "#94b8d9",
-    fontSize: 13,
-    fontWeight: "600",
+    color: colors.slate.text,
+    fontSize: typography.sm,
+    fontWeight: typography.weight.semibold,
   },
   chipTextActive: {
-    color: "#93c5fd",
+    color: colors.success.text,
   },
 });
