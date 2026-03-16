@@ -4194,7 +4194,7 @@ async function openCamera(mode = "meal") {
 
   function handleGoalCoachAction(action) {
     if (!action || !action.action_type) return;
-    const uid = userId || session?.user?.id ?? "";
+    const uid = (userId || session?.user?.id) ?? "";
     const ctx = action.context || {};
     const sourceSurface = action.source_surface || "daily_coach";
     const meta = {
