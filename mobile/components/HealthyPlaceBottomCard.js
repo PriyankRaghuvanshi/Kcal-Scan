@@ -9,6 +9,7 @@ import { RecommendationCard } from "./RecommendationCard";
 import { getRecommendationHeroLabel } from "../healthyNearbyUtils";
 import { openDirections } from "../externalMaps";
 import { radius } from "../designTokens";
+import { premium } from "../ui/premiumSystem";
 
 export function HealthyPlaceBottomCard({
   place,
@@ -19,8 +20,11 @@ export function HealthyPlaceBottomCard({
   onFeedbackYes,
   onFeedbackImprove,
   style,
+  // Optional: screenshot mode (presentation-only).
+  screenshotMode,
 }) {
   if (!place || typeof place !== "object") return null;
+  const isScreenshot = Boolean(screenshotMode);
 
   const handleDirections = () => {
     if (onDirections) {
@@ -40,35 +44,38 @@ export function HealthyPlaceBottomCard({
         place={place}
         heroLabel={heroLabel}
         rankPosition={rankPosition}
+        screenshotMode={isScreenshot}
         actions={{
           primaryLabel: "Directions",
           onPrimary: handleDirections,
-          secondaryLabel: onScanMenu ? "Scan Menu" : undefined,
-          onSecondary: onScanMenu ? () => onScanMenu(place) : undefined,
+          secondaryLabel: !isScreenshot && onScanMenu ? "Scan Menu" : undefined,
+          onSecondary: !isScreenshot && onScanMenu ? () => onScanMenu(place) : undefined,
           primaryIcon: "📍",
         }}
         dark
         style={styles.card}
       />
-      <View style={styles.feedbackRow}>
-        <Text style={styles.feedbackLabel}>Was this helpful?</Text>
-        <View style={styles.feedbackButtons}>
-          <TouchableOpacity
-            style={styles.feedbackBtn}
-            onPress={() => onFeedbackYes && onFeedbackYes(place)}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.feedbackText}>Yes</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.feedbackBtn}
-            onPress={() => onFeedbackImprove && onFeedbackImprove(place)}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.feedbackText}>Improve</Text>
-          </TouchableOpacity>
+      {!isScreenshot ? (
+        <View style={styles.feedbackRow}>
+          <Text style={premium.muted}>Was this helpful?</Text>
+          <View style={styles.feedbackButtons}>
+            <TouchableOpacity
+              style={premium.ctaGhost}
+              onPress={() => onFeedbackYes && onFeedbackYes(place)}
+              activeOpacity={0.8}
+            >
+              <Text style={premium.ctaGhostText}>Yes</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[premium.ctaGhost, { marginLeft: 8 }]}
+              onPress={() => onFeedbackImprove && onFeedbackImprove(place)}
+              activeOpacity={0.8}
+            >
+              <Text style={premium.ctaGhostText}>Improve</Text>
+            </TouchableOpacity>
+          </View>
         </View>
-      </View>
+      ) : null}
     </View>
   );
 }
@@ -96,17 +103,5 @@ const styles = StyleSheet.create({
   },
   feedbackButtons: {
     flexDirection: "row",
-    gap: 8,
-  },
-  feedbackBtn: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: "#2f3b4f",
-  },
-  feedbackText: {
-    color: "#cfd7e3",
-    fontSize: 12,
   },
 });

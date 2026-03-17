@@ -75,6 +75,7 @@ export function HealthyNearbyMapScreen({
   userCoords,
   focusCoords,
   onLoadPlaces,
+  onRefreshAroundMe,
   onSearchWider,
   busy = false,
   error = "",
@@ -256,6 +257,19 @@ export function HealthyNearbyMapScreen({
           >
             <Text style={styles.recenterFabIcon}>◎</Text>
             <Text style={styles.recenterFabLabel}>Me</Text>
+          </TouchableOpacity>
+        )}
+
+        {/* Refresh around me: re-fetch nearby places using latest GPS */}
+        {onRefreshAroundMe && (
+          <TouchableOpacity
+            style={styles.refreshFab}
+            onPress={onRefreshAroundMe}
+            activeOpacity={0.85}
+            disabled={busy}
+          >
+            <Text style={styles.refreshFabIcon}>⟳</Text>
+            <Text style={styles.refreshFabLabel}>{busy ? "Refreshing…" : "Refresh"}</Text>
           </TouchableOpacity>
         )}
 
@@ -498,6 +512,28 @@ const styles = StyleSheet.create({
     color: colors.slate.text,
     marginTop: -2,
   },
+  refreshFab: {
+    position: "absolute",
+    bottom: 82,
+    right: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: spacing.base,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: colors.surface.overlay,
+    ...shadows.sm,
+  },
+  refreshFabIcon: {
+    color: colors.success.primary,
+    marginRight: 4,
+    fontSize: 14,
+  },
+  refreshFabLabel: {
+    color: colors.text.primary,
+    fontSize: typography.xs,
+    fontWeight: "600",
+  },
   placeStripWrap: {
     backgroundColor: colors.surface.elevated,
     borderTopWidth: 1,
@@ -556,21 +592,28 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   bottomCard: {
-    backgroundColor: colors.surface.card,
-    borderTopLeftRadius: radius.xl,
-    borderTopRightRadius: radius.xl,
-    ...shadows.md,
+    backgroundColor: "#fdfbf7",
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    paddingTop: 12,
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    shadowColor: "#000",
+    shadowOpacity: 0.06,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: -4 },
+    elevation: 12,
   },
   sheetHandleWrap: {
     alignItems: "center",
-    paddingTop: spacing.sm,
-    paddingBottom: spacing.xs,
+    paddingTop: 6,
+    paddingBottom: 6,
   },
   sheetHandle: {
-    width: 36,
+    width: 44,
     height: 4,
-    borderRadius: 2,
-    backgroundColor: colors.slate.muted,
+    borderRadius: 999,
+    backgroundColor: "#e5e7eb",
   },
   emptyState: {
     padding: spacing.lg,

@@ -5,7 +5,8 @@
 
 import React from "react";
 import { View, Text, StyleSheet } from "react-native";
-import { colors, spacing, radius, typography } from "../designTokens";
+import { colors, spacing, typography } from "../designTokens";
+import { premium } from "../ui/premiumSystem";
 
 function num(v) {
   if (v == null || v === "") return null;
@@ -26,6 +27,7 @@ export function ScoreBadge({ score, isTop = false, size = "md", style }) {
   return (
     <View
       style={[
+        premium.pill,
         styles.badge,
         size === "sm" && styles.badgeSm,
         { backgroundColor: colors.success.bg, borderColor },
@@ -40,10 +42,6 @@ export function ScoreBadge({ score, isTop = false, size = "md", style }) {
 
 const styles = StyleSheet.create({
   badge: {
-    paddingVertical: spacing.xs,
-    paddingHorizontal: spacing.base,
-    borderRadius: radius.lg,
-    borderWidth: 1,
     minWidth: 40,
     alignItems: "center",
   },

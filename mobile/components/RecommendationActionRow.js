@@ -6,6 +6,7 @@
 import React from "react";
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { colors, spacing, radius, typography } from "../designTokens";
+import { premium } from "../ui/premiumSystem";
 
 export function RecommendationActionRow({
   primaryLabel = "Directions",
@@ -23,14 +24,16 @@ export function RecommendationActionRow({
       {onPrimary && (
         <TouchableOpacity
           style={[
+            premium.ctaPrimary,
             styles.primaryBtn,
-            isDark ? styles.primaryBtnDark : styles.primaryBtnLight,
+            !isDark && styles.primaryBtnLight,
           ]}
           onPress={onPrimary}
           activeOpacity={0.8}
         >
           <Text
             style={[
+              premium.ctaPrimaryText,
               styles.primaryBtnText,
               isDark ? styles.primaryBtnTextDark : styles.primaryBtnTextLight,
             ]}
@@ -43,6 +46,7 @@ export function RecommendationActionRow({
       {onSecondary && secondaryLabel && (
         <TouchableOpacity
           style={[
+            premium.ctaSecondary,
             styles.secondaryBtn,
             isDark ? styles.secondaryBtnDark : styles.secondaryBtnLight,
           ]}
@@ -51,6 +55,7 @@ export function RecommendationActionRow({
         >
           <Text
             style={[
+              premium.ctaSecondaryText,
               styles.secondaryBtnText,
               isDark ? styles.secondaryBtnTextDark : styles.secondaryBtnTextLight,
             ]}
@@ -67,19 +72,11 @@ export function RecommendationActionRow({
 const styles = StyleSheet.create({
   row: {
     flexDirection: "row",
-    gap: spacing.base,
     marginTop: spacing.lg,
   },
   primaryBtn: {
     flex: 1,
-    paddingVertical: spacing.base,
-    borderRadius: radius.lg,
-    alignItems: "center",
-    borderWidth: 1,
-  },
-  primaryBtnDark: {
-    backgroundColor: colors.success.bg,
-    borderColor: colors.success.border,
+    paddingHorizontal: spacing.base,
   },
   primaryBtnLight: {
     backgroundColor: colors.success.primary,
@@ -87,25 +84,18 @@ const styles = StyleSheet.create({
   },
   primaryBtnText: {
     fontSize: typography.md,
-    fontWeight: typography.weight.bold,
   },
   primaryBtnTextDark: {
-    color: colors.success.text,
+    color: colors.text.inverse,
   },
   primaryBtnTextLight: {
     color: "#fff",
   },
   secondaryBtn: {
-    paddingVertical: spacing.base,
-    paddingHorizontal: spacing.lg,
-    borderRadius: radius.lg,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
+    marginLeft: spacing.base,
   },
   secondaryBtnDark: {
-    backgroundColor: colors.surface.elevated,
-    borderColor: colors.surface.cardBorder,
+    backgroundColor: "transparent",
   },
   secondaryBtnLight: {
     backgroundColor: colors.surfaceLight.elevated,
@@ -113,10 +103,9 @@ const styles = StyleSheet.create({
   },
   secondaryBtnText: {
     fontSize: typography.base,
-    fontWeight: typography.weight.semibold,
   },
   secondaryBtnTextDark: {
-    color: colors.accent.muted,
+    color: colors.accent.primary,
   },
   secondaryBtnTextLight: {
     color: colors.textLight.secondary,

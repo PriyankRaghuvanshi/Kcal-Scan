@@ -6,7 +6,8 @@
 
 import React from "react";
 import { View, Text, StyleSheet } from "react-native";
-import { spacing, radius, typography, badge } from "../designTokens";
+import { radius, typography, badge } from "../designTokens";
+import { premium } from "../ui/premiumSystem";
 import {
   getAlertTrustLabel,
   getTrustTierForBadge,
@@ -45,7 +46,7 @@ export function ConfidenceBadge({ place, labelOverride, variant, tier: tierOverr
   const badgeStyle = getBadgeStyle(tier);
 
   return (
-    <View style={[styles.badge, badgeStyle, style]}>
+    <View style={[premium.chipBaseSm, styles.badge, badgeStyle, style]}>
       <Text style={[styles.text, { color: badgeStyle.color }]} numberOfLines={1}>
         {label}
       </Text>
@@ -55,8 +56,6 @@ export function ConfidenceBadge({ place, labelOverride, variant, tier: tierOverr
 
 const styles = StyleSheet.create({
   badge: {
-    paddingVertical: spacing.xs,
-    paddingHorizontal: spacing.md,
     borderRadius: radius.sm,
     alignSelf: "flex-start",
   },

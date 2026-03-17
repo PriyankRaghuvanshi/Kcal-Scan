@@ -125,14 +125,14 @@ CUISINE_ORDER_RULES: List[Dict[str, Any]] = [
     {
         "rule_id": "indian",
         "tokens": ("indian", "curry", "tandoori", "biryani", "paneer", "dal"),
-        "best_order": "Tandoori protein with dal and roti",
-        "better_swap": "Go for tandoori over creamy curry",
+        "best_order": "A tandoori-style protein with dal and 1 roti from this menu",
+        "better_swap": "Go for tandoori or grilled mains over creamy curries",
         "avoid_if_cutting": "Butter/cream curries with naan and fried starters",
         "estimated_calories": 580,
         "estimated_protein_g": 36,
         "estimated_satiety": "high",
         "order_strategy_tags": ["high_protein", "better_swap", "fat_loss_friendly"],
-        "short_reason": "Tandoori + dal gives strong satiety with better calorie control.",
+        "short_reason": "This pattern (grilled protein + dal + controlled bread) usually beats creamy curries for satiety vs calories.",
     },
     {
         "rule_id": "south_indian_temple",

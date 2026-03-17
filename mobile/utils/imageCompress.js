@@ -1,9 +1,9 @@
 /**
  * Resize and compress image before upload to reduce latency.
- * Target: max 1024px long edge, JPEG quality 0.82.
+ * Target: max 900px long edge, JPEG quality 0.7 (faster upload).
  */
-const MAX_EDGE_PX = 1024;
-const COMPRESS_QUALITY = 0.82;
+const MAX_EDGE_PX = 900;
+const COMPRESS_QUALITY = 0.7;
 
 export async function prepareImageForScan(uri) {
   if (!uri || typeof uri !== "string") return uri;

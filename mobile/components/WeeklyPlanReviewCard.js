@@ -4,7 +4,8 @@
 
 import React, { useEffect, useRef } from "react";
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
-import { colors, spacing, radius, typography, shadows } from "../designTokens";
+import { colors, spacing, typography } from "../designTokens";
+import { premium } from "../ui/premiumSystem";
 import { trackGoalCoachActionShown } from "../utils/goalCoachUtils";
 
 function num(v) {
@@ -13,7 +14,21 @@ function num(v) {
   return Number.isFinite(n) ? n : null;
 }
 
-export function WeeklyPlanReviewCard({ apiBase, userId, review, weekStart, weekEnd, subscriptionRequired, nextStepAction, onNextStepAction }) {
+export function WeeklyPlanReviewCard({
+  apiBase,
+  userId,
+  review,
+  weekStart,
+  weekEnd,
+  subscriptionRequired,
+  nextStepAction,
+  onNextStepAction,
+  // Optional: allow passing weekly reward signals even if not nested under review.
+  winSummary: winSummaryProp,
+  proteinDaysThisWeek: proteinDaysThisWeekProp,
+  // Optional: screenshot mode (presentation-only).
+  screenshotMode,
+}) {
   const shownTrackedRef = useRef(null);
 
   useEffect(() => {
@@ -48,49 +63,64 @@ export function WeeklyPlanReviewCard({ apiBase, userId, review, weekStart, weekE
   const adherence = num(review.adherence_score) ?? 0;
   const mainWin = review.main_win || "";
   const mainBottleneck = review.main_bottleneck || "";
+  const winSummary = String(winSummaryProp || review.win_summary || review?.report_card_facts?.win_summary || "").trim();
+  const proteinDaysThisWeek = proteinDaysThisWeekProp != null ? num(proteinDaysThisWeekProp) : num(review?.report_card_facts?.protein_days_this_week);
   const nextFocus = review.next_week_focus || {};
   const headlineNext = nextFocus.headline || "";
   const supportingNext = nextFocus.supporting_text || "";
   const hasNextStep = nextStepAction && nextStepAction.label && typeof onNextStepAction === "function";
+  const isScreenshot = Boolean(screenshotMode);
 
   return (
-    <View style={styles.card}>
-      <Text style={styles.title}>Weekly review</Text>
+    <View style={[premium.cardBase, styles.card]}>
+      <Text style={premium.title}>Weekly review</Text>
       {(weekStart || weekEnd) && (
         <Text style={styles.weekRange}>
           {weekStart && weekEnd ? `${weekStart} – ${weekEnd}` : weekStart || weekEnd}
         </Text>
       )}
       {headline ? <Text style={styles.headline}>{headline}</Text> : null}
-      {supporting ? <Text style={styles.supporting} numberOfLines={2}>{supporting}</Text> : null}
+      {supporting ? <Text style={premium.muted} numberOfLines={2}>{supporting}</Text> : null}
       <View style={styles.scoreRow}>
         <View style={styles.scoreBlock}>
           <Text style={styles.scoreValue}>{adherence}</Text>
           <Text style={styles.scoreLabel}>Adherence %</Text>
         </View>
       </View>
+
+      {(winSummary || proteinDaysThisWeek != null) ? (
+        <View style={styles.summaryBlock}>
+          <Text style={premium.kicker}>This week</Text>
+          {winSummary ? <Text style={[premium.body, { marginTop: 6 }]} numberOfLines={3}>{winSummary}</Text> : null}
+          {proteinDaysThisWeek != null ? (
+            <Text style={[premium.muted, { marginTop: 6 }]}>
+              Protein target hit {Math.round(proteinDaysThisWeek)}/7 days
+            </Text>
+          ) : null}
+        </View>
+      ) : null}
       {mainWin ? (
         <View style={styles.winBlock}>
           <Text style={styles.winLabel}>Main win</Text>
           <Text style={styles.winText} numberOfLines={2}>{mainWin}</Text>
         </View>
       ) : null}
-      {mainBottleneck ? (
+      {mainBottleneck && !isScreenshot ? (
         <View style={styles.bottleneckBlock}>
           <Text style={styles.bottleneckLabel}>Bottleneck</Text>
           <Text style={styles.bottleneckText} numberOfLines={2}>{mainBottleneck}</Text>
         </View>
       ) : null}
-      {(headlineNext || supportingNext) ? (
+      {(headlineNext || supportingNext) && !isScreenshot ? (
         <View style={styles.nextBlock}>
           <Text style={styles.nextLabel}>Next week</Text>
           {headlineNext ? <Text style={styles.nextHeadline}>{headlineNext}</Text> : null}
-          {supportingNext ? <Text style={styles.nextSupporting} numberOfLines={2}>{supportingNext}</Text> : null}
+          {supportingNext ? <Text style={premium.muted} numberOfLines={2}>{supportingNext}</Text> : null}
         </View>
       ) : null}
       {hasNextStep && (
-        <TouchableOpacity style={styles.nextStepCta} onPress={() => onNextStepAction(nextStepAction)} activeOpacity={0.8}>
-          <Text style={styles.nextStepCtaText}>{nextStepAction.label}</Text>
+        <TouchableOpacity style={premium.ctaPrimary} onPress={() => onNextStepAction(nextStepAction)} activeOpacity={0.85}>
+          <Text style={premium.ctaPrimaryText}>{nextStepAction.label}</Text>
         </TouchableOpacity>
       )}
     </View>
@@ -98,20 +128,8 @@ export function WeeklyPlanReviewCard({ apiBase, userId, review, weekStart, weekE
 }
 
 const styles = StyleSheet.create({
-  card: {
-    backgroundColor: colors.surface.card,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: colors.surface.cardBorder,
-    padding: spacing.lg,
-    ...shadows.sm,
-  },
-  title: {
-    fontSize: typography.lg,
-    fontWeight: typography.weight.semibold,
-    color: colors.text.primary,
-    marginBottom: spacing.xs,
-  },
+  // Local overrides only; base card comes from premium.cardBase.
+  card: {},
   gatedTitle: {
     fontSize: typography.lg,
     fontWeight: typography.weight.semibold,
@@ -133,11 +151,11 @@ const styles = StyleSheet.create({
     color: colors.text.secondary,
     marginBottom: spacing.xs,
   },
-  supporting: {
-    fontSize: typography.sm,
-    color: colors.slate.text,
+  summaryBlock: {
     marginBottom: spacing.base,
-    lineHeight: typography.sm * typography.lineHeight.normal,
+    paddingTop: spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: colors.surface.cardBorder,
   },
   scoreRow: {
     flexDirection: "row",
@@ -200,27 +218,5 @@ const styles = StyleSheet.create({
     fontSize: typography.sm,
     fontWeight: typography.weight.semibold,
     color: colors.text.secondary,
-  },
-  nextSupporting: {
-    fontSize: typography.sm,
-    color: colors.slate.text,
-    marginTop: 2,
-    lineHeight: typography.sm * typography.lineHeight.normal,
-  },
-  nextStepCta: {
-    marginTop: spacing.base,
-    paddingTop: spacing.sm,
-    borderTopWidth: 1,
-    borderTopColor: colors.surface.cardBorder,
-    backgroundColor: colors.success.primary,
-    borderRadius: radius.md,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.base,
-    alignItems: "center",
-  },
-  nextStepCtaText: {
-    fontSize: typography.sm,
-    fontWeight: typography.weight.semibold,
-    color: colors.text.inverse,
   },
 });

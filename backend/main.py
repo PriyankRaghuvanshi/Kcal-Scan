@@ -3214,6 +3214,36 @@ def get_meal_events_for_day(user_id: str, day_iso: str) -> List[Dict[str, Any]]:
     return rows if isinstance(rows, list) else []
 
 
+def _build_meal_snapshot_for_coach(
+    meal_events: List[Dict[str, Any]],
+    consumed_kcal: float,
+    consumed_protein_g: float,
+    goal_protein_g: float,
+) -> str:
+    """Build a short human-readable snapshot so the coach can reference actual meals and numbers."""
+    photo_events = [
+        e for e in (meal_events or [])
+        if _event_text(e, "source", "event_source").lower() in {"photo", "scan", "meal", ""}
+        or _event_text(e, "event_type").lower() in {"photo_analyze", "analyze", "scan"}
+    ]
+    n = len(photo_events)
+    protein_gap = max(0.0, (goal_protein_g or 0) - (consumed_protein_g or 0))
+    parts = [f"Today so far: {n} meal(s) logged, {int(round(consumed_protein_g or 0))} g protein, {int(round(consumed_kcal or 0))} kcal."]
+    if protein_gap > 0:
+        parts.append(f"Protein gap to target: {int(round(protein_gap))} g.")
+    if photo_events:
+        last_ev = photo_events[-1]
+        ej = last_ev.get("event_json") if isinstance(last_ev.get("event_json"), dict) else {}
+        items = ej.get("items") if isinstance(ej.get("items"), list) else []
+        names = []
+        for it in items[:5]:
+            if isinstance(it, dict) and str(it.get("name") or "").strip():
+                names.append(str(it.get("name") or "").strip())
+        if names:
+            parts.append(f"Latest meal: {', '.join(names[:4])}.")
+    return " ".join(parts)
+
+
 def compute_daily_metrics_payload(
     user_id: str,
     day_iso: str,
@@ -3424,7 +3454,10 @@ def get_daily_metrics_window(user_id: str, week_start_iso: str) -> List[Dict[str
 
 
 def _get_goal_coach_daily_consumed(user_id: str, day_iso: str) -> Optional[Dict[str, Any]]:
-    """Return consumed_calories and consumed_protein_g for one day from daily_metrics, or None."""
+    """Return consumed_calories and consumed_protein_g for one day.
+    Prefer daily_metrics (synced after scans); fallback to daily_totals so Goal Coach
+    reflects scanned meals even when daily_metrics has not been written yet.
+    """
     if not (SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY):
         return None
     try:
@@ -3437,15 +3470,22 @@ def _get_goal_coach_daily_consumed(user_id: str, day_iso: str) -> Optional[Dict[
                 "limit": "1",
             },
         )
-        if not row:
-            return None
-        mj = row.get("metrics_json") if isinstance(row.get("metrics_json"), dict) else {}
-        consumed = mj.get("consumed") if isinstance(mj.get("consumed"), dict) else {}
-        kcal = float(_safe_float(consumed.get("kcal"), 0.0) or 0.0)
-        protein_g = float(_safe_float(consumed.get("protein_g"), 0.0) or 0.0)
-        return {"consumed_calories": round(kcal, 1), "consumed_protein_g": round(protein_g, 1)}
+        if row:
+            mj = row.get("metrics_json") if isinstance(row.get("metrics_json"), dict) else {}
+            consumed = mj.get("consumed") if isinstance(mj.get("consumed"), dict) else {}
+            kcal = float(_safe_float(consumed.get("kcal"), 0.0) or 0.0)
+            protein_g = float(_safe_float(consumed.get("protein_g"), 0.0) or 0.0)
+            if kcal > 0 or protein_g > 0:
+                return {"consumed_calories": round(kcal, 1), "consumed_protein_g": round(protein_g, 1)}
+        # Fallback: use daily_totals (source of truth from scans) so Goal Coach shows real meal data
+        totals = get_daily_totals(user_id, day_iso)
+        if totals:
+            kcal = float(_safe_float(totals.get("total_kcal") or totals.get("kcal"), 0.0) or 0.0)
+            protein_g = float(_safe_float(totals.get("protein_g"), 0.0) or 0.0)
+            return {"consumed_calories": round(kcal, 1), "consumed_protein_g": round(protein_g, 1)}
     except Exception:
-        return None
+        pass
+    return None
 
 
 def _goal_coach_metrics_rows_to_days(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -8947,6 +8987,20 @@ def _best_cached_coach_llm(user_id: str, day_iso: str) -> Optional[Dict[str, Any
     return None
 
 
+def _projection_trend_from_predictive(predictive: Optional[Dict[str, Any]]) -> str:
+    """Derive improving | stable | declining for 7-day projection phrasing variety."""
+    if not predictive or not isinstance(predictive, dict):
+        return "stable"
+    score = float(_safe_float(predictive.get("projection_7d_score"), 50.0) or 50.0)
+    velocity = float(_safe_float(predictive.get("fat_loss_velocity_score"), 0.0) or 0.0)
+    protein = float(_safe_float(predictive.get("protein_consistency"), 0.0) or 0.0)
+    if score >= 58 or velocity > 5 or protein >= 70:
+        return "improving"
+    if score <= 42 or velocity < -5 or protein <= 40:
+        return "declining"
+    return "stable"
+
+
 def _coach_user_prompt(
     norm_payload: Dict[str, Any],
     fat_loss_score: int,
@@ -8971,11 +9025,29 @@ def _coach_user_prompt(
     wb_patterns = (weekly_behavior or {}).get("patterns") if isinstance(weekly_behavior, dict) else {}
     wb_insights = (weekly_behavior or {}).get("insights") if isinstance(weekly_behavior, dict) else []
     predictive = weekly_predictive if isinstance(weekly_predictive, dict) else {}
+    meal_snapshot = str((norm_payload.get("meal_snapshot") or "")).strip()
+    scans_7d = int(_safe_float((predictive or {}).get("scans_7d"), 0) or 0)
+    protein_gap = float(deltas.get("protein_gap_g") or 0.0)
+    kcal_delta = float(deltas.get("kcal_delta") or 0.0)
+    if protein_gap > 35 and (consumed.get("protein_g") or 0) == 0:
+        coach_mode = "first_meal_or_protein_behind"
+    elif protein_gap > 30:
+        coach_mode = "protein_behind"
+    elif scans_7d < 2:
+        coach_mode = "logging_needed"
+    elif kcal_delta > 300:
+        coach_mode = "calories_tight"
+    elif protein_gap < 10 and protein_gap >= 0:
+        coach_mode = "protein_ahead"
+    else:
+        coach_mode = "general"
     compact = {
         "date": norm_payload.get("date"),
         "goals": norm_payload.get("goals"),
         "consumed": norm_payload.get("consumed"),
         "deltas": deltas,
+        "meal_snapshot": meal_snapshot,
+        "coach_mode": coach_mode,
         "signals": norm_payload.get("signals"),
         "meal_timing": norm_payload.get("meal_timing"),
         "constraints": norm_payload.get("constraints"),
@@ -9012,6 +9084,7 @@ def _coach_user_prompt(
             if isinstance(predictive.get("muscle_retention_risk"), dict)
             else {},
         },
+        "projection_trend": _projection_trend_from_predictive(predictive),
     }
     template = {
         "one_sentence_summary": "string",
@@ -9061,12 +9134,27 @@ def _coach_user_prompt(
                 "projection_confidence_band": str((predictive or {}).get("projection_confidence_band") or "medium"),
                 "goal_type": str((compact.get("profile") or {}).get("goal_type") or "fat_loss"),
                 "training_time": str((compact.get("profile") or {}).get("training_time") or "evening"),
+                "projection_trend": compact.get("projection_trend") or "stable",
             },
             "rule_risk_alerts": rule_alerts[:3],
         }
+        mode_line = ""
+        if coach_mode == "first_meal_or_protein_behind":
+            mode_line = "Focus: They have little or no protein logged yet—suggest anchoring protein at the next meal and mention the gap in grams.\n"
+        elif coach_mode == "protein_behind":
+            mode_line = "Focus: Mention their current protein gap in grams and one concrete way to close it today.\n"
+        elif coach_mode == "logging_needed":
+            mode_line = "Focus: They have few scans this week—encourage logging the next meal without sounding pushy.\n"
+        elif coach_mode == "calories_tight":
+            mode_line = "Focus: They are over calorie target—suggest one practical lever (e.g. portion, timing, or quality) without shaming.\n"
+        elif coach_mode == "protein_ahead":
+            mode_line = "Focus: Protein is on track—acknowledge that and highlight one other lever (fiber, timing, or quality) if relevant.\n"
+        snapshot_line = f"Meal snapshot (use this so you sound like you have seen their scans): {meal_snapshot}\n\n" if meal_snapshot else ""
         return (
             "FAST_MODE: produce concise high-signal coaching from compact metrics only.\n"
-            "Voice: Write like a real human coach who has seen this user's meal scans and fat loss stats. "
+            + snapshot_line
+            + mode_line
+            + "Voice: Write like a real human coach who has seen this user's meal scans and fat loss stats. "
             "Reference their actual numbers (gaps, scans, timing) in natural language. Use different words and sentence structures—never sound like a template or repeat the same phrases.\n"
             "Rules:\n"
             "- Strict JSON only.\n"
@@ -9076,14 +9164,29 @@ def _coach_user_prompt(
             "- Max 2 actions.\n"
             "- one_sentence_summary <= 18 words.\n"
             "- Avoid repeating the same point across sections.\n"
-            "- Balance levers: do not default to glycemic; weight protein and fiber gaps equally. Vary if_you_do_one_thing angle (protein vs fiber vs timing) when possible.\n\n"
+            "- Balance levers: do not default to glycemic; weight protein and fiber gaps equally. Vary if_you_do_one_thing angle (protein vs fiber vs timing) when possible.\n"
+            "- projection_7d: Vary wording by projection_trend (improving/stable/declining); start with 'Based on your last 7 days (X days with scans).'\n\n"
             f"Allowed suggestion palette:\n{json.dumps(allowed_palette, ensure_ascii=True)}\n\n"
             f"Compact payload:\n{json.dumps(fast_payload, ensure_ascii=True)}\n\n"
             f"Output JSON shape:\n{json.dumps(template, ensure_ascii=True)}"
         )
+    mode_line = ""
+    if coach_mode == "first_meal_or_protein_behind":
+        mode_line = "Focus: They have little or no protein logged yet—suggest anchoring protein at the next meal and mention the gap in grams.\n"
+    elif coach_mode == "protein_behind":
+        mode_line = "Focus: Mention their current protein gap in grams and one concrete way to close it today.\n"
+    elif coach_mode == "logging_needed":
+        mode_line = "Focus: They have few scans this week—encourage logging the next meal without sounding pushy.\n"
+    elif coach_mode == "calories_tight":
+        mode_line = "Focus: They are over calorie target—suggest one practical lever (e.g. portion, timing, or quality) without shaming.\n"
+    elif coach_mode == "protein_ahead":
+        mode_line = "Focus: Protein is on track—acknowledge that and highlight one other lever (fiber, timing, or quality) if relevant.\n"
+    snapshot_line = f"Meal snapshot (use this so you sound like you have seen their scans): {meal_snapshot}\n\n" if meal_snapshot else ""
     return (
         "Use this daily nutrition summary and produce coaching insight, not a stat report.\n"
-        "Voice: You are a real human coach who has seen this user's meal scans, today's totals, protein/fiber gaps, and fat loss stats. "
+        + snapshot_line
+        + mode_line
+        + "Voice: You are a real human coach who has seen this user's meal scans, today's totals, protein/fiber gaps, and fat loss stats. "
         "Talk like you understand their data: reference their actual numbers and patterns in natural, varied language. "
         "Use different words and sentence structures every time—do not repeat the same phrases or sound like a script. "
         "Coach the client like a real person would.\n"
@@ -9104,6 +9207,7 @@ def _coach_user_prompt(
         "- biggest_risk_lever must name the highest-impact bottleneck and why it matters.\n"
         "- highest_roi_change must be one practical lever with why/how.\n"
         "- projection_7d must include if_unchanged and if_improved in plain language.\n"
+        "- For projection_7d: Start with 'Based on your last 7 days (X days with scans).' Use projection_trend to vary wording: if improving say something like 'If you keep this week's consistency...'; if declining 'If you tighten up the last few days...'; if stable 'If you hold this pattern...'. Use different wording each time—do not repeat the same sentence.\n"
         "- Keep it practical and behavior-focused.\n"
         "- No medical advice, disease claims, supplements, dosages, or treatment language.\n"
         "- Every action must clearly reference at least one metric keyword from this set: "
@@ -9191,10 +9295,24 @@ def _coerce_coach_response_shape(
         }
 
     if not projection["if_unchanged"] or not projection["if_improved"]:
-        projection = {
-            "if_unchanged": "If this pattern repeats for 7 days, adherence risk will likely stay elevated.",
-            "if_improved": "If the highest-ROI change is repeated for 7 days, satiety and score consistency should improve.",
-        }
+        _fallback_variants = (
+            (
+                "If this pattern repeats for 7 days, adherence risk will likely stay elevated.",
+                "If the highest-ROI change is repeated for 7 days, satiety and score consistency should improve.",
+            ),
+            (
+                "Based on your last 7 days, repeating today's pattern would keep progress slow.",
+                "Based on your last 7 days, applying the suggested change consistently would improve your trajectory.",
+            ),
+            (
+                "Holding this pattern through the week would maintain current risk levels.",
+                "Shifting to the suggested lever for the rest of the week would support better adherence and outcomes.",
+            ),
+        )
+        _seed = f"{confidence_band}:{biggest_risk.get('title', '')}"
+        _idx = sum(ord(c) for c in _seed) % 3
+        _pair = _fallback_variants[_idx]
+        projection = {"if_unchanged": _pair[0], "if_improved": _pair[1]}
 
     if not one_sentence_summary:
         one_sentence_summary = _trim_words(f"{biggest_risk['title']}: {highest_roi['title']}.", 18)
@@ -9427,6 +9545,10 @@ def _build_server_daily_coach_payload(
     consumed = (mj.get("consumed") or {}) if isinstance(mj.get("consumed"), dict) else {}
     goals = (mj.get("goals") or {}) if isinstance(mj.get("goals"), dict) else {}
     sig = (mj.get("signals") or {}) if isinstance(mj.get("signals"), dict) else {}
+    consumed_kcal = float(_safe_float(consumed.get("kcal"), 0.0) or 0.0)
+    consumed_protein = float(_safe_float(consumed.get("protein_g"), 0.0) or 0.0)
+    goal_protein = float(_safe_float(goals.get("protein_g"), 0.0) or 0.0)
+    meal_snapshot = _build_meal_snapshot_for_coach(events, consumed_kcal, consumed_protein, goal_protein)
     daily_totals_version = int(
         _safe_float(
             summary.get("daily_totals_version"),
@@ -9485,6 +9607,7 @@ def _build_server_daily_coach_payload(
             "daily_totals_version": daily_totals_version,
         },
         "daily_totals_version": str(daily_totals_version),
+        "meal_snapshot": meal_snapshot,
     }
     sig_seed = {
         "day": day_iso,
@@ -10325,6 +10448,17 @@ def _weekly_report_fallback(
     if scans_7d < 4:
         data_quality_reasons.append("Low scan frequency reduces confidence.")
     quality_score = int(round(min(100.0, (days_logged / 7.0) * 70.0 + min(scans_7d, 7) * 4.0), 0))
+    def _protein_hit_pct(r: Dict[str, Any]) -> float:
+        mj = r.get("metrics_json") if isinstance(r.get("metrics_json"), dict) else {}
+        hit = mj.get("hit_pct") if isinstance(mj.get("hit_pct"), dict) else {}
+        return float(_safe_float(hit.get("protein"), 0.0) or 0.0)
+
+    protein_days_this_week = sum(1 for r in (rows or []) if _protein_hit_pct(r) >= 99.0)
+    win_summary = ""
+    if days_logged > 0:
+        win_summary = f"{protein_days_this_week}/{days_logged} protein days this week."
+    if resilience >= 65 and win_summary:
+        win_summary = "Strong week: " + win_summary
 
     return {
         "week_start": week_start_iso,
@@ -10340,7 +10474,9 @@ def _weekly_report_fallback(
             "avg_upf_score": avg_upf,
             "late_calories_pct": late_pct,
             "days_logged": days_logged,
+            "protein_days_this_week": protein_days_this_week,
         },
+        "win_summary": win_summary,
         "data_quality": {
             "score": quality_score,
             "reasons": data_quality_reasons[:3],
@@ -10360,6 +10496,7 @@ def _coerce_weekly_report_shape(raw: Dict[str, Any], fallback: Dict[str, Any]) -
         "top_wins": raw.get("top_wins") if isinstance(raw.get("top_wins"), list) else fallback["top_wins"],
         "next_week_plan": raw.get("next_week_plan") if isinstance(raw.get("next_week_plan"), list) else fallback["next_week_plan"],
         "report_card_facts": fallback["report_card_facts"],
+        "win_summary": str(raw.get("win_summary") or fallback.get("win_summary") or ""),
         "data_quality": fallback["data_quality"],
         "disclaimer": str(raw.get("disclaimer") or fallback["disclaimer"]),
     }
@@ -10593,6 +10730,85 @@ def program_status(
 
 # -------------------- GOAL COACH (Let's Go) --------------------
 
+
+def _compute_goal_coach_wins_and_streaks(
+    user_id: str,
+    day_iso: str,
+    targets: Dict[str, Any],
+    consumed: Dict[str, Any],
+    week_metric_rows: Optional[List[Dict[str, Any]]] = None,
+) -> Dict[str, Any]:
+    """Compute daily win flags and streaks for Goal Coach / FLI reward surface. Premium, factual tone."""
+    target_cal = float(_safe_float(targets.get("calories") or targets.get("target_calories"), 0.0) or 0.0)
+    target_protein = float(_safe_float(targets.get("protein_g") or targets.get("target_protein_g"), 0.0) or 0.0)
+    consumed_cal = float(_safe_float(consumed.get("calories") or consumed.get("consumed_calories"), 0.0) or 0.0)
+    consumed_protein = float(_safe_float(consumed.get("protein_g") or consumed.get("consumed_protein_g"), 0.0) or 0.0)
+
+    protein_hit_today = target_protein > 0 and consumed_protein >= max(1.0, 0.9 * target_protein)
+    kcal_in_range_today = False
+    if target_cal > 0 and consumed_cal > 0:
+        ratio = consumed_cal / target_cal
+        kcal_in_range_today = 0.85 <= ratio <= 1.15
+    daily_win = {
+        "protein_hit": protein_hit_today,
+        "kcal_in_range": kcal_in_range_today,
+    }
+    protein_streak_days = 0
+    logging_streak_days = 0
+    win_line = ""
+
+    if week_metric_rows and day_iso:
+        try:
+            dt.date.fromisoformat(day_iso[:10])
+        except Exception:
+            pass
+        else:
+            day_list = []
+            for r in week_metric_rows or []:
+                if not isinstance(r, dict):
+                    continue
+                d = str((r.get("day") or ""))[:10]
+                if not d or d > day_iso:
+                    continue
+                mj = r.get("metrics_json") if isinstance(r.get("metrics_json"), dict) else {}
+                c = mj.get("consumed") if isinstance(mj.get("consumed"), dict) else {}
+                g = mj.get("goals") if isinstance(mj.get("goals"), dict) else {}
+                tp = float(_safe_float(g.get("protein_g"), 0.0) or 0.0)
+                cp = float(_safe_float(c.get("protein_g"), 0.0) or 0.0)
+                meals = int(_safe_float((mj.get("signals") or {}).get("meals_count"), 0) or 0)
+                ph = tp > 0 and cp >= max(1.0, 0.9 * tp)
+                day_list.append((d, ph, meals >= 1))
+            if day_iso not in [x[0] for x in day_list]:
+                day_list.append((day_iso, protein_hit_today, consumed_cal > 0 or consumed_protein > 0))
+            day_list.sort(key=lambda x: x[0], reverse=True)
+            for d, ph, logged in day_list:
+                if ph:
+                    protein_streak_days += 1
+                else:
+                    break
+            for d, ph, logged in day_list:
+                if logged:
+                    logging_streak_days += 1
+                else:
+                    break
+
+    if protein_hit_today:
+        win_line = "Protein target met."
+    elif protein_streak_days >= 2:
+        win_line = f"{protein_streak_days}-day protein streak."
+    elif logging_streak_days >= 2:
+        win_line = f"{logging_streak_days}-day logging streak."
+    elif kcal_in_range_today:
+        win_line = "Day in range."
+
+    return {
+        "daily_win": daily_win,
+        "protein_streak_days": protein_streak_days,
+        "logging_streak_days": logging_streak_days,
+        "win_line": win_line,
+    }
+
+
 @app.post("/goal-coach/plan/create")
 def goal_coach_plan_create(
     payload: Dict[str, Any] = Body(...),
@@ -10690,6 +10906,19 @@ def goal_coach_daily_get(
         "calories": int(state.get("consumed", {}).get("calories", 0) or 0),
         "protein_g": int(state.get("consumed", {}).get("protein_g", 0) or 0),
     }
+    week_start_iso = _week_start_monday(day_iso)
+    week_rows: List[Dict[str, Any]] = []
+    try:
+        week_rows = get_daily_metrics_window(uid, week_start_iso)
+    except Exception:
+        week_rows = []
+    wins_streaks = _compute_goal_coach_wins_and_streaks(
+        uid,
+        day_iso,
+        state.get("targets") or today_targets,
+        state.get("consumed") or consumed_so_far,
+        week_metric_rows=week_rows,
+    )
     plan_str = get_user_plan(uid)
     sub_required = kickoff.get("requires_subscription", False)
     requires_advanced = sub_required and not plan_at_least(plan_str, "advanced")
@@ -10708,6 +10937,10 @@ def goal_coach_daily_get(
         "kickoff_active": kickoff.get("in_kickoff", True),
         "kickoff_day": kickoff.get("kickoff_days_used", 0),
         "kickoff_days_total": kickoff.get("free_kickoff_days", 21),
+        "daily_win": wins_streaks.get("daily_win"),
+        "protein_streak_days": wins_streaks.get("protein_streak_days", 0),
+        "logging_streak_days": wins_streaks.get("logging_streak_days", 0),
+        "win_line": wins_streaks.get("win_line", ""),
     }
 
 
@@ -15658,6 +15891,138 @@ _LOW_CONF_CLARIFY_QUESTION = {
     "options": ["No", "Yes - light", "Yes - normal", "Yes - heavy"],
 }
 
+# Dimension registry (Phase 1 MVP): canonical clarification dimensions.
+DIMENSION_REGISTRY: Dict[str, Dict[str, Any]] = {
+    "added_fat": {
+        "label": "Dressing / added oil?",
+        "options": ["None", "Light", "Normal", "Heavy"],
+        "impact_kcal": 120,
+    },
+    "dairy_type": {
+        "label": "Milk / yogurt type?",
+        "options": ["None", "Whole", "Low-fat", "Skim", "Almond", "Oat", "Soy", "Coconut"],
+        "impact_kcal": 60,
+    },
+    "sweetener": {
+        "label": "Sweetener?",
+        "options": ["None", "Sugar", "Honey", "Syrup", "Artificial", "Other"],
+        "impact_kcal": 60,
+    },
+    "protein_add_on": {
+        "label": "Extra protein added?",
+        "options": ["No", "Yes - small", "Yes - medium", "Yes - large"],
+        "impact_kcal": 80,
+    },
+    "sauce_or_spread": {
+        "label": "Sauce / spread?",
+        "options": ["None", "Butter", "Mayo", "Creamy sauce", "Other"],
+        "impact_kcal": 90,
+    },
+    "portion_size": {
+        "label": "Portion size?",
+        "options": ["Small", "Medium", "Large"],
+        "impact_kcal": 180,
+    },
+    "starch_portion": {
+        "label": "Starch portion?",
+        "options": ["Small", "Medium", "Large"],
+        "impact_kcal": 140,
+    },
+    "cooking_method": {
+        "label": "How cooked?",
+        "options": ["Boiled", "Poached", "Grilled", "Baked", "Pan fried", "Deep fried", "Other"],
+        "impact_kcal": 100,
+    },
+    "egg_count": {
+        "label": "How many eggs?",
+        "options": ["1", "2", "3", "4+"],
+        "impact_kcal": 80,
+    },
+}
+
+# Alias mapping: old / non-canonical hint keys -> canonical dimension ID.
+DIMENSION_ALIASES: Dict[str, str] = {
+    "milk_type": "dairy_type",
+    "milk_base": "dairy_type",
+    "yogurt_type": "dairy_type",
+    "dressing": "added_fat",
+    "spread": "sauce_or_spread",
+    "how_cooked": "cooking_method",
+}
+
+
+def _normalize_dim_id(key: str) -> str:
+    """Return canonical dimension ID; pass-through if already canonical or unknown."""
+    k = str(key or "").strip()
+    if not k:
+        return ""
+    return DIMENSION_ALIASES.get(k, k)
+
+
+def _is_meaningful_stored_value(v: Any) -> bool:
+    """True only when stored value is non-empty and usable."""
+    if v is None:
+        return False
+    s = str(v).strip()
+    return len(s) > 0
+
+
+def _stored_has_meaningful_value(stored: Dict[str, Any], dim_id: str) -> bool:
+    """True if stored has a meaningful value for this dimension (canonical or alias key)."""
+    if not stored or not dim_id:
+        return False
+    if _is_meaningful_stored_value(stored.get(dim_id)):
+        return True
+    for alias, canonical in DIMENSION_ALIASES.items():
+        if canonical == dim_id and _is_meaningful_stored_value(stored.get(alias)):
+            return True
+    return False
+
+
+def _vision_resolves_dimension(hints: Dict[str, Any], dim_id: str) -> bool:
+    """True if ingredient_hints has a meaningful value for this dimension (canonical or alias key)."""
+    if not hints or not dim_id:
+        return False
+    if _is_meaningful_stored_value(hints.get(dim_id)):
+        return True
+    for alias, canonical in DIMENSION_ALIASES.items():
+        if canonical == dim_id and _is_meaningful_stored_value(hints.get(alias)):
+            return True
+    return False
+
+
+# Helpers for dimension metadata (safe lookups).
+
+def _dim_meta(dim_id: str) -> Dict[str, Any]:
+    return DIMENSION_REGISTRY.get(_normalize_dim_id(str(dim_id or "").strip()), {})
+
+
+def _dim_impact(dim_id: str) -> float:
+    meta = _dim_meta(dim_id)
+    try:
+        return float(_safe_float(meta.get("impact_kcal"), 0) or 0)
+    except Exception:
+        return 0.0
+
+
+def _dim_label(dim_id: str, fallback: Optional[str] = None) -> str:
+    meta = _dim_meta(dim_id)
+    label = str(meta.get("label") or fallback or dim_id or "").strip()
+    if not label:
+        return ""
+    return label
+
+
+def _dim_options(dim_id: str, fallback: Optional[List[str]] = None) -> List[str]:
+    meta = _dim_meta(dim_id)
+    opts = meta.get("options")
+    if isinstance(opts, list) and opts:
+        return [str(o) for o in opts if str(o).strip()]
+    if isinstance(fallback, list) and fallback:
+        return [str(o) for o in fallback if str(o).strip()]
+    return []
+
+
 # Ingredient clarification (Issues 9/11): infer from name when possible, ask only when unclear.
 # Each question can have "name_hints": [(phrase_regex_or_substring, option_value), ...] for inference.
 _CLARIFICATION_RULES: List[Dict[str, Any]] = [
@@ -15665,7 +16030,7 @@ _CLARIFICATION_RULES: List[Dict[str, Any]] = [
         "pattern": re.compile(r"^(coffee|espresso|latte|cappuccino|flat white|mocha|americano|chai|tea)\b", re.I),
         "questions": [
             {
-                "key": "milk_type",
+                "key": "dairy_type",
                 "label": "Milk?",
                 "options": ["None", "Whole", "Low-fat", "Skim", "Almond", "Oat", "Soy", "Coconut"],
                 "name_hints": [
@@ -15696,7 +16061,7 @@ _CLARIFICATION_RULES: List[Dict[str, Any]] = [
         "pattern": re.compile(r"^(smoothie|shake|milkshake)\b", re.I),
         "questions": [
             {
-                "key": "milk_base",
+                "key": "dairy_type",
                 "label": "Milk base?",
                 "options": ["Dairy", "Almond", "Oat", "Soy", "None / water"],
                 "name_hints": [
@@ -15724,7 +16089,7 @@ _CLARIFICATION_RULES: List[Dict[str, Any]] = [
         "pattern": re.compile(r"^(salad|green salad|mixed salad|garden salad|caesar|side salad)\b", re.I),
         "questions": [
             {
-                "key": "dressing",
+                "key": "added_fat",
                 "label": "Dressing/oil?",
                 "options": ["None", "Light", "Normal", "Heavy"],
                 "name_hints": [
@@ -15739,7 +16104,7 @@ _CLARIFICATION_RULES: List[Dict[str, Any]] = [
         "pattern": re.compile(r"^(sandwich|wrap|burger|bagel|toast)\b", re.I),
         "questions": [
             {
-                "key": "spread",
+                "key": "sauce_or_spread",
                 "label": "Spread/butter?",
                 "options": ["None", "Butter", "Mayo", "Both", "Other"],
                 "name_hints": [
@@ -15754,6 +16119,17 @@ _CLARIFICATION_RULES: List[Dict[str, Any]] = [
     {
         "pattern": re.compile(r"^(yogurt|yoghurt|parfait)\b", re.I),
         "questions": [
+            {
+                "key": "dairy_type",
+                "label": "Yogurt type?",
+                "options": ["Greek high-protein", "Greek regular", "Regular", "Skyr"],
+                "name_hints": [
+                    ("high.?protein|high protein", "Greek high-protein"),
+                    ("greek|greek yogurt", "Greek regular"),
+                    ("regular|plain yogurt", "Regular"),
+                    ("skyr", "Skyr"),
+                ],
+            },
             {
                 "key": "toppings",
                 "label": "Sweet toppings?",
@@ -15772,7 +16148,7 @@ _CLARIFICATION_RULES: List[Dict[str, Any]] = [
         "pattern": re.compile(r"^(oatmeal|porridge|oats)\b", re.I),
         "questions": [
             {
-                "key": "milk_type",
+                "key": "dairy_type",
                 "label": "Made with milk?",
                 "options": ["Water", "Whole", "Skim", "Almond", "Oat", "Soy"],
                 "name_hints": [
@@ -15793,6 +16169,56 @@ _CLARIFICATION_RULES: List[Dict[str, Any]] = [
                     ("sugar|brown sugar", "Sugar"),
                     ("honey", "Honey"),
                     ("maple|syrup", "Maple"),
+                ],
+            },
+            {
+                "key": "protein_add_on",
+                "label": "Egg added?",
+                "options": ["No", "Yes - 1", "Yes - 2", "Yes - 3+"],
+                "name_hints": [
+                    ("no egg|without egg", "No"),
+                    ("with egg|1 egg|one egg", "Yes - 1"),
+                    ("2 egg|two egg", "Yes - 2"),
+                    ("3 egg|three egg", "Yes - 3+"),
+                ],
+            },
+            {
+                "key": "dairy_type",
+                "label": "Yogurt in it?",
+                "options": ["None", "Greek high-protein", "Greek regular", "Regular"],
+                "name_hints": [
+                    ("no yogurt|without yogurt", "None"),
+                    ("greek|high.?protein yogurt", "Greek high-protein"),
+                    ("greek yogurt", "Greek regular"),
+                    ("yogurt", "Regular"),
+                ],
+            },
+        ],
+    },
+    {
+        "pattern": re.compile(r"^(egg|eggs|scrambled egg|boiled egg|omelette|omelet)\b", re.I),
+        "questions": [
+            {
+                "key": "cooking_method",
+                "label": "How cooked?",
+                "options": ["Boiled", "Poached", "Scrambled", "Fried", "Omelette", "Other"],
+                "name_hints": [
+                    ("boiled|hard.?boiled|soft.?boiled", "Boiled"),
+                    ("poached", "Poached"),
+                    ("scrambled", "Scrambled"),
+                    ("fried|sunny", "Fried"),
+                    ("omelette|omelet", "Omelette"),
+                ],
+            },
+            {
+                "key": "egg_count",
+                "label": "How many eggs?",
+                "options": ["1", "2", "3", "4+"],
+                "name_hints": [
+                    ("1 egg|one egg|single", "1"),
+                    ("2 egg|two egg|double", "2"),
+                    ("3 egg|three", "3"),
+                    ("4 egg|four|many", "4+"),
                 ],
             },
         ],
@@ -15842,19 +16268,24 @@ def _get_ingredient_clarification_questions(user_id: str, items: List[Dict[str, 
         return []
     if not items or not user_id:
         return []
-    seen_keys: set = set()
-    out: List[Dict[str, Any]] = []
+    # 4A. Build raw candidates per item.
+    raw_candidates: List[Dict[str, Any]] = []
     for it in items:
+        if not isinstance(it, dict):
+            continue
         name = str((it or {}).get("name") or "").strip()
         if not name:
             continue
         token = get_food_token_from_item(it)
         if not token:
             continue
-        stored = get_user_ingredient_choices(user_id, token)
+        stored = get_user_ingredient_choices(user_id, token) or {}
+        if not isinstance(stored, dict):
+            stored = {}
         vision_hints = (it or {}).get("ingredient_hints") or {}
         if not isinstance(vision_hints, dict):
             vision_hints = {}
+
         for rule in _CLARIFICATION_RULES:
             if not rule.get("pattern") or not rule.get("questions"):
                 continue
@@ -15862,22 +16293,124 @@ def _get_ingredient_clarification_questions(user_id: str, items: List[Dict[str, 
                 continue
             inferred = _infer_ingredient_choices_from_name(name, rule["questions"])
             for q in rule["questions"]:
-                key = str(q.get("key") or "").strip()
-                if not key or key in seen_keys:
+                key = _normalize_dim_id(str(q.get("key") or "").strip())
+                if not key or key not in DIMENSION_REGISTRY:
                     continue
-                if stored and key in stored:
+                # 4B. Resolve by memory: skip only when stored value is meaningful.
+                if _stored_has_meaningful_value(stored, key):
                     continue
+                # 4C. Resolve by name / hint inference.
                 if key in inferred:
                     continue
-                if key in vision_hints and vision_hints.get(key):
+                if _vision_resolves_dimension(vision_hints, key):
                     continue
-                seen_keys.add(key)
-                out.append({
-                    "key": key,
-                    "label": str(q.get("label") or key),
-                    "options": [str(o) for o in (q.get("options") or []) if str(o).strip()],
-                })
+                label = _dim_label(key, fallback=str(q.get("label") or key))
+                options = _dim_options(key, fallback=[str(o) for o in (q.get("options") or []) if str(o).strip()])
+                impact = _dim_impact(key)
+                raw_candidates.append(
+                    {
+                        "key": key,
+                        "label": label,
+                        "options": options,
+                        "impact_kcal": impact,
+                    }
+                )
+
+        # Optionally map known ingredient_hints keys into candidates when hint exists but is empty/unknown.
+        for hint_key, hint_val in vision_hints.items():
+            dim_id = _normalize_dim_id(str(hint_key or "").strip())
+            if not dim_id or dim_id not in DIMENSION_REGISTRY:
+                continue
+            if _stored_has_meaningful_value(stored, dim_id):
+                continue
+            if _is_meaningful_stored_value(hint_val):
+                # Already resolved by vision hint.
+                continue
+            label = _dim_label(dim_id, fallback=dim_id)
+            options = _dim_options(dim_id)
+            impact = _dim_impact(dim_id)
+            raw_candidates.append(
+                {
+                    "key": dim_id,
+                    "label": label,
+                    "options": options,
+                    "impact_kcal": impact,
+                }
+            )
+
+    # 4D. Dedupe by dimension key, keeping highest impact.
+    unique: Dict[str, Dict[str, Any]] = {}
+    for c in raw_candidates:
+        k = str(c.get("key") or "").strip()
+        if not k:
+            continue
+        prev = unique.get(k)
+        if not prev or float(c.get("impact_kcal") or 0) > float(prev.get("impact_kcal") or 0):
+            unique[k] = c
+
+    candidates = list(unique.values())
+    if not candidates:
+        return []
+
+    # 4E. Rank by impact_kcal descending.
+    candidates.sort(key=lambda c: float(c.get("impact_kcal") or 0), reverse=True)
+
+    # 4F. Cap: first only if impact_kcal >= 35; second only if impact_kcal >= 45; max 2.
+    selected: List[Dict[str, Any]] = []
+    if candidates and float(candidates[0].get("impact_kcal") or 0) >= 35:
+        selected.append(candidates[0])
+    if len(candidates) > 1 and float(candidates[1].get("impact_kcal") or 0) >= 45:
+        selected.append(candidates[1])
+
+    # 4G. Public output shape unchanged.
+    out: List[Dict[str, Any]] = []
+    for c in selected:
+        key = str(c.get("key") or "").strip()
+        if not key:
+            continue
+        label = str(c.get("label") or key)
+        options = [str(o) for o in (c.get("options") or []) if str(o).strip()]
+        if not options:
+            continue
+        out.append(
+            {
+                "key": key,
+                "label": label,
+                "options": options,
+            }
+        )
     return out
+
+
+def _get_llm_clarification_questions_safe(items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Optionally suggest 0-2 clarification questions from LLM for items that matched no rule. Fast timeout."""
+    if not items or not GEMINI_API_KEY:
+        return []
+    names = [str((it or {}).get("name") or "").strip() for it in items[:3] if (it or {}).get("name")]
+    if not names:
+        return []
+    prompt = (
+        "Return only a JSON array of 0-2 clarification questions for better nutrition accuracy. "
+        "Each element: {\"key\": \"snake_case_key\", \"label\": \"Short question?\", \"options\": [\"A\", \"B\", \"C\"]}. "
+        "Only suggest when the answer is not obvious from the food name. Keys must be unique snake_case. "
+        f"Detected foods: {json.dumps(names, ensure_ascii=True)}. Output JSON array only, no markdown."
+    )
+    try:
+        text, _, _ = _call_llm_with_timeout(
+            [prompt],
+            model_name=COACH_LLM_MODEL,
+            timeout_sec=min(3.0, _llm_timeout(limit=3.0)),
+            retries=0,
+            purpose="clarification_questions",
+        )
+        parsed = coach_logic.extract_json_object(str(text or "").strip())
+        if isinstance(parsed, list):
+            return [x for x in parsed if isinstance(x, dict) and x.get("key")]
+        if isinstance(parsed, dict) and "questions" in parsed:
+            return [x for x in (parsed.get("questions") or []) if isinstance(x, dict) and x.get("key")]
+    except Exception as e:
+        logger.info("llm clarification questions skipped: %s", e)
+    return []
 
 
 def _apply_stored_ingredient_choices_to_items(user_id: str, items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:

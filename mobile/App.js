@@ -66,6 +66,7 @@ import { HealthyNearbyMapScreen } from "./components/HealthyNearbyMapScreen";
 import { HealthyPlaceListCard } from "./components/HealthyPlaceListCard";
 import { AdminOpsDashboard } from "./components/AdminOpsDashboard";
 import { ScanConfirmationChips } from "./components/ScanConfirmationChips";
+import { ScanResultScreen } from "./components/ScanResultScreen";
 import { LetsGoSetupModal } from "./components/LetsGoSetupModal";
 import { GoalPlanCard } from "./components/GoalPlanCard";
 import { JourneyCard } from "./components/JourneyCard";
@@ -73,6 +74,10 @@ import { DailyCoachCard } from "./components/DailyCoachCard";
 import { WeeklyPlanReviewCard } from "./components/WeeklyPlanReviewCard";
 import { PlanPaywallCard } from "./components/PlanPaywallCard";
 import { VenueContributionSheet } from "./components/VenueContributionSheet";
+import { HomeTodayHero } from "./components/HomeTodayHero";
+import { spacing as tSpacing } from "./designTokens";
+import { premium } from "./ui/premiumSystem";
+import { hapticLight, layoutEaseInOut } from "./ui/feedback";
 import {
   createGoalPlan,
   getGoalPlan,
@@ -245,7 +250,7 @@ const SUPPLEMENT_PROCESSING_CHECKS = [
 ];
 const SUPPLEMENT_LEGAL_NOTE =
   "This authenticity confidence score is based on structural and pattern analysis. It is not a definitive determination of product genuineness. For confirmation, contact the manufacturer.";
-const DEFAULT_HEALTHY_RADIUS_M = 3000;
+const DEFAULT_HEALTHY_RADIUS_M = 2000;
 const WIDER_SEARCH_RADIUS_M = 8000;
 const SUPPLEMENT_REPORT_REASONS = [
   { key: "packaging_differs", label: "Packaging looks different" },
@@ -1711,6 +1716,8 @@ export default function App() {
   const [confidenceCalibrationBusy, setConfidenceCalibrationBusy] = useState(false);
   const [latestScanMeta, setLatestScanMeta] = useState({ id: "", ts: "" });
   const [showCoachDetails, setShowCoachDetails] = useState(false);
+  const [fliPreviewExpanded, setFliPreviewExpanded] = useState(false);
+  const [scansModuleExpanded, setScansModuleExpanded] = useState(false);
   const [coachProfile, setCoachProfile] = useState(DEFAULT_COACH_PROFILE);
   const [coachProfileDraft, setCoachProfileDraft] = useState(DEFAULT_COACH_PROFILE);
   const [coachProfileReady, setCoachProfileReady] = useState(false);
@@ -1729,6 +1736,10 @@ export default function App() {
   const goalCoachAutoAnalyzeAfterPhotoRef = useRef(false);
   const healthyNearbyContextKeyRef = useRef("");
   const healthyNearbyStaleIgnoredCountRef = useRef(0);
+
+  // Screenshot mode (presentation-only): keep false for normal usage.
+  const screenshotMode = false;
+  const fliPreviewExpandedEffective = screenshotMode ? false : fliPreviewExpanded;
 
   // ===== Camera Modal =====
   const [camOpen, setCamOpen] = useState(false);
@@ -4359,7 +4370,9 @@ async function openCamera(mode = "meal") {
         const startedAt = Date.now();
         let pollDelay = 800;
         let finalPayload = null;
-        while (Date.now() - startedAt < 180000) {
+        let partialPayload = null;
+        const hardTimeoutMs = 45000;
+        while (Date.now() - startedAt < hardTimeoutMs) {
           if (analyzeCancelRef.current) {
             throw new Error("Analyze cancelled.");
           }
@@ -4379,6 +4392,7 @@ async function openCamera(mode = "meal") {
           }
           const resultObj = pollData?.result && typeof pollData.result === "object" ? pollData.result : null;
           if (resultObj && !finalPayload) {
+            partialPayload = resultObj;
             setResult(normalizeAnalyzeResult(resultObj));
           }
           if (status === "done") {
@@ -4399,9 +4413,14 @@ async function openCamera(mode = "meal") {
           pollDelay = Math.min(5000, Math.round(pollDelay * 1.2));
         }
         if (!finalPayload) {
-          throw new Error("Analyze timed out. Please try again.");
+          if (partialPayload) {
+            data = partialPayload;
+          } else {
+            throw new Error("Analyze timed out. Please try again.");
+          }
+        } else {
+          data = finalPayload;
         }
-        data = finalPayload;
       }
       const normalized = normalizeAnalyzeResult(data);
       setResult(normalized);
@@ -6246,74 +6265,115 @@ async function openCamera(mode = "meal") {
         </View>
         )}
 
+        {activeScreen === "healthy_nearby" ? (
+          <View style={styles.healthyHero}>
+            <Text style={styles.healthyHeroTitle}>Find the best meal near you.</Text>
+            <Text style={styles.healthyHeroSubtitle}>
+              Healthy Nearby helps you choose what fits your calories, protein, and goals.
+            </Text>
+            <Text style={styles.healthyHeroTagline}>CalorieClick.ai</Text>
+          </View>
+        ) : null}
+
+        {activeScreen !== "healthy_nearby" ? (
+        <View style={styles.homeSectionTight}>
+          <HomeTodayHero
+            plan={plan}
+            goalPlan={goalPlan}
+            goalCoachDaily={goalCoachDaily}
+            remainingToday={remainingToday}
+            screenshotMode={screenshotMode}
+            primaryAction={getDailyActions(goalCoachDaily).primaryAction}
+            onPrimaryActionPress={(a) => {
+              if (a) handleGoalCoachAction({ ...a, source_surface: "home_today_hero" });
+            }}
+            onScanPress={() => openCamera("meal")}
+            onLetsGoPress={() => setLetsGoModalVisible(true)}
+          />
+        </View>
+        ) : null}
+
         {activeScreen !== "healthy_nearby" ? (
         <View style={styles.launcherCard}>
           <Text style={styles.launcherTitle}>CalorieClick AI</Text>
           <Text style={styles.launcherQuestion}>What should I eat right now?</Text>
-          <Text style={styles.launcherSubline}>Pick one action and get your next best move.</Text>
+          <Text style={styles.launcherSubline}>One tap to the best next move.</Text>
 
           <View style={styles.launcherActions}>
+            {/* Primary hero action */}
             <TouchableOpacity
-              style={styles.launcherActionCard}
-              activeOpacity={0.85}
+              style={styles.launcherPrimaryCard}
+              activeOpacity={0.9}
               onPress={() => openCamera("meal")}
             >
-              <Text style={styles.launcherActionIcon}>📸</Text>
+              <View style={styles.launcherPrimaryIconWrap}>
+                <Text style={styles.launcherPrimaryIcon}>📸</Text>
+              </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.launcherActionTitle}>Scan Food</Text>
                 <Text style={styles.launcherActionSubtitle}>Analyze your meal in seconds</Text>
               </View>
             </TouchableOpacity>
 
-            <TouchableOpacity
-              style={styles.launcherActionCard}
-              activeOpacity={0.85}
-              onPress={() => openCamera("menu_scan")}
-            >
-              <Text style={styles.launcherActionIcon}>🍽</Text>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.launcherActionTitle}>Scan Menu</Text>
-                <Text style={styles.launcherActionSubtitle}>Find the best item at any restaurant</Text>
-              </View>
-            </TouchableOpacity>
+            {/* Row: Scan Menu + Best Nearby */}
+            <View style={styles.launcherRow}>
+              <TouchableOpacity
+                style={styles.launcherSecondaryCard}
+                activeOpacity={0.9}
+                onPress={() => openCamera("menu_scan")}
+              >
+                <Text style={styles.launcherActionIcon}>🍽</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.launcherSecondaryTitle}>Scan Menu</Text>
+                  <Text style={styles.launcherSecondarySubtitle} numberOfLines={1}>Best pick at any restaurant</Text>
+                </View>
+              </TouchableOpacity>
 
+              <TouchableOpacity
+                style={styles.launcherSecondaryCard}
+                activeOpacity={0.9}
+                onPress={() => { void openHealthyNearbyScreen("decide"); }}
+                disabled={lunchDecisionBusy}
+              >
+                <Text style={styles.launcherActionIcon}>📍</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.launcherSecondaryTitle}>Best Nearby</Text>
+                  <Text style={styles.launcherSecondarySubtitle} numberOfLines={1}>
+                    {lunchDecisionBusy ? "Finding options…" : "What fits your macros nearby"}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <View style={styles.launcherUtilityRow}>
             <TouchableOpacity
-              style={styles.launcherActionCard}
+              style={premium.ctaGhost}
               activeOpacity={0.85}
               onPress={() => {
-                void openHealthyNearbyScreen("decide");
+                if (smartAlertState?.enabled) setSmartAlertInboxVisible(true);
+                else setSmartAlertSettingsVisible(true);
               }}
-              disabled={lunchDecisionBusy}
             >
-              <Text style={styles.launcherActionIcon}>📍</Text>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.launcherActionTitle}>Best Nearby</Text>
-                <Text style={styles.launcherActionSubtitle}>
-                  {lunchDecisionBusy ? "Finding your best next meal nearby..." : "See what fits your macros around you"}
-                </Text>
-              </View>
+              <Text style={premium.ctaGhostText}>🔔 Smart Alerts</Text>
             </TouchableOpacity>
-
             <TouchableOpacity
-              style={styles.launcherActionCard}
+              style={[premium.ctaGhost, { marginLeft: 10 }]}
               activeOpacity={0.85}
-              onPress={() => openCamera("upf_scan")}
-              disabled={upfScanBusy}
+              onPress={() => {
+                if (goalPlan) {
+                  try { mainScrollRef.current?.scrollTo({ y: 640, animated: true }); } catch (_) {}
+                } else {
+                  setLetsGoModalVisible(true);
+                }
+              }}
+              disabled={goalCoachCreateBusy}
             >
-              <Text style={styles.launcherActionIcon}>🏷️</Text>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.launcherActionTitle}>UPF Scanner</Text>
-                <Text style={styles.launcherActionSubtitle}>
-                  {upfScanBusy ? "Assessing…" : "Point at a product — see how processed it is"}
-                </Text>
-              </View>
+              <Text style={premium.ctaGhostText}>🎯 Goal Coach</Text>
             </TouchableOpacity>
           </View>
 
-          <Text style={[styles.launcherCoachLine, { marginTop: 6 }]}>
-            Scan Food or Scan Menu → tap Analyse below to see your result in the "Scan a meal" section.
-          </Text>
-          <Text style={styles.launcherCoachLine}>{homeCoachLine}</Text>
+          <Text style={styles.launcherCoachLine} numberOfLines={2}>{homeCoachLine}</Text>
           {!planAtLeast(plan, "pro") ? (
             <View style={styles.launcherValueRow}>
               <Text style={styles.launcherValueText}>Track meals in seconds. Upgrade for more scans and a personal coach.</Text>
@@ -6324,32 +6384,32 @@ async function openCamera(mode = "meal") {
           ) : null}
 
           {(upfScanResult || upfScanError || upfScanBusy) ? (
-            <View style={[styles.card, { marginTop: 12 }]}>
-              <Text style={styles.cardTitle}>Processed?</Text>
+            <View style={[premium.cardBase, { marginTop: 12 }]}>
+              <Text style={premium.title}>Processed?</Text>
               {upfScanBusy ? (
-                <Text style={styles.p}>Assessing…</Text>
+                <Text style={premium.muted}>Assessing…</Text>
               ) : upfScanError ? (
                 <>
-                  <Text style={styles.p}>{upfScanError}</Text>
+                  <Text style={premium.muted}>{upfScanError}</Text>
                   <TouchableOpacity
-                    style={[styles.secondaryBtn, { marginTop: 10 }]}
+                    style={[premium.ctaSecondary, { marginTop: 10 }]}
                     onPress={() => { setUpfScanError(""); openCamera("upf_scan"); }}
                   >
-                    <Text style={styles.secondaryBtnText}>Try again</Text>
+                    <Text style={premium.ctaSecondaryText}>Try again</Text>
                   </TouchableOpacity>
                 </>
               ) : upfScanResult ? (
                 <>
                   <View style={{ alignItems: "center", marginVertical: 8 }}>
                     <Text style={{ fontSize: 48, marginBottom: 4 }}>{upfScanResult.symbol}</Text>
-                    <Text style={[styles.p, { fontWeight: "600", marginBottom: 2 }]}>{upfScanResult.label}</Text>
-                    <Text style={styles.tiny}>{upfScanResult.score}/10</Text>
+                    <Text style={[premium.body, { fontWeight: "700", marginBottom: 2 }]}>{upfScanResult.label}</Text>
+                    <Text style={premium.muted}>{upfScanResult.score}/10</Text>
                   </View>
                   <TouchableOpacity
-                    style={[styles.secondaryBtn, { marginTop: 8 }]}
+                    style={[premium.ctaSecondary, { marginTop: 8 }]}
                     onPress={() => { setUpfScanResult(null); openCamera("upf_scan"); }}
                   >
-                    <Text style={styles.secondaryBtnText}>Scan another</Text>
+                    <Text style={premium.ctaSecondaryText}>Scan another</Text>
                   </TouchableOpacity>
                 </>
               ) : null}
@@ -6360,6 +6420,22 @@ async function openCamera(mode = "meal") {
 
         {activeScreen !== "healthy_nearby" ? (
         <>
+        {/* Daily progress (pulled up for above-the-fold momentum) */}
+        {goalPlan ? (
+          <View style={styles.homeSection}>
+            <DailyCoachCard
+              apiBase={API_BASE}
+              userId={userId || session?.user?.id}
+              daily={goalCoachDaily}
+              subscriptionRequired={goalCoachDaily?.subscription_required ?? false}
+              primaryAction={getDailyActions(goalCoachDaily).primaryAction}
+              secondaryAction={getDailyActions(goalCoachDaily).secondaryAction}
+              onPrimaryAction={(a) => handleGoalCoachAction({ ...a, source_surface: "daily_coach" })}
+              onSecondaryAction={(a) => handleGoalCoachAction({ ...a, source_surface: "daily_coach" })}
+            />
+          </View>
+        ) : null}
+
         {(() => {
           const enabled = smartAlertState?.enabled;
           const count = (smartAlertCandidates || []).length;
@@ -6367,30 +6443,32 @@ async function openCamera(mode = "meal") {
           if (!enabled) {
             return (
               <TouchableOpacity
-                style={[styles.card, { opacity: 0.9 }]}
+                style={[premium.cardBase, { opacity: 0.9 }]}
                 onPress={() => setSmartAlertSettingsVisible(true)}
                 activeOpacity={0.85}
               >
                 <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
                   <View>
-                    <Text style={styles.cardTitle}>Smart Food Alerts</Text>
-                    <Text style={styles.tiny}>Turn on to see nearby options that fit your goals</Text>
+                    <Text style={premium.title}>Smart Food Alerts</Text>
+                    <Text style={premium.muted}>Turn on to see nearby options that fit your goals</Text>
                   </View>
-                  <Text style={styles.smallBtnText}>⚙</Text>
+                  <View style={premium.iconBtn}>
+                    <Text style={premium.iconBtnText}>⚙</Text>
+                  </View>
                 </View>
               </TouchableOpacity>
             );
           }
           return (
-            <View style={styles.card}>
+            <View style={[premium.cardBase, styles.homeSection]}>
               <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
                 <TouchableOpacity
                   style={{ flex: 1 }}
                   onPress={() => setSmartAlertInboxVisible(true)}
                   activeOpacity={0.9}
                 >
-                  <Text style={styles.cardTitle}>Smart Food Alerts</Text>
-                  <Text style={styles.tiny}>
+                  <Text style={premium.title}>Smart Food Alerts</Text>
+                  <Text style={premium.muted}>
                     {count > 0
                       ? `${count} nearby option${count !== 1 ? "s" : ""} for your goals`
                       : smartAlertsBusy
@@ -6399,10 +6477,10 @@ async function openCamera(mode = "meal") {
                   </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[styles.smallBtn, { marginLeft: 8 }]}
+                  style={[premium.iconBtn, { marginLeft: 8 }]}
                   onPress={() => setSmartAlertSettingsVisible(true)}
                 >
-                  <Text style={styles.smallBtnText}>⚙</Text>
+                  <Text style={premium.iconBtnText}>⚙</Text>
                 </TouchableOpacity>
               </View>
               {preview.length > 0 ? (
@@ -6428,10 +6506,10 @@ async function openCamera(mode = "meal") {
                   ))}
                   {count > 3 ? (
                     <TouchableOpacity
-                      style={[styles.smallBtn, { marginTop: 8, alignSelf: "flex-start" }]}
+                      style={[premium.ctaGhost, { marginTop: 8, alignSelf: "flex-start" }]}
                       onPress={() => setSmartAlertInboxVisible(true)}
                     >
-                      <Text style={styles.smallBtnText}>View all ({count})</Text>
+                      <Text style={premium.ctaGhostText}>View all ({count})</Text>
                     </TouchableOpacity>
                   ) : null}
                 </View>
@@ -6439,11 +6517,11 @@ async function openCamera(mode = "meal") {
             </View>
           );
         })()}
-        {/* Goal Coach (Let's Go) */}
-        <View style={styles.card}>
-          <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+        {/* Goal Coach (split into separate premium cards; no outer wrapper) */}
+        <View style={styles.homeSection}>
+          <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
             <Text style={styles.cardTitle}>Goal Coach</Text>
-            {!goalPlan && (
+            {!goalPlan ? (
               <TouchableOpacity
                 style={[styles.smallBtn, { backgroundColor: "#22c55e20", borderColor: "#22c55e" }]}
                 onPress={() => setLetsGoModalVisible(true)}
@@ -6451,10 +6529,18 @@ async function openCamera(mode = "meal") {
               >
                 <Text style={[styles.smallBtnText, { color: "#4ade80" }]}>{goalPlanLoading ? "…" : "Let's Go"}</Text>
               </TouchableOpacity>
-            )}
+            ) : null}
           </View>
-          {goalPlan ? (
-            <>
+          {!goalPlan ? (
+            <Text style={[styles.tiny, { marginTop: 6 }]}>
+              Set a goal and get a starter plan plus daily check-ins. Start free for 3 weeks—then upgrade to Advanced to continue your journey.
+            </Text>
+          ) : null}
+        </View>
+
+        {goalPlan ? (
+          <>
+            <View style={styles.homeSection}>
               <GoalPlanCard
                 plan={goalPlan}
                 kickoffDay={goalCoachDaily?.kickoff_day ?? 0}
@@ -6466,40 +6552,35 @@ async function openCamera(mode = "meal") {
                   if (primaryAction) handleGoalCoachAction({ ...primaryAction, source_surface: "goal_plan" });
                 }}
               />
-              <View style={{ marginTop: 12 }}>
-                <JourneyCard
-                  dayNumber={goalCoachDaily?.kickoff_day ?? 0}
-                  kickoffDaysTotal={goalCoachDaily?.kickoff_days_total ?? 21}
-                  summary={journeyData?.summary ?? null}
-                  photoEntries={journeyData?.photo_entries ?? []}
-                  weekStartISO={localWeekStartISO()}
-                />
-              </View>
-              <View style={{ marginTop: 12 }}>
-                <DailyCoachCard
-                  apiBase={API_BASE}
-                  userId={userId || session?.user?.id}
-                  daily={goalCoachDaily}
-                  subscriptionRequired={goalCoachDaily?.subscription_required ?? false}
-                  primaryAction={getDailyActions(goalCoachDaily).primaryAction}
-                  secondaryAction={getDailyActions(goalCoachDaily).secondaryAction}
-                  onPrimaryAction={(a) => handleGoalCoachAction({ ...a, source_surface: "daily_coach" })}
-                  onSecondaryAction={(a) => handleGoalCoachAction({ ...a, source_surface: "daily_coach" })}
-                />
-              </View>
-              <View style={{ marginTop: 12 }}>
-                <WeeklyPlanReviewCard
-                  apiBase={API_BASE}
-                  userId={userId || session?.user?.id}
-                  review={goalCoachWeekly?.review}
-                  weekStart={goalCoachWeekly?.week_start}
-                  weekEnd={goalCoachWeekly?.week_end}
-                  subscriptionRequired={goalCoachWeekly?.subscription_required ?? false}
-                  nextStepAction={getWeeklyNextStepAction(goalCoachWeekly)}
-                  onNextStepAction={(a) => handleGoalCoachAction({ ...a, source_surface: "weekly_review" })}
-                />
-              </View>
-              <View style={{ marginTop: 12 }}>
+            </View>
+
+            <View style={styles.homeSection}>
+              <JourneyCard
+                dayNumber={goalCoachDaily?.kickoff_day ?? 0}
+                kickoffDaysTotal={goalCoachDaily?.kickoff_days_total ?? 21}
+                summary={journeyData?.summary ?? null}
+                photoEntries={journeyData?.photo_entries ?? []}
+                weekStartISO={localWeekStartISO()}
+              />
+            </View>
+
+            <View style={styles.homeSection}>
+              <WeeklyPlanReviewCard
+                apiBase={API_BASE}
+                userId={userId || session?.user?.id}
+                review={goalCoachWeekly?.review}
+                weekStart={goalCoachWeekly?.week_start}
+                weekEnd={goalCoachWeekly?.week_end}
+                subscriptionRequired={goalCoachWeekly?.subscription_required ?? false}
+                winSummary={goalCoachWeekly?.win_summary}
+                proteinDaysThisWeek={goalCoachWeekly?.report_card_facts?.protein_days_this_week}
+                nextStepAction={getWeeklyNextStepAction(goalCoachWeekly)}
+                onNextStepAction={(a) => handleGoalCoachAction({ ...a, source_surface: "weekly_review" })}
+              />
+            </View>
+
+            <View style={styles.homeSection}>
+              <View style={styles.card}>
                 <Text style={styles.label}>Progress</Text>
                 <Text style={styles.tiny}>Log weight and weekly photos to track your journey.</Text>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 8 }}>
@@ -6581,15 +6662,18 @@ async function openCamera(mode = "meal") {
                   <Text style={styles.btnText}>{journeyPhotoBusy ? "…" : "Add progress photo"}</Text>
                 </TouchableOpacity>
               </View>
-              {goalPlan &&
-                goalCoachDaily?.kickoff_active &&
-                !(goalCoachDaily?.subscription_required || goalCoachWeekly?.subscription_required) &&
-                (() => {
-                  const day = num(goalCoachDaily?.kickoff_day) ?? 0;
-                  const total = num(goalCoachDaily?.kickoff_days_total) ?? 21;
-                  const daysLeft = Math.max(0, total - day);
-                  return daysLeft >= 1 && daysLeft <= 4;
-                })() ? (
+            </View>
+
+            {goalPlan &&
+              goalCoachDaily?.kickoff_active &&
+              !(goalCoachDaily?.subscription_required || goalCoachWeekly?.subscription_required) &&
+              (() => {
+                const day = num(goalCoachDaily?.kickoff_day) ?? 0;
+                const total = num(goalCoachDaily?.kickoff_days_total) ?? 21;
+                const daysLeft = Math.max(0, total - day);
+                return daysLeft >= 1 && daysLeft <= 4;
+              })() ? (
+              <View style={styles.homeSection}>
                 <View style={styles.trialEndingBanner}>
                   <Text style={styles.trialEndingText}>
                     Your free trial ends in{" "}
@@ -6600,66 +6684,97 @@ async function openCamera(mode = "meal") {
                     <Text style={styles.trialEndingBtnText}>Upgrade to Advanced</Text>
                   </TouchableOpacity>
                 </View>
-              ) : null}
-              {(goalCoachDaily?.subscription_required || goalCoachWeekly?.subscription_required) ? (
-                <View style={{ marginTop: 12 }}>
-                  <PlanPaywallCard
-                    kickoffDay={goalCoachDaily?.kickoff_day ?? 0}
-                    kickoffDaysTotal={goalCoachDaily?.kickoff_days_total ?? 21}
+              </View>
+            ) : null}
+
+            {(goalCoachDaily?.subscription_required || goalCoachWeekly?.subscription_required) ? (
+              <View style={styles.homeSection}>
+                <PlanPaywallCard
+                  kickoffDay={goalCoachDaily?.kickoff_day ?? 0}
+                  kickoffDaysTotal={goalCoachDaily?.kickoff_days_total ?? 21}
                   requiresAdvancedPlan={goalCoachDaily?.requires_advanced_plan ?? goalCoachWeekly?.requires_advanced_plan ?? false}
                   onUnlock={() => openPaywall("advanced")}
-                  />
-                </View>
-              ) : null}
-            </>
-          ) : (
-            <>
-              <Text style={styles.tiny}>Set a goal and get a starter plan plus daily check-ins. Start free for 3 weeks—then upgrade to Advanced to continue your journey.</Text>
-              <Text style={[styles.tiny, { marginTop: 6, color: "#94a3b8" }]}>Tap Let's Go to start.</Text>
-            </>
-          )}
-        </View>
+                />
+              </View>
+            ) : null}
+          </>
+        ) : null}
 
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Scans left</Text>
-          <Text style={styles.big}>
-            {usage ? `${usage.remaining_day} today • ${usage.remaining_month} this month` : "…"}
-          </Text>
+        <View style={[premium.cardBase, styles.compactStatusCard]}>
+          <View style={styles.compactHeaderRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.compactTitle}>Scans left</Text>
+              <Text style={styles.compactValue} numberOfLines={1}>
+                {usage ? `${usage.remaining_day} today • ${usage.remaining_month} month` : "…"}
+              </Text>
+            </View>
+            <View style={styles.compactHeaderActions}>
+              <TouchableOpacity
+                style={premium.ctaGhost}
+                onPress={() => setScansModuleExpanded((v) => !v)}
+                activeOpacity={0.85}
+              >
+                <Text style={premium.ctaGhostText}>{scansModuleExpanded ? "Less" : "Details"}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
           {(num(usage?.remaining_day) <= 2 || num(usage?.remaining_month) <= 5) && usage ? (
-            <View style={styles.scansLowBanner}>
-              <Text style={styles.scansLowText}>
+            <View style={[styles.scansLowBanner, { marginTop: 10 }]}>
+              <Text style={styles.scansLowText} numberOfLines={2}>
                 {num(usage.remaining_day) === 0 || num(usage.remaining_month) === 0
-                  ? "You've used your scans for this period. Upgrade for more."
-                  : "Running low on scans. Upgrade for more."}
+                  ? "You’ve used your scans for this period."
+                  : "Running low on scans."}
               </Text>
               <TouchableOpacity style={styles.scansLowBtn} onPress={() => openPaywall("advanced")}>
                 <Text style={styles.scansLowBtnText}>Upgrade</Text>
               </TouchableOpacity>
             </View>
           ) : null}
-          <View style={styles.row}>
-            <TouchableOpacity style={styles.secondaryBtn} onPress={refreshUsage}>
-              <Text style={styles.btnText}>Refresh</Text>
+
+          <View style={styles.compactActionsRow}>
+            <TouchableOpacity style={premium.ctaGhost} onPress={refreshUsage} activeOpacity={0.9}>
+              <Text style={premium.ctaGhostText}>Refresh</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.secondaryBtn} onPress={restorePurchases} disabled={rcBusy || !rcReady}>
-              <Text style={styles.btnText}>{rcBusy ? "…" : "Restore"}</Text>
-            </TouchableOpacity>
-          </View>
-          <Text style={styles.tiny}>Restore does NOT refill scans (only syncs your plan). Already subscribed? Tap Restore to sync.</Text>
-          <View style={{ marginTop: 12, flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-            <Text style={styles.tiny}>
-              Goals: {Math.round(goals?.kcal || 0)} kcal • P {round1(goals?.protein_g || 0)}g • C {round1(goals?.carbs_g || 0)}g • F {round1(goals?.fat_g || 0)}g
-            </Text>
-            <TouchableOpacity style={styles.smallBtn} onPress={() => { setGoalsDraft(goals || DEFAULT_GOALS); setGoalsModal(true); }}>
-              <Text style={styles.smallBtnText}>Edit</Text>
+            <TouchableOpacity
+              style={[premium.ctaGhost, { marginLeft: 10 }]}
+              onPress={restorePurchases}
+              disabled={rcBusy || !rcReady}
+              activeOpacity={0.9}
+            >
+              <Text style={premium.ctaGhostText}>{rcBusy ? "…" : "Restore"}</Text>
             </TouchableOpacity>
           </View>
-          <View style={{ marginTop: 8 }}>
-            <Text style={styles.p}>Protein left today: {round1(remainingToday.protein_g)}g</Text>
-            <Text style={styles.tiny}>
-              Remaining: {round1(remainingToday.kcal)} kcal • C {round1(remainingToday.carbs_g)}g • F {round1(remainingToday.fat_g)}g • Fiber {round1(remainingToday.fiber_g)}g
-            </Text>
-          </View>
+
+          {scansModuleExpanded ? (
+            <View style={{ marginTop: 10 }}>
+              <Text style={styles.tiny}>
+                Restore does NOT refill scans (only syncs your plan). Already subscribed? Tap Restore to sync.
+              </Text>
+              <View style={styles.compactMetaRow}>
+                <Text style={styles.tiny} numberOfLines={2}>
+                  Goals: {Math.round(goals?.kcal || 0)} kcal • P {round1(goals?.protein_g || 0)}g • C {round1(goals?.carbs_g || 0)}g • F{" "}
+                  {round1(goals?.fat_g || 0)}g
+                </Text>
+                <TouchableOpacity
+                  style={styles.smallBtn}
+                  onPress={() => {
+                    setGoalsDraft(goals || DEFAULT_GOALS);
+                    setGoalsModal(true);
+                  }}
+                >
+                  <Text style={styles.smallBtnText}>Edit</Text>
+                </TouchableOpacity>
+              </View>
+              <View style={{ marginTop: 8 }}>
+                <Text style={styles.p}>Protein left today: {round1(remainingToday.protein_g)}g</Text>
+                <Text style={styles.tiny}>
+                  Remaining: {round1(remainingToday.kcal)} kcal • C {round1(remainingToday.carbs_g)}g • F {round1(remainingToday.fat_g)}g • Fiber{" "}
+                  {round1(remainingToday.fiber_g)}g
+                </Text>
+              </View>
+            </View>
+          ) : null}
         </View>
 
         <View style={styles.card}>
@@ -6670,22 +6785,8 @@ async function openCamera(mode = "meal") {
               </TouchableOpacity>
               {!canCoaching ? <Text style={styles.lockedTag}>Pro feature</Text> : null}
             </View>
-            {canCoaching ? (
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                style={styles.intelHeaderActionsScroll}
-                contentContainerStyle={styles.intelHeaderActions}
-              >
-                <TouchableOpacity
-                  style={styles.smallBtn}
-                  onPress={() => {
-                    setCoachProfileDraft(coachProfile || DEFAULT_COACH_PROFILE);
-                    setCoachProfileModal(true);
-                  }}
-                >
-                  <Text style={styles.smallBtnText}>Profile</Text>
-                </TouchableOpacity>
+            {canCoaching && !screenshotMode ? (
+              <View style={styles.fliPreviewActionsRow}>
                 <TouchableOpacity
                   style={styles.smallBtn}
                   onPress={() => ensureDailyCoach(true, { refreshServer: true, fastMode: true, trigger: "manual_refresh" })}
@@ -6695,22 +6796,54 @@ async function openCamera(mode = "meal") {
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.smallBtn}
-                  onPress={() => fetchWeeklyReport(true)}
-                  disabled={weeklyReportBusy}
+                  onPress={() => {
+                    layoutEaseInOut();
+                    void hapticLight({ key: "fli:details_toggle", cooldownMs: 700 });
+                    setFliPreviewExpanded((v) => !v);
+                  }}
+                  activeOpacity={0.85}
                 >
-                  <Text style={styles.smallBtnText}>{weeklyReportBusy ? "…" : "Weekly"}</Text>
+                  <Text style={styles.smallBtnText}>{fliPreviewExpandedEffective ? "Less" : "Details"}</Text>
                 </TouchableOpacity>
-              </ScrollView>
+              </View>
             ) : null}
           </View>
 
-          <Text style={styles.intelSubline}>
-            {canCoaching
-              ? `${coachProfile?.goal_type || "fat_loss"} • ${coachProfile?.diet_style || "non-veg"} • ${Math.round(
-                  num(coachProfile?.training_days_per_week)
-                )} training day(s)/week • ${coachProfile?.training_time || "evening"} • ${coachProfile?.tone_preference || "supportive"}`
-              : `${String(plan || "free").toUpperCase()} plan preview • Pro unlocks diagnosis, risk alerts, and actions`}
-          </Text>
+          {canCoaching && fliPreviewExpandedEffective && !screenshotMode ? (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={styles.intelHeaderActionsScroll}
+              contentContainerStyle={styles.intelHeaderActions}
+            >
+              <TouchableOpacity
+                style={styles.smallBtn}
+                onPress={() => {
+                  setCoachProfileDraft(coachProfile || DEFAULT_COACH_PROFILE);
+                  setCoachProfileModal(true);
+                }}
+              >
+                <Text style={styles.smallBtnText}>Profile</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.smallBtn}
+                onPress={() => fetchWeeklyReport(true)}
+                disabled={weeklyReportBusy}
+              >
+                <Text style={styles.smallBtnText}>{weeklyReportBusy ? "…" : "Weekly"}</Text>
+              </TouchableOpacity>
+            </ScrollView>
+          ) : null}
+
+          {fliPreviewExpandedEffective ? (
+            <Text style={styles.intelSubline}>
+              {canCoaching
+                ? `${coachProfile?.goal_type || "fat_loss"} • ${coachProfile?.diet_style || "non-veg"} • ${Math.round(
+                    num(coachProfile?.training_days_per_week)
+                  )} training day(s)/week • ${coachProfile?.training_time || "evening"} • ${coachProfile?.tone_preference || "supportive"}`
+                : `${String(plan || "free").toUpperCase()} plan preview • Pro unlocks diagnosis, risk alerts, and actions`}
+            </Text>
+          ) : null}
 
           {!canCoaching ? (
             <View style={{ marginTop: 10 }}>
@@ -6752,8 +6885,8 @@ async function openCamera(mode = "meal") {
             </View>
           ) : (
             <>
-              {coachErr ? <Text style={[styles.tiny, { color: "#ffb4b4", marginTop: 8 }]}>{coachErr}</Text> : null}
-              {(fliSyncing || coachStale || fliPending) ? (
+              {coachErr && !screenshotMode ? <Text style={[styles.tiny, { color: "#ffb4b4", marginTop: 8 }]}>{coachErr}</Text> : null}
+              {(fliSyncing || coachStale || fliPending) && !screenshotMode ? (
                 <View style={styles.fliUpdateBanner}>
                   <Text style={styles.fliUpdateText}>
                     {fliPending ? "New scan saved. Refining insights…" : "New scan detected. Updating insights…"}
@@ -6761,16 +6894,47 @@ async function openCamera(mode = "meal") {
                 </View>
               ) : null}
 
-              {coachVoice ? (
-                <View style={{ marginTop: 10, padding: 10, borderWidth: 1, borderColor: "#1f2e45", borderRadius: 12, backgroundColor: "#08101e" }}>
-                  <Text style={[styles.tiny, { textTransform: "uppercase", letterSpacing: 0.4 }]}>
-                    Coach voice • {coachVoiceTonePrimary.replace(/_/g, " ")}
-                    {coachVoiceModeTag && coachVoiceModeTag !== coachVoiceTonePrimary
-                      ? ` • mode ${coachVoiceModeTag}`
-                      : ""}
-                  </Text>
+              {/* Preview: show just the strongest 1–2 lines. Full blocks stay behind Details. */}
+              {coachVoice && !fliPreviewExpandedEffective ? (
+                <View style={[premium.cardInset, styles.fliPreviewBox]}>
+                  <View style={styles.coachVoiceHeaderRow}>
+                    <View style={[premium.aiOrb, { width: 30, height: 30 }]}>
+                      <Text style={premium.aiOrbText}>AI</Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={premium.kicker}>Coach says</Text>
+                      <Text style={premium.title} numberOfLines={1}>One takeaway</Text>
+                    </View>
+                  </View>
+                  {!!String(coachVoice?.insight_line || "").trim() ? (
+                    <Text style={premium.body} numberOfLines={3}>{String(coachVoice?.insight_line || "")}</Text>
+                  ) : String(coachVoice?.empathy_line || "").trim() ? (
+                    <Text style={premium.body} numberOfLines={3}>{String(coachVoice?.empathy_line || "")}</Text>
+                  ) : null}
+                  {String(coachDaily?.one_sentence_summary || "").trim() ? (
+                    <Text style={[premium.muted, { marginTop: 8 }]} numberOfLines={2}>
+                      {String(coachDaily?.one_sentence_summary || "")}
+                    </Text>
+                  ) : null}
+                </View>
+              ) : null}
+
+              {coachVoice && fliPreviewExpandedEffective && !screenshotMode ? (
+                <View style={[premium.cardInset, styles.coachVoiceExpandedBox]}>
+                  <View style={styles.coachVoiceHeaderRow}>
+                    <View style={[premium.aiOrb, { width: 30, height: 30 }]}>
+                      <Text style={premium.aiOrbText}>AI</Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={premium.kicker}>
+                        Coach voice • {coachVoiceTonePrimary.replace(/_/g, " ")}
+                        {coachVoiceModeTag && coachVoiceModeTag !== coachVoiceTonePrimary ? ` • mode ${coachVoiceModeTag}` : ""}
+                      </Text>
+                      <Text style={premium.title} numberOfLines={1}>Guidance</Text>
+                    </View>
+                  </View>
                   {!!String(coachVoice?.empathy_line || "").trim() && <Text style={styles.p}>{String(coachVoice?.empathy_line || "")}</Text>}
-                  {!!String(coachVoice?.insight_line || "").trim() && <Text style={styles.p}>{String(coachVoice?.insight_line || "")}</Text>}
+                  {!!String(coachVoice?.insight_line || "").trim() && <Text style={[styles.p, { marginTop: 6 }]}>{String(coachVoice?.insight_line || "")}</Text>}
                   {coachVoice?.one_action?.title ? (
                     <View style={{ marginTop: 6 }}>
                       <Text style={styles.itemName}>{String(coachVoice?.one_action?.title || "")}</Text>
@@ -6788,7 +6952,7 @@ async function openCamera(mode = "meal") {
                 </View>
               ) : null}
 
-              {weeklyReport ? (
+              {fliPreviewExpandedEffective && weeklyReport && !screenshotMode ? (
                 <View style={{ marginTop: 10, padding: 10, borderWidth: 1, borderColor: "#1f2e45", borderRadius: 12 }}>
                   <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
                     <Text style={styles.cardTitle}>Weekly report card</Text>
@@ -6810,7 +6974,7 @@ async function openCamera(mode = "meal") {
                   ))}
                   {!!String(weeklyReport?.disclaimer || "").trim() && <Text style={[styles.tiny, { marginTop: 6 }]}>{String(weeklyReport?.disclaimer || "")}</Text>}
                 </View>
-              ) : weeklyReportBusy ? (
+              ) : fliPreviewExpandedEffective && weeklyReportBusy && !screenshotMode ? (
                 <View style={{ marginTop: 10 }}>
                   <ActivityIndicator />
                 </View>
@@ -6853,7 +7017,7 @@ async function openCamera(mode = "meal") {
                         {fliUpdatedLabel(coachDaily, fliPending || fliSyncing)}
                         {(coachDaily?.fli_source === "cached_llm" || coachDaily?.source === "cache") ? " • Refining…" : ""}
                       </Text>
-                      {showCoachDebug ? (
+                      {fliPreviewExpandedEffective && showCoachDebug && !screenshotMode ? (
                         <View style={{ marginTop: 6, padding: 8, borderWidth: 1, borderColor: "#26364f", borderRadius: 8 }}>
                           <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
                             <Text style={[styles.tiny, { fontWeight: "700", color: "#cfe3ff" }]}>Internal</Text>
@@ -7152,8 +7316,13 @@ async function openCamera(mode = "meal") {
                   <TouchableOpacity style={styles.smallBtn} onPress={() => { dismissPostScanBanner(); openPaywall(null); }}>
                     <Text style={styles.smallBtnText}>See plans</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={{ padding: 4 }} onPress={dismissPostScanBanner} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                    <Text style={styles.tiny}>✕</Text>
+                  <TouchableOpacity
+                    style={[premium.iconBtn, { marginLeft: 8 }]}
+                    onPress={dismissPostScanBanner}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={premium.iconBtnText}>✕</Text>
                   </TouchableOpacity>
                 </View>
               ) : null}
@@ -7437,14 +7606,14 @@ async function openCamera(mode = "meal") {
           ) : null}
         </View>
 
-        <View style={[styles.card, styles.suppAuthorityCard]}>
+        <View style={[premium.cardBase, styles.suppAuthorityCard]}>
           <View style={styles.suppHeaderRow}>
-            <Text style={styles.cardTitle}>🛡 Supplement Scanner</Text>
+            <Text style={premium.title}>Supplement Scanner</Text>
             <View style={styles.suppAuthorityBadge}>
               <Text style={styles.suppAuthorityBadgeText}>FREE</Text>
             </View>
           </View>
-          <Text style={styles.p}>Verify Whey Protein Authenticity</Text>
+          <Text style={premium.muted}>Verify whey protein authenticity</Text>
 
           <View style={styles.progressContainer}>
             <View
@@ -7454,12 +7623,12 @@ async function openCamera(mode = "meal") {
               ]}
             />
           </View>
-          <Text style={styles.tiny}>Step {supplementStep} of {SUPPLEMENT_TOTAL_STEPS}</Text>
+          <Text style={premium.muted}>Step {supplementStep} of {SUPPLEMENT_TOTAL_STEPS}</Text>
 
           {supplementStep === 1 ? (
             <View style={{ marginTop: 8 }}>
-              <Text style={styles.label}>Step 1 • Front Label</Text>
-              <Text style={styles.tiny}>Capture a clear front label image (brand + variant visible).</Text>
+              <Text style={styles.label}>Step 1 • Front label</Text>
+              <Text style={premium.muted}>Capture a clear front label image (brand + variant visible).</Text>
               {supplementFrontUri ? (
                 <Image source={{ uri: supplementFrontUri }} style={styles.suppPreviewSingle} />
               ) : (
@@ -7467,16 +7636,16 @@ async function openCamera(mode = "meal") {
                   <Text style={styles.previewText}>Front label not captured</Text>
                 </View>
               )}
-              <TouchableOpacity style={[styles.secondaryBtn, { marginTop: 8 }]} onPress={() => openCamera("supp_front")}>
-                <Text style={styles.btnText}>{supplementFrontUri ? "Retake Front Label" : "Capture Front Label"}</Text>
+              <TouchableOpacity style={[premium.ctaSecondary, { marginTop: 8 }]} onPress={() => openCamera("supp_front")}>
+                <Text style={premium.ctaSecondaryText}>{supplementFrontUri ? "Retake front label" : "Capture front label"}</Text>
               </TouchableOpacity>
             </View>
           ) : null}
 
           {supplementStep === 2 ? (
             <View style={{ marginTop: 8 }}>
-              <Text style={styles.label}>Step 2 • Nutrition Panel</Text>
-              <Text style={styles.tiny}>Capture the nutrition panel/back label for stronger structural checks.</Text>
+              <Text style={styles.label}>Step 2 • Nutrition panel</Text>
+              <Text style={premium.muted}>Capture the nutrition panel/back label for stronger structural checks.</Text>
               {supplementBackUri ? (
                 <Image source={{ uri: supplementBackUri }} style={styles.suppPreviewSingle} />
               ) : (
@@ -7484,8 +7653,8 @@ async function openCamera(mode = "meal") {
                   <Text style={styles.previewText}>Nutrition panel not captured</Text>
                 </View>
               )}
-              <TouchableOpacity style={[styles.secondaryBtn, { marginTop: 8 }]} onPress={() => openCamera("supp_back")}>
-                <Text style={styles.btnText}>{supplementBackUri ? "Retake Nutrition Panel" : "Capture Nutrition Panel"}</Text>
+              <TouchableOpacity style={[premium.ctaSecondary, { marginTop: 8 }]} onPress={() => openCamera("supp_back")}>
+                <Text style={premium.ctaSecondaryText}>{supplementBackUri ? "Retake nutrition panel" : "Capture nutrition panel"}</Text>
               </TouchableOpacity>
             </View>
           ) : null}
@@ -7493,7 +7662,7 @@ async function openCamera(mode = "meal") {
           {supplementStep === 3 ? (
             <View style={{ marginTop: 8 }}>
               <Text style={styles.label}>Step 3 • Barcode</Text>
-              <Text style={styles.tiny}>Scan or enter barcode manually for registry matching.</Text>
+              <Text style={premium.muted}>Scan or enter barcode manually for registry matching.</Text>
               <TextInput
                 value={supplementBarcode}
                 onChangeText={setSupplementBarcode}
@@ -7502,16 +7671,16 @@ async function openCamera(mode = "meal") {
                 placeholderTextColor="#777"
                 keyboardType="number-pad"
               />
-              <TouchableOpacity style={styles.secondaryBtn} onPress={() => openBarcodeScanner("supplement")}>
-                <Text style={styles.btnText}>Scan Barcode</Text>
+              <TouchableOpacity style={premium.ctaSecondary} onPress={() => openBarcodeScanner("supplement")}>
+                <Text style={premium.ctaSecondaryText}>Scan barcode</Text>
               </TouchableOpacity>
             </View>
           ) : null}
 
           {supplementStep === 4 ? (
             <View style={{ marginTop: 8 }}>
-              <Text style={styles.label}>Step 4 • Batch Code</Text>
-              <Text style={styles.tiny}>Enter batch code from the container (optional but recommended).</Text>
+              <Text style={styles.label}>Step 4 • Batch code</Text>
+              <Text style={premium.muted}>Enter batch code from the container (optional but recommended).</Text>
               <TextInput
                 value={supplementBatchNumber}
                 onChangeText={setSupplementBatchNumber}
@@ -7521,14 +7690,14 @@ async function openCamera(mode = "meal") {
                 autoCapitalize="characters"
               />
               <TouchableOpacity
-                style={[styles.secondaryBtn, { marginTop: 8 }]}
+                style={[premium.ctaGhost, { marginTop: 8 }]}
                 onPress={() => setSupplementProofMode((v) => !v)}
               >
-                <Text style={styles.btnText}>
+                <Text style={premium.ctaGhostText}>
                   {supplementProofMode ? "High Confidence Mode: ON" : "Enable High Confidence Mode"}
                 </Text>
               </TouchableOpacity>
-              <Text style={styles.tiny}>
+              <Text style={premium.muted}>
                 Optional: capture cap/seal photo for stronger verification in high confidence mode.
               </Text>
               {sealImage ? (
@@ -7538,8 +7707,8 @@ async function openCamera(mode = "meal") {
                   <Text style={styles.previewText}>Seal photo not captured</Text>
                 </View>
               )}
-              <TouchableOpacity style={[styles.secondaryBtn, { marginTop: 8 }]} onPress={() => openCamera("supp_seal")}>
-                <Text style={styles.btnText}>{sealImage ? "Retake Seal Photo" : "Capture Seal Photo (optional)"}</Text>
+              <TouchableOpacity style={[premium.ctaSecondary, { marginTop: 8 }]} onPress={() => openCamera("supp_seal")}>
+                <Text style={premium.ctaSecondaryText}>{sealImage ? "Retake seal photo" : "Capture seal photo (optional)"}</Text>
               </TouchableOpacity>
               {supplementProofMode && !sealImage ? (
                 <Text style={[styles.tiny, { marginTop: 8, color: "#f59e0b" }]}>
@@ -7556,40 +7725,40 @@ async function openCamera(mode = "meal") {
 
           <View style={styles.suppNavRow}>
             {supplementStep > 1 ? (
-              <TouchableOpacity style={styles.secondaryBtn} onPress={prevSupplementStep} disabled={supplementBusy}>
-                <Text style={styles.btnText}>Back</Text>
+              <TouchableOpacity style={premium.ctaSecondary} onPress={prevSupplementStep} disabled={supplementBusy}>
+                <Text style={premium.ctaSecondaryText}>Back</Text>
               </TouchableOpacity>
             ) : null}
 
             {supplementStep < SUPPLEMENT_TOTAL_STEPS ? (
               <>
                 {supplementStep > 1 ? (
-                  <TouchableOpacity style={styles.secondaryBtn} onPress={skipSupplementStep} disabled={supplementBusy}>
-                    <Text style={styles.btnText}>Skip</Text>
+                  <TouchableOpacity style={premium.ctaGhost} onPress={skipSupplementStep} disabled={supplementBusy}>
+                    <Text style={premium.ctaGhostText}>Skip</Text>
                   </TouchableOpacity>
                 ) : null}
-                <TouchableOpacity style={styles.primaryBtn} onPress={nextSupplementStep} disabled={supplementBusy}>
-                  <Text style={styles.btnText}>Next</Text>
+                <TouchableOpacity style={premium.ctaPrimary} onPress={nextSupplementStep} disabled={supplementBusy}>
+                  <Text style={premium.ctaPrimaryText}>Next</Text>
                 </TouchableOpacity>
               </>
             ) : (
               <>
                 <TouchableOpacity
-                  style={styles.primaryBtn}
+                  style={premium.ctaPrimary}
                   onPress={scanSupplement}
                   disabled={supplementBusy || !supplementCanSubmit}
                 >
-                  {supplementBusy ? <ActivityIndicator /> : <Text style={styles.btnText}>Start Verification</Text>}
+                  {supplementBusy ? <ActivityIndicator /> : <Text style={premium.ctaPrimaryText}>Start verification</Text>}
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.secondaryBtn} onPress={clearSupplementScan} disabled={supplementBusy}>
-                  <Text style={styles.btnText}>Reset</Text>
+                <TouchableOpacity style={[premium.ctaSecondary, { marginTop: 10 }]} onPress={clearSupplementScan} disabled={supplementBusy}>
+                  <Text style={premium.ctaSecondaryText}>Reset</Text>
                 </TouchableOpacity>
               </>
             )}
           </View>
 
           {supplementResult ? (
-            <View style={styles.suppResultPanel}>
+            <View style={[premium.cardInset, styles.suppResultPanel]}>
               <View style={styles.suppGaugeWrap}>
                 <View style={[styles.suppGaugeRing, { borderColor: supplementTone.color }]}>
                   <Text style={[styles.suppGaugeValue, { color: supplementTone.color }]}>{supplementScore}%</Text>
@@ -7602,22 +7771,22 @@ async function openCamera(mode = "meal") {
               </Text>
 
               {!!String(supplementResult?.explanation || "").trim() ? (
-                <Text style={[styles.p, { marginTop: 6 }]}>{String(supplementResult?.explanation || "")}</Text>
+                <Text style={[premium.body, { marginTop: 6 }]}>{String(supplementResult?.explanation || "")}</Text>
               ) : null}
 
               {supplementFssaiNumber ? (
-                <View style={styles.suppRegulatoryCard}>
-                  <Text style={styles.cardTitle}>Regulatory</Text>
-                  <Text style={styles.p}>FSSAI License (extracted): {supplementFssaiNumber}</Text>
-                  <Text style={styles.tiny}>
+                <View style={[premium.cardInset, styles.suppRegulatoryCard]}>
+                  <Text style={premium.title}>Regulatory</Text>
+                  <Text style={premium.body}>FSSAI license (extracted): {supplementFssaiNumber}</Text>
+                  <Text style={premium.muted}>
                     Extraction confidence: {supplementFssaiConfidenceLabel}
                     {supplementFssaiSource ? ` • source ${supplementFssaiSource}` : ""}
                   </Text>
                   {supplementFssaiSnippet ? (
-                    <Text style={[styles.tiny, { marginTop: 4 }]}>Snippet: {supplementFssaiSnippet}</Text>
+                    <Text style={[premium.muted, { marginTop: 4 }]}>Snippet: {supplementFssaiSnippet}</Text>
                   ) : null}
                   <TouchableOpacity
-                    style={[styles.secondaryBtn, { marginTop: 8, alignSelf: "flex-start" }]}
+                    style={[premium.ctaGhost, { marginTop: 8, alignSelf: "flex-start" }]}
                     onPress={() => {
                       const q = `https://www.google.com/search?q=${encodeURIComponent(
                         `FSSAI license ${supplementFssaiNumber}`
@@ -7625,9 +7794,9 @@ async function openCamera(mode = "meal") {
                       void openURLSafe(q, "Could not open search.");
                     }}
                   >
-                    <Text style={styles.btnText}>Verify on official portal</Text>
+                    <Text style={premium.ctaGhostText}>Verify on official portal</Text>
                   </TouchableOpacity>
-                  <Text style={[styles.tiny, { marginTop: 6 }]}>
+                  <Text style={[premium.muted, { marginTop: 6 }]}>
                     Extracted from packaging text. Not an official verification.
                   </Text>
                 </View>
@@ -7673,14 +7842,14 @@ async function openCamera(mode = "meal") {
 
               <View style={styles.rowWrap}>
                 <TouchableOpacity
-                  style={styles.secondaryBtn}
+                  style={premium.ctaSecondary}
                   onPress={() => setSupplementReportModal(true)}
                   disabled={supplementReportBusy}
                 >
-                  <Text style={styles.btnText}>⚠ Report Suspicious Product</Text>
+                  <Text style={premium.ctaSecondaryText}>Report suspicious product</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.secondaryBtn} onPress={shareSupplementResult}>
-                  <Text style={styles.btnText}>Share Confidence Result</Text>
+                <TouchableOpacity style={[premium.ctaSecondary, { marginLeft: 10 }]} onPress={shareSupplementResult}>
+                  <Text style={premium.ctaSecondaryText}>Share result</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -8028,10 +8197,10 @@ async function openCamera(mode = "meal") {
             <View style={styles.lunchDecisionWrap}>
               <Text style={styles.cardTitle}>{String(lunchDecision.title || "What should I eat right now?")}</Text>
               <Text style={styles.p}>{String(lunchDecision.subtitle || "Best next meal near you")}</Text>
-              {!!String(lunchDecision?.summary_line || "").trim() ? (
+              {!!String(lunchDecision?.summary_line || "").trim() && !screenshotMode ? (
                 <Text style={styles.lunchSummaryLine}>{String(lunchDecision.summary_line).trim()}</Text>
               ) : null}
-              {dailyDecision ? (
+              {dailyDecision && !screenshotMode ? (
                 (() => {
                   const primary =
                     dailyDecision?.primary_recommendation && typeof dailyDecision.primary_recommendation === "object"
@@ -8136,7 +8305,7 @@ async function openCamera(mode = "meal") {
                   );
                 })()
               ) : null}
-              {lunchDayCoach ? (
+              {lunchDayCoach && !screenshotMode ? (
                 (() => {
                   const daySummary = lunchDayCoach?.day_summary && typeof lunchDayCoach.day_summary === "object"
                     ? lunchDayCoach.day_summary
@@ -8242,7 +8411,7 @@ async function openCamera(mode = "meal") {
                   );
                 })()
               ) : null}
-              {lunchDecision.cards.slice(0, 3).map((card, idx) => {
+              {lunchDecision.cards.slice(0, screenshotMode ? 1 : 3).map((card, idx) => {
                 const distanceLabel = formatDistanceFromMeters(card?.distance_meters);
                 const badges = Array.isArray(card?.badges) ? card.badges.filter(Boolean).slice(0, 2) : [];
                 const cardSwaps = extractSwapSuggestions(card);
@@ -8297,7 +8466,7 @@ async function openCamera(mode = "meal") {
                     {Number.isFinite(num(card?.estimated_protein_g)) ? (
                       <Text style={styles.tiny}>Protein: {Math.round(num(card?.estimated_protein_g))}g</Text>
                     ) : null}
-                    {cardSwaps.length ? (
+                    {cardSwaps.length && !screenshotMode ? (
                       <Text style={styles.swapHintText} numberOfLines={2}>
                         Better swap: {cardSwaps[0]}
                       </Text>
@@ -8308,7 +8477,7 @@ async function openCamera(mode = "meal") {
                     {remainingLine ? (
                       <Text style={styles.tiny}>{remainingLine}</Text>
                     ) : null}
-                    {caloriesSaved !== null && caloriesSaved > 0 ? (
+                    {caloriesSaved !== null && caloriesSaved > 0 && !screenshotMode ? (
                       <Text style={[styles.tiny, styles.realitySavedText]}>✨ You saved {caloriesSaved} calories</Text>
                     ) : null}
                     {!!typicalOrderName ? (
@@ -8414,6 +8583,14 @@ async function openCamera(mode = "meal") {
               userCoords={healthyPlaceCoords}
               focusCoords={healthyMapCenter}
               onLoadPlaces={() => void loadHealthyPlacesNearby()}
+              onRefreshAroundMe={async () => {
+                try {
+                  const fresh = await getCurrentCoords();
+                  await loadHealthyPlacesNearby({ coords: fresh, preserveFilter: true });
+                } catch (e) {
+                  Alert.alert("Location needed", errorToMessage(e?.message || e || "", 0));
+                }
+              }}
               onSearchWider={
                 healthyMapFilter === "all"
                   ? () => void loadHealthyPlacesNearby({ radius_m: WIDER_SEARCH_RADIUS_M })
@@ -9296,6 +9473,9 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: "#000", paddingBottom: 24 },
   nearbyScreenBg: { backgroundColor: "#03080f" },
   container: { padding: 18, gap: 14, paddingBottom: 36 },
+  // Phase 1 home spacing (token-based): use wrapper views, avoid large refactors.
+  homeSection: { marginTop: tSpacing.section },
+  homeSectionTight: { marginTop: tSpacing.xl },
   h1: { fontSize: 26, fontWeight: "900", color: "#fff", lineHeight: 31, letterSpacing: 0.2 },
   p: { fontSize: 14, color: "#cfd7e3", lineHeight: 21 },
   tiny: { fontSize: 12, color: "#92a0b3", lineHeight: 17 },
@@ -9315,31 +9495,78 @@ const styles = StyleSheet.create({
   },
   launcherCard: {
     backgroundColor: "#050a13",
-    borderRadius: 22,
+    borderRadius: 26,
     borderWidth: 1,
     borderColor: "#263d62",
-    padding: 18,
-    gap: 12,
+    padding: 20,
+    gap: 14,
   },
-  launcherTitle: { color: "#dbeafe", fontSize: 13, fontWeight: "800", letterSpacing: 0.6, textTransform: "uppercase" },
-  launcherQuestion: { color: "#fff", fontSize: 30, fontWeight: "900", lineHeight: 36, letterSpacing: 0.2 },
+  launcherTitle: {
+    color: "#9fb5d4",
+    fontSize: 13,
+    fontWeight: "800",
+    letterSpacing: 0.6,
+    textTransform: "uppercase",
+  },
+  launcherQuestion: {
+    color: "#fff",
+    fontSize: 28,
+    fontWeight: "900",
+    lineHeight: 34,
+    letterSpacing: 0.2,
+  },
   launcherSubline: { color: "#9fb5d4", fontSize: 14, lineHeight: 20 },
-  launcherActions: { gap: 11, marginTop: 8 },
-  launcherActionCard: {
+  launcherActions: { gap: 12, marginTop: 14 },
+  launcherPrimaryCard: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
-    borderRadius: 16,
+    gap: 14,
+    borderRadius: 22,
     borderWidth: 1,
-    borderColor: "#294268",
-    backgroundColor: "#0c182c",
-    paddingVertical: 13,
-    paddingHorizontal: 14,
+    borderColor: "#22c55e",
+    backgroundColor: "#07161f",
+    paddingVertical: 16,
+    paddingHorizontal: 16,
   },
-  launcherActionIcon: { fontSize: 21 },
-  launcherActionTitle: { color: "#fff", fontSize: 17, fontWeight: "800", lineHeight: 21 },
+  launcherPrimaryIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 999,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(34,197,94,0.18)",
+  },
+  launcherPrimaryIcon: { fontSize: 24 },
+  launcherRow: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  launcherSecondaryCard: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: "#1f2937",
+    backgroundColor: "#0b1424",
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    marginTop: 10,
+  },
+  launcherActionIcon: { fontSize: 20, marginTop: 2 },
+  launcherActionTitle: { color: "#fff", fontSize: 18, fontWeight: "800", lineHeight: 22 },
   launcherActionSubtitle: { color: "#aac0de", fontSize: 13, marginTop: 2, lineHeight: 18 },
+  launcherSecondaryTitle: { color: "#e5e7eb", fontSize: 15, fontWeight: "700" },
+  launcherSecondarySubtitle: { color: "#94a3b8", fontSize: 12, marginTop: 2, lineHeight: 16 },
   launcherCoachLine: { color: "#c6daf6", fontSize: 12, lineHeight: 18, marginTop: 3 },
+  launcherUtilityRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: 10,
+  },
+  // launcherUtilityBtn/Text migrated to premium.ctaGhost / premium.ctaGhostText
   launcherValueRow: { marginTop: 12, paddingTop: 10, borderTopWidth: 1, borderTopColor: "rgba(41, 98, 255, 0.25)" },
   launcherValueText: { color: "#94b8d9", fontSize: 13, lineHeight: 18 },
   launcherValueBtn: { marginTop: 8, alignSelf: "flex-start", paddingVertical: 6, paddingHorizontal: 12, borderRadius: 8, backgroundColor: "rgba(34, 197, 94, 0.2)", borderWidth: 1, borderColor: "#22c55e" },
@@ -9365,6 +9592,33 @@ const styles = StyleSheet.create({
   scansLowText: { flex: 1, fontSize: 13, color: "#fcd34d", lineHeight: 18 },
   scansLowBtn: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 10, backgroundColor: "#22c55e" },
   scansLowBtnText: { fontSize: 14, fontWeight: "700", color: "#fff" },
+
+  // Phase 3: compact lower-home modules (status-strip feel)
+  compactStatusCard: {
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+    borderRadius: 18,
+    backgroundColor: "rgba(11, 20, 36, 0.65)",
+    borderColor: "rgba(31, 46, 69, 0.9)",
+  },
+  compactHeaderRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  compactHeaderActions: { marginLeft: 10, flexDirection: "row", alignItems: "center" },
+  compactTitle: { color: "#e5e7eb", fontSize: 13, fontWeight: "800", letterSpacing: 0.2 },
+  compactValue: { color: "#fff", fontSize: 18, fontWeight: "900", marginTop: 4 },
+  // compactGhostBtn/Text migrated to premium.ctaGhost / premium.ctaGhostText
+  compactActionsRow: { flexDirection: "row", alignItems: "center", marginTop: 10 },
+  // compactPillBtn/Text migrated to premium.ctaGhost / premium.ctaGhostText
+  compactMetaRow: { marginTop: 10, flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" },
+  fliPreviewActionsRow: { flexDirection: "row", alignItems: "center", justifyContent: "flex-end", marginTop: 8 },
+  // migrated to premium.cardInset + local marginTop
+  fliPreviewBox: { marginTop: 10 },
+  coachVoiceHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 10,
+  },
+  // coachVoiceOrb/typography migrated to premium.aiOrb / premium.kicker/title/body/muted
+  coachVoiceExpandedBox: { marginTop: 10 },
 
   trialEndingBanner: {
     marginTop: 12,
@@ -9419,6 +9673,32 @@ const styles = StyleSheet.create({
     width: "100%",
     flex: 0,
     alignSelf: "stretch",
+  },
+  healthyHero: {
+    paddingTop: 24,
+    paddingBottom: 20,
+    paddingHorizontal: 24,
+    backgroundColor: "#faf7f2",
+    borderRadius: 22,
+    marginTop: 12,
+    marginBottom: 12,
+  },
+  healthyHeroTitle: {
+    fontSize: 24,
+    fontWeight: "800",
+    color: "#111827",
+  },
+  healthyHeroSubtitle: {
+    marginTop: 6,
+    fontSize: 14,
+    lineHeight: 20,
+    color: "#4b5563",
+  },
+  healthyHeroTagline: {
+    marginTop: 10,
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#111827",
   },
   secondaryBtn: {
     backgroundColor: "#121721",
@@ -10612,3 +10892,4 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
 });
+

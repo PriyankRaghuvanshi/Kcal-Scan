@@ -6,6 +6,7 @@
 import React from "react";
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { colors, spacing, radius, typography } from "../designTokens";
+import { premium } from "../ui/premiumSystem";
 import { ConfidenceBadge, inferConfidenceTier } from "./ConfidenceBadge";
 import { shouldShowMenuMayVary } from "../smartAlertTrustLabels";
 import { ScoreBadge } from "./ScoreBadge";
@@ -73,9 +74,12 @@ export function RecommendationCard({
   compact = false,
   onPress,
   style,
+  // Optional: screenshot mode (presentation-only).
+  screenshotMode,
 }) {
   if (!place || typeof place !== "object") return null;
 
+  const isScreenshot = Boolean(screenshotMode);
   const name = String(place.place_name ?? place.name ?? "").trim() || "Restaurant";
   const score = num(place.display_rank_score_100) ?? num(place.health_score_100);
   const bestItem = String(place.best_item_name ?? place.best_order ?? "").trim();
@@ -92,10 +96,11 @@ export function RecommendationCard({
   const needsMenuCheck = shouldShowMenuMayVary(place);
 
   const isWeak = resolvedVariant === "weak";
-  const bgColor = dark ? colors.surface.card : colors.surfaceLight.card;
-  const borderColor = dark ? colors.surface.cardBorder : colors.surfaceLight.cardBorder;
   const textPrimary = dark ? colors.text.primary : colors.textLight.primary;
   const textMuted = dark ? colors.slate.text : colors.textLight.muted;
+  const resolvedActions = isScreenshot
+    ? { ...actions, secondaryLabel: undefined, onSecondary: undefined }
+    : actions;
 
   const content = (
     <>
@@ -136,7 +141,7 @@ export function RecommendationCard({
       ) : null}
 
       {/* D. Menu may vary (weak only) */}
-      {needsMenuCheck && (
+      {needsMenuCheck && !isScreenshot && (
         <Text style={[styles.menuMayVary, { color: textMuted }]} numberOfLines={1}>
           Menu may vary
         </Text>
@@ -159,71 +164,85 @@ export function RecommendationCard({
       ) : null}
 
       {/* Swaps */}
-      {swaps.length > 0 && (
+      {swaps.length > 0 && !isScreenshot && (
         <Text style={[styles.swapHint, { color: textMuted }]} numberOfLines={1}>
           Better swap: {swaps[0]}
         </Text>
       )}
 
       {/* Memory label */}
-      {!hideMemory && memoryLabel ? (
+      {!hideMemory && memoryLabel && !isScreenshot ? (
         <Text style={[styles.memory, { color: colors.accent.primary }]} numberOfLines={1}>
           {memoryLabel}
         </Text>
       ) : null}
 
       {/* Actions */}
-      {(actions.onPrimary || actions.onSecondary) && (
+      {(resolvedActions.onPrimary || resolvedActions.onSecondary) && (
         <RecommendationActionRow
-          primaryLabel={actions.primaryLabel}
-          onPrimary={actions.onPrimary}
-          secondaryLabel={actions.secondaryLabel}
-          onSecondary={actions.onSecondary}
-          primaryIcon={actions.primaryIcon}
+          primaryLabel={resolvedActions.primaryLabel}
+          onPrimary={resolvedActions.onPrimary}
+          secondaryLabel={resolvedActions.secondaryLabel}
+          onSecondary={resolvedActions.onSecondary}
+          primaryIcon={resolvedActions.primaryIcon}
           variant={dark ? "dark" : "light"}
         />
       )}
     </>
   );
 
+  const cardBase = dark ? premium.cardBase : styles.cardLight;
+  const cardHero = dark ? premium.cardHero : styles.cardLightHero;
   const cardStyle = [
-    styles.card,
-    { backgroundColor: bgColor, borderColor },
+    rankPosition === 1 && !compact ? cardHero : cardBase,
+    styles.cardLocal,
     compact && styles.cardCompact,
+    style,
   ];
 
   if (onPress) {
     return (
-      <TouchableOpacity style={[cardStyle, style]} onPress={onPress} activeOpacity={0.9}>
+      <TouchableOpacity style={cardStyle} onPress={onPress} activeOpacity={0.9}>
         {content}
       </TouchableOpacity>
     );
   }
 
-  return <View style={[cardStyle, style]}>{content}</View>;
+  return <View style={cardStyle}>{content}</View>;
 }
 
 const styles = StyleSheet.create({
-  card: {
-    borderRadius: radius.xl,
-    borderWidth: 1,
-    padding: spacing.lg,
-    paddingBottom: spacing.xxl,
-  },
+  // Local overrides only; surface comes from premium.cardBase/cardHero.
+  cardLocal: {},
   cardCompact: {
     padding: spacing.base,
     paddingBottom: spacing.lg,
+  },
+  // Light theme fallback (rare): keep existing look.
+  cardLight: {
+    backgroundColor: colors.surfaceLight.card,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.surfaceLight.cardBorder,
+    paddingVertical: spacing.lg,
+    paddingHorizontal: spacing.lg,
+  },
+  cardLightHero: {
+    backgroundColor: colors.surfaceLight.card,
+    borderRadius: radius.xxl,
+    borderWidth: 1,
+    borderColor: colors.surfaceLight.cardBorder,
+    paddingVertical: spacing.xl,
+    paddingHorizontal: spacing.xl,
   },
   header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    gap: spacing.base,
   },
   headerRight: {
     flexDirection: "row",
     alignItems: "center",
-    gap: spacing.md,
     flexShrink: 0,
   },
   name: {
@@ -239,6 +258,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     borderRadius: radius.sm,
     overflow: "hidden",
+    marginRight: spacing.md,
   },
   heroBadgeWeak: {
     backgroundColor: "rgba(100,116,139,0.2)",

@@ -1,5 +1,7 @@
 import React from "react";
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
+import { premium } from "../ui/premiumSystem";
+import { spacing } from "../designTokens";
 
 export function ScanConfirmationChips({
   title = "Confirm powder",
@@ -14,8 +16,8 @@ export function ScanConfirmationChips({
   const types = Array.isArray(powderTypes) ? powderTypes : [];
   const sizes = Array.isArray(scoopSizesG) ? scoopSizesG : [];
   return (
-    <View style={styles.wrap}>
-      <Text style={styles.title}>{title}</Text>
+    <View style={[premium.cardInset, styles.wrap]}>
+      <Text style={premium.kicker}>{title}</Text>
       <View style={styles.rowWrap}>
         {types.map((t) => {
           const key = String(t);
@@ -23,27 +25,39 @@ export function ScanConfirmationChips({
           return (
             <TouchableOpacity
               key={`powder-${key}`}
-              style={[styles.chip, active ? styles.chipActive : null]}
+              style={[
+                premium.chipBaseSm,
+                premium.chipNeutral,
+                styles.chip,
+                active ? styles.chipActive : null,
+              ]}
               onPress={() => onSelectPowderType && onSelectPowderType(key)}
               disabled={disabled}
             >
-              <Text style={[styles.chipText, active ? styles.chipTextActive : null]}>{key.replace(/_/g, " ")}</Text>
+              <Text style={[premium.chipTextNeutral, active ? styles.chipTextActive : null]}>
+                {key.replace(/_/g, " ")}
+              </Text>
             </TouchableOpacity>
           );
         })}
       </View>
-      <View style={[styles.rowWrap, { marginTop: 8 }]}>
+      <View style={[styles.rowWrap, { marginTop: spacing.sm }]}>
         {sizes.map((g) => {
           const val = Number(g);
           const active = Number(selectedScoopG) === val;
           return (
             <TouchableOpacity
               key={`scoop-${val}`}
-              style={[styles.chip, active ? styles.chipActive : null]}
+              style={[
+                premium.chipBaseSm,
+                premium.chipNeutral,
+                styles.chip,
+                active ? styles.chipActive : null,
+              ]}
               onPress={() => onSelectScoopG && onSelectScoopG(val)}
               disabled={disabled}
             >
-              <Text style={[styles.chipText, active ? styles.chipTextActive : null]}>{val}g</Text>
+              <Text style={[premium.chipTextNeutral, active ? styles.chipTextActive : null]}>{val}g</Text>
             </TouchableOpacity>
           );
         })}
@@ -53,12 +67,10 @@ export function ScanConfirmationChips({
 }
 
 const styles = StyleSheet.create({
-  wrap: { marginTop: 10, padding: 10, borderWidth: 1, borderColor: "#1f2e45", borderRadius: 12, backgroundColor: "#08101e" },
-  title: { color: "#cfe3ff", fontSize: 12, fontWeight: "800", marginBottom: 8 },
-  rowWrap: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  chip: { paddingVertical: 6, paddingHorizontal: 10, borderRadius: 999, borderWidth: 1, borderColor: "#2a3d5b", backgroundColor: "#132033" },
-  chipActive: { borderColor: "#7bd3ff", backgroundColor: "#0e2436" },
-  chipText: { color: "#cfe3ff", fontSize: 12, fontWeight: "700" },
-  chipTextActive: { color: "#7bd3ff" },
+  wrap: { marginTop: 10 },
+  rowWrap: { flexDirection: "row", flexWrap: "wrap" },
+  chip: { marginRight: spacing.sm, marginBottom: spacing.sm },
+  chipActive: { borderColor: "rgba(147, 197, 253, 0.50)", backgroundColor: "rgba(147, 197, 253, 0.10)" },
+  chipTextActive: { color: "rgba(147, 197, 253, 1)" },
 });
 

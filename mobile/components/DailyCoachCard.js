@@ -2,9 +2,10 @@
  * Goal Coach – daily state card: targets, consumed, one best action, coach summary, CTAs.
  */
 
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useMemo, useRef } from "react";
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
-import { colors, spacing, radius, typography, shadows } from "../designTokens";
+import { colors, spacing, radius, typography } from "../designTokens";
+import { premium } from "../ui/premiumSystem";
 import { trackGoalCoachActionShown } from "../utils/goalCoachUtils";
 
 function num(v) {
@@ -13,7 +14,30 @@ function num(v) {
   return Number.isFinite(n) ? n : null;
 }
 
-export function DailyCoachCard({ apiBase, userId, daily, subscriptionRequired, primaryAction, secondaryAction, onPrimaryAction, onSecondaryAction }) {
+function clamp01(v) {
+  const n = num(v);
+  if (n == null) return 0;
+  return Math.max(0, Math.min(1, n));
+}
+
+function formatInt(v) {
+  const n = num(v);
+  if (n == null) return "—";
+  return String(Math.round(n));
+}
+
+export function DailyCoachCard({
+  apiBase,
+  userId,
+  daily,
+  subscriptionRequired,
+  primaryAction,
+  secondaryAction,
+  onPrimaryAction,
+  onSecondaryAction,
+  // Optional: screenshot mode (presentation-only).
+  screenshotMode,
+}) {
   const shownTrackedRef = useRef(null);
 
   useEffect(() => {
@@ -40,12 +64,28 @@ export function DailyCoachCard({ apiBase, userId, daily, subscriptionRequired, p
   const proteinTarget = num(targets.protein_g) || 0;
   const calConsumed = num(consumed.calories) || 0;
   const proteinConsumed = num(consumed.protein_g) || 0;
-  const bestAction = daily.best_action_today || "";
-  const coachSummary = daily.coach_summary || "";
+  const bestAction = String(daily.best_action_today || "").trim();
+  const coachSummary = String(daily.coach_summary || "").trim();
+  const winLine = String(daily.win_line || "").trim();
+  const proteinStreakDays = num(daily.protein_streak_days);
+  const loggingStreakDays = num(daily.logging_streak_days);
   const riskFlags = Array.isArray(daily.risk_flags) ? daily.risk_flags : [];
 
   const calPct = calTarget > 0 ? Math.min(100, Math.round((calConsumed / calTarget) * 100)) : 0;
   const proteinPct = proteinTarget > 0 ? Math.min(100, Math.round((proteinConsumed / proteinTarget) * 100)) : 0;
+  const calTrackPct = Math.round(clamp01(calTarget > 0 ? calConsumed / calTarget : 0) * 100);
+  const proteinTrackPct = Math.round(clamp01(proteinTarget > 0 ? proteinConsumed / proteinTarget : 0) * 100);
+
+  const streakChips = useMemo(() => {
+    const chips = [];
+    if (proteinStreakDays != null && proteinStreakDays >= 2) {
+      chips.push({ kind: "success", text: `${Math.round(proteinStreakDays)}‑day protein streak` });
+    }
+    if (loggingStreakDays != null && loggingStreakDays >= 2) {
+      chips.push({ kind: "neutral", text: `${Math.round(loggingStreakDays)}‑day logging streak` });
+    }
+    return chips.slice(0, 2);
+  }, [proteinStreakDays, loggingStreakDays]);
 
   if (subscriptionRequired) {
     return (
@@ -58,32 +98,90 @@ export function DailyCoachCard({ apiBase, userId, daily, subscriptionRequired, p
 
   const hasPrimary = primaryAction && primaryAction.label && typeof onPrimaryAction === "function";
   const hasSecondary = secondaryAction && secondaryAction.label && typeof onSecondaryAction === "function";
+  const isScreenshot = Boolean(screenshotMode);
 
   return (
-    <View style={styles.card}>
-      <Text style={styles.title}>Today's coach</Text>
+    <View style={[premium.cardBase, styles.card]}>
+      <View style={styles.headerRow}>
+        <View style={styles.coachIdRow}>
+          <View style={premium.aiOrb}>
+            <Text style={premium.aiOrbText}>AI</Text>
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={premium.kicker}>Goal Coach</Text>
+            <Text style={premium.title}>Today</Text>
+          </View>
+        </View>
+        {streakChips.length ? (
+          <View style={styles.chipsRow}>
+            {streakChips.map((c, idx) => (
+              <View
+                key={c.text}
+                style={[
+                  premium.chipBaseSm,
+                  styles.streakChip,
+                  idx > 0 ? { marginLeft: spacing.sm } : null,
+                  c.kind === "success" ? premium.chipSuccess : premium.chipNeutral,
+                ]}
+              >
+                <Text
+                  style={[
+                    c.kind === "success" ? premium.chipTextSuccess : premium.chipTextNeutral,
+                  ]}
+                  numberOfLines={1}
+                >
+                  {c.text}
+                </Text>
+              </View>
+            ))}
+          </View>
+        ) : null}
+      </View>
+
+      {winLine ? (
+        <View style={styles.winLineBox}>
+          <Text style={styles.winLineText} numberOfLines={2}>
+            {winLine}
+          </Text>
+        </View>
+      ) : null}
+
       <View style={styles.row}>
         <View style={styles.block}>
           <Text style={styles.label}>Calories</Text>
-          <Text style={styles.value}>{calConsumed} / {calTarget}</Text>
+          <Text style={styles.value}>
+            {formatInt(calConsumed)} / {formatInt(calTarget)}
+            {calTarget > 0 ? ` · ${calTrackPct}%` : ""}
+          </Text>
           <View style={styles.barBg}><View style={[styles.barFill, { width: `${calPct}%` }]} /></View>
         </View>
         <View style={styles.block}>
           <Text style={styles.label}>Protein</Text>
-          <Text style={styles.value}>{proteinConsumed}g / {proteinTarget}g</Text>
+          <Text style={styles.value}>
+            {formatInt(proteinConsumed)}g / {formatInt(proteinTarget)}g
+            {proteinTarget > 0 ? ` · ${proteinTrackPct}%` : ""}
+          </Text>
           <View style={styles.barBg}><View style={[styles.barFill, { width: `${proteinPct}%` }]} /></View>
         </View>
       </View>
       {bestAction ? (
         <View style={styles.actionBlock}>
-          <Text style={styles.actionLabel}>Best action</Text>
-          <Text style={styles.actionText}>{bestAction}</Text>
+          <View style={styles.oneThingHeader}>
+            <Text style={styles.actionLabel}>If you do one thing</Text>
+            <View style={styles.oneThingPill}>
+              <Text style={styles.oneThingPillText}>High impact</Text>
+            </View>
+          </View>
+          <Text style={styles.actionText} numberOfLines={3}>{bestAction}</Text>
         </View>
       ) : null}
       {coachSummary ? (
-        <Text style={styles.summary} numberOfLines={2}>{coachSummary}</Text>
+        <View style={styles.coachBubble}>
+          <Text style={premium.kicker}>Coach says</Text>
+          <Text style={[premium.body, { marginTop: 6 }]} numberOfLines={3}>{coachSummary}</Text>
+        </View>
       ) : null}
-      {riskFlags.length > 0 && (
+      {!isScreenshot && riskFlags.length > 0 && (
         <View style={styles.riskRow}>
           {riskFlags.slice(0, 2).map((r, i) => (
             <Text key={i} style={styles.riskChip}>{r.replace(/_/g, " ")}</Text>
@@ -92,12 +190,12 @@ export function DailyCoachCard({ apiBase, userId, daily, subscriptionRequired, p
       )}
       {hasPrimary && (
         <View style={styles.ctaRow}>
-          <TouchableOpacity style={styles.primaryCta} onPress={() => onPrimaryAction(primaryAction)} activeOpacity={0.8}>
-            <Text style={styles.primaryCtaText}>{primaryAction.label}</Text>
+          <TouchableOpacity style={premium.ctaPrimary} onPress={() => onPrimaryAction(primaryAction)} activeOpacity={0.85}>
+            <Text style={premium.ctaPrimaryText}>{primaryAction.label}</Text>
           </TouchableOpacity>
-          {hasSecondary && (
-            <TouchableOpacity style={styles.secondaryCta} onPress={() => onSecondaryAction(secondaryAction)} activeOpacity={0.8}>
-              <Text style={styles.secondaryCtaText}>{secondaryAction.label}</Text>
+          {hasSecondary && !isScreenshot && (
+            <TouchableOpacity style={[premium.ctaSecondary, { marginTop: spacing.sm }]} onPress={() => onSecondaryAction(secondaryAction)} activeOpacity={0.85}>
+              <Text style={premium.ctaSecondaryText}>{secondaryAction.label}</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -107,19 +205,51 @@ export function DailyCoachCard({ apiBase, userId, daily, subscriptionRequired, p
 }
 
 const styles = StyleSheet.create({
-  card: {
-    backgroundColor: colors.surface.card,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: colors.surface.cardBorder,
-    padding: spacing.lg,
-    ...shadows.sm,
-  },
-  title: {
-    fontSize: typography.lg,
-    fontWeight: typography.weight.semibold,
-    color: colors.text.primary,
+  // Local overrides only; base card comes from premium.cardBase.
+  card: {},
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     marginBottom: spacing.base,
+  },
+  coachIdRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+  },
+  kicker: {
+    fontSize: typography.xs,
+    color: colors.slate.muted,
+    fontWeight: typography.weight.semibold,
+    textTransform: "uppercase",
+    letterSpacing: 0.6,
+    marginBottom: 2,
+  },
+  chipsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    flex: 1,
+    marginLeft: spacing.base,
+  },
+  streakChip: {
+    maxWidth: "56%",
+  },
+  winLineBox: {
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.base,
+    borderRadius: radius.md,
+    backgroundColor: "rgba(34, 197, 94, 0.10)",
+    borderWidth: 1,
+    borderColor: "rgba(34, 197, 94, 0.22)",
+    marginBottom: spacing.base,
+  },
+  winLineText: {
+    fontSize: typography.sm,
+    color: colors.success.text,
+    fontWeight: typography.weight.semibold,
+    lineHeight: typography.sm * typography.lineHeight.relaxed,
   },
   gatedTitle: {
     fontSize: typography.lg,
@@ -133,7 +263,6 @@ const styles = StyleSheet.create({
   },
   row: {
     flexDirection: "row",
-    gap: spacing.lg,
     marginBottom: spacing.base,
   },
   block: {
@@ -166,25 +295,51 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: colors.surface.cardBorder,
   },
+  oneThingHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  oneThingPill: {
+    paddingVertical: 2,
+    paddingHorizontal: spacing.sm,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: "rgba(34, 197, 94, 0.22)",
+    backgroundColor: "rgba(34, 197, 94, 0.10)",
+    marginLeft: spacing.base,
+  },
+  oneThingPillText: {
+    fontSize: typography.xs,
+    color: colors.success.text,
+    fontWeight: typography.weight.semibold,
+  },
   actionLabel: {
     fontSize: typography.xs,
-    fontWeight: typography.weight.semibold,
+    fontWeight: typography.weight.extrabold,
     color: colors.slate.muted,
     marginBottom: 2,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
   },
   actionText: {
-    fontSize: typography.sm,
-    color: colors.accent.primary,
+    fontSize: typography.md,
+    color: colors.text.secondary,
+    lineHeight: typography.md * typography.lineHeight.relaxed,
+    marginTop: 2,
   },
-  summary: {
-    fontSize: typography.sm,
-    color: colors.slate.text,
-    lineHeight: typography.sm * typography.lineHeight.normal,
+  coachBubble: {
+    marginTop: spacing.sm,
+    paddingVertical: spacing.base,
+    paddingHorizontal: spacing.base,
+    borderRadius: radius.md,
+    backgroundColor: "rgba(8, 16, 30, 0.70)",
+    borderWidth: 1,
+    borderColor: "rgba(31, 46, 69, 0.90)",
   },
   riskRow: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: spacing.xs,
     marginTop: spacing.sm,
   },
   riskChip: {
@@ -194,37 +349,14 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     paddingHorizontal: spacing.sm,
     borderRadius: radius.xs,
+    marginRight: spacing.xs,
+    marginBottom: spacing.xs,
   },
   ctaRow: {
     marginTop: spacing.base,
     paddingTop: spacing.sm,
     borderTopWidth: 1,
     borderTopColor: colors.surface.cardBorder,
-    gap: spacing.sm,
   },
-  primaryCta: {
-    backgroundColor: colors.success.primary,
-    borderRadius: radius.md,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.base,
-    alignItems: "center",
-  },
-  primaryCtaText: {
-    fontSize: typography.sm,
-    fontWeight: typography.weight.semibold,
-    color: colors.text.inverse,
-  },
-  secondaryCta: {
-    backgroundColor: "transparent",
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.surface.cardBorder,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.base,
-    alignItems: "center",
-  },
-  secondaryCtaText: {
-    fontSize: typography.sm,
-    color: colors.accent.primary,
-  },
+  // CTA styles now sourced from premium system.
 });
