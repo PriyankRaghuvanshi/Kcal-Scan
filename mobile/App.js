@@ -4886,9 +4886,10 @@ async function openCamera(mode = "meal") {
           setHealthyPlacesError("No food places found nearby. Try moving to a more central location.");
         }
       }
+      return list;
     } catch (e) {
       if (!shouldApplyHealthyNearbyResponse(healthyPlacesReqSeqRef.current, healthyPlacesReqSeqRef.current, healthyNearbyContextKeyRef.current, healthyNearbyContextKeyRef.current)) {
-        return;
+        return [];
       }
       const msg = String((e && e.message) || e || "").trim() || "Could not load nearby places.";
       setHealthyPlacesError(msg.slice(0, 220));
@@ -4896,6 +4897,7 @@ async function openCamera(mode = "meal") {
       setHealthySections(null);
       setSelectedHealthyPlaceId("");
       setHealthyMapFocusCoords(null);
+      return [];
     } finally {
       setHealthyPlacesBusy(false);
       setHealthyNearbyRefreshing(false);
@@ -5157,11 +5159,51 @@ async function openCamera(mode = "meal") {
       if (cutMode) params.push("cut_mode=true");
 
       const url = withTimezoneQuery(API_BASE + "/places/lunch-decision?" + params.join("&"));
-      const res = await fetch(url, { method: "GET", headers: { accept: "application/json" } });
-      const data = await safeJson(res);
+      // Run decision API and map (healthy places) in parallel for faster perceived load.
+      const decisionPromise = fetch(url, { method: "GET", headers: { accept: "application/json" } }).then(safeJson);
+      const placesPromise = loadHealthyPlacesNearby({
+        coords: { lat, lng },
+        remaining_calories: remainingCalories,
+        remaining_protein_g: remainingProtein,
+        goal,
+        cut_mode: cutMode,
+      });
+      const [data, placesList] = await Promise.all([decisionPromise, placesPromise]);
       if (reqSeq !== lunchDecisionReqSeqRef.current) return;
       const payload = data && typeof data === "object" ? data : {};
-      const cards = Array.isArray(payload?.cards) ? payload.cards.filter((x) => x && typeof x === "object") : [];
+      let cards = Array.isArray(payload?.cards) ? payload.cards.filter((x) => x && typeof x === "object") : [];
+      const list = Array.isArray(placesList) ? placesList : [];
+
+      // Align "Best right now" with list/map: use list's #1 as the top decision card so they match.
+      if (list.length > 0) {
+        const listFirst = list[0];
+        const matchIndex = findMatchingHealthyPlaceIndex(listFirst, cards);
+        if (matchIndex >= 0) {
+          const firstCard = { ...cards[matchIndex], card_type: "best_right_now" };
+          const rest = cards.filter((_, i) => i !== matchIndex);
+          cards = [firstCard, ...rest];
+        } else {
+          // List's #1 not in decision cards: prepend a card from the list so "Best right now" = list #1.
+          const place = listFirst;
+          const syntheticCard = {
+            card_type: "best_right_now",
+            label: "Best right now",
+            place_id: place?.place_id || place?.id,
+            place_name: place?.place_name ?? place?.name ?? "Nearby",
+            place_lat: num(place?.lat),
+            place_lng: num(place?.lng),
+            lat: num(place?.lat),
+            lng: num(place?.lng),
+            distance_meters: place?.distance_meters ?? place?.distance,
+            recommended_order: String(place?.best_item_name ?? place?.best_order ?? "").trim() || undefined,
+            recommended_order_label: String(place?.best_item_name ?? place?.best_order ?? "").trim() || undefined,
+            estimated_calories: num(place?.best_item_calories ?? place?.estimated_calories),
+            estimated_protein_g: num(place?.best_item_protein ?? place?.estimated_protein_g),
+            why_this_works: String(place?.rank_reason_short ?? place?.why_this_ranked_here ?? "Top pick nearby.").trim() || "Good fit for today.",
+          };
+          cards = [syntheticCard, ...cards];
+        }
+      }
 
       const bestCard =
         cards.find((card) => String(card?.card_type || "").trim().toLowerCase() === "best_right_now") ||
@@ -5182,16 +5224,18 @@ async function openCamera(mode = "meal") {
       });
       void fetchWeeklyCoachProgress(false);
 
-      const preferredCard =
-        bestCard ||
-        (selectedPlaceId
-          ? {
-              place_id: selectedPlaceId,
-              place_name: selectedPlaceName,
-              place_lat: Number.isFinite(selectedPlaceLat) ? selectedPlaceLat : null,
-              place_lng: Number.isFinite(selectedPlaceLng) ? selectedPlaceLng : null,
-            }
-          : null);
+      // Sync map selection to decision's best card using the already-loaded places list.
+      const preferredIndex = findMatchingHealthyPlaceIndex(bestCard, list);
+      const selectedIndex = preferredIndex >= 0 ? preferredIndex : list.length ? 0 : -1;
+      const selectedPlace = selectedIndex >= 0 ? list[selectedIndex] : null;
+      if (selectedPlace) {
+        setSelectedHealthyPlaceId(healthyPlaceStableId(selectedPlace, selectedIndex));
+        if (Number.isFinite(num(selectedPlace?.lat)) && Number.isFinite(num(selectedPlace?.lng))) {
+          setHealthyMapFocusCoords({ lat: num(selectedPlace.lat), lng: num(selectedPlace.lng) });
+        } else {
+          setHealthyMapFocusCoords(null);
+        }
+      }
 
       if (cards.length) {
         setHealthyViewMode("map");
@@ -5215,15 +5259,6 @@ async function openCamera(mode = "meal") {
           setLunchDecisionError("No strong macro-fit picks found. Check the Map tab for nearby options.");
         }
       }
-
-      await loadHealthyPlacesNearby({
-        coords: { lat, lng },
-        preferredCard,
-        remaining_calories: remainingCalories,
-        remaining_protein_g: remainingProtein,
-        goal,
-        cut_mode: cutMode,
-      });
     } catch (e) {
       if (reqSeq !== lunchDecisionReqSeqRef.current) return;
       const msg = String((e && e.message) || e || "").trim() || "Could not decide your meal right now.";
@@ -6355,10 +6390,17 @@ async function openCamera(mode = "meal") {
                 else setSmartAlertSettingsVisible(true);
               }}
             >
-              <Text style={premium.ctaGhostText}>🔔 Smart Alerts</Text>
+              <Text style={premium.ctaGhostText}>Smart Alerts</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[premium.ctaGhost, { marginLeft: 10 }]}
+              style={[premium.ctaGhost, styles.launcherUtilityBtnSpacer]}
+              activeOpacity={0.85}
+              onPress={() => openCamera("upf_scan")}
+            >
+              <Text style={premium.ctaGhostText}>UPF Scanner</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[premium.ctaGhost, styles.launcherUtilityBtnSpacer]}
               activeOpacity={0.85}
               onPress={() => {
                 if (goalPlan) {
@@ -6369,7 +6411,7 @@ async function openCamera(mode = "meal") {
               }}
               disabled={goalCoachCreateBusy}
             >
-              <Text style={premium.ctaGhostText}>🎯 Goal Coach</Text>
+              <Text style={premium.ctaGhostText}>Goal Coach</Text>
             </TouchableOpacity>
           </View>
 
@@ -9563,9 +9605,10 @@ const styles = StyleSheet.create({
   launcherUtilityRow: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    flexWrap: "wrap",
     marginTop: 10,
   },
+  launcherUtilityBtnSpacer: { marginLeft: 10 },
   // launcherUtilityBtn/Text migrated to premium.ctaGhost / premium.ctaGhostText
   launcherValueRow: { marginTop: 12, paddingTop: 10, borderTopWidth: 1, borderTopColor: "rgba(41, 98, 255, 0.25)" },
   launcherValueText: { color: "#94b8d9", fontSize: 13, lineHeight: 18 },

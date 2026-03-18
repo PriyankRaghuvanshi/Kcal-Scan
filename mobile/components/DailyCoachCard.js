@@ -56,6 +56,20 @@ export function DailyCoachCard({
     });
   }, [apiBase, userId, primaryAction?.action_type, primaryAction?.label, subscriptionRequired]);
 
+  // Hooks must run before any conditional return (Rules of Hooks).
+  const proteinStreakDays = daily && typeof daily === "object" ? num(daily.protein_streak_days) : null;
+  const loggingStreakDays = daily && typeof daily === "object" ? num(daily.logging_streak_days) : null;
+  const streakChips = useMemo(() => {
+    const chips = [];
+    if (proteinStreakDays != null && proteinStreakDays >= 2) {
+      chips.push({ kind: "success", text: `${Math.round(proteinStreakDays)}‑day protein streak` });
+    }
+    if (loggingStreakDays != null && loggingStreakDays >= 2) {
+      chips.push({ kind: "neutral", text: `${Math.round(loggingStreakDays)}‑day logging streak` });
+    }
+    return chips.slice(0, 2);
+  }, [proteinStreakDays, loggingStreakDays]);
+
   if (!daily || typeof daily !== "object") return null;
 
   const targets = daily.today_targets || {};
@@ -67,25 +81,12 @@ export function DailyCoachCard({
   const bestAction = String(daily.best_action_today || "").trim();
   const coachSummary = String(daily.coach_summary || "").trim();
   const winLine = String(daily.win_line || "").trim();
-  const proteinStreakDays = num(daily.protein_streak_days);
-  const loggingStreakDays = num(daily.logging_streak_days);
   const riskFlags = Array.isArray(daily.risk_flags) ? daily.risk_flags : [];
 
   const calPct = calTarget > 0 ? Math.min(100, Math.round((calConsumed / calTarget) * 100)) : 0;
   const proteinPct = proteinTarget > 0 ? Math.min(100, Math.round((proteinConsumed / proteinTarget) * 100)) : 0;
   const calTrackPct = Math.round(clamp01(calTarget > 0 ? calConsumed / calTarget : 0) * 100);
   const proteinTrackPct = Math.round(clamp01(proteinTarget > 0 ? proteinConsumed / proteinTarget : 0) * 100);
-
-  const streakChips = useMemo(() => {
-    const chips = [];
-    if (proteinStreakDays != null && proteinStreakDays >= 2) {
-      chips.push({ kind: "success", text: `${Math.round(proteinStreakDays)}‑day protein streak` });
-    }
-    if (loggingStreakDays != null && loggingStreakDays >= 2) {
-      chips.push({ kind: "neutral", text: `${Math.round(loggingStreakDays)}‑day logging streak` });
-    }
-    return chips.slice(0, 2);
-  }, [proteinStreakDays, loggingStreakDays]);
 
   if (subscriptionRequired) {
     return (
