@@ -752,6 +752,192 @@
     },
     {
       "aliases": [
+        "Sweetgreen",
+        "sweetgreen",
+        "Sweet Green"
+      ],
+      "brand_family": "sweetgreen",
+      "canonical_name": "Sweetgreen",
+      "chain_id": "sweetgreen_us",
+      "country_codes": [
+        "US"
+      ],
+      "known_variants": [],
+      "normalized_tokens": [
+        "greens",
+        "salad",
+        "sweetgreen"
+      ],
+      "notes": "Wave2 expansion seed | US fast-casual salads and bowls",
+      "official_website_domains": [
+        "sweetgreen.com"
+      ],
+      "parent_brand": "sweetgreen",
+      "priority_tier": 2,
+      "source_metadata": {
+        "seed_type": "curated_open_data",
+        "source_ref": "official_chain_websites",
+        "updated_at": "2026-03-21T08:00:00.000000+00:00"
+      }
+    },
+    {
+      "aliases": [
+        "CAVA",
+        "Cava",
+        "cava",
+        "CAVA Grill",
+        "Cava Mezze Grill"
+      ],
+      "brand_family": "cava",
+      "canonical_name": "CAVA",
+      "chain_id": "cava_us",
+      "country_codes": [
+        "US"
+      ],
+      "known_variants": [],
+      "normalized_tokens": [
+        "bowl",
+        "cava",
+        "mediterranean"
+      ],
+      "notes": "Wave2 expansion seed | US Mediterranean fast-casual bowls",
+      "official_website_domains": [
+        "cava.com"
+      ],
+      "parent_brand": "cava",
+      "priority_tier": 2,
+      "source_metadata": {
+        "seed_type": "curated_open_data",
+        "source_ref": "official_chain_websites",
+        "updated_at": "2026-03-21T10:00:00.000000+00:00"
+      }
+    },
+    {
+      "aliases": [
+        "Chick-fil-A",
+        "Chick fil A",
+        "chick fil a",
+        "chickfila"
+      ],
+      "brand_family": "chick_fil_a",
+      "canonical_name": "Chick-fil-A",
+      "chain_id": "chick_fil_a_us",
+      "country_codes": [
+        "US"
+      ],
+      "known_variants": [],
+      "normalized_tokens": [
+        "chicken",
+        "chick fil a",
+        "sandwich"
+      ],
+      "notes": "Wave2 expansion seed | US quick-service chicken",
+      "official_website_domains": [
+        "chick-fil-a.com"
+      ],
+      "parent_brand": "chick_fil_a",
+      "priority_tier": 2,
+      "source_metadata": {
+        "seed_type": "curated_open_data",
+        "source_ref": "official_chain_websites",
+        "updated_at": "2026-03-21T12:00:00.000000+00:00"
+      }
+    },
+    {
+      "aliases": [
+        "EatFit",
+        "eatfit",
+        "Eat Fit"
+      ],
+      "brand_family": "eatfit",
+      "canonical_name": "EatFit",
+      "chain_id": "eatfit_in",
+      "country_codes": [
+        "IN"
+      ],
+      "known_variants": [],
+      "normalized_tokens": [
+        "bowl",
+        "eatfit",
+        "healthy",
+        "salad"
+      ],
+      "notes": "Wave2 expansion seed | IN healthy meals / cloud kitchen",
+      "official_website_domains": [
+        "eatfit.in"
+      ],
+      "parent_brand": "eatfit",
+      "priority_tier": 2,
+      "source_metadata": {
+        "seed_type": "curated_open_data",
+        "source_ref": "official_chain_websites",
+        "updated_at": "2026-03-21T09:00:00.000000+00:00"
+      }
+    },
+    {
+      "aliases": [
+        "FreshMenu",
+        "freshmenu",
+        "Fresh Menu"
+      ],
+      "brand_family": "freshmenu",
+      "canonical_name": "FreshMenu",
+      "chain_id": "freshmenu_in",
+      "country_codes": [
+        "IN"
+      ],
+      "known_variants": [],
+      "normalized_tokens": [
+        "bowl",
+        "cloud",
+        "freshmenu",
+        "salad"
+      ],
+      "notes": "Wave2 expansion seed | IN cloud kitchen / multi-cuisine",
+      "official_website_domains": [
+        "freshmenu.com"
+      ],
+      "parent_brand": "freshmenu",
+      "priority_tier": 2,
+      "source_metadata": {
+        "seed_type": "curated_open_data",
+        "source_ref": "official_chain_websites",
+        "updated_at": "2026-03-21T11:00:00.000000+00:00"
+      }
+    },
+    {
+      "aliases": [
+        "Behrouz Biryani",
+        "behrouz biryani",
+        "Behrouz",
+        "behrouzbiryani"
+      ],
+      "brand_family": "behrouz_biryani",
+      "canonical_name": "Behrouz Biryani",
+      "chain_id": "behrouz_biryani_in",
+      "country_codes": [
+        "IN"
+      ],
+      "known_variants": [],
+      "normalized_tokens": [
+        "behrouz",
+        "biryani",
+        "rice"
+      ],
+      "notes": "Wave2 expansion seed | IN biryani cloud kitchen",
+      "official_website_domains": [
+        "behrouzbiryani.com"
+      ],
+      "parent_brand": "behrouz_biryani",
+      "priority_tier": 2,
+      "source_metadata": {
+        "seed_type": "curated_open_data",
+        "source_ref": "official_chain_websites",
+        "updated_at": "2026-03-21T13:00:00.000000+00:00"
+      }
+    },
+    {
+      "aliases": [
         "Popeyes",
         "Popeyes Louisiana Kitchen"
       ],

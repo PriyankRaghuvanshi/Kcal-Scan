@@ -446,7 +446,7 @@ export function ScanResultScreen({
         </View>
       ) : null}
 
-      {(result?.clarification_questions?.length > 0 || result?.clarifying_question?.ask) && childrenClarification ? (
+      {childrenClarification ? (
         <View style={styles.section}>
           <ScanResultClarificationCard title="Improve accuracy">{childrenClarification}</ScanResultClarificationCard>
         </View>

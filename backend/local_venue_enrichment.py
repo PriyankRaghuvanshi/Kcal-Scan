@@ -8,6 +8,7 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional, Tuple
 
 from chain_menu_registry import match_chain_key
+from chain_rollout_registry import get_chain_runtime_config
 from diet_filters import is_item_allowed_for_diet, normalize_diet_preference
 from launch_area_config import get_area_for_place, is_place_in_launch_area
 from local_venue_profiles import (
@@ -172,6 +173,7 @@ def enrich_place_with_local_profile(
 
     if chain_key:
         market = market_tag or _infer_market_tag_from_place(place)
+        chain_runtime = get_chain_runtime_config(chain_key, market)
         items = get_chain_menu_items(chain_key, market)
         if items:
             candidates = []
@@ -193,6 +195,18 @@ def enrich_place_with_local_profile(
                 "chain_match_status": "matched",
                 "chain_menu_store": "supabase",
                 "chain_menu_item_count_for_match": len(items),
+                # Additive rollout-registry metadata (read-only plumbing).
+                "chain_registry_configured": bool(chain_runtime.get("configured")),
+                "chain_status": str(chain_runtime.get("status") or "unconfigured"),
+                "chain_registry_version": int(chain_runtime.get("registry_version") or 0),
+                "chain_active_config_version": str(chain_runtime.get("active_config_version") or ""),
+                "chain_baseline_snapshot_id": str(chain_runtime.get("baseline_snapshot_id") or ""),
+                "chain_fallback_mode": str(chain_runtime.get("fallback_mode") or "balanced"),
+                "market": str(market or "").strip().upper(),
+                "country_code": str(market or "").strip().upper(),
+                "chain_rollout_enabled": bool(((chain_runtime.get("rollout") or {}).get("enabled"))),
+                "chain_canary_percent": int(((chain_runtime.get("rollout") or {}).get("canary_percent")) or 0),
+                "chain_features": dict(chain_runtime.get("features") or {}),
                 "supabase_chain_candidates": candidates,
                 "top_menu_items": candidates[:6],
                 "best_menu_items": candidates[:6],

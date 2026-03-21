@@ -102,6 +102,89 @@ class RecommendationFeedbackStoreTests(unittest.TestCase):
             float(ranked[1].get("feedback_score_adjustment", 0.0)),
         )
 
+    def test_recommendation_feedback_event_updates_user_confidence_fields(self):
+        pid = "fit-2"
+        item = "Test Bowl"
+
+        # Availability confirmations.
+        log_recommendation_feedback_event(
+            event="recommendation_feedback",
+            place_id=pid,
+            item=item,
+            metadata={"available": "yes"},
+        )
+        log_recommendation_feedback_event(
+            event="recommendation_feedback",
+            place_id=pid,
+            item=item,
+            metadata={"available": "yes"},
+        )
+        log_recommendation_feedback_event(
+            event="recommendation_feedback",
+            place_id=pid,
+            item=item,
+            metadata={"available": "no"},
+        )
+        log_recommendation_feedback_event(
+            event="recommendation_feedback",
+            place_id=pid,
+            item=item,
+            metadata={"available": "not_sure"},
+        )
+
+        # Order confirmation.
+        log_recommendation_feedback_event(
+            event="recommendation_feedback",
+            place_id=pid,
+            item=item,
+            metadata={"ordered": "yes"},
+        )
+        log_recommendation_feedback_event(
+            event="recommendation_feedback",
+            place_id=pid,
+            item=item,
+            metadata={"ordered": "no"},
+        )
+
+        # Sauce/default assumption.
+        log_recommendation_feedback_event(
+            event="recommendation_feedback",
+            place_id=pid,
+            item=item,
+            metadata={"sauce_default": "yes"},
+        )
+        log_recommendation_feedback_event(
+            event="recommendation_feedback",
+            place_id=pid,
+            item=item,
+            metadata={"sauce_default": "not_sure"},
+        )
+
+        # Portion reliability.
+        log_recommendation_feedback_event(
+            event="recommendation_feedback",
+            place_id=pid,
+            item=item,
+            metadata={"portion_standard": "no"},
+        )
+
+        signal = get_place_item_feedback_signal(pid, item)
+        self.assertEqual(signal["user_feedback_counts"]["available"]["yes"], 2)
+        self.assertEqual(signal["user_feedback_counts"]["available"]["no"], 1)
+        self.assertEqual(signal["user_feedback_counts"]["available"]["not_sure"], 1)
+
+        # With yes=2, no=1 (definitive=3), not_sure=1: base=2/3, coverage=3/4 => 0.5
+        self.assertAlmostEqual(float(signal["availability_confidence"]), 0.5, places=3)
+
+        # Ordered yes=1, no=1 => 0.5
+        self.assertAlmostEqual(float(signal["order_confirmation_rate"]), 0.5, places=3)
+
+        # Sauce yes=1, no=0 (definitive=1), not_sure=1 => base=1, coverage=1/2 => 0.5
+        self.assertAlmostEqual(float(signal["sauce_default_confidence"]), 0.5, places=3)
+
+        # Portion yes=0, no=1 => 0.0
+        self.assertAlmostEqual(float(signal["portion_reliability"]), 0.0, places=3)
+
 
 if __name__ == "__main__":
     unittest.main()

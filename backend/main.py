@@ -115,6 +115,8 @@ from daily_food_decision import build_daily_decision_response
 from lunch_decision import build_lunch_decision_response
 from nearby_feed import build_healthy_nearby_feed
 from ranked_place_builder import build_ranked_place_profile
+from nearby_snapshot import build_nearby_snapshot
+from best_order_evidence import evidence_flag_enabled, place_best_order_evidence_fields
 from context_modes import infer_context_mode
 from place_today_decision import evaluate_place_for_today
 from smart_food_alerts import build_smart_food_alert_candidates, build_alert_audit_one_liner
@@ -982,6 +984,12 @@ class SetItemGramsEdit(BaseModel):
     grams: float
 
 
+class MacroOverrideEdit(BaseModel):
+    protein_g: Optional[float] = None
+    carbs_g: Optional[float] = None
+    fat_g: Optional[float] = None
+
+
 class PortionMultiplierEdit(BaseModel):
     item_id: str = ""
     multiplier: float
@@ -993,6 +1001,7 @@ class AnalyzeRerunEditsModel(BaseModel):
     set_oil_added_tsp: Optional[SetOilAddedEdit] = None
     swap_item: Optional[SwapItemEdit] = None
     set_item_grams: Optional[SetItemGramsEdit] = None
+    macro_override: Optional[MacroOverrideEdit] = None
     clarifying_answer: Optional[str] = None
     clarifying_answers: Optional[List[Dict[str, str]]] = None
 
@@ -1099,6 +1108,7 @@ def _friendly_rerun_validation_error(exc: Exception) -> Dict[str, Any]:
             "set_oil_added_tsp": {"item_id": "string", "tsp": "number"},
             "set_cooking_method": {"item_id": "string", "method": "string"},
             "swap_item": {"item_id": "string", "new_name": "string"},
+            "macro_override": {"protein_g": "number", "carbs_g": "number", "fat_g": "number"},
             "edits_array_action": {
                 "type": "set_oil_added_tsp|set_cooking_method|swap_candidate|swap_item|set_portion_multiplier",
                 "item_id": "string",
@@ -1189,6 +1199,20 @@ def _merge_rerun_edit_action(edits: Dict[str, Any], action: Dict[str, Any], defa
         if answer:
             edits["clarifying_answer"] = answer
         return
+    if action_type in {"set_macro_override", "macro_override"}:
+        p = _safe_float(act.get("protein_g"), None)
+        c = _safe_float(act.get("carbs_g"), None)
+        f = _safe_float(act.get("fat_g"), None)
+        payload: Dict[str, float] = {}
+        if p is not None:
+            payload["protein_g"] = max(0.0, float(p))
+        if c is not None:
+            payload["carbs_g"] = max(0.0, float(c))
+        if f is not None:
+            payload["fat_g"] = max(0.0, float(f))
+        if payload:
+            edits["macro_override"] = payload
+        return
 
 
 def _coerce_rerun_payload(
@@ -1248,6 +1272,16 @@ def _coerce_rerun_payload(
             for x in clarifying_answers_raw
             if isinstance(x, dict) and (str(x.get("key") or "").strip() or str(x.get("value") or "").strip())
         ]
+
+    macro_override_raw = src.get("macro_override") or edits.get("macro_override")
+    if isinstance(macro_override_raw, dict):
+        m_payload: Dict[str, float] = {}
+        for key in ("protein_g", "carbs_g", "fat_g"):
+            val = _safe_float(macro_override_raw.get(key), None)
+            if val is not None:
+                m_payload[key] = max(0.0, float(val))
+        if m_payload:
+            edits["macro_override"] = m_payload
 
     # Allow legacy shape: set_oil_added_tsp: 0 (or "0.5"), and coerce it into the structured object.
     oil_raw = edits.get("set_oil_added_tsp")
@@ -12530,6 +12564,73 @@ def _build_rerun_daily_delta(
     }
 
 
+def _apply_macro_override_to_scan_result(
+    results: List[Dict[str, Any]],
+    totals: Dict[str, Any],
+    micros_payload: Dict[str, Any],
+    macro_override: Optional[MacroOverrideEdit],
+) -> Tuple[List[Dict[str, Any]], Dict[str, Any], Dict[str, Any], Optional[Dict[str, Any]]]:
+    override = macro_override if isinstance(macro_override, MacroOverrideEdit) else None
+    if override is None:
+        return results, totals, micros_payload, None
+
+    old_totals = totals if isinstance(totals, dict) else {}
+    old_kcal = max(0.0, float(_safe_float(old_totals.get("kcal"), 0.0) or 0.0))
+    old_p = max(0.0, float(_safe_float(old_totals.get("protein_g"), 0.0) or 0.0))
+    old_c = max(0.0, float(_safe_float(old_totals.get("carbs_g"), 0.0) or 0.0))
+    old_f = max(0.0, float(_safe_float(old_totals.get("fat_g"), 0.0) or 0.0))
+
+    new_p = old_p if override.protein_g is None else max(0.0, float(_safe_float(override.protein_g, old_p) or old_p))
+    new_c = old_c if override.carbs_g is None else max(0.0, float(_safe_float(override.carbs_g, old_c) or old_c))
+    new_f = old_f if override.fat_g is None else max(0.0, float(_safe_float(override.fat_g, old_f) or old_f))
+    new_kcal = max(0.0, (4.0 * new_p) + (4.0 * new_c) + (9.0 * new_f))
+
+    p_scale = (new_p / old_p) if old_p > 0 else 1.0
+    c_scale = (new_c / old_c) if old_c > 0 else 1.0
+    f_scale = (new_f / old_f) if old_f > 0 else 1.0
+
+    scaled_results: List[Dict[str, Any]] = []
+    for row in (results or []):
+        item = dict(row or {})
+        macros = item.get("macros") if isinstance(item.get("macros"), dict) else {}
+        p = max(0.0, float(_safe_float(macros.get("protein_g"), 0.0) or 0.0))
+        c = max(0.0, float(_safe_float(macros.get("carbs_g"), 0.0) or 0.0))
+        f = max(0.0, float(_safe_float(macros.get("fat_g"), 0.0) or 0.0))
+        np = p * p_scale
+        nc = c * c_scale
+        nf = f * f_scale
+        nkcal = max(0.0, (4.0 * np) + (4.0 * nc) + (9.0 * nf))
+        item["macros"] = {
+            "protein_g": round(np, 1),
+            "carbs_g": round(nc, 1),
+            "fat_g": round(nf, 1),
+        }
+        item["kcal"] = round(nkcal, 1)
+        scaled_results.append(item)
+
+    new_totals = dict(old_totals)
+    new_totals["protein_g"] = round(new_p, 1)
+    new_totals["carbs_g"] = round(new_c, 1)
+    new_totals["fat_g"] = round(new_f, 1)
+    new_totals["kcal"] = round(new_kcal, 1)
+    new_totals["total_kcal"] = round(new_kcal, 1)
+
+    new_micros = dict(micros_payload or {})
+    if old_kcal > 0 and new_kcal >= 0:
+        kcal_scale = max(0.0, new_kcal / old_kcal)
+        if "fiber_g" in new_micros:
+            new_micros["fiber_g"] = round(max(0.0, float(_safe_float(new_micros.get("fiber_g"), 0.0) or 0.0) * kcal_scale), 3)
+
+    correction_payload = {
+        "type": "macro_override",
+        "protein_g": round(new_p, 1),
+        "carbs_g": round(new_c, 1),
+        "fat_g": round(new_f, 1),
+        "kcal": round(new_kcal, 1),
+    }
+    return scaled_results, new_totals, new_micros, correction_payload
+
+
 def _coerce_meal_qa_payload(raw: Dict[str, Any], vision: VisionScanV1Model) -> MealQAModel:
     src = raw if isinstance(raw, dict) else {}
     issues_in = src.get("issues") if isinstance(src.get("issues"), list) else []
@@ -13512,6 +13613,130 @@ HEALTHY_PLACES_LIMIT_DEFAULT = 12
 HEALTHY_PLACES_LIMIT_MAX = 40
 
 
+def _healthy_places_from_snapshot_ranked(
+    ranked: List[Dict[str, Any]],
+    origin_lat: float,
+    origin_lng: float,
+    remaining_calories: Optional[float],
+    remaining_protein_g: Optional[float],
+    goal: str,
+    cut_mode: bool,
+    diet_preference_val: str,
+    user_id: str,
+    personalization_goal_value_str: str,
+) -> List[Dict[str, Any]]:
+    """
+    Map snapshot ranked_places to /places/healthy response item shape.
+    Uses build_ranked_place_profile for labels only (no double scoring).
+    """
+    scored: List[Dict[str, Any]] = []
+    context_info_raw = {
+        "remaining_calories": remaining_calories,
+        "remaining_protein_g": remaining_protein_g,
+        "local_hour": 12,
+    }
+    ctx_modes = infer_context_mode(context_info_raw)
+    context_info = {**context_info_raw, **ctx_modes}
+    user_context_meal = {
+        "remaining_protein_g": remaining_protein_g,
+        "cut_mode": bool(cut_mode),
+        "goal": personalization_goal_value_str,
+        "context_info": context_info,
+        "diet_preference": diet_preference_val,
+    }
+
+    for prof in (ranked or []):
+        if not isinstance(prof, dict):
+            continue
+        place_id = str(prof.get("place_id") or "").strip()
+        name = str(prof.get("name") or "Nearby place").strip()
+        top_menu_item = prof.get("top_menu_item") if isinstance(prof.get("top_menu_item"), dict) else {}
+        menu_source = str((top_menu_item or {}).get("menu_item_source") or "heuristic").strip().lower()
+        order_conf = float(_safe_float(prof.get("order_confidence"), 0.46) or 0.46)
+        est_cal = int(_safe_float(prof.get("estimated_calories"), 520) or 520)
+        est_prot = int(_safe_float(prof.get("estimated_protein_g"), 32) or 32)
+        decision_today = evaluate_place_for_today(
+            estimated_calories=est_cal,
+            estimated_protein_g=est_prot,
+            remaining_calories=remaining_calories,
+            remaining_protein_g=remaining_protein_g,
+            health_score=float(_safe_float(prof.get("health_score"), 5.0) or 5.0),
+        )
+        fit_for_today = (str(decision_today.get("decision_today") or "").strip().upper() != "NO")
+        cuisine_hint = ", ".join(
+            str(t or "").replace("_", " ") for t in (prof.get("types") or [])[:3]
+            if t and str(t) not in {"restaurant", "food", "point_of_interest", "establishment", "meal_takeaway"}
+        )
+        place_for_ranking = {
+            "name": name,
+            "place_id": place_id,
+            "lat": prof.get("lat"),
+            "lng": prof.get("lng"),
+            "address": prof.get("address"),
+            "vicinity": prof.get("address"),
+            "rating": prof.get("rating"),
+            "types": prof.get("types") if isinstance(prof.get("types"), list) else [],
+            "best_order": str(prof.get("best_order") or "Lighter menu option").strip(),
+            "estimated_calories": est_cal,
+            "estimated_protein_g": est_prot,
+            "order_confidence": order_conf,
+            "menu_item_confidence": order_conf,
+            "menu_item_source": menu_source,
+            "distance_meters": int(_safe_float(prof.get("distance_meters"), 2000) or 2000),
+            "health_score": float(_safe_float(prof.get("health_score"), 5.0) or 5.0),
+            "short_reason": str(prof.get("short_reason") or "Better protein-calorie balance.").strip(),
+            "decision_today": decision_today.get("decision_today"),
+            "fit_for_today": fit_for_today,
+            "cuisine_hint": cuisine_hint,
+            "top_menu_item": top_menu_item,
+            "fit_today_score_100": decision_today.get("fit_today_score_100"),
+            "calorie_fit_score_100": decision_today.get("calorie_fit_score_100"),
+            "protein_fit_score_100": decision_today.get("protein_fit_score_100"),
+            "overshoot_penalty_100": decision_today.get("overshoot_penalty_100"),
+        }
+        if str(user_id or "").strip():
+            try:
+                mem = get_personal_meal_memory(
+                    user_id=user_id,
+                    place_id=place_id,
+                    place_name=name,
+                    item_name=place_for_ranking["best_order"],
+                    goal=goal,
+                    time_of_day="",
+                )
+                user_context_meal["personal_memory"] = mem
+            except Exception:
+                user_context_meal["personal_memory"] = None
+        else:
+            user_context_meal["personal_memory"] = None
+
+        try:
+            ranking_fields = build_ranked_place_profile(place_for_ranking, user_context_meal)
+        except Exception:
+            ranking_fields = {}
+        row = {**place_for_ranking, **(ranking_fields or {})}
+        mem_dict = None
+        if str(user_id or "").strip() and user_context_meal.get("personal_memory"):
+            try:
+                mem_dict = user_context_meal["personal_memory"].to_dict()
+            except Exception:
+                mem_dict = None
+        if mem_dict:
+            row.update(mem_dict)
+        else:
+            row.update({
+                "worked_before": False,
+                "personal_memory_label": "",
+                "times_chosen": 0,
+                "repeat_success_rate": 0.0,
+                "swap_accept_rate": 0.0,
+                "avg_fullness": None,
+                "avg_craving_score": None,
+            })
+        scored.append(row)
+    return scored
+
+
 @app.get("/places/healthy")
 async def healthy_places(
     lat: float,
@@ -13580,594 +13805,622 @@ async def healthy_places(
     personalization_goal_value_str = personalization_goal_value(personalization_goal)
     from diet_filters import normalize_diet_preference
     diet_preference_val = normalize_diet_preference(diet_preference) if str(diet_preference or "").strip() else "omnivore"
+    use_nearby_v2 = str(os.getenv("NEARBY_PIPELINE_V2", "")).strip().lower() in ("1", "true", "yes")
     scored: List[Dict[str, Any]] = []
     t_rank_start = time.perf_counter()
-    for p in places_to_rank:
-        place_id = str(p.get("place_id") or p.get("id") or "").strip()
-        cached = venue_cache_get(place_id) if place_id else None
-        if cached:
+    if use_nearby_v2 and places_to_rank:
+        snapshot = build_nearby_snapshot(
+            nearby_places=places_to_rank,
+            origin_lat=float(lat),
+            origin_lng=float(lng),
+            radius_m=int(max(200, min(50000, int(_safe_float(radius, 3000) or 3000)))),
+            goal=str(goal or "").strip(),
+            cut_mode=bool(cut_mode),
+            remaining_calories=remaining_calories,
+            remaining_protein_g=remaining_protein_g,
+            current_hour=int(local_hour) if local_hour is not None else None,
+            user_id=user_id or None,
+        )
+        ranked = snapshot.get("ranked_places") or []
+        scored = _healthy_places_from_snapshot_ranked(
+            ranked,
+            origin_lat=float(lat),
+            origin_lng=float(lng),
+            remaining_calories=remaining_calories,
+            remaining_protein_g=remaining_protein_g,
+            goal=goal,
+            cut_mode=cut_mode,
+            diet_preference_val=diet_preference_val,
+            user_id=user_id or "",
+            personalization_goal_value_str=personalization_goal_value_str,
+        )
+    else:
+        for p in places_to_rank:
+            place_id = str(p.get("place_id") or p.get("id") or "").strip()
+            cached = venue_cache_get(place_id) if place_id else None
+            if cached:
+                try:
+                    menu_recommendations = cache_to_menu_payload(cached, p)
+                except Exception:
+                    cached = None
+            if not cached:
+                try:
+                    menu_recommendations = recommend_menu_items_for_place(
+                        p,
+                        mode=nutrition_mode,
+                        personalization_goal=personalization_goal,
+                        use_llm_place_context=False,
+                        diet_preference=diet_preference_val,
+                    )
+                except Exception:
+                    menu_recommendations = {
+                        "menu_item_scoring_available": False,
+                        "menu_items_source": "heuristic",
+                        "menu_source": "heuristic",
+                        "menu_confidence": 0.0,
+                        "extraction_method": "",
+                        "parse_method": "",
+                        "source_url": "",
+                        "top_menu_items": [],
+                        "best_menu_items": [],
+                        "top_menu_item": None,
+                        "top_item": "",
+                        "cut_mode_active": bool(cut_mode),
+                    }
+    
             try:
-                menu_recommendations = cache_to_menu_payload(cached, p)
-            except Exception:
-                cached = None
-        if not cached:
-            try:
-                menu_recommendations = recommend_menu_items_for_place(
+                scoring = score_healthy_place(
                     p,
                     mode=nutrition_mode,
                     personalization_goal=personalization_goal,
-                    use_llm_place_context=False,
+                    menu_payload=menu_recommendations,
+                )
+            except Exception:
+                scoring = {
+                    "health_score": compute_health_score(p),
+                    "best_options": _best_options_for_place(p),
+                    "score_breakdown": None,
+                    "fat_loss_friendly": False,
+                    "recommended_badges": [],
+                    "nutrition_data_available": False,
+                    "scoring_version": HEALTHY_PLACE_SCORING_VERSION,
+                    "cut_mode_active": bool(cut_mode),
+                    "cut_friendly": False,
+                    "cut_warning": "",
+                }
+    
+            fallback_score = 5.0
+            score = float(_safe_float(scoring.get("health_score"), fallback_score) or fallback_score)
+            options = scoring.get("best_options") if isinstance(scoring.get("best_options"), list) else _best_options_for_place(p)
+    
+            try:
+                order_suggestion = suggest_best_order_for_place(
+                    p,
+                    health_score=score,
+                    mode=nutrition_mode,
+                    use_llm_copy=False,
+                    allow_llm_macro=False,
                     diet_preference=diet_preference_val,
                 )
             except Exception:
-                menu_recommendations = {
-                    "menu_item_scoring_available": False,
-                    "menu_items_source": "heuristic",
-                    "menu_source": "heuristic",
-                    "menu_confidence": 0.0,
-                    "extraction_method": "",
-                    "parse_method": "",
-                    "source_url": "",
-                    "top_menu_items": [],
-                    "best_menu_items": [],
-                    "top_menu_item": None,
-                    "top_item": "",
-                    "cut_mode_active": bool(cut_mode),
-                }
-
-        try:
-            scoring = score_healthy_place(
-                p,
-                mode=nutrition_mode,
-                personalization_goal=personalization_goal,
-                menu_payload=menu_recommendations,
-            )
-        except Exception:
-            scoring = {
-                "health_score": compute_health_score(p),
-                "best_options": _best_options_for_place(p),
-                "score_breakdown": None,
-                "fat_loss_friendly": False,
-                "recommended_badges": [],
-                "nutrition_data_available": False,
-                "scoring_version": HEALTHY_PLACE_SCORING_VERSION,
-                "cut_mode_active": bool(cut_mode),
-                "cut_friendly": False,
-                "cut_warning": "",
-            }
-
-        fallback_score = 5.0
-        score = float(_safe_float(scoring.get("health_score"), fallback_score) or fallback_score)
-        options = scoring.get("best_options") if isinstance(scoring.get("best_options"), list) else _best_options_for_place(p)
-
-        try:
-            order_suggestion = suggest_best_order_for_place(
-                p,
-                health_score=score,
-                mode=nutrition_mode,
-                use_llm_copy=False,
-                allow_llm_macro=False,
-                diet_preference=diet_preference_val,
-            )
-        except Exception:
-            order_suggestion = {}
-
-        best_order = str(order_suggestion.get("best_order") or "Lighter menu option")
-        estimated_calories = int(_safe_float(order_suggestion.get("estimated_calories"), 520) or 520)
-        estimated_protein_g = int(_safe_float(order_suggestion.get("estimated_protein_g"), 32) or 32)
-        top_menu_item = dict(menu_recommendations.get("top_menu_item")) if isinstance(menu_recommendations.get("top_menu_item"), dict) else {}
-        top_menu_source = str(
-            top_menu_item.get("menu_item_source")
-            or menu_recommendations.get("menu_source_resolved")
-            or menu_recommendations.get("menu_items_source_resolved")
-            or menu_recommendations.get("menu_source")
-            or menu_recommendations.get("menu_items_source")
-            or "heuristic"
-        ).strip().lower()
-        top_menu_conf = float(
-            _safe_float(
-                top_menu_item.get("menu_item_confidence"),
-                _safe_float(top_menu_item.get("confidence"), 0.0),
-            )
-            or 0.0
-        )
-        menu_context_text = " ".join(
-            [
-                str(p.get("name") or ""),
-                str(p.get("vicinity") or p.get("address") or ""),
-                " ".join(str(t or "") for t in (p.get("types") if isinstance(p.get("types"), list) else [])),
-            ]
-        ).strip()
-        top_menu_evidence = has_strong_menu_evidence(
-            menu_item_source=top_menu_source,
-            menu_item_confidence=top_menu_conf,
-            source_url=top_menu_item.get("source_url") or menu_recommendations.get("source_url"),
-            extraction_method=top_menu_item.get("extraction_method") or menu_recommendations.get("extraction_method"),
-            parse_method=top_menu_item.get("parse_method") or menu_recommendations.get("parse_method"),
-            raw_text_snippet=top_menu_item.get("raw_text_snippet"),
-        )
-        top_menu_safety = sanitize_recommended_item(
-            item_name=top_menu_item.get("item_name"),
-            context_text=menu_context_text,
-            menu_item_source=top_menu_source,
-            menu_item_confidence=top_menu_conf if top_menu_conf > 0 else 0.45,
-            strong_menu_evidence=top_menu_evidence,
-            display_label=top_menu_item.get("display_label"),
-            order_type=top_menu_item.get("order_type"),
-        )
-        if top_menu_item:
-            top_menu_item["item_name"] = str(top_menu_safety.get("item_name") or top_menu_item.get("item_name") or "")
-            top_menu_item["menu_item_source"] = str(top_menu_safety.get("menu_item_source") or top_menu_source or "heuristic")
-            top_menu_item["menu_item_confidence"] = round(
-                _safe_float(top_menu_safety.get("menu_item_confidence"), top_menu_conf),
-                2,
-            )
-            top_menu_item["display_label"] = str(top_menu_safety.get("display_label") or top_menu_item.get("display_label") or "")
-            top_menu_item["order_type"] = str(top_menu_safety.get("order_type") or top_menu_item.get("order_type") or "")
-            top_menu_item["menu_item_safety_reason"] = str(top_menu_safety.get("safety_reason") or "")
-            top_menu_item["menu_item_strong_evidence"] = bool(top_menu_evidence)
-        top_menu_source = str(top_menu_item.get("menu_item_source") or top_menu_source or "heuristic").strip().lower()
-        top_menu_conf = float(
-            _safe_float(
-                top_menu_item.get("menu_item_confidence"),
-                top_menu_conf,
-            )
-            or 0.0
-        )
-        top_menu_source_weight = float(
-            _safe_float(
-                top_menu_item.get("source_rank_weight"),
-                1.0 if top_menu_source == "real_menu" else 0.95 if top_menu_source == "user_scan" else 0.8 if top_menu_source == "llm_inferred" else 0.65,
-            )
-            or 0.65
-        )
-        if top_menu_item and not top_menu_item.get("source_rank_weight"):
-            top_menu_item["source_rank_weight"] = round(_safe_float(top_menu_source_weight, 0.65), 2)
-        top_menu_order_type = str(top_menu_item.get("order_type") or "").strip().lower()
-        if top_menu_order_type not in {"exact", "likely", "estimated"}:
-            if top_menu_source in {
-                "real_menu",
-                "menu_intelligence_store",
-                "structured_menu",
-                "scraped_menu",
-                "website_menu",
-                "website_text",
-                "review_text",
-                "ocr_menu",
-                "user_scan",
-            } and top_menu_conf >= 0.72:
-                top_menu_order_type = "exact"
-            elif top_menu_conf >= 0.56:
-                top_menu_order_type = "likely"
-            else:
-                top_menu_order_type = "estimated"
-        top_menu_name = str(top_menu_item.get("item_name") or "").strip()
-        strong_real_menu = bool(
-            top_menu_name
-            and top_menu_source in {
-                "real_menu",
-                "menu_intelligence_store",
-                "structured_menu",
-                "scraped_menu",
-                "website_menu",
-                "website_text",
-                "review_text",
-                "ocr_menu",
-                "user_scan",
-            }
-            and top_menu_conf >= 0.45
-        )
-        strong_inferred_menu = bool(
-            top_menu_name
-            and top_menu_source == "llm_inferred"
-            and top_menu_conf >= 0.76
-            and top_menu_order_type in {"likely", "exact"}
-        )
-        use_menu_order = bool(
-            top_menu_name
-            and (
-                strong_real_menu
-                or strong_inferred_menu
-            )
-        )
-        if use_menu_order:
-            best_order = top_menu_name
-            estimated_calories = int(_safe_float(top_menu_item.get("estimated_calories"), estimated_calories) or estimated_calories)
-            estimated_protein_g = int(_safe_float(top_menu_item.get("estimated_protein_g"), estimated_protein_g) or estimated_protein_g)
-        final_order_confidence = round(
-            float(
-                _safe_float(
-                    top_menu_conf if use_menu_order else order_suggestion.get("order_confidence"),
-                    _safe_float(order_suggestion.get("order_confidence"), 0.46),
-                )
-                or 0.46
-            ),
-            2,
-        )
-        order_type = top_menu_order_type if use_menu_order else str(order_suggestion.get("order_type") or "estimated")
-        if order_type not in {"exact", "likely", "estimated"}:
-            order_type = "estimated"
-        swap_suggestion = str(
-            (top_menu_item.get("swap_suggestion") if use_menu_order else "")
-            or order_suggestion.get("swap_suggestion")
-            or order_suggestion.get("better_swap")
-            or "Skip heavy sides and add a lighter side."
-        )
-        skip_items = (
-            top_menu_item.get("skip_items")
-            if use_menu_order and isinstance(top_menu_item.get("skip_items"), list)
-            else order_suggestion.get("skip_items")
-            if isinstance(order_suggestion.get("skip_items"), list)
-            else []
-        )
-        add_items = (
-            top_menu_item.get("add_items")
-            if use_menu_order and isinstance(top_menu_item.get("add_items"), list)
-            else order_suggestion.get("add_items")
-            if isinstance(order_suggestion.get("add_items"), list)
-            else []
-        )
-        swap_suggestions = build_swap_suggestions(
-            swap_suggestion=swap_suggestion,
-            skip_items=skip_items if isinstance(skip_items, list) else [],
-            add_items=add_items if isinstance(add_items, list) else [],
-            better_swap=order_suggestion.get("better_swap"),
-            place_context=" ".join(
-                [
-                    str(p.get("name") or ""),
-                    str(p.get("vicinity") or p.get("address") or ""),
-                    " ".join(str(t or "") for t in (p.get("types") if isinstance(p.get("types"), list) else [])),
-                ]
-            ),
-            menu_item_source=(
+                order_suggestion = {}
+    
+            best_order = str(order_suggestion.get("best_order") or "Lighter menu option")
+            estimated_calories = int(_safe_float(order_suggestion.get("estimated_calories"), 520) or 520)
+            estimated_protein_g = int(_safe_float(order_suggestion.get("estimated_protein_g"), 32) or 32)
+            top_menu_item = dict(menu_recommendations.get("top_menu_item")) if isinstance(menu_recommendations.get("top_menu_item"), dict) else {}
+            top_menu_source = str(
                 top_menu_item.get("menu_item_source")
                 or menu_recommendations.get("menu_source_resolved")
                 or menu_recommendations.get("menu_items_source_resolved")
                 or menu_recommendations.get("menu_source")
                 or menu_recommendations.get("menu_items_source")
                 or "heuristic"
-            ),
-            menu_item_confidence=(
-                top_menu_item.get("menu_item_confidence")
-                or top_menu_item.get("confidence")
-                or final_order_confidence
-            ),
-            max_items=3,
-        )
-        decision_estimated_calories = int(
-            _safe_float(top_menu_item.get("estimated_calories"), estimated_calories) or estimated_calories
-        )
-        decision_estimated_protein_g = int(
-            _safe_float(top_menu_item.get("estimated_protein_g"), estimated_protein_g) or estimated_protein_g
-        )
-        short_reason = str(
-            (top_menu_item.get("short_reason") if use_menu_order else "")
-            or order_suggestion.get("short_reason")
-            or "Balanced default when menu details are limited."
-        )
-        order_strategy_tags = (
-            order_suggestion.get("order_strategy_tags")
-            if isinstance(order_suggestion.get("order_strategy_tags"), list)
-            else ["high_protein", "better_swap", "fat_loss_friendly"]
-        )
-        recommended_badges = (
-            scoring.get("recommended_badges")
-            if isinstance(scoring.get("recommended_badges"), list)
-            else []
-        )
-
-        personalized_health_score = None
-        personalized_best_order = ""
-        personalized_reason = ""
-
-        if personalization_goal:
-            try:
-                personalized_scoring = score_healthy_place(
-                    p,
-                    mode=nutrition_mode,
-                    personalization_goal=personalization_goal,
-                    menu_payload=menu_recommendations,
+            ).strip().lower()
+            top_menu_conf = float(
+                _safe_float(
+                    top_menu_item.get("menu_item_confidence"),
+                    _safe_float(top_menu_item.get("confidence"), 0.0),
                 )
-                personalized_health_score = round(
-                    max(1.0, min(10.0, float(_safe_float(personalized_scoring.get("health_score"), score) or score))),
-                    1,
+                or 0.0
+            )
+            menu_context_text = " ".join(
+                [
+                    str(p.get("name") or ""),
+                    str(p.get("vicinity") or p.get("address") or ""),
+                    " ".join(str(t or "") for t in (p.get("types") if isinstance(p.get("types"), list) else [])),
+                ]
+            ).strip()
+            top_menu_evidence = has_strong_menu_evidence(
+                menu_item_source=top_menu_source,
+                menu_item_confidence=top_menu_conf,
+                source_url=top_menu_item.get("source_url") or menu_recommendations.get("source_url"),
+                extraction_method=top_menu_item.get("extraction_method") or menu_recommendations.get("extraction_method"),
+                parse_method=top_menu_item.get("parse_method") or menu_recommendations.get("parse_method"),
+                raw_text_snippet=top_menu_item.get("raw_text_snippet"),
+            )
+            top_menu_safety = sanitize_recommended_item(
+                item_name=top_menu_item.get("item_name"),
+                context_text=menu_context_text,
+                menu_item_source=top_menu_source,
+                menu_item_confidence=top_menu_conf if top_menu_conf > 0 else 0.45,
+                strong_menu_evidence=top_menu_evidence,
+                display_label=top_menu_item.get("display_label"),
+                order_type=top_menu_item.get("order_type"),
+            )
+            if top_menu_item:
+                top_menu_item["item_name"] = str(top_menu_safety.get("item_name") or top_menu_item.get("item_name") or "")
+                top_menu_item["menu_item_source"] = str(top_menu_safety.get("menu_item_source") or top_menu_source or "heuristic")
+                top_menu_item["menu_item_confidence"] = round(
+                    _safe_float(top_menu_safety.get("menu_item_confidence"), top_menu_conf),
+                    2,
                 )
-            except Exception:
-                personalized_health_score = round(max(1.0, min(10.0, score)), 1)
-
-            try:
-                personalized_order = suggest_best_order_for_place(
-                    p,
-                    health_score=float(personalized_health_score),
-                    mode=nutrition_mode,
-                    personalization_goal=personalization_goal,
-                    diet_preference=diet_preference_val,
+                top_menu_item["display_label"] = str(top_menu_safety.get("display_label") or top_menu_item.get("display_label") or "")
+                top_menu_item["order_type"] = str(top_menu_safety.get("order_type") or top_menu_item.get("order_type") or "")
+                top_menu_item["menu_item_safety_reason"] = str(top_menu_safety.get("safety_reason") or "")
+                top_menu_item["menu_item_strong_evidence"] = bool(top_menu_evidence)
+            top_menu_source = str(top_menu_item.get("menu_item_source") or top_menu_source or "heuristic").strip().lower()
+            top_menu_conf = float(
+                _safe_float(
+                    top_menu_item.get("menu_item_confidence"),
+                    top_menu_conf,
                 )
-                personalized_best_order = str(
-                    personalized_order.get("personalized_best_order")
-                    or personalized_order.get("best_order")
-                    or best_order
+                or 0.0
+            )
+            top_menu_source_weight = float(
+                _safe_float(
+                    top_menu_item.get("source_rank_weight"),
+                    1.0 if top_menu_source == "real_menu" else 0.95 if top_menu_source == "user_scan" else 0.8 if top_menu_source == "llm_inferred" else 0.65,
                 )
-                personalized_reason = str(
-                    personalized_order.get("personalized_reason")
-                    or get_personalized_reason(personalization_goal)
-                    or ""
+                or 0.65
+            )
+            if top_menu_item and not top_menu_item.get("source_rank_weight"):
+                top_menu_item["source_rank_weight"] = round(_safe_float(top_menu_source_weight, 0.65), 2)
+            top_menu_order_type = str(top_menu_item.get("order_type") or "").strip().lower()
+            if top_menu_order_type not in {"exact", "likely", "estimated"}:
+                if top_menu_source in {
+                    "real_menu",
+                    "menu_intelligence_store",
+                    "structured_menu",
+                    "scraped_menu",
+                    "website_menu",
+                    "website_text",
+                    "review_text",
+                    "ocr_menu",
+                    "user_scan",
+                } and top_menu_conf >= 0.72:
+                    top_menu_order_type = "exact"
+                elif top_menu_conf >= 0.56:
+                    top_menu_order_type = "likely"
+                else:
+                    top_menu_order_type = "estimated"
+            top_menu_name = str(top_menu_item.get("item_name") or "").strip()
+            strong_real_menu = bool(
+                top_menu_name
+                and top_menu_source in {
+                    "real_menu",
+                    "menu_intelligence_store",
+                    "structured_menu",
+                    "scraped_menu",
+                    "website_menu",
+                    "website_text",
+                    "review_text",
+                    "ocr_menu",
+                    "user_scan",
+                }
+                and top_menu_conf >= 0.45
+            )
+            strong_inferred_menu = bool(
+                top_menu_name
+                and top_menu_source == "llm_inferred"
+                and top_menu_conf >= 0.76
+                and top_menu_order_type in {"likely", "exact"}
+            )
+            use_menu_order = bool(
+                top_menu_name
+                and (
+                    strong_real_menu
+                    or strong_inferred_menu
                 )
-            except Exception:
-                personalized_best_order = best_order
-                personalized_reason = str(get_personalized_reason(personalization_goal) or "")
-
-        decision_today = evaluate_place_for_today(
-            estimated_calories=decision_estimated_calories,
-            estimated_protein_g=decision_estimated_protein_g,
-            remaining_calories=remaining_calories,
-            remaining_protein_g=remaining_protein_g,
-            health_score=score,
-        )
-        fit_for_today = (str(decision_today.get("decision_today") or "").strip().upper() != "NO")
-        place_name = str(p.get("name") or "Unknown place").strip()
-        cuisine_hint = ", ".join(
-            str(t or "").replace("_", " ") for t in (p.get("types") or [])[:3]
-            if t and str(t) not in {"restaurant", "food", "point_of_interest", "establishment", "meal_takeaway"}
-        )
-        _lat = _safe_float(p.get("lat"), 0.0)
-        _lng = _safe_float(p.get("lng"), 0.0)
-        _dist_m = int(max(0, (math.hypot((_lat - float(lat)) * 111320, (_lng - float(lng)) * 111320 * max(0.7, math.cos(math.radians(_lat)))) * 1000))) if (_lat and _lng) else 2000
-        place_for_ranking = {
-            "name": place_name,
-            "cuisine_hint": cuisine_hint,
-            "recommended_order": best_order,
-            "best_order": best_order,
-            "decision_today": decision_today.get("decision_today"),
-            "fit_for_today": fit_for_today,
-            "estimated_calories": estimated_calories,
-            "estimated_protein_g": estimated_protein_g,
-            "menu_item_confidence": final_order_confidence,
-            "order_confidence": final_order_confidence,
-            "distance_meters": _dist_m,
-            "menu_item_source": top_menu_source,
-            "health_score": score,
-            "fit_today_score_100": decision_today.get("fit_today_score_100"),
-            "calorie_fit_score_100": decision_today.get("calorie_fit_score_100"),
-            "protein_fit_score_100": decision_today.get("protein_fit_score_100"),
-            "overshoot_penalty_100": decision_today.get("overshoot_penalty_100"),
-            "chain_key": menu_recommendations.get("chain_key"),
-            "chain_id": menu_recommendations.get("chain_id"),
-            "chain_name": menu_recommendations.get("chain_name"),
-        }
-        context_info_raw = {
-            "remaining_calories": remaining_calories,
-            "remaining_protein_g": remaining_protein_g,
-            "post_workout": bool(post_workout),
-            "late_night": bool(late_night),
-            "poor_sleep_flag": bool(poor_sleep_flag),
-            "high_craving_risk_flag": bool(high_craving_risk_flag),
-            "context_mode_override": (context_mode or "").strip() or None,
-            "local_hour": int(local_hour) if local_hour is not None else 12,
-        }
-        ctx_modes = infer_context_mode(context_info_raw)
-        context_info = {**context_info_raw, **ctx_modes}
-        user_context_meal = {
-            "remaining_protein_g": remaining_protein_g,
-            "cut_mode": bool(cut_mode),
-            "goal": personalization_goal_value_str,
-            "context_info": context_info,
-            "diet_preference": diet_preference_val,
-        }
-        mem_dict = None
-        if str(user_id or "").strip():
-            try:
-                mem = get_personal_meal_memory(
-                    user_id=user_id,
-                    place_id=str(p.get("place_id") or p.get("id") or ""),
-                    place_name=place_name,
-                    item_name=best_order,
-                    goal=goal,
-                    time_of_day="",
-                )
-                mem_dict = mem.to_dict()
-                user_context_meal["personal_memory"] = mem
-            except Exception:
-                mem_dict = None
-
-        ranking_fields = build_ranked_place_profile(place_for_ranking, user_context_meal)
-
-        reality_check = build_restaurant_reality_check(
-            p,
-            recommended_order={
-                "item_name": str(top_menu_item.get("item_name") or order_suggestion.get("best_order") or best_order),
-                "estimated_calories": int(max(0, decision_estimated_calories)),
-                "estimated_protein_g": int(max(0, decision_estimated_protein_g)),
-                "confidence": float(
+            )
+            if use_menu_order:
+                best_order = top_menu_name
+                estimated_calories = int(_safe_float(top_menu_item.get("estimated_calories"), estimated_calories) or estimated_calories)
+                estimated_protein_g = int(_safe_float(top_menu_item.get("estimated_protein_g"), estimated_protein_g) or estimated_protein_g)
+            final_order_confidence = round(
+                float(
                     _safe_float(
-                        top_menu_item.get("confidence"),
-                        _safe_float(final_order_confidence, 0.52),
+                        top_menu_conf if use_menu_order else order_suggestion.get("order_confidence"),
+                        _safe_float(order_suggestion.get("order_confidence"), 0.46),
                     )
-                    or 0.52
+                    or 0.46
                 ),
-                "menu_item_source": str(
+                2,
+            )
+            order_type = top_menu_order_type if use_menu_order else str(order_suggestion.get("order_type") or "estimated")
+            if order_type not in {"exact", "likely", "estimated"}:
+                order_type = "estimated"
+            swap_suggestion = str(
+                (top_menu_item.get("swap_suggestion") if use_menu_order else "")
+                or order_suggestion.get("swap_suggestion")
+                or order_suggestion.get("better_swap")
+                or "Skip heavy sides and add a lighter side."
+            )
+            skip_items = (
+                top_menu_item.get("skip_items")
+                if use_menu_order and isinstance(top_menu_item.get("skip_items"), list)
+                else order_suggestion.get("skip_items")
+                if isinstance(order_suggestion.get("skip_items"), list)
+                else []
+            )
+            add_items = (
+                top_menu_item.get("add_items")
+                if use_menu_order and isinstance(top_menu_item.get("add_items"), list)
+                else order_suggestion.get("add_items")
+                if isinstance(order_suggestion.get("add_items"), list)
+                else []
+            )
+            swap_suggestions = build_swap_suggestions(
+                swap_suggestion=swap_suggestion,
+                skip_items=skip_items if isinstance(skip_items, list) else [],
+                add_items=add_items if isinstance(add_items, list) else [],
+                better_swap=order_suggestion.get("better_swap"),
+                place_context=" ".join(
+                    [
+                        str(p.get("name") or ""),
+                        str(p.get("vicinity") or p.get("address") or ""),
+                        " ".join(str(t or "") for t in (p.get("types") if isinstance(p.get("types"), list) else [])),
+                    ]
+                ),
+                menu_item_source=(
                     top_menu_item.get("menu_item_source")
-                    or menu_recommendations.get("menu_items_source")
-                    or "heuristic"
-                ),
-                "menu_item_confidence": float(
-                    _safe_float(
-                        top_menu_item.get("menu_item_confidence"),
-                        _safe_float(top_menu_item.get("confidence"), _safe_float(final_order_confidence, 0.52)),
-                    )
-                    or 0.52
-                ),
-                "order_type": order_type,
-                "swap_suggestion": swap_suggestion,
-                "swap_suggestions": swap_suggestions,
-                "skip_items": skip_items if isinstance(skip_items, list) else [],
-                "add_items": add_items if isinstance(add_items, list) else [],
-            },
-            context={
-                "top_menu_item": top_menu_item,
-                "top_menu_items": (
-                    menu_recommendations.get("top_menu_items")
-                    if isinstance(menu_recommendations.get("top_menu_items"), list)
-                    else []
-                ),
-                "health_score": score,
-                "mode": nutrition_mode.value,
-                "goal": personalization_goal_value_str,
-            },
-            use_llm_copy=False,
-            allow_llm_macro=False,
-        )
-
-        scored.append(
-            {
-                "place_id": str(p.get("place_id") or p.get("id") or ""),
-                "name": p.get("name"),
-                "lat": p.get("lat"),
-                "lng": p.get("lng"),
-                "health_score": round(max(1.0, min(10.0, score)), 1),
-                "best_options": options,
-                "address": p.get("vicinity"),
-                "rating": p.get("rating"),
-                # Optional backward-compatible enrichment fields for newer clients.
-                "score_breakdown": scoring.get("score_breakdown"),
-                "fat_loss_friendly": bool(scoring.get("fat_loss_friendly")),
-                "recommended_badges": recommended_badges,
-                "nutrition_data_available": bool(scoring.get("nutrition_data_available", False)),
-                "menu_health_signals": scoring.get("menu_health_signals") if isinstance(scoring.get("menu_health_signals"), dict) else None,
-                "menu_distribution_score": float(_safe_float(scoring.get("menu_distribution_score"), 0.0) or 0.0),
-                "menu_dominance": float(_safe_float(scoring.get("menu_dominance"), 0.0) or 0.0),
-                "scoring_version": str(scoring.get("scoring_version") or HEALTHY_PLACE_SCORING_VERSION),
-                # Optional consumer-facing order guidance (v1 heuristic).
-                "best_order": best_order,
-                "better_swap": str(
-                    (top_menu_item.get("swap_suggestion") if use_menu_order else "")
-                    or order_suggestion.get("better_swap")
-                    or "Pick water and keep sauces on the side"
-                ),
-                "swap_suggestion": swap_suggestion,
-                "swap_suggestions": swap_suggestions,
-                "best_item_swaps": (
-                    top_menu_item.get("best_item_swaps")
-                    if use_menu_order and isinstance(top_menu_item.get("best_item_swaps"), list)
-                    else []
-                ),
-                "skip_items": skip_items if isinstance(skip_items, list) else [],
-                "add_items": add_items if isinstance(add_items, list) else [],
-                "order_type": order_type,
-                "avoid_if_cutting": order_suggestion.get("avoid_if_cutting", "Large fried combo meals"),
-                "estimated_calories": estimated_calories,
-                "estimated_protein_g": estimated_protein_g,
-                "estimated_carbs_g": int(_safe_float(order_suggestion.get("estimated_carbs_g"), 45) or 45),
-                "estimated_fat_g": int(_safe_float(order_suggestion.get("estimated_fat_g"), 18) or 18),
-                "estimated_satiety": str(order_suggestion.get("estimated_satiety") or "medium"),
-                "macro_confidence": round(float(_safe_float(order_suggestion.get("macro_confidence"), 0.52) or 0.52), 2),
-                "macro_estimation_version": str(order_suggestion.get("macro_estimation_version") or "v1"),
-                "order_confidence": final_order_confidence,
-                "short_reason": short_reason,
-                "order_strategy_tags": order_strategy_tags,
-                "recommendation_version": str(order_suggestion.get("recommendation_version") or "v1"),
-                # Optional cut-mode enrichment fields (backward-compatible).
-                "cut_mode_active": bool(order_suggestion.get("cut_mode_active", bool(cut_mode))),
-                "cut_friendly": bool(order_suggestion.get("cut_friendly", scoring.get("cut_friendly", False))),
-                "cut_warning": str(order_suggestion.get("cut_warning") or scoring.get("cut_warning") or ""),
-                "best_order_for_cut": str(order_suggestion.get("best_order_for_cut") or order_suggestion.get("best_order") or "Lighter menu option"),
-                # Goal-based personalization (additive; baseline fields remain unchanged).
-                "personalization_goal": personalization_goal_value_str,
-                "personalized_health_score": personalized_health_score,
-                "personalized_best_order": personalized_best_order,
-                "personalized_reason": personalized_reason,
-                # New optional menu-item recommendations (v1 deterministic scoring).
-                "menu_item_scoring_available": bool(menu_recommendations.get("menu_item_scoring_available", False)),
-                "menu_items_source": str(menu_recommendations.get("menu_items_source") or "heuristic"),
-                "menu_source": str(menu_recommendations.get("menu_source") or menu_recommendations.get("menu_items_source") or "heuristic"),
-                "menu_items_source_resolved": str(
-                    menu_recommendations.get("menu_items_source_resolved")
                     or menu_recommendations.get("menu_source_resolved")
-                    or menu_recommendations.get("menu_items_source")
-                    or "heuristic"
-                ),
-                "menu_source_resolved": str(
-                    menu_recommendations.get("menu_source_resolved")
                     or menu_recommendations.get("menu_items_source_resolved")
                     or menu_recommendations.get("menu_source")
                     or menu_recommendations.get("menu_items_source")
                     or "heuristic"
                 ),
-                "menu_source_priority": int(_safe_float(menu_recommendations.get("menu_source_priority"), 1) or 1),
-                "menu_confidence": float(_safe_float(menu_recommendations.get("menu_confidence"), 0.0) or 0.0),
-                "menu_item_source": str(top_menu_item.get("menu_item_source") or ""),
-                "menu_item_confidence": float(_safe_float(top_menu_item.get("menu_item_confidence"), 0.0) or 0.0),
-                "source_rank_weight": float(_safe_float(top_menu_item.get("source_rank_weight"), 0.0) or 0.0),
-                "menu_item_safety_reason": str(top_menu_item.get("menu_item_safety_reason") or ""),
-                "restaurant_rank_reason": "",
-                "extraction_method": str(menu_recommendations.get("extraction_method") or ""),
-                "parse_method": str(menu_recommendations.get("parse_method") or ""),
-                "source_url": str(menu_recommendations.get("source_url") or ""),
-                "top_menu_items": menu_recommendations.get("top_menu_items") if isinstance(menu_recommendations.get("top_menu_items"), list) else [],
-                "best_menu_items": menu_recommendations.get("best_menu_items") if isinstance(menu_recommendations.get("best_menu_items"), list) else [],
-                "top_menu_item": menu_recommendations.get("top_menu_item") if isinstance(menu_recommendations.get("top_menu_item"), dict) else None,
+                menu_item_confidence=(
+                    top_menu_item.get("menu_item_confidence")
+                    or top_menu_item.get("confidence")
+                    or final_order_confidence
+                ),
+                max_items=3,
+            )
+            decision_estimated_calories = int(
+                _safe_float(top_menu_item.get("estimated_calories"), estimated_calories) or estimated_calories
+            )
+            decision_estimated_protein_g = int(
+                _safe_float(top_menu_item.get("estimated_protein_g"), estimated_protein_g) or estimated_protein_g
+            )
+            short_reason = str(
+                (top_menu_item.get("short_reason") if use_menu_order else "")
+                or order_suggestion.get("short_reason")
+                or "Balanced default when menu details are limited."
+            )
+            order_strategy_tags = (
+                order_suggestion.get("order_strategy_tags")
+                if isinstance(order_suggestion.get("order_strategy_tags"), list)
+                else ["high_protein", "better_swap", "fat_loss_friendly"]
+            )
+            recommended_badges = (
+                scoring.get("recommended_badges")
+                if isinstance(scoring.get("recommended_badges"), list)
+                else []
+            )
+    
+            personalized_health_score = None
+            personalized_best_order = ""
+            personalized_reason = ""
+    
+            if personalization_goal:
+                try:
+                    personalized_scoring = score_healthy_place(
+                        p,
+                        mode=nutrition_mode,
+                        personalization_goal=personalization_goal,
+                        menu_payload=menu_recommendations,
+                    )
+                    personalized_health_score = round(
+                        max(1.0, min(10.0, float(_safe_float(personalized_scoring.get("health_score"), score) or score))),
+                        1,
+                    )
+                except Exception:
+                    personalized_health_score = round(max(1.0, min(10.0, score)), 1)
+    
+                try:
+                    personalized_order = suggest_best_order_for_place(
+                        p,
+                        health_score=float(personalized_health_score),
+                        mode=nutrition_mode,
+                        personalization_goal=personalization_goal,
+                        diet_preference=diet_preference_val,
+                    )
+                    personalized_best_order = str(
+                        personalized_order.get("personalized_best_order")
+                        or personalized_order.get("best_order")
+                        or best_order
+                    )
+                    personalized_reason = str(
+                        personalized_order.get("personalized_reason")
+                        or get_personalized_reason(personalization_goal)
+                        or ""
+                    )
+                except Exception:
+                    personalized_best_order = best_order
+                    personalized_reason = str(get_personalized_reason(personalization_goal) or "")
+    
+            decision_today = evaluate_place_for_today(
+                estimated_calories=decision_estimated_calories,
+                estimated_protein_g=decision_estimated_protein_g,
+                remaining_calories=remaining_calories,
+                remaining_protein_g=remaining_protein_g,
+                health_score=score,
+            )
+            fit_for_today = (str(decision_today.get("decision_today") or "").strip().upper() != "NO")
+            place_name = str(p.get("name") or "Unknown place").strip()
+            cuisine_hint = ", ".join(
+                str(t or "").replace("_", " ") for t in (p.get("types") or [])[:3]
+                if t and str(t) not in {"restaurant", "food", "point_of_interest", "establishment", "meal_takeaway"}
+            )
+            _lat = _safe_float(p.get("lat"), 0.0)
+            _lng = _safe_float(p.get("lng"), 0.0)
+            _dist_m = int(max(0, (math.hypot((_lat - float(lat)) * 111320, (_lng - float(lng)) * 111320 * max(0.7, math.cos(math.radians(_lat)))) * 1000))) if (_lat and _lng) else 2000
+            place_for_ranking = {
+                "name": place_name,
+                "cuisine_hint": cuisine_hint,
+                "recommended_order": best_order,
+                "best_order": best_order,
+                "decision_today": decision_today.get("decision_today"),
+                "fit_for_today": fit_for_today,
+                "estimated_calories": estimated_calories,
+                "estimated_protein_g": estimated_protein_g,
+                "menu_item_confidence": final_order_confidence,
+                "order_confidence": final_order_confidence,
+                "distance_meters": _dist_m,
+                "menu_item_source": top_menu_source,
+                "health_score": score,
+                "fit_today_score_100": decision_today.get("fit_today_score_100"),
+                "calorie_fit_score_100": decision_today.get("calorie_fit_score_100"),
+                "protein_fit_score_100": decision_today.get("protein_fit_score_100"),
+                "overshoot_penalty_100": decision_today.get("overshoot_penalty_100"),
                 "chain_key": menu_recommendations.get("chain_key"),
                 "chain_id": menu_recommendations.get("chain_id"),
-                "top_item": str(menu_recommendations.get("top_item") or ""),
-                "diet_preference": diet_preference_val,
-                "_diet_excluded_candidate_count": p.get("_diet_excluded_candidate_count"),
-                # Optional daily fit decision layer (Can I Eat Here Today).
-                "decision_today": decision_today.get("decision_today"),
-                "decision_reason": str(decision_today.get("decision_reason") or ""),
-                "fits_remaining_calories": decision_today.get("fits_remaining_calories"),
-                "fits_remaining_protein": decision_today.get("fits_remaining_protein"),
-                "decision_confidence": decision_today.get("decision_confidence"),
-                "reality_check": reality_check,
-                "reality_check_share_card": (
-                    reality_check.get("share_card") if isinstance(reality_check.get("share_card"), dict) else None
-                ),
-                "share_card": build_best_order_share_card(
-                    place_name=p.get("name"),
-                    health_score=score,
-                    best_order=best_order,
-                    estimated_calories=estimated_calories,
-                    estimated_protein_g=estimated_protein_g,
-                    subtitle=short_reason,
-                    recommended_badges=recommended_badges,
-                    order_strategy_tags=order_strategy_tags,
-                    cut_friendly=bool(order_suggestion.get("cut_friendly", False)),
-                    fat_loss_friendly=bool(scoring.get("fat_loss_friendly", False)),
-                    calories_saved=(
-                        reality_check.get("calories_saved") if isinstance(reality_check, dict) else None
-                    ),
-                ),
-                # Canonical ranking fields from ranked_place_builder
-                **ranking_fields,
-                "candidate_source_label": top_menu_source.replace("_", " ").title(),
-                **(mem_dict or {}),
+                "chain_name": menu_recommendations.get("chain_name"),
             }
-        )
-
-    # Personal memory enrichment (optional; does not affect ranking math).
-    if str(user_id or "").strip():
-        for row in scored:
-            try:
-                mem = get_personal_meal_memory(
-                    user_id=user_id,
-                    place_id=row.get("place_id"),
-                    place_name=row.get("name"),
-                    item_name=row.get("best_item_name") or row.get("best_order") or "",
-                    goal=goal,
-                    time_of_day="",
-                )
-                row.update(mem.to_dict())
-            except Exception:
-                row.update(
-                    {
-                        "worked_before": False,
-                        "personal_memory_label": "",
-                        "times_chosen": 0,
-                        "repeat_success_rate": 0.0,
-                        "swap_accept_rate": 0.0,
-                        "avg_fullness": None,
-                        "avg_craving_score": None,
-                    }
-                )
+            context_info_raw = {
+                "remaining_calories": remaining_calories,
+                "remaining_protein_g": remaining_protein_g,
+                "post_workout": bool(post_workout),
+                "late_night": bool(late_night),
+                "poor_sleep_flag": bool(poor_sleep_flag),
+                "high_craving_risk_flag": bool(high_craving_risk_flag),
+                "context_mode_override": (context_mode or "").strip() or None,
+                "local_hour": int(local_hour) if local_hour is not None else 12,
+            }
+            ctx_modes = infer_context_mode(context_info_raw)
+            context_info = {**context_info_raw, **ctx_modes}
+            user_context_meal = {
+                "remaining_protein_g": remaining_protein_g,
+                "cut_mode": bool(cut_mode),
+                "goal": personalization_goal_value_str,
+                "context_info": context_info,
+                "diet_preference": diet_preference_val,
+            }
+            mem_dict = None
+            if str(user_id or "").strip():
+                try:
+                    mem = get_personal_meal_memory(
+                        user_id=user_id,
+                        place_id=str(p.get("place_id") or p.get("id") or ""),
+                        place_name=place_name,
+                        item_name=best_order,
+                        goal=goal,
+                        time_of_day="",
+                    )
+                    mem_dict = mem.to_dict()
+                    user_context_meal["personal_memory"] = mem
+                except Exception:
+                    mem_dict = None
+    
+            ranking_fields = build_ranked_place_profile(place_for_ranking, user_context_meal)
+    
+            reality_check = build_restaurant_reality_check(
+                p,
+                recommended_order={
+                    "item_name": str(top_menu_item.get("item_name") or order_suggestion.get("best_order") or best_order),
+                    "estimated_calories": int(max(0, decision_estimated_calories)),
+                    "estimated_protein_g": int(max(0, decision_estimated_protein_g)),
+                    "confidence": float(
+                        _safe_float(
+                            top_menu_item.get("confidence"),
+                            _safe_float(final_order_confidence, 0.52),
+                        )
+                        or 0.52
+                    ),
+                    "menu_item_source": str(
+                        top_menu_item.get("menu_item_source")
+                        or menu_recommendations.get("menu_items_source")
+                        or "heuristic"
+                    ),
+                    "menu_item_confidence": float(
+                        _safe_float(
+                            top_menu_item.get("menu_item_confidence"),
+                            _safe_float(top_menu_item.get("confidence"), _safe_float(final_order_confidence, 0.52)),
+                        )
+                        or 0.52
+                    ),
+                    "order_type": order_type,
+                    "swap_suggestion": swap_suggestion,
+                    "swap_suggestions": swap_suggestions,
+                    "skip_items": skip_items if isinstance(skip_items, list) else [],
+                    "add_items": add_items if isinstance(add_items, list) else [],
+                },
+                context={
+                    "top_menu_item": top_menu_item,
+                    "top_menu_items": (
+                        menu_recommendations.get("top_menu_items")
+                        if isinstance(menu_recommendations.get("top_menu_items"), list)
+                        else []
+                    ),
+                    "health_score": score,
+                    "mode": nutrition_mode.value,
+                    "goal": personalization_goal_value_str,
+                },
+                use_llm_copy=False,
+                allow_llm_macro=False,
+            )
+    
+            scored.append(
+                {
+                    "place_id": str(p.get("place_id") or p.get("id") or ""),
+                    "name": p.get("name"),
+                    "lat": p.get("lat"),
+                    "lng": p.get("lng"),
+                    "health_score": round(max(1.0, min(10.0, score)), 1),
+                    "best_options": options,
+                    "address": p.get("vicinity"),
+                    "rating": p.get("rating"),
+                    # Optional backward-compatible enrichment fields for newer clients.
+                    "score_breakdown": scoring.get("score_breakdown"),
+                    "fat_loss_friendly": bool(scoring.get("fat_loss_friendly")),
+                    "recommended_badges": recommended_badges,
+                    "nutrition_data_available": bool(scoring.get("nutrition_data_available", False)),
+                    "menu_health_signals": scoring.get("menu_health_signals") if isinstance(scoring.get("menu_health_signals"), dict) else None,
+                    "menu_distribution_score": float(_safe_float(scoring.get("menu_distribution_score"), 0.0) or 0.0),
+                    "menu_dominance": float(_safe_float(scoring.get("menu_dominance"), 0.0) or 0.0),
+                    "scoring_version": str(scoring.get("scoring_version") or HEALTHY_PLACE_SCORING_VERSION),
+                    # Optional consumer-facing order guidance (v1 heuristic).
+                    "best_order": best_order,
+                    "better_swap": str(
+                        (top_menu_item.get("swap_suggestion") if use_menu_order else "")
+                        or order_suggestion.get("better_swap")
+                        or "Pick water and keep sauces on the side"
+                    ),
+                    "swap_suggestion": swap_suggestion,
+                    "swap_suggestions": swap_suggestions,
+                    "best_item_swaps": (
+                        top_menu_item.get("best_item_swaps")
+                        if use_menu_order and isinstance(top_menu_item.get("best_item_swaps"), list)
+                        else []
+                    ),
+                    "skip_items": skip_items if isinstance(skip_items, list) else [],
+                    "add_items": add_items if isinstance(add_items, list) else [],
+                    "order_type": order_type,
+                    "avoid_if_cutting": order_suggestion.get("avoid_if_cutting", "Large fried combo meals"),
+                    "estimated_calories": estimated_calories,
+                    "estimated_protein_g": estimated_protein_g,
+                    "estimated_carbs_g": int(_safe_float(order_suggestion.get("estimated_carbs_g"), 45) or 45),
+                    "estimated_fat_g": int(_safe_float(order_suggestion.get("estimated_fat_g"), 18) or 18),
+                    "estimated_satiety": str(order_suggestion.get("estimated_satiety") or "medium"),
+                    "macro_confidence": round(float(_safe_float(order_suggestion.get("macro_confidence"), 0.52) or 0.52), 2),
+                    "macro_estimation_version": str(order_suggestion.get("macro_estimation_version") or "v1"),
+                    "order_confidence": final_order_confidence,
+                    "short_reason": short_reason,
+                    "order_strategy_tags": order_strategy_tags,
+                    "recommendation_version": str(order_suggestion.get("recommendation_version") or "v1"),
+                    # Optional cut-mode enrichment fields (backward-compatible).
+                    "cut_mode_active": bool(order_suggestion.get("cut_mode_active", bool(cut_mode))),
+                    "cut_friendly": bool(order_suggestion.get("cut_friendly", scoring.get("cut_friendly", False))),
+                    "cut_warning": str(order_suggestion.get("cut_warning") or scoring.get("cut_warning") or ""),
+                    "best_order_for_cut": str(order_suggestion.get("best_order_for_cut") or order_suggestion.get("best_order") or "Lighter menu option"),
+                    # Goal-based personalization (additive; baseline fields remain unchanged).
+                    "personalization_goal": personalization_goal_value_str,
+                    "personalized_health_score": personalized_health_score,
+                    "personalized_best_order": personalized_best_order,
+                    "personalized_reason": personalized_reason,
+                    # New optional menu-item recommendations (v1 deterministic scoring).
+                    "menu_item_scoring_available": bool(menu_recommendations.get("menu_item_scoring_available", False)),
+                    "menu_items_source": str(menu_recommendations.get("menu_items_source") or "heuristic"),
+                    "menu_source": str(menu_recommendations.get("menu_source") or menu_recommendations.get("menu_items_source") or "heuristic"),
+                    "menu_items_source_resolved": str(
+                        menu_recommendations.get("menu_items_source_resolved")
+                        or menu_recommendations.get("menu_source_resolved")
+                        or menu_recommendations.get("menu_items_source")
+                        or "heuristic"
+                    ),
+                    "menu_source_resolved": str(
+                        menu_recommendations.get("menu_source_resolved")
+                        or menu_recommendations.get("menu_items_source_resolved")
+                        or menu_recommendations.get("menu_source")
+                        or menu_recommendations.get("menu_items_source")
+                        or "heuristic"
+                    ),
+                    "menu_source_priority": int(_safe_float(menu_recommendations.get("menu_source_priority"), 1) or 1),
+                    "menu_confidence": float(_safe_float(menu_recommendations.get("menu_confidence"), 0.0) or 0.0),
+                    "menu_item_source": str(top_menu_item.get("menu_item_source") or ""),
+                    "menu_item_confidence": float(_safe_float(top_menu_item.get("menu_item_confidence"), 0.0) or 0.0),
+                    "source_rank_weight": float(_safe_float(top_menu_item.get("source_rank_weight"), 0.0) or 0.0),
+                    "menu_item_safety_reason": str(top_menu_item.get("menu_item_safety_reason") or ""),
+                    "restaurant_rank_reason": "",
+                    "extraction_method": str(menu_recommendations.get("extraction_method") or ""),
+                    "parse_method": str(menu_recommendations.get("parse_method") or ""),
+                    "source_url": str(menu_recommendations.get("source_url") or ""),
+                    "top_menu_items": menu_recommendations.get("top_menu_items") if isinstance(menu_recommendations.get("top_menu_items"), list) else [],
+                    "best_menu_items": menu_recommendations.get("best_menu_items") if isinstance(menu_recommendations.get("best_menu_items"), list) else [],
+                    "top_menu_item": menu_recommendations.get("top_menu_item") if isinstance(menu_recommendations.get("top_menu_item"), dict) else None,
+                    "chain_key": menu_recommendations.get("chain_key"),
+                    "chain_id": menu_recommendations.get("chain_id"),
+                    "top_item": str(menu_recommendations.get("top_item") or ""),
+                    "diet_preference": diet_preference_val,
+                    "_diet_excluded_candidate_count": p.get("_diet_excluded_candidate_count"),
+                    # Optional daily fit decision layer (Can I Eat Here Today).
+                    "decision_today": decision_today.get("decision_today"),
+                    "decision_reason": str(decision_today.get("decision_reason") or ""),
+                    "fits_remaining_calories": decision_today.get("fits_remaining_calories"),
+                    "fits_remaining_protein": decision_today.get("fits_remaining_protein"),
+                    "decision_confidence": decision_today.get("decision_confidence"),
+                    "reality_check": reality_check,
+                    "reality_check_share_card": (
+                        reality_check.get("share_card") if isinstance(reality_check.get("share_card"), dict) else None
+                    ),
+                    "share_card": build_best_order_share_card(
+                        place_name=p.get("name"),
+                        health_score=score,
+                        best_order=best_order,
+                        estimated_calories=estimated_calories,
+                        estimated_protein_g=estimated_protein_g,
+                        subtitle=short_reason,
+                        recommended_badges=recommended_badges,
+                        order_strategy_tags=order_strategy_tags,
+                        cut_friendly=bool(order_suggestion.get("cut_friendly", False)),
+                        fat_loss_friendly=bool(scoring.get("fat_loss_friendly", False)),
+                        calories_saved=(
+                            reality_check.get("calories_saved") if isinstance(reality_check, dict) else None
+                        ),
+                    ),
+                    # Canonical ranking fields from ranked_place_builder
+                    **ranking_fields,
+                    "candidate_source_label": top_menu_source.replace("_", " ").title(),
+                    **(mem_dict or {}),
+                }
+            )
+    
+        # Personal memory enrichment (optional; does not affect ranking math).
+        if str(user_id or "").strip():
+            for row in scored:
+                try:
+                    mem = get_personal_meal_memory(
+                        user_id=user_id,
+                        place_id=row.get("place_id"),
+                        place_name=row.get("name"),
+                        item_name=row.get("best_item_name") or row.get("best_order") or "",
+                        goal=goal,
+                        time_of_day="",
+                    )
+                    row.update(mem.to_dict())
+                except Exception:
+                    row.update(
+                        {
+                            "worked_before": False,
+                            "personal_memory_label": "",
+                            "times_chosen": 0,
+                            "repeat_success_rate": 0.0,
+                            "swap_accept_rate": 0.0,
+                            "avg_fullness": None,
+                            "avg_craving_score": None,
+                        }
+                    )
 
     t_rank_ms = round((time.perf_counter() - t_rank_start) * 1000, 1)
     t_total_ms = round((time.perf_counter() - t_start) * 1000, 1)
@@ -14183,6 +14436,17 @@ async def healthy_places(
         remaining_protein_g=remaining_protein_g,
         sort_mode=healthy_sort_mode,
     )
+
+    # Additive evidence/trust fields for "best order right now" (no ranking changes).
+    if evidence_flag_enabled():
+        for row in scored:
+            if not isinstance(row, dict):
+                continue
+            try:
+                row.update(place_best_order_evidence_fields(row, user_id=str(user_id or "")))
+            except Exception:
+                pass
+
     sections_payload = build_sections(scored) if healthy_sort_mode == "sectioned" else None
 
     # Enqueue visible places with low specificity for background enrichment
@@ -15282,6 +15546,25 @@ async def places_lunch_decision(
     cut_mode: bool = False,
 ):
     nearby_places, fetch_err, _ = await fetch_google_places(lat, lng, radius=radius)
+    use_nearby_v2 = str(os.getenv("NEARBY_PIPELINE_V2", "")).strip().lower() in ("1", "true", "yes")
+    snapshot = None
+    if use_nearby_v2 and nearby_places:
+        try:
+            snapshot = build_nearby_snapshot(
+                nearby_places=nearby_places,
+                origin_lat=float(_safe_float(lat, 0.0) or 0.0),
+                origin_lng=float(_safe_float(lng, 0.0) or 0.0),
+                radius_m=int(max(200, min(50000, int(_safe_float(radius, 3000) or 3000)))),
+                goal=str(goal or "").strip(),
+                cut_mode=bool(cut_mode),
+                remaining_calories=remaining_calories,
+                remaining_protein_g=remaining_protein_g,
+                current_hour=current_hour,
+                user_id=None,
+            )
+        except Exception:
+            snapshot = None
+
     lunch_payload = build_lunch_decision_response(
         nearby_places=nearby_places,
         origin_lat=float(_safe_float(lat, 0.0) or 0.0),
@@ -15296,6 +15579,8 @@ async def places_lunch_decision(
         goal=goal,
         cut_mode=bool(cut_mode),
         use_llm_place_context=False,
+        snapshot=snapshot,
+        use_snapshot=bool(use_nearby_v2 and isinstance(snapshot, dict)),
     )
     lunch_payload["daily_decision"] = build_daily_decision_response(
         nearby_places=nearby_places,
@@ -15434,6 +15719,8 @@ async def scan_menu_endpoint(
     place_id: Optional[str] = Form(default=""),
     cuisine: Optional[str] = Form(default=""),
     ocr_text: Optional[str] = Form(default=""),
+    assume_sauce_included: Optional[bool] = Form(default=None),
+    use_standard_portion: Optional[bool] = Form(default=None),
     remaining_calories: Optional[float] = Form(default=None),
     remaining_protein_g: Optional[float] = Form(default=None),
     goal: Optional[str] = Form(default=""),
@@ -15463,6 +15750,8 @@ async def scan_menu_endpoint(
         restaurant_name=str(restaurant_name or "").strip(),
         place_id=str(place_id or "").strip(),
         cuisine=str(cuisine or "").strip(),
+        assume_sauce_included=bool(assume_sauce_included) if assume_sauce_included is not None else False,
+        use_standard_portion=bool(use_standard_portion) if use_standard_portion is not None else False,
         remaining_calories=float(_safe_float(remaining_calories, 0.0)) if remaining_calories is not None else None,
         remaining_protein_g=float(_safe_float(remaining_protein_g, 0.0)) if remaining_protein_g is not None else None,
         goal=str(goal or "").strip(),
@@ -16172,7 +16461,7 @@ _CLARIFICATION_RULES: List[Dict[str, Any]] = [
                 ],
             },
             {
-                "key": "protein_add_on",
+                "key": "egg_count",
                 "label": "Egg added?",
                 "options": ["No", "Yes - 1", "Yes - 2", "Yes - 3+"],
                 "name_hints": [
@@ -16260,6 +16549,26 @@ def _infer_ingredient_choices_from_name(name: str, questions: List[Dict[str, Any
     return out
 
 
+def _generic_clarification_dimensions_for_item(item: Dict[str, Any]) -> List[str]:
+    """
+    Lightweight global fallback dimensions for ambiguous scans.
+    Keeps questions low-noise while enabling non rule-matched foods.
+    """
+    it = item if isinstance(item, dict) else {}
+    name = str(it.get("name") or "").strip().lower()
+    conf = float(_safe_float(it.get("confidence"), 0.0) or 0.0)
+    dims: List[str] = []
+    if conf < 0.70:
+        dims.append("portion_size")
+    if any(t in name for t in ("rice", "pasta", "naan", "bread", "roti", "fries", "potato", "noodle")):
+        dims.append("starch_portion")
+    if any(t in name for t in ("sauce", "gravy", "dressing", "mayo", "aioli", "cream", "butter")):
+        dims.append("added_fat")
+    if any(t in name for t in ("coffee", "tea", "latte", "shake", "smoothie", "dessert", "sweet")):
+        dims.append("sweetener")
+    return dims
+
+
 def _get_ingredient_clarification_questions(user_id: str, items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Return clarification_questions only for keys we can't infer from name or from stored choices."""
     try:
@@ -16285,12 +16594,14 @@ def _get_ingredient_clarification_questions(user_id: str, items: List[Dict[str, 
         vision_hints = (it or {}).get("ingredient_hints") or {}
         if not isinstance(vision_hints, dict):
             vision_hints = {}
+        matched_rule = False
 
         for rule in _CLARIFICATION_RULES:
             if not rule.get("pattern") or not rule.get("questions"):
                 continue
             if not rule["pattern"].search(name):
                 continue
+            matched_rule = True
             inferred = _infer_ingredient_choices_from_name(name, rule["questions"])
             for q in rule["questions"]:
                 key = _normalize_dim_id(str(q.get("key") or "").strip())
@@ -16313,6 +16624,25 @@ def _get_ingredient_clarification_questions(user_id: str, items: List[Dict[str, 
                         "label": label,
                         "options": options,
                         "impact_kcal": impact,
+                    }
+                )
+
+        # Global fallback clarifications for non rule-matched foods.
+        if not matched_rule:
+            for dim_id in _generic_clarification_dimensions_for_item(it):
+                key = _normalize_dim_id(dim_id)
+                if not key or key not in DIMENSION_REGISTRY:
+                    continue
+                if _stored_has_meaningful_value(stored, key):
+                    continue
+                if _vision_resolves_dimension(vision_hints, key):
+                    continue
+                raw_candidates.append(
+                    {
+                        "key": key,
+                        "label": _dim_label(key, fallback=key),
+                        "options": _dim_options(key),
+                        "impact_kcal": _dim_impact(key),
                     }
                 )
 
@@ -16447,6 +16777,17 @@ def _apply_stored_ingredient_choices_to_items(user_id: str, items: List[Dict[str
         for k, v in stored.items():
             if v is not None and str(v).strip():
                 merged[k] = str(v).strip()
+    # Canonical dimension aliases -> legacy composition keys
+    if merged.get("dairy_type") and not merged.get("milk_type"):
+        merged["milk_type"] = str(merged.get("dairy_type") or "").strip()
+    if merged.get("added_fat") and not merged.get("dressing"):
+        merged["dressing"] = str(merged.get("added_fat") or "").strip()
+    if merged.get("sauce_or_spread") and not merged.get("spread"):
+        merged["spread"] = str(merged.get("sauce_or_spread") or "").strip()
+    if merged.get("protein_add_on") and not merged.get("toppings"):
+        pa = str(merged.get("protein_add_on") or "").strip().lower()
+        if pa in {"yes - medium", "yes - large", "yes"}:
+            merged["toppings"] = "protein add-on"
     if not merged:
         return items
     parts = [name]
@@ -17315,11 +17656,13 @@ def analyze_rerun(
     llm_raw = _parse_jsonish(existing.get("llm_outputs_json"), {})
     if isinstance(llm_raw, dict):
         clarifying_q = llm_raw.get("clarifying_question")
+    prior_clarifying_q = clarifying_q if isinstance(clarifying_q, dict) else None
 
     base_conf = _clamp01(existing.get("vision_confidence"), 0.65)
     if str(req.edits.clarifying_answer or "").strip():
         base_conf = min(1.0, base_conf + 0.07)
         clarifying_q = None
+        prior_clarifying_q = None
 
     vision_scan = _coerce_vision_scan_payload(
         {
@@ -17330,6 +17673,25 @@ def analyze_rerun(
         },
         vision_threshold=vision_threshold,
     )
+    # Preserve previously asked clarifying_question until explicitly answered.
+    # Quick edits should not hide the confirmation block unless the underlying trigger is resolved.
+    if prior_clarifying_q and not str(req.edits.clarifying_answer or "").strip():
+        try:
+            is_fried_prior = str(prior_clarifying_q.get("ask") or "").strip() == str(_FRIED_CLARIFY_QUESTION.get("ask") or "").strip()
+        except Exception:
+            is_fried_prior = False
+        try:
+            current_items = [_model_dump(x) for x in (vision_scan.items or [])]
+            fried_resolved = (not _needs_fried_oil_question(current_items)) if is_fried_prior else False
+        except Exception:
+            fried_resolved = False
+        if not fried_resolved:
+            try:
+                payload_override = _model_dump(vision_scan)
+                payload_override["clarifying_question"] = prior_clarifying_q
+                vision_scan = _model_validate(VisionScanV1Model, payload_override)
+            except Exception:
+                pass
     if vision_scan.clarifying_question and not personalization_used.get("asked_clarifying_question"):
         personalization_used["asked_clarifying_question"] = True
     if personalization_used.get("asked_clarifying_question") and not str(
@@ -17352,12 +17714,24 @@ def analyze_rerun(
                     choices_to_save = {}
                     for a in req.edits.clarifying_answers:
                         if isinstance(a, dict):
-                            k = str(a.get("key") or "").strip()
+                            k = _normalize_dim_id(str(a.get("key") or "").strip())
                             v = str(a.get("value") or "").strip()
                             if k and v:
                                 choices_to_save[k] = v
                     if choices_to_save:
                         save_user_ingredient_choices(uid, token, choices_to_save)
+                        # Backward-compatible alias mapping: canonical dimension ids -> legacy keys
+                        # used by existing name-enrichment logic.
+                        if choices_to_save.get("dairy_type") and not choices_to_save.get("milk_type"):
+                            choices_to_save["milk_type"] = str(choices_to_save.get("dairy_type") or "").strip()
+                        if choices_to_save.get("added_fat") and not choices_to_save.get("dressing"):
+                            choices_to_save["dressing"] = str(choices_to_save.get("added_fat") or "").strip()
+                        if choices_to_save.get("sauce_or_spread") and not choices_to_save.get("spread"):
+                            choices_to_save["spread"] = str(choices_to_save.get("sauce_or_spread") or "").strip()
+                        # Optional mapping for protein add-on to a nutrition-relevant token.
+                        protein_add_on = str(choices_to_save.get("protein_add_on") or "").strip().lower()
+                        if protein_add_on in {"yes - medium", "yes - large", "yes"}:
+                            choices_to_save.setdefault("toppings", "protein add-on")
                         _s = ("none", "no", "", "water")
                         parts = [str(first_item.get("name") or "").strip()]
                         if choices_to_save.get("milk_type") and choices_to_save["milk_type"].lower() not in _s:
@@ -17375,8 +17749,58 @@ def analyze_rerun(
                         if len(parts) > 1:
                             items_for_nutrition = [dict(first_item, name=" ".join(parts).strip())] + list(items_for_nutrition[1:])
 
+    # Always return remaining unresolved clarification_questions after any rerun/edit.
+    # Only resolved questions (via stored choices/inference) should disappear.
+    try:
+        remaining_clarification_questions = _get_ingredient_clarification_questions(uid, items_for_nutrition)
+    except Exception:
+        remaining_clarification_questions = []
+
+    # Deterministic clarification effects for global dimensions.
+    # Additive and safe: only applies when explicit clarifying answers are supplied.
+    if getattr(req.edits, "clarifying_answers", None) and isinstance(req.edits.clarifying_answers, list):
+        selected: Dict[str, str] = {}
+        for a in req.edits.clarifying_answers:
+            if isinstance(a, dict):
+                k = _normalize_dim_id(str(a.get("key") or "").strip())
+                v = str(a.get("value") or "").strip()
+                if k and v:
+                    selected[k] = v
+        if selected and isinstance(items_for_nutrition, list) and items_for_nutrition:
+            portion_val = str(selected.get("portion_size") or "").strip().lower()
+            if portion_val:
+                portion_map = {"small": 0.85, "medium": 1.0, "large": 1.2}
+                mul = portion_map.get(portion_val, 1.0)
+                if mul != 1.0:
+                    for it in items_for_nutrition:
+                        if not isinstance(it, dict):
+                            continue
+                        g = max(0.0, float(_safe_float(it.get("grams"), 0.0) or 0.0))
+                        if g > 0:
+                            it["grams"] = round(g * mul, 1)
+
+            starch_val = str(selected.get("starch_portion") or "").strip().lower()
+            if starch_val:
+                starch_map = {"small": 0.85, "medium": 1.0, "large": 1.2}
+                starch_mul = starch_map.get(starch_val, 1.0)
+                if starch_mul != 1.0:
+                    for it in items_for_nutrition:
+                        if not isinstance(it, dict):
+                            continue
+                        n = str(it.get("name") or "").strip().lower()
+                        if any(t in n for t in ("rice", "pasta", "noodle", "naan", "bread", "roti", "fries", "potato")):
+                            g = max(0.0, float(_safe_float(it.get("grams"), 0.0) or 0.0))
+                            if g > 0:
+                                it["grams"] = round(g * starch_mul, 1)
+
     results, totals, total_micros, item_warnings, _ = _compute_scan_nutrition(items_for_nutrition)
     micros_payload = _build_micros_payload(total_micros)
+    results, totals, micros_payload, correction_applied = _apply_macro_override_to_scan_result(
+        results,
+        totals,
+        micros_payload,
+        getattr(req.edits, "macro_override", None),
+    )
     total_kcal = float(_safe_float(totals.get("kcal"), 0.0) or 0.0)
     total_p = float(_safe_float(totals.get("protein_g"), 0.0) or 0.0)
     total_c = float(_safe_float(totals.get("carbs_g"), 0.0) or 0.0)
@@ -17417,6 +17841,8 @@ def analyze_rerun(
         item_warnings=item_warnings,
         data_quality=data_quality,
     )
+    if remaining_clarification_questions:
+        response["clarification_questions"] = remaining_clarification_questions
     response["rerun"] = {"ok": True, "analysis_id": req.analysis_id}
     response["request_id"] = request_id
     response["input_scan_id"] = str(req.analysis_id)
@@ -17434,6 +17860,8 @@ def analyze_rerun(
         or personalization_used.get("oil_prior_used")
         or personalization_used.get("asked_clarifying_question")
     )
+    if correction_applied:
+        response["correction_applied"] = correction_applied
 
     try:
         _build_confidence_events_for_rerun(

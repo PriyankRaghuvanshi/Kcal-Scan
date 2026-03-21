@@ -67,6 +67,7 @@ import { HealthyPlaceListCard } from "./components/HealthyPlaceListCard";
 import { AdminOpsDashboard } from "./components/AdminOpsDashboard";
 import { ScanConfirmationChips } from "./components/ScanConfirmationChips";
 import { ScanResultScreen } from "./components/ScanResultScreen";
+import { BestOrderEvidenceBlock } from "./components/BestOrderEvidence";
 import { LetsGoSetupModal } from "./components/LetsGoSetupModal";
 import { GoalPlanCard } from "./components/GoalPlanCard";
 import { JourneyCard } from "./components/JourneyCard";
@@ -974,6 +975,12 @@ function normalizeRerunPatch(patch, editableItems = []) {
         : null
     ).filter(Boolean);
   }
+  if (src?.macro_override && typeof src.macro_override === "object") {
+    const protein_g = Math.max(0, num(src.macro_override?.protein_g));
+    const carbs_g = Math.max(0, num(src.macro_override?.carbs_g));
+    const fat_g = Math.max(0, num(src.macro_override?.fat_g));
+    out.macro_override = { protein_g, carbs_g, fat_g };
+  }
   return out;
 }
 function rerunPatchToActions(patch) {
@@ -1031,6 +1038,14 @@ function rerunPatchToActions(patch) {
       type: "set_item_grams",
       item_id: String(src.set_item_grams?.item_id || "").trim(),
       grams: num(src.set_item_grams?.grams),
+    });
+  }
+  if (src?.macro_override && typeof src.macro_override === "object") {
+    actions.push({
+      type: "set_macro_override",
+      protein_g: num(src.macro_override?.protein_g),
+      carbs_g: num(src.macro_override?.carbs_g),
+      fat_g: num(src.macro_override?.fat_g),
     });
   }
   return actions;
@@ -1616,6 +1631,12 @@ function Meter({ label, value, max = 100, help, locked, lockedText }) {
 }
 
 export default function App() {
+  // ===== Phase 1: local caches (consent + nearby snapshot) =====
+  const AI_CONSENT_CACHE_KEY = "ai_consent_v1";
+  const NEARBY_SNAPSHOT_CACHE_VERSION = 1;
+  const NEARBY_SNAPSHOT_TTL_MS = 15 * 60 * 1000; // 15 minutes
+  const nearbySnapshotKey = (uid) => `nearby_snapshot_v1:${String(uid || "").trim()}`;
+
   // ===== Auth (Supabase) =====
   const [session, setSession] = useState(null);
   const redirectUri =
@@ -1648,6 +1669,11 @@ export default function App() {
   const [scanProgress, setScanProgress] = useState("");
   const [rerunBusy, setRerunBusy] = useState(false);
   const [clarificationSelections, setClarificationSelections] = useState({});
+  const [editMacrosModalVisible, setEditMacrosModalVisible] = useState(false);
+  const [macroDraft, setMacroDraft] = useState({ protein_g: "", carbs_g: "", fat_g: "" });
+  const [nearbyDecisionFeedback, setNearbyDecisionFeedback] = useState({});
+  const [nearbyDecisionFeedbackOpen, setNearbyDecisionFeedbackOpen] = useState({});
+  const [nearbyDecisionAssumptionPresets, setNearbyDecisionAssumptionPresets] = useState({});
   const [supplementFrontUri, setSupplementFrontUri] = useState(null);
   const [supplementBackUri, setSupplementBackUri] = useState(null);
   const [sealImage, setSealImage] = useState(null);
@@ -1667,6 +1693,8 @@ export default function App() {
   const [healthyPlacesBusy, setHealthyPlacesBusy] = useState(false);
   const [healthyPlacesError, setHealthyPlacesError] = useState("");
   const [healthyPlaces, setHealthyPlaces] = useState([]);
+  // Shared nearby snapshot (cached-first). Keeps endpoints intact, unifies rendering inputs.
+  const [nearbySnapshot, setNearbySnapshot] = useState(null);
   const [healthySortMode, setHealthySortMode] = useState("flat_score");
   const [healthySections, setHealthySections] = useState(null);
   const [healthyPlaceCoords, setHealthyPlaceCoords] = useState(null);
@@ -1685,6 +1713,7 @@ export default function App() {
   const [menuScanBusy, setMenuScanBusy] = useState(false);
   const [menuScanError, setMenuScanError] = useState("");
   const [menuScanResult, setMenuScanResult] = useState(null);
+  const [menuScanInitialAssumptions, setMenuScanInitialAssumptions] = useState(null);
   const [upfScanBusy, setUpfScanBusy] = useState(false);
   const [upfScanResult, setUpfScanResult] = useState(null);
   const [upfScanError, setUpfScanError] = useState("");
@@ -1730,6 +1759,7 @@ export default function App() {
   const lunchDecisionReqSeqRef = useRef(0);
   const lunchDecisionInFlightRef = useRef(false);
   const rerunReqSeqRef = useRef(0);
+  const lastAnalysisIdRef = useRef("");
   const mainScrollRef = useRef(null);
   const analyzeCancelRef = useRef(false);
   const goalCoachPendingCompletionRef = useRef(null);
@@ -1928,8 +1958,33 @@ export default function App() {
   );
 
   useEffect(() => {
-    setClarificationSelections({});
-  }, [result?.analysis_id, (result?.clarification_questions || []).length]);
+    const analysisId = String(result?.analysis_id || "").trim();
+    if (!analysisId) {
+      setClarificationSelections({});
+      return;
+    }
+    // Reset on new analysis only; for reruns, keep selections for still-visible keys.
+    setClarificationSelections((prev) => {
+      const prevObj = prev && typeof prev === "object" ? prev : {};
+      const keys = new Set(
+        Array.isArray(result?.clarification_questions)
+          ? result.clarification_questions.map((q) => String(q?.key || "").trim()).filter(Boolean)
+          : []
+      );
+      // If analysis changed, drop all.
+      const lastId = String(lastAnalysisIdRef.current || "").trim();
+      if (lastId && lastId !== analysisId) {
+        return {};
+      }
+      // Otherwise, prune to keys that still exist.
+      const next = {};
+      for (const [k, v] of Object.entries(prevObj)) {
+        if (keys.has(String(k))) next[k] = v;
+      }
+      return next;
+    });
+    lastAnalysisIdRef.current = analysisId;
+  }, [result?.analysis_id, JSON.stringify((result?.clarification_questions || []).map((q) => q?.key || ""))]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1963,6 +2018,48 @@ export default function App() {
     const uid = session?.user?.id || null;
     setUserId(uid);
   }, [session]);
+
+  // Phase 1: fast local AI consent check (never block UI if already accepted).
+  useEffect(() => {
+    let mounted = true;
+    const uid = userId || session?.user?.id;
+    if (!uid) return undefined;
+    (async () => {
+      try {
+        const local = await AsyncStorage.getItem(AI_CONSENT_CACHE_KEY);
+        if (!mounted) return;
+        if (local === "true") {
+          setAiConsentGiven(true);
+          setAiConsentModalVisible(false);
+        }
+      } catch (_) {}
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [userId, session?.user?.id]);
+
+  // Phase 1: load cached nearby snapshot on login (cached-first list/decision/map).
+  useEffect(() => {
+    let mounted = true;
+    const uid = userId || session?.user?.id;
+    if (!uid) return undefined;
+    (async () => {
+      try {
+        const raw = await AsyncStorage.getItem(nearbySnapshotKey(uid));
+        if (!mounted || !raw) return;
+        const parsed = JSON.parse(raw);
+        if (!parsed || typeof parsed !== "object") return;
+        if (parsed.version !== NEARBY_SNAPSHOT_CACHE_VERSION) return;
+        const ts = Number(parsed.generated_at_ms) || 0;
+        if (!ts || Date.now() - ts > NEARBY_SNAPSHOT_TTL_MS) return;
+        setNearbySnapshot({ ...parsed, source: "cache" });
+      } catch (_) {}
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [userId, session?.user?.id]);
 
   // Reset user-scoped UI state immediately when account changes to avoid cross-account leakage on screen.
   useEffect(() => {
@@ -2013,6 +2110,7 @@ export default function App() {
     setHealthyPlacesBusy(false);
     setHealthyPlacesError("");
     setHealthyPlaces([]);
+    setNearbySnapshot(null);
     setHealthySections(null);
     setHealthyPlaceCoords(null);
     setHealthyMapFocusCoords(null);
@@ -3697,6 +3795,15 @@ export default function App() {
   async function fetchAiConsent(forceUserId) {
     const uid = forceUserId || userId || session?.user?.id;
     if (!uid) return false;
+    // Fast path: local cache says consent is granted → do not block UI.
+    try {
+      const local = await AsyncStorage.getItem(AI_CONSENT_CACHE_KEY);
+      if (local === "true") {
+        setAiConsentGiven(true);
+        setAiConsentModalVisible(false);
+        return true;
+      }
+    } catch (_) {}
     setAiConsentLoading(true);
     try {
       const url = withTimezoneQuery(`${API_BASE}/ai/consent?user_id=${encodeURIComponent(uid)}`);
@@ -3705,6 +3812,7 @@ export default function App() {
       const consent = Boolean(data?.consent_given);
       setAiConsentGiven(consent);
       setAiConsentModalVisible(!consent);
+      if (consent) AsyncStorage.setItem(AI_CONSENT_CACHE_KEY, "true").catch(() => {});
       return consent;
     } catch (e) {
       console.log("fetchAiConsent failed", String(e));
@@ -3719,6 +3827,31 @@ export default function App() {
   async function updateAiConsent(nextConsent) {
     const uid = userId || session?.user?.id;
     if (!uid) return false;
+    // Optimistic enable: update UI immediately; persist locally; POST in background.
+    if (Boolean(nextConsent)) {
+      setAiConsentGiven(true);
+      setAiConsentModalVisible(false);
+      setAiConsentLoading(false);
+      AsyncStorage.setItem(AI_CONSENT_CACHE_KEY, "true").catch(() => {});
+      const url = withTimezoneQuery(`${API_BASE}/ai/consent?user_id=${encodeURIComponent(uid)}`);
+      fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", accept: "application/json" },
+        body: JSON.stringify({ user_id: uid, consent: true }),
+      })
+        .then(safeJson)
+        .then((data) => {
+          const consent = Boolean(data?.consent_given);
+          if (!consent) {
+            // Server refused consent update (rare). Reconcile conservatively.
+            setAiConsentGiven(false);
+            setAiConsentModalVisible(true);
+            AsyncStorage.removeItem(AI_CONSENT_CACHE_KEY).catch(() => {});
+          }
+        })
+        .catch(() => {});
+      return true;
+    }
     setAiConsentLoading(true);
     try {
       const url = withTimezoneQuery(`${API_BASE}/ai/consent?user_id=${encodeURIComponent(uid)}`);
@@ -3732,6 +3865,7 @@ export default function App() {
       setAiConsentGiven(consent);
       setAiConsentModalVisible(!consent);
       if (!consent) {
+        AsyncStorage.removeItem(AI_CONSENT_CACHE_KEY).catch(() => {});
         Alert.alert("AI processing disabled", "Scanning and AI coaching are now blocked until you enable consent.");
       }
       return consent;
@@ -4834,6 +4968,24 @@ async function openCamera(mode = "meal") {
       setHealthyViewMode("map");
       if (!opts?.preserveFilter) setHealthyMapFilter("all");
 
+      // Phase 1: update shared nearby snapshot + persist for cached-first rendering.
+      try {
+        const uidSnap = userId || (session?.user?.id ?? null);
+        if (uidSnap) {
+          const nextSnap = {
+            version: NEARBY_SNAPSHOT_CACHE_VERSION,
+            generated_at_ms: Date.now(),
+            coords: { lat, lng, accuracy_m: num(coords?.accuracy_m ?? coords?.accuracy) || undefined },
+            ranked_places: list,
+            lunch_decision: nearbySnapshot?.lunch_decision || null,
+            selected_place_id: "",
+            source: "fresh",
+          };
+          setNearbySnapshot(nextSnap);
+          AsyncStorage.setItem(nearbySnapshotKey(uidSnap), JSON.stringify(nextSnap)).catch(() => {});
+        }
+      } catch (_) {}
+
       // Fire a lightweight decision event for this load (one per call, not per card).
       if (uid && list.length) {
         const payload = buildDecisionEventPayload(list[0], "recommendation_viewed", {
@@ -5224,6 +5376,24 @@ async function openCamera(mode = "meal") {
       });
       void fetchWeeklyCoachProgress(false);
 
+      // Phase 1: update shared nearby snapshot + persist (keeps endpoints intact).
+      try {
+        const uidSnap = userId || (session?.user?.id ?? null);
+        if (uidSnap) {
+          const nextSnap = {
+            version: NEARBY_SNAPSHOT_CACHE_VERSION,
+            generated_at_ms: Date.now(),
+            coords: { lat, lng, accuracy_m: num(coords?.accuracy_m ?? coords?.accuracy) || undefined },
+            ranked_places: Array.isArray(list) ? list : [],
+            lunch_decision: { ...payload, cards },
+            selected_place_id: "",
+            source: "mixed",
+          };
+          setNearbySnapshot(nextSnap);
+          AsyncStorage.setItem(nearbySnapshotKey(uidSnap), JSON.stringify(nextSnap)).catch(() => {});
+        }
+      } catch (_) {}
+
       // Sync map selection to decision's best card using the already-loaded places list.
       const preferredIndex = findMatchingHealthyPlaceIndex(bestCard, list);
       const selectedIndex = preferredIndex >= 0 ? preferredIndex : list.length ? 0 : -1;
@@ -5287,6 +5457,11 @@ async function openCamera(mode = "meal") {
     setMenuScanError("");
     setMenuScanResult(null);
     try {
+      // If the user enters Scan Menu from Home (or other entrypoints),
+      // do not accidentally reuse Decision-card presets.
+      if (activeScreen !== "healthy_nearby") {
+        setMenuScanInitialAssumptions(null);
+      }
       const selectedPlace =
         (healthyPlaces || []).find(
           (x, idx) => healthyPlaceStableId(x, idx) === String(selectedHealthyPlaceId || "").trim()
@@ -5321,6 +5496,11 @@ async function openCamera(mode = "meal") {
       if (remainingProtein !== null) form.append("remaining_protein_g", String(remainingProtein));
       if (goal) form.append("goal", goal);
       if (cutMode) form.append("cut_mode", "true");
+      // Optional local assumption presets (additive; backend may ignore if unsupported).
+      if (menuScanInitialAssumptions && typeof menuScanInitialAssumptions === "object") {
+        if (menuScanInitialAssumptions.assume_sauce_included) form.append("assume_sauce_included", "true");
+        if (menuScanInitialAssumptions.use_standard_portion) form.append("use_standard_portion", "true");
+      }
 
       const url = withTimezoneQuery(`${API_BASE}/menu/scan?user_id=${encodeURIComponent(userId)}`);
       const res = await fetch(url, {
@@ -5452,6 +5632,49 @@ async function openCamera(mode = "meal") {
       return;
     }
 
+    if (cta.includes("scan") && cta.includes("menu")) {
+      // Carry Decision-card local assumption presets into Menu Scan.
+      try {
+        const feedbackKey =
+          String(payload?.place_id || payload?.place_name || "unknown").trim() +
+          "::" +
+          String(payload?.recommended_order || payload?.best_item_name || "").trim();
+        const preset =
+          nearbyDecisionAssumptionPresets &&
+          typeof nearbyDecisionAssumptionPresets === "object" &&
+          nearbyDecisionAssumptionPresets[feedbackKey] &&
+          typeof nearbyDecisionAssumptionPresets[feedbackKey] === "object"
+            ? nearbyDecisionAssumptionPresets[feedbackKey]
+            : null;
+
+        const assume_sauce_included = Boolean(preset?.assume_sauce_included);
+        const use_standard_portion = Boolean(preset?.use_standard_portion);
+        if (assume_sauce_included || use_standard_portion) {
+          setMenuScanInitialAssumptions({
+            assume_sauce_included,
+            use_standard_portion,
+            source_feedback_key: feedbackKey,
+            source_place_id: String(payload?.place_id || "").trim(),
+            source_item: String(payload?.recommended_order || payload?.best_item_name || "").trim(),
+            saved_at_ms: Date.now(),
+          });
+        } else {
+          setMenuScanInitialAssumptions(null);
+        }
+
+        // If the user tapped Scan Menu on a non-top card, sync selected place so menu scan context is correct.
+        const list = Array.isArray(healthyPlaces) ? healthyPlaces.filter((x) => x && typeof x === "object") : [];
+        const idx = findMatchingHealthyPlaceIndex(payload, list);
+        if (idx >= 0) {
+          setSelectedHealthyPlaceId(healthyPlaceStableId(list[idx], idx));
+        }
+      } catch {}
+
+      setHealthyNearbyTab("decision");
+      await openCamera("menu_scan");
+      return;
+    }
+
     if (cta.includes("alternative")) {
       await loadHealthyPlacesNearby({
         coords: healthyPlaceCoords,
@@ -5534,9 +5757,21 @@ async function openCamera(mode = "meal") {
     setWeeklyCoachExpanded(false);
     _scrollToTop();
 
+    const hasCachedSnapshot =
+      nearbySnapshot &&
+      Array.isArray(nearbySnapshot?.ranked_places) &&
+      nearbySnapshot.ranked_places.length > 0 &&
+      Number(nearbySnapshot?.generated_at_ms) > 0 &&
+      (Date.now() - Number(nearbySnapshot.generated_at_ms) < NEARBY_SNAPSHOT_TTL_MS);
+
     if (mode === "decide") {
       setHealthyNearbyTab("decision");
-      await loadLunchDecision();
+      // Cached-first: render instantly if cache exists, then refresh in background.
+      if (hasCachedSnapshot) {
+        void loadLunchDecision();
+        return;
+      }
+      void loadLunchDecision();
       return;
     }
     if (mode === "weekly") {
@@ -5551,12 +5786,21 @@ async function openCamera(mode = "meal") {
     }
     if (mode === "map") {
       setHealthyNearbyTab("map");
-      await loadHealthyPlacesNearby();
+      if (hasCachedSnapshot) {
+        void loadHealthyPlacesNearby();
+        setHealthyViewMode("map");
+        return;
+      }
+      void loadHealthyPlacesNearby();
       setHealthyViewMode("map");
       return;
     }
     setHealthyNearbyTab("decision");
-    await loadHealthyPlacesNearby();
+    if (hasCachedSnapshot) {
+      void loadHealthyPlacesNearby({ preserveFilter: true });
+      return;
+    }
+    void loadHealthyPlacesNearby();
   }
 
   function renderWeeklyCoachBlock() {
@@ -5930,6 +6174,36 @@ async function openCamera(mode = "meal") {
     });
   }
 
+  function openEditMacrosModal() {
+    const p = round1(result?.totals?.protein_g);
+    const c = round1(result?.totals?.carbs_g);
+    const f = round1(result?.totals?.fat_g);
+    setMacroDraft({
+      protein_g: p == null ? "" : String(p),
+      carbs_g: c == null ? "" : String(c),
+      fat_g: f == null ? "" : String(f),
+    });
+    setEditMacrosModalVisible(true);
+  }
+
+  async function applyMacroOverrideCorrection() {
+    const p = Math.max(0, num(macroDraft?.protein_g));
+    const c = Math.max(0, num(macroDraft?.carbs_g));
+    const f = Math.max(0, num(macroDraft?.fat_g));
+    if (!Number.isFinite(p) || !Number.isFinite(c) || !Number.isFinite(f)) {
+      return;
+    }
+    setEditMacrosModalVisible(false);
+    setFliPending(true);
+    await rerunAnalyzeWithPatch({
+      macro_override: {
+        protein_g: p,
+        carbs_g: c,
+        fat_g: f,
+      },
+    });
+  }
+
   async function applyPowderConfirmation(itemId, powderType, scoopG) {
     const id = String(itemId || "").trim();
     const pt = String(powderType || "").trim();
@@ -6022,6 +6296,28 @@ async function openCamera(mode = "meal") {
     await barcodeLookup(code);
   }
 
+  // Phase 1: derived shared inputs for Healthy Nearby surfaces.
+  const effectivePlaces = useMemo(() => {
+    const snapPlaces = nearbySnapshot && Array.isArray(nearbySnapshot?.ranked_places) ? nearbySnapshot.ranked_places : [];
+    return snapPlaces.length ? snapPlaces : healthyPlaces;
+  }, [nearbySnapshot?.generated_at_ms, healthyPlaces]);
+  const effectiveLunchDecision = useMemo(() => {
+    return (nearbySnapshot && nearbySnapshot?.lunch_decision) ? nearbySnapshot.lunch_decision : lunchDecision;
+  }, [nearbySnapshot?.generated_at_ms, lunchDecision]);
+  const hasFreshNearbySnapshot = useMemo(() => {
+    if (!nearbySnapshot || typeof nearbySnapshot !== "object") return false;
+    const ts = Number(nearbySnapshot?.generated_at_ms) || 0;
+    if (!ts) return false;
+    if (Date.now() - ts > NEARBY_SNAPSHOT_TTL_MS) return false;
+    const hasPlaces = Array.isArray(nearbySnapshot?.ranked_places) && nearbySnapshot.ranked_places.length > 0;
+    const hasDecisionCards = Array.isArray(nearbySnapshot?.lunch_decision?.cards) && nearbySnapshot.lunch_decision.cards.length > 0;
+    return Boolean(hasPlaces || hasDecisionCards);
+  }, [nearbySnapshot?.generated_at_ms]);
+  const hasNearbyRenderableContent = Boolean(
+    (effectivePlaces && effectivePlaces.length) ||
+    (effectiveLunchDecision && Array.isArray(effectiveLunchDecision?.cards) && effectiveLunchDecision.cards.length)
+  );
+
   // Keep hook order stable regardless of auth state.
   // This must stay before any early return branches.
   useEffect(() => {
@@ -6036,7 +6332,7 @@ async function openCamera(mode = "meal") {
           .filter((sec) => sec.items.length > 0);
         return filteredSections.flatMap((sec) => sec.items);
       }
-      const filtered = filterHealthyPlacesForMap(healthyPlaces, healthyMapFilter);
+      const filtered = filterHealthyPlacesForMap(effectivePlaces, healthyMapFilter);
       if (isBackendOrdered) return filtered;
       const rows = [...filtered];
       rows.sort((a, b) => {
@@ -6061,7 +6357,7 @@ async function openCamera(mode = "meal") {
         setHealthyMapFocusCoords({ lat: num(top.lat), lng: num(top.lng) });
       }
     }
-  }, [healthyMapFilter, healthyPlaces, selectedHealthyPlaceId, healthySections, healthySortMode]);
+  }, [healthyMapFilter, effectivePlaces, selectedHealthyPlaceId, healthySections, healthySortMode]);
 
   // ===================== RENDER: LOGIN =====================
   if (!session) {
@@ -6191,7 +6487,7 @@ async function openCamera(mode = "meal") {
       const flat = filteredSections.flatMap((sec) => sec.items);
       return { healthyVisiblePlaces: flat, healthySectionsFiltered: filteredSections };
     }
-    const filtered = filterHealthyPlacesForMap(healthyPlaces, healthyMapFilter);
+    const filtered = filterHealthyPlacesForMap(effectivePlaces, healthyMapFilter);
     if (isBackendOrdered) {
       return { healthyVisiblePlaces: filtered, healthySectionsFiltered: null };
     }
@@ -6216,12 +6512,12 @@ async function openCamera(mode = "meal") {
   })();
   const healthySelectedPlaceStableId = healthySelectedPlace ? healthyPlaceStableId(healthySelectedPlace, 0) : "";
 
-  const healthySelectedDecisionCard = findMatchingLunchCard(healthySelectedPlace, lunchDecision?.cards || []);
-  const lunchDayCoach = lunchDecision?.day_coach && typeof lunchDecision.day_coach === "object"
-    ? lunchDecision.day_coach
+  const healthySelectedDecisionCard = findMatchingLunchCard(healthySelectedPlace, effectiveLunchDecision?.cards || []);
+  const lunchDayCoach = effectiveLunchDecision?.day_coach && typeof effectiveLunchDecision.day_coach === "object"
+    ? effectiveLunchDecision.day_coach
     : null;
-  const dailyDecision = lunchDecision?.daily_decision && typeof lunchDecision.daily_decision === "object"
-    ? lunchDecision.daily_decision
+  const dailyDecision = effectiveLunchDecision?.daily_decision && typeof effectiveLunchDecision.daily_decision === "object"
+    ? effectiveLunchDecision.daily_decision
     : null;
   const healthyMapCenter = healthyMapFocusCoords || healthyPlaceCoords;
   const healthyMapPoints = buildHealthyMapPoints(
@@ -6249,9 +6545,9 @@ async function openCamera(mode = "meal") {
     const daySummaryHeadline = String(lunchDayCoach?.day_summary?.headline || "").trim();
     if (daySummaryHeadline) return daySummaryHeadline;
 
-    const bestCard = Array.isArray(lunchDecision?.cards) && lunchDecision.cards.length
-      ? lunchDecision.cards.find((x) => String(x?.card_type || "").trim().toLowerCase() === "best_right_now") ||
-        lunchDecision.cards[0]
+    const bestCard = Array.isArray(effectiveLunchDecision?.cards) && effectiveLunchDecision.cards.length
+      ? effectiveLunchDecision.cards.find((x) => String(x?.card_type || "").trim().toLowerCase() === "best_right_now") ||
+        effectiveLunchDecision.cards[0]
       : null;
     const bestPlace = String(bestCard?.place_name || "").trim();
     if (bestPlace) return `Best next meal near you: ${bestPlace}`;
@@ -7420,37 +7716,51 @@ async function openCamera(mode = "meal") {
                 </View>
               ) : null}
 
-              {result?.clarifying_question?.ask ? (
-                <View style={{ marginTop: 10 }}>
-                  <Text style={styles.cardTitle}>Confirm for better accuracy</Text>
-                  <Text style={styles.p}>{String(result?.clarifying_question?.ask || "")}</Text>
-                  <View style={styles.rowWrap}>
-                    {(result?.clarifying_question?.options || []).slice(0, 6).map((opt, idx) => (
-                      <TouchableOpacity
-                        key={`${String(opt)}-${idx}`}
-                        style={styles.chip}
-                        onPress={() => applyClarifyingAnswer(opt)}
-                        disabled={rerunBusy}
-                      >
-                        <Text style={styles.chipText}>{String(opt)}</Text>
-                      </TouchableOpacity>
-                    ))}
+              {(result?.clarifying_question?.ask ||
+                (result?.clarification_questions || []).length > 0 ||
+                (result?.meal_qa?.one_tap_fixes || []).length > 0) ? (
+                <View style={[styles.card, { marginTop: 12 }]}>
+                  <Text style={styles.cardTitle}>Improve accuracy</Text>
+                  <Text style={styles.tiny}>
+                    Quick fixes + confirmations help tighten kcal/macros. You can do these in any order.
+                  </Text>
+                  <View style={{ marginTop: 10 }}>
+                    <TouchableOpacity style={styles.secondaryBtn} onPress={openEditMacrosModal} disabled={rerunBusy}>
+                      <Text style={styles.btnText}>Fix result / Edit macros</Text>
+                    </TouchableOpacity>
+                    <Text style={[styles.tiny, { marginTop: 6 }]}>
+                      Edit protein/carbs/fat directly. kcal updates from macros after apply.
+                    </Text>
                   </View>
-                </View>
-              ) : null}
 
-              {(result?.clarification_questions || []).length > 0 ? (
-                <View style={{ marginTop: 10 }}>
-                  <Text style={styles.cardTitle}>Confirm details (we'll remember)</Text>
-                  {(result.clarification_questions || []).map((q, qIdx) => (
-                    <View key={q.key || qIdx} style={{ marginTop: 8 }}>
-                      <Text style={styles.p}>{q.label}</Text>
+                  {(result?.meal_qa?.one_tap_fixes || []).length ? (
+                    <View style={{ marginTop: 10 }}>
+                      <Text style={[styles.p, { fontWeight: "700" }]}>Quick fixes</Text>
                       <View style={styles.rowWrap}>
-                        {(q.options || []).map((opt, idx) => (
+                        {(result?.meal_qa?.one_tap_fixes || []).slice(0, 4).map((fix, idx) => (
                           <TouchableOpacity
-                            key={`${q.key}-${idx}`}
-                            style={[styles.chip, clarificationSelections[q.key] === opt ? { borderColor: "#22c55e", borderWidth: 2 } : null]}
-                            onPress={() => setClarificationSelections((prev) => ({ ...prev, [q.key]: opt }))}
+                            key={`fix-${idx}`}
+                            style={styles.chip}
+                            onPress={() => applyQaFix(fix)}
+                            disabled={rerunBusy}
+                          >
+                            <Text style={styles.chipText}>{String(fix?.label || "Apply fix")}</Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    </View>
+                  ) : null}
+
+                  {result?.clarifying_question?.ask ? (
+                    <View style={{ marginTop: 10 }}>
+                      <Text style={[styles.p, { fontWeight: "700" }]}>Confirm for better accuracy</Text>
+                      <Text style={styles.p}>{String(result?.clarifying_question?.ask || "")}</Text>
+                      <View style={styles.rowWrap}>
+                        {(result?.clarifying_question?.options || []).slice(0, 6).map((opt, idx) => (
+                          <TouchableOpacity
+                            key={`${String(opt)}-${idx}`}
+                            style={styles.chip}
+                            onPress={() => applyClarifyingAnswer(opt)}
                             disabled={rerunBusy}
                           >
                             <Text style={styles.chipText}>{String(opt)}</Text>
@@ -7458,37 +7768,49 @@ async function openCamera(mode = "meal") {
                         ))}
                       </View>
                     </View>
-                  ))}
-                  <TouchableOpacity
-                    style={[styles.primaryBtn, { marginTop: 10 }]}
-                    onPress={() => applyClarificationAnswers()}
-                    disabled={rerunBusy || !Object.keys(clarificationSelections).some((k) => clarificationSelections[k])}
-                  >
-                    <Text style={styles.btnText}>Apply and update kcal</Text>
-                  </TouchableOpacity>
-                </View>
-              ) : null}
+                  ) : null}
 
-              {result?.meal_qa ? (
-                <View style={{ marginTop: 10 }}>
-                  <Text style={styles.cardTitle}>Meal QA</Text>
-                  <Text style={styles.p}>Quality score: {round1(result?.meal_qa?.qa_score)}/100</Text>
-                  {(result?.meal_qa?.issues || []).slice(0, 3).map((iss, idx) => (
-                    <Text key={`qa-issue-${idx}`} style={styles.tiny}>
-                      • {String(iss?.message || "")}
-                    </Text>
-                  ))}
-                  {(result?.meal_qa?.one_tap_fixes || []).length ? (
-                    <View style={styles.rowWrap}>
-                      {(result?.meal_qa?.one_tap_fixes || []).slice(0, 3).map((fix, idx) => (
-                        <TouchableOpacity
-                          key={`fix-${idx}`}
-                          style={styles.chip}
-                          onPress={() => applyQaFix(fix)}
-                          disabled={rerunBusy}
-                        >
-                          <Text style={styles.chipText}>{String(fix?.label || "Apply fix")}</Text>
-                        </TouchableOpacity>
+                  {(result?.clarification_questions || []).length > 0 ? (
+                    <View style={{ marginTop: 10 }}>
+                      <Text style={[styles.p, { fontWeight: "700" }]}>Confirm details (we'll remember)</Text>
+                      {(result.clarification_questions || []).map((q, qIdx) => (
+                        <View key={q.key || qIdx} style={{ marginTop: 8 }}>
+                          <Text style={styles.p}>{q.label}</Text>
+                          <View style={styles.rowWrap}>
+                            {(q.options || []).map((opt, idx) => (
+                              <TouchableOpacity
+                                key={`${q.key}-${idx}`}
+                                style={[
+                                  styles.chip,
+                                  clarificationSelections[q.key] === opt ? { borderColor: "#22c55e", borderWidth: 2 } : null,
+                                ]}
+                                onPress={() => setClarificationSelections((prev) => ({ ...prev, [q.key]: opt }))}
+                                disabled={rerunBusy}
+                              >
+                                <Text style={styles.chipText}>{String(opt)}</Text>
+                              </TouchableOpacity>
+                            ))}
+                          </View>
+                        </View>
+                      ))}
+                      <TouchableOpacity
+                        style={[styles.primaryBtn, { marginTop: 10 }]}
+                        onPress={() => applyClarificationAnswers()}
+                        disabled={rerunBusy || !Object.keys(clarificationSelections).some((k) => clarificationSelections[k])}
+                      >
+                        <Text style={styles.btnText}>Apply and update kcal</Text>
+                      </TouchableOpacity>
+                    </View>
+                  ) : null}
+
+                  {result?.meal_qa ? (
+                    <View style={{ marginTop: 10 }}>
+                      <Text style={[styles.p, { fontWeight: "700" }]}>Quality checks</Text>
+                      <Text style={styles.tiny}>Score {round1(result?.meal_qa?.qa_score)}/100</Text>
+                      {(result?.meal_qa?.issues || []).slice(0, 3).map((iss, idx) => (
+                        <Text key={`qa-issue-${idx}`} style={styles.tiny}>
+                          • {String(iss?.message || "")}
+                        </Text>
                       ))}
                     </View>
                   ) : null}
@@ -7917,7 +8239,7 @@ async function openCamera(mode = "meal") {
               style={[styles.nearbyTabPill, healthyNearbyTab === "map" ? styles.nearbyTabPillActive : null]}
               onPress={() => {
                 setHealthyNearbyTab("map");
-                if (!(healthyPlaces || []).length && !healthyPlacesBusy) {
+                if (!(effectivePlaces || []).length && !healthyPlacesBusy) {
                   void loadHealthyPlacesNearby();
                 }
               }}
@@ -8039,7 +8361,7 @@ async function openCamera(mode = "meal") {
         <View style={[styles.card, styles.healthyNearbySectionCard]}>
           <Text style={styles.nearbySectionHeader}>Decision</Text>
           <Text style={styles.nearbySectionSubtle}>Coach + next meal picks</Text>
-          {(lunchDecisionBusy || (healthyPlacesBusy && !lunchDecision)) ? (
+          {((lunchDecisionBusy || healthyPlacesBusy) && !hasNearbyRenderableContent && !hasFreshNearbySnapshot) ? (
             <View style={{ marginTop: 10 }}>
               <ActivityIndicator />
               <Text style={[styles.tiny, { marginTop: 6, textAlign: "center", color: "#94a3b8" }]}>
@@ -8047,7 +8369,7 @@ async function openCamera(mode = "meal") {
               </Text>
             </View>
           ) : null}
-          {!lunchDecision && !lunchDecisionBusy && !lunchDecisionError ? (
+          {!effectiveLunchDecision && !lunchDecisionBusy && !lunchDecisionError ? (
             <View style={{ marginTop: 14, alignItems: "center" }}>
               <TouchableOpacity
                 style={styles.primaryBtn}
@@ -8058,7 +8380,7 @@ async function openCamera(mode = "meal") {
               </TouchableOpacity>
             </View>
           ) : null}
-          {!lunchDecision && !lunchDecisionBusy && lunchDecisionError ? (
+          {!effectiveLunchDecision && !lunchDecisionBusy && lunchDecisionError ? (
             <View style={styles.nearbyErrorBlock}>
               <Text style={styles.nearbyErrorText}>{lunchDecisionError}</Text>
               <TouchableOpacity
@@ -8100,10 +8422,27 @@ async function openCamera(mode = "meal") {
                   ? menuScanResult.reality_check
                   : null;
 
+              const assumptionUsage =
+                Array.isArray(menuScanResult?.assumption_usage) ? menuScanResult.assumption_usage : [];
+              const hasAssumptionsUsed = assumptionUsage.length > 0;
+              const assumptionUsageLabels = assumptionUsage
+                .map((k) => String(k || "").trim())
+                .filter(Boolean)
+                .map((k) => {
+                  if (k === "sauce_included") return "Sauce included";
+                  if (k === "standard_portion") return "Standard portion";
+                  return k;
+                });
+
               return (
                 <View style={styles.menuScanCard}>
                   <Text style={styles.cardTitle}>{String(menuScanResult?.title || "Best Choice Here")}</Text>
                   <Text style={styles.p}>{String(menuScanResult?.subtitle || "AI analyzed this restaurant menu")}</Text>
+                  {hasAssumptionsUsed ? (
+                    <Text style={[styles.tiny, { marginTop: 6, color: "#94a3b8" }]} numberOfLines={1}>
+                      {`Assumptions used: ${assumptionUsageLabels.join(", ")}`}
+                    </Text>
+                  ) : null}
                   {Number.isFinite(num(menuScanResult?.scan_confidence)) ? (
                     <Text style={styles.tiny}>Scan confidence {Math.round(num(menuScanResult.scan_confidence) * 100)}%</Text>
                   ) : null}
@@ -8214,7 +8553,7 @@ async function openCamera(mode = "meal") {
               );
             })()
           ) : null}
-          {lunchDecision && Array.isArray(lunchDecision.cards) && !lunchDecision.cards.length && !lunchDecisionBusy ? (
+          {effectiveLunchDecision && Array.isArray(effectiveLunchDecision.cards) && !effectiveLunchDecision.cards.length && !lunchDecisionBusy ? (
             <View style={{ marginTop: 14, paddingVertical: 12, paddingHorizontal: 4 }}>
               <Text style={[styles.p, { color: "#94a3b8", textAlign: "center" }]}>
                 No exact macro-fit picks found nearby.
@@ -8226,7 +8565,7 @@ async function openCamera(mode = "meal") {
                 style={[styles.secondaryBtn, { marginTop: 10, alignSelf: "center" }]}
                 onPress={() => {
                   setHealthyNearbyTab("map");
-                  if (!(healthyPlaces || []).length && !healthyPlacesBusy) {
+                  if (!(effectivePlaces || []).length && !healthyPlacesBusy) {
                     void loadHealthyPlacesNearby();
                   }
                 }}
@@ -8235,12 +8574,12 @@ async function openCamera(mode = "meal") {
               </TouchableOpacity>
             </View>
           ) : null}
-          {lunchDecision && Array.isArray(lunchDecision.cards) && lunchDecision.cards.length ? (
+          {effectiveLunchDecision && Array.isArray(effectiveLunchDecision.cards) && effectiveLunchDecision.cards.length ? (
             <View style={styles.lunchDecisionWrap}>
-              <Text style={styles.cardTitle}>{String(lunchDecision.title || "What should I eat right now?")}</Text>
-              <Text style={styles.p}>{String(lunchDecision.subtitle || "Best next meal near you")}</Text>
-              {!!String(lunchDecision?.summary_line || "").trim() && !screenshotMode ? (
-                <Text style={styles.lunchSummaryLine}>{String(lunchDecision.summary_line).trim()}</Text>
+              <Text style={styles.cardTitle}>{String(effectiveLunchDecision.title || "What should I eat right now?")}</Text>
+              <Text style={styles.p}>{String(effectiveLunchDecision.subtitle || "Best next meal near you")}</Text>
+              {!!String(effectiveLunchDecision?.summary_line || "").trim() && !screenshotMode ? (
+                <Text style={styles.lunchSummaryLine}>{String(effectiveLunchDecision.summary_line).trim()}</Text>
               ) : null}
               {dailyDecision && !screenshotMode ? (
                 (() => {
@@ -8453,8 +8792,50 @@ async function openCamera(mode = "meal") {
                   );
                 })()
               ) : null}
-              {lunchDecision.cards.slice(0, screenshotMode ? 1 : 3).map((card, idx) => {
+              {(() => {
+                const topCard = effectiveLunchDecision?.cards?.[0];
+                const topDistM = num(topCard?.distance_meters);
+                const topCardType = String(topCard?.card_type || "").trim().toLowerCase();
+                const topCardIsHere =
+                  topCardType === "best_right_now" &&
+                  Number.isFinite(topDistM) &&
+                  topDistM >= 0 &&
+                  topDistM <= 100;
+
+                return effectiveLunchDecision.cards.slice(0, screenshotMode ? 1 : 3).map((card, idx) => {
                 const distanceLabel = formatDistanceFromMeters(card?.distance_meters);
+                const distM = num(card?.distance_meters);
+                const cardType = String(card?.card_type || "").trim().toLowerCase();
+                const isHere = Number.isFinite(distM) && distM >= 0 && distM <= 100;
+                const hasBetterNearby = effectiveLunchDecision?.cards?.some?.(
+                  (c) => String(c?.card_type || "").trim().toLowerCase() === "better_alternative"
+                );
+                const labelText =
+                  cardType === "best_right_now"
+                    ? topCardIsHere && idx === 0 && isHere
+                      ? "Best here right now"
+                      : "Best nearby right now"
+                    : cardType === "better_alternative"
+                    ? topCardIsHere
+                      ? "Better nearby"
+                      : "Next best nearby"
+                    : cardType === "hard_to_fit_today"
+                    ? "Hard to fit today"
+                    : String(card?.label || "").replace(/^[-–—\s]*|[\s]*$/g, "");
+                const subLabel =
+                  cardType === "best_right_now"
+                    ? topCardIsHere && idx === 0 && isHere
+                      ? "You’re here — best order at this venue."
+                      : hasBetterNearby
+                      ? "Top pick nearby — compare with a stronger alternative."
+                      : "Top pick nearby right now."
+                    : cardType === "better_alternative"
+                    ? topCardIsHere
+                      ? "Stronger option close by."
+                      : "A strong alternative nearby."
+                    : cardType === "hard_to_fit_today"
+                    ? "If you must eat here, use the lightest swap."
+                    : "";
                 const badges = Array.isArray(card?.badges) ? card.badges.filter(Boolean).slice(0, 2) : [];
                 const cardSwaps = extractSwapSuggestions(card);
                 const cta = String(card?.cta_label || "").trim();
@@ -8467,8 +8848,8 @@ async function openCamera(mode = "meal") {
                 const typicalOrderName = String(realityCheck?.typical_order?.name || "").trim();
                 const orderCal = Number.isFinite(num(card?.estimated_calories)) ? num(card.estimated_calories) : null;
                 const orderProtein = Number.isFinite(num(card?.estimated_protein_g)) ? num(card.estimated_protein_g) : null;
-                const decisionCtx = lunchDecision?.decision_context;
-                const dayProgress = lunchDecision?.day_coach?.day_summary?.progress;
+                const decisionCtx = effectiveLunchDecision?.decision_context;
+                const dayProgress = effectiveLunchDecision?.day_coach?.day_summary?.progress;
                 const pageRemainingCal =
                   Number.isFinite(num(remainingToday?.kcal)) ? num(remainingToday.kcal) :
                   Number.isFinite(num(decisionCtx?.remaining_calories)) ? num(decisionCtx.remaining_calories) :
@@ -8486,12 +8867,63 @@ async function openCamera(mode = "meal") {
                   orderCal: orderCal,
                   orderProtein: orderProtein,
                 });
+                const feedbackKey =
+                  String(card?.place_id || card?.place_name || "unknown").trim() +
+                  "::" +
+                  String(card?.recommended_order || card?.best_item_name || "").trim();
+                const feedbackOpen = Boolean(nearbyDecisionFeedbackOpen?.[feedbackKey]);
+                const feedback = (nearbyDecisionFeedback && typeof nearbyDecisionFeedback === "object")
+                  ? (nearbyDecisionFeedback[feedbackKey] && typeof nearbyDecisionFeedback[feedbackKey] === "object"
+                    ? nearbyDecisionFeedback[feedbackKey]
+                    : {})
+                  : {};
+                const setFeedback = (patch) => {
+                  if (!patch || typeof patch !== "object") return;
+                  setNearbyDecisionFeedback((prev) => {
+                    const base = prev && typeof prev === "object" ? prev : {};
+                    const cur = base[feedbackKey] && typeof base[feedbackKey] === "object" ? base[feedbackKey] : {};
+                    return { ...base, [feedbackKey]: { ...cur, ...patch, updated_at_ms: Date.now() } };
+                  });
+                  // Best-effort: backend can ignore until fully supported.
+                  try {
+                    void logRecommendationEvent("recommendation_feedback", card, {
+                      feedback_key: feedbackKey,
+                      ...patch,
+                    });
+                  } catch {}
+                };
+
+                const preset =
+                  nearbyDecisionAssumptionPresets &&
+                  typeof nearbyDecisionAssumptionPresets === "object" &&
+                  nearbyDecisionAssumptionPresets[feedbackKey] &&
+                  typeof nearbyDecisionAssumptionPresets[feedbackKey] === "object"
+                    ? nearbyDecisionAssumptionPresets[feedbackKey]
+                    : {};
+                const setPreset = (patch) => {
+                  if (!patch || typeof patch !== "object") return;
+                  setNearbyDecisionAssumptionPresets((prev) => {
+                    const base = prev && typeof prev === "object" ? prev : {};
+                    const cur = base[feedbackKey] && typeof base[feedbackKey] === "object" ? base[feedbackKey] : {};
+                    return { ...base, [feedbackKey]: { ...cur, ...patch, updated_at_ms: Date.now() } };
+                  });
+                };
+                const cardForEvidence = {
+                  ...(card && typeof card === "object" ? card : {}),
+                  __assumptionPreset: preset,
+                  __setAssumptionPreset: setPreset,
+                };
                 return (
                   <View
                     key={"lunch-card-" + idx}
                     style={[styles.lunchDecisionCard, idx === 0 ? styles.lunchDecisionCardTop : null]}
                   >
-                    <Text style={styles.lunchDecisionLabel}>{String(card?.label || "")}</Text>
+                    <Text style={styles.lunchDecisionLabel}>{labelText}</Text>
+                    {!!subLabel && !screenshotMode ? (
+                      <Text style={[styles.tiny, { marginTop: 2, color: "#94a3b8" }]} numberOfLines={2}>
+                        {subLabel}
+                      </Text>
+                    ) : null}
                     <Text style={styles.itemName} numberOfLines={2}>
                       {String(card?.place_name || "Nearby option")}
                       {distanceLabel ? " (" + distanceLabel + ")" : ""}
@@ -8502,6 +8934,14 @@ async function openCamera(mode = "meal") {
                     {!!String(card?.recommended_order || "").trim() ? (
                       <Text style={[styles.tiny, { marginTop: 4 }]}>Recommended: {String(card.recommended_order)}</Text>
                     ) : null}
+                    <BestOrderEvidenceBlock
+                      payload={cardForEvidence}
+                      mode="card"
+                      dark
+                      compact
+                      screenshotMode={screenshotMode}
+                      style={{ marginTop: 6 }}
+                    />
                     {Number.isFinite(num(card?.estimated_calories)) ? (
                       <Text style={styles.tiny}>Calories: ~{Math.round(num(card?.estimated_calories))}</Text>
                     ) : null}
@@ -8566,9 +9006,107 @@ async function openCamera(mode = "meal") {
                         <Text style={styles.smallBtnText}>Share</Text>
                       </TouchableOpacity>
                     </View>
+
+                    {!screenshotMode ? (
+                      <View style={styles.nearbyFeedbackWrap}>
+                        <TouchableOpacity
+                          style={styles.nearbyFeedbackToggle}
+                          onPress={() =>
+                            setNearbyDecisionFeedbackOpen((prev) => ({
+                              ...(prev && typeof prev === "object" ? prev : {}),
+                              [feedbackKey]: !feedbackOpen,
+                            }))
+                          }
+                          activeOpacity={0.85}
+                        >
+                          <Text style={styles.nearbyFeedbackToggleText}>
+                            {feedbackOpen ? "Hide feedback" : "Quick feedback"}
+                          </Text>
+                        </TouchableOpacity>
+
+                        {feedbackOpen ? (
+                          <View style={styles.nearbyFeedbackBody}>
+                            <Text style={styles.nearbyFeedbackQ}>Was this available?</Text>
+                            <View style={styles.nearbyFeedbackRow}>
+                              {["yes", "no", "not_sure"].map((v) => (
+                                <TouchableOpacity
+                                  key={"avail-" + v}
+                                  style={[
+                                    styles.nearbyFeedbackChip,
+                                    feedback.available === v ? styles.nearbyFeedbackChipActive : null,
+                                  ]}
+                                  onPress={() => setFeedback({ available: v })}
+                                  activeOpacity={0.85}
+                                >
+                                  <Text style={styles.nearbyFeedbackChipText}>
+                                    {v === "yes" ? "Yes" : v === "no" ? "No" : "Not sure"}
+                                  </Text>
+                                </TouchableOpacity>
+                              ))}
+                            </View>
+
+                            <Text style={styles.nearbyFeedbackQ}>Did you order this?</Text>
+                            <View style={styles.nearbyFeedbackRow}>
+                              {["yes", "no"].map((v) => (
+                                <TouchableOpacity
+                                  key={"ordered-" + v}
+                                  style={[
+                                    styles.nearbyFeedbackChip,
+                                    feedback.ordered === v ? styles.nearbyFeedbackChipActive : null,
+                                  ]}
+                                  onPress={() => setFeedback({ ordered: v })}
+                                  activeOpacity={0.85}
+                                >
+                                  <Text style={styles.nearbyFeedbackChipText}>{v === "yes" ? "Yes" : "No"}</Text>
+                                </TouchableOpacity>
+                              ))}
+                            </View>
+
+                            <Text style={styles.nearbyFeedbackQ}>Did it include sauce by default?</Text>
+                            <View style={styles.nearbyFeedbackRow}>
+                              {["yes", "no", "not_sure"].map((v) => (
+                                <TouchableOpacity
+                                  key={"sauce-" + v}
+                                  style={[
+                                    styles.nearbyFeedbackChip,
+                                    feedback.sauce_default === v ? styles.nearbyFeedbackChipActive : null,
+                                  ]}
+                                  onPress={() => setFeedback({ sauce_default: v })}
+                                  activeOpacity={0.85}
+                                >
+                                  <Text style={styles.nearbyFeedbackChipText}>
+                                    {v === "yes" ? "Yes" : v === "no" ? "No" : "Not sure"}
+                                  </Text>
+                                </TouchableOpacity>
+                              ))}
+                            </View>
+
+                            <Text style={styles.nearbyFeedbackQ}>Portion looked standard?</Text>
+                            <View style={styles.nearbyFeedbackRow}>
+                              {["yes", "no", "not_sure"].map((v) => (
+                                <TouchableOpacity
+                                  key={"portion-" + v}
+                                  style={[
+                                    styles.nearbyFeedbackChip,
+                                    feedback.portion_standard === v ? styles.nearbyFeedbackChipActive : null,
+                                  ]}
+                                  onPress={() => setFeedback({ portion_standard: v })}
+                                  activeOpacity={0.85}
+                                >
+                                  <Text style={styles.nearbyFeedbackChipText}>
+                                    {v === "yes" ? "Yes" : v === "no" ? "No" : "Not sure"}
+                                  </Text>
+                                </TouchableOpacity>
+                              ))}
+                            </View>
+                          </View>
+                        ) : null}
+                      </View>
+                    ) : null}
                   </View>
                 );
-              })}
+              });
+              })()}
             </View>
           ) : null}
         </View>
@@ -8579,7 +9117,7 @@ async function openCamera(mode = "meal") {
         <View style={[styles.card, styles.healthyNearbySectionCard]}>
           <Text style={styles.nearbySectionHeader}>Map</Text>
           <Text style={styles.nearbySectionSubtle}>Tap a place to compare options.</Text>
-          {(healthyPlaces || []).length ? (
+          {(effectivePlaces || []).length ? (
             <View style={styles.healthyViewToggleRow}>
               <TouchableOpacity
                 style={[styles.smallBtn, healthyViewMode === "map" ? styles.healthyViewToggleActive : null]}
@@ -8638,7 +9176,7 @@ async function openCamera(mode = "meal") {
                   ? () => void loadHealthyPlacesNearby({ radius_m: WIDER_SEARCH_RADIUS_M })
                   : null
               }
-              busy={healthyPlacesBusy}
+              busy={healthyPlacesBusy && !hasFreshNearbySnapshot}
               error={healthyPlacesError}
               formatDistanceFromMeters={formatDistanceFromMeters}
               getPlaceStableId={healthyPlaceStableId}
@@ -9000,6 +9538,64 @@ async function openCamera(mode = "meal") {
                   </>
                 );
               })()}
+            </View>
+          </View>
+        </Modal>
+
+        <Modal visible={editMacrosModalVisible} transparent animationType="fade" onRequestClose={() => setEditMacrosModalVisible(false)}>
+          <View style={styles.modalBackdrop}>
+            <View style={styles.modalCard}>
+              <Text style={styles.cardTitle}>Edit macros</Text>
+              <Text style={styles.tiny}>Correct protein/carbs/fat for this scan. kcal updates from macros.</Text>
+
+              <View style={{ marginTop: 12 }}>
+                <Text style={styles.label}>Protein (g)</Text>
+                <TextInput
+                  style={styles.input}
+                  keyboardType="numeric"
+                  value={String(macroDraft?.protein_g ?? "")}
+                  onChangeText={(v) => setMacroDraft((d) => ({ ...d, protein_g: v }))}
+                  placeholder="e.g., 30"
+                  placeholderTextColor="#666"
+                />
+
+                <Text style={styles.label}>Carbs (g)</Text>
+                <TextInput
+                  style={styles.input}
+                  keyboardType="numeric"
+                  value={String(macroDraft?.carbs_g ?? "")}
+                  onChangeText={(v) => setMacroDraft((d) => ({ ...d, carbs_g: v }))}
+                  placeholder="e.g., 45"
+                  placeholderTextColor="#666"
+                />
+
+                <Text style={styles.label}>Fat (g)</Text>
+                <TextInput
+                  style={styles.input}
+                  keyboardType="numeric"
+                  value={String(macroDraft?.fat_g ?? "")}
+                  onChangeText={(v) => setMacroDraft((d) => ({ ...d, fat_g: v }))}
+                  placeholder="e.g., 18"
+                  placeholderTextColor="#666"
+                />
+
+                <Text style={[styles.p, { marginTop: 10 }]}>
+                  kcal preview:{" "}
+                  {round1((4 * Math.max(0, num(macroDraft?.protein_g))) + (4 * Math.max(0, num(macroDraft?.carbs_g))) + (9 * Math.max(0, num(macroDraft?.fat_g))))}
+                </Text>
+              </View>
+
+              <View style={{ flexDirection: "row", gap: 10, marginTop: 14 }}>
+                <TouchableOpacity
+                  style={[styles.btn, { flex: 1, backgroundColor: "#2c2c2c" }]}
+                  onPress={() => setEditMacrosModalVisible(false)}
+                >
+                  <Text style={styles.btnText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.btn, { flex: 1 }]} onPress={() => void applyMacroOverrideCorrection()} disabled={rerunBusy}>
+                  <Text style={styles.btnText}>Apply correction</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
         </Modal>
@@ -10374,6 +10970,55 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#1f8f4d",
     backgroundColor: "#0a2316",
+  },
+  nearbyFeedbackWrap: {
+    marginTop: 10,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: "#143023",
+  },
+  nearbyFeedbackToggle: {
+    alignSelf: "flex-start",
+    paddingVertical: 4,
+    paddingHorizontal: 6,
+  },
+  nearbyFeedbackToggleText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#93c5fd",
+  },
+  nearbyFeedbackBody: {
+    marginTop: 8,
+  },
+  nearbyFeedbackQ: {
+    fontSize: 12,
+    color: "#cfd7e3",
+    marginTop: 8,
+    marginBottom: 6,
+    fontWeight: "700",
+  },
+  nearbyFeedbackRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+  },
+  nearbyFeedbackChip: {
+    borderWidth: 1,
+    borderColor: "#294268",
+    backgroundColor: "#0c182c",
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 999,
+    marginRight: 8,
+    marginBottom: 8,
+  },
+  nearbyFeedbackChipActive: {
+    borderColor: "#22c55e",
+    backgroundColor: "#0d2c1a",
+  },
+  nearbyFeedbackChipText: {
+    fontSize: 12,
+    color: "#e5e7eb",
+    fontWeight: "700",
   },
   healthyViewToggleRow: {
     marginTop: 14,

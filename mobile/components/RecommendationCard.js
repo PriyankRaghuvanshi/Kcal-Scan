@@ -12,6 +12,7 @@ import { shouldShowMenuMayVary } from "../smartAlertTrustLabels";
 import { ScoreBadge } from "./ScoreBadge";
 import { RecommendationMetaRow } from "./RecommendationMetaRow";
 import { RecommendationActionRow } from "./RecommendationActionRow";
+import { BestOrderEvidenceBlock } from "./BestOrderEvidence";
 
 function extractSwapSuggestions(...sources) {
   const out = [];
@@ -139,6 +140,15 @@ export function RecommendationCard({
           {bestItem}
         </Text>
       ) : null}
+
+      {/* C2. Evidence-backed best order trust (additive) */}
+      <BestOrderEvidenceBlock
+        payload={place}
+        mode="place"
+        dark={dark}
+        compact={compact}
+        screenshotMode={screenshotMode}
+      />
 
       {/* D. Menu may vary (weak only) */}
       {needsMenuCheck && !isScreenshot && (

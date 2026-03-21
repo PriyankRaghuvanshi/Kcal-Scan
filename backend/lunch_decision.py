@@ -28,6 +28,7 @@ from ranked_place_builder import build_ranked_place_profile
 from restaurant_reality_check import build_restaurant_reality_check
 from share_card_formatter import build_best_order_share_card
 from swap_intelligence import build_swap_suggestions
+from best_order_evidence import decision_card_evidence_fields, evidence_flag_enabled
 
 
 LUNCH_DECISION_VERSION = "v1"
@@ -500,6 +501,14 @@ def _place_profile(
     ranking_fields = build_ranked_place_profile(place_for_ranking, user_context)
     if ranking_fields.get("best_item_is_generic_fallback") and recommended_order_label.lower() in ("best order", "estimated best fit"):
         recommended_order_label = "Suggested healthier pick"
+    matched_chain_key = str(
+        top_item.get("matched_chain_key")
+        or top_item.get("chain_key")
+        or place.get("matched_chain_key")
+        or place.get("chain_key")
+        or ""
+    ).strip().lower()
+    chain_features = place.get("chain_features") if isinstance(place.get("chain_features"), dict) else {}
 
     return {
         "name": place_name,
@@ -533,7 +542,13 @@ def _place_profile(
         "menu_item_source": menu_item_source,
         "menu_item_confidence": round(_clamp(menu_item_confidence, 0.2, 0.95), 2),
         "source_rank_weight": round(_clamp(source_rank_weight, 0.0, 1.1), 2),
+        "source_updated_at": str(top_item.get("last_ingested_at") or place.get("last_ingested_at") or "").strip(),
         "menu_item_safety_reason": str(top_item.get("menu_item_safety_reason") or ""),
+        "matched_chain_key": matched_chain_key,
+        "chain_key": matched_chain_key,
+        "country_code": str(place.get("country_code") or "").strip().upper(),
+        "chain_status": str(place.get("chain_status") or "").strip().lower(),
+        "chain_features": chain_features,
         "fit_score": float(round(_clamp(fit_score, 0.0, 100.0), 2)),
         "weak_option": bool(weak_option),
         "top_menu_items": menu.get("top_menu_items") if isinstance(menu.get("top_menu_items"), list) else [],
@@ -686,7 +701,7 @@ def _build_best_card(profile: Dict[str, Any]) -> Dict[str, Any]:
         reality_payload["copy_confidence"] = rewritten["copy_confidence"]
         reality_payload["copy_version"] = rewritten["copy_version"]
 
-    return {
+    card = {
         "card_type": "best_right_now",
         "label": "🥇 BEST RIGHT NOW",
         "place_name": profile.get("name"),
@@ -722,6 +737,12 @@ def _build_best_card(profile: Dict[str, Any]) -> Dict[str, Any]:
         "copy_version": rewritten["copy_version"],
         "tracking": _tracking_payload(str(profile.get("place_id") or ""), recommended_order, "best_right_now"),
     }
+    if evidence_flag_enabled():
+        try:
+            card.update(decision_card_evidence_fields(profile))
+        except Exception:
+            pass
+    return card
 
 
 def _build_better_card(profile: Dict[str, Any]) -> Dict[str, Any]:
@@ -752,7 +773,7 @@ def _build_better_card(profile: Dict[str, Any]) -> Dict[str, Any]:
         reality_payload["copy_confidence"] = rewritten["copy_confidence"]
         reality_payload["copy_version"] = rewritten["copy_version"]
 
-    return {
+    card = {
         "card_type": "better_alternative",
         "label": "🥈 BETTER ALTERNATIVE",
         "place_name": profile.get("name"),
@@ -788,6 +809,12 @@ def _build_better_card(profile: Dict[str, Any]) -> Dict[str, Any]:
         "copy_version": rewritten["copy_version"],
         "tracking": _tracking_payload(str(profile.get("place_id") or ""), recommended_order, "better_alternative"),
     }
+    if evidence_flag_enabled():
+        try:
+            card.update(decision_card_evidence_fields(profile))
+        except Exception:
+            pass
+    return card
 
 
 def _build_hard_card(profile: Dict[str, Any], remaining_calories: Optional[float]) -> Dict[str, Any]:
@@ -815,7 +842,7 @@ def _build_hard_card(profile: Dict[str, Any], remaining_calories: Optional[float
         reality_payload["copy_confidence"] = rewritten["copy_confidence"]
         reality_payload["copy_version"] = rewritten["copy_version"]
 
-    return {
+    card = {
         "card_type": "hard_to_fit_today",
         "label": "⚠️ HARD TO FIT TODAY",
         "place_name": profile.get("name"),
@@ -850,6 +877,12 @@ def _build_hard_card(profile: Dict[str, Any], remaining_calories: Optional[float
         "copy_version": rewritten["copy_version"],
         "tracking": _tracking_payload(str(profile.get("place_id") or ""), recommended_order, "hard_to_fit_today"),
     }
+    if evidence_flag_enabled():
+        try:
+            card.update(decision_card_evidence_fields(profile))
+        except Exception:
+            pass
+    return card
 
 
 def _summary_line(remaining_cal: Optional[float], remaining_protein: Optional[float]) -> str:
@@ -860,6 +893,392 @@ def _summary_line(remaining_cal: Optional[float], remaining_protein: Optional[fl
     if remaining_protein is not None:
         return "Based on your remaining protein target"
     return "Based on nearby menu quality and smart swaps"
+
+
+def _place_by_id(nearby_places: List[Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
+    out: Dict[str, Dict[str, Any]] = {}
+    for p in (nearby_places or []):
+        if not isinstance(p, dict):
+            continue
+        pid = str(p.get("place_id") or p.get("id") or "").strip()
+        if pid and pid not in out:
+            out[pid] = p
+    return out
+
+
+def _decision_from_snapshot_profile(
+    prof: Dict[str, Any],
+    *,
+    remaining_calories: Optional[float],
+    remaining_protein_g: Optional[float],
+) -> Dict[str, Any]:
+    est_cal = int(_safe_float(prof.get("estimated_calories"), 520.0) or 520)
+    est_prot = int(_safe_float(prof.get("estimated_protein_g"), 32.0) or 32)
+    health_10pt = float(_safe_float(prof.get("health_score_10pt"), 5.0) or 5.0)
+    # Snapshot profiles may only have health_score_100; fall back if needed.
+    if (not health_10pt or health_10pt <= 0.0) and prof.get("health_score") is not None:
+        health_10pt = float(_safe_float(prof.get("health_score"), 50.0) or 50.0) / 10.0
+    return evaluate_place_for_today(
+        estimated_calories=est_cal,
+        estimated_protein_g=est_prot,
+        remaining_calories=remaining_calories,
+        remaining_protein_g=remaining_protein_g,
+        health_score=health_10pt,
+    )
+
+
+def _profile_from_snapshot_and_place(
+    prof: Dict[str, Any],
+    place: Dict[str, Any],
+    *,
+    origin_lat: float,
+    origin_lng: float,
+    remaining_calories: Optional[float],
+    remaining_protein_g: Optional[float],
+    goal_value: str,
+    cut_mode: bool,
+    resolved_mode: NutritionMode,
+    use_llm_place_context: bool,
+) -> Dict[str, Any]:
+    """
+    Build a lunch-decision "profile" dict without re-scoring / re-enriching.
+
+    We reuse snapshot estimates (best_order + macros + menu evidence) and only
+    add the missing contract fields (reality_check/share_card + ranked labels).
+    """
+    place_name = str(place.get("name") or prof.get("name") or "Nearby place").strip() or "Nearby place"
+    place_id = str(place.get("place_id") or place.get("id") or prof.get("place_id") or "").strip()
+    lat = float(_safe_float(place.get("lat"), _safe_float(prof.get("lat"), 0.0)) or 0.0)
+    lng = float(_safe_float(place.get("lng"), _safe_float(prof.get("lng"), 0.0)) or 0.0)
+    distance_meters = int(_safe_float(prof.get("distance_meters"), 0.0) or 0)
+    if not distance_meters and lat and lng:
+        distance_meters = _haversine_meters(float(origin_lat), float(origin_lng), lat, lng)
+
+    top_item = prof.get("top_menu_item") if isinstance(prof.get("top_menu_item"), dict) else {}
+    recommended_order = str(prof.get("best_order") or top_item.get("item_name") or "Lighter menu option").strip()
+    estimated_calories = int(_safe_float(prof.get("estimated_calories"), _safe_float(top_item.get("estimated_calories"), 520.0)) or 520)
+    estimated_protein_g = int(_safe_float(prof.get("estimated_protein_g"), _safe_float(top_item.get("estimated_protein_g"), 32.0)) or 32)
+    order_confidence = float(_safe_float(prof.get("order_confidence"), 0.46) or 0.46)
+    menu_item_confidence = float(_safe_float(top_item.get("menu_item_confidence"), _safe_float(top_item.get("confidence"), order_confidence)) or order_confidence)
+    menu_item_source = str(top_item.get("menu_item_source") or "heuristic").strip().lower()
+    source_url = str(top_item.get("source_url") or top_item.get("url") or "").strip()
+    extraction_method = str(top_item.get("extraction_method") or "").strip()
+    parse_method = str(top_item.get("parse_method") or "").strip()
+
+    decision = evaluate_place_for_today(
+        estimated_calories=estimated_calories,
+        estimated_protein_g=estimated_protein_g,
+        remaining_calories=remaining_calories,
+        remaining_protein_g=remaining_protein_g,
+        health_score=float(_safe_float(prof.get("health_score_10pt"), 5.0) or 5.0),
+    )
+    decision_today = str(decision.get("decision_today") or "")
+    fit_for_today = _fit_for_today_from_decision(decision_today)
+
+    # Canonical ranking labels/fields (no menu/scoring work here).
+    place_for_ranking = {
+        "name": place_name,
+        "cuisine_hint": _cuisine_hint_from_place(place) or _cuisine_hint_from_place(prof),
+        "recommended_order": recommended_order,
+        "best_order": recommended_order,
+        "decision_today": decision_today,
+        "fit_for_today": fit_for_today,
+        "estimated_calories": estimated_calories,
+        "estimated_protein_g": estimated_protein_g,
+        "menu_item_confidence": menu_item_confidence,
+        "order_confidence": order_confidence,
+        "distance_meters": distance_meters,
+        "menu_item_source": menu_item_source,
+        "health_score": float(_safe_float(prof.get("health_score_10pt"), 5.0) or 5.0),
+        "fit_today_score_100": decision.get("fit_today_score_100"),
+        "calorie_fit_score_100": decision.get("calorie_fit_score_100"),
+        "protein_fit_score_100": decision.get("protein_fit_score_100"),
+        "overshoot_penalty_100": decision.get("overshoot_penalty_100"),
+    }
+    user_context = {
+        "remaining_protein_g": remaining_protein_g,
+        "cut_mode": bool(cut_mode),
+        "goal": str(goal_value or "").strip(),
+    }
+    try:
+        ranking_fields = build_ranked_place_profile(place_for_ranking, user_context)
+    except Exception:
+        ranking_fields = {}
+
+    short_reason = str(
+        (top_item.get("short_reason") if isinstance(top_item, dict) else "")
+        or prof.get("short_reason")
+        or ranking_fields.get("rank_reason_short")
+        or "Smart eating-out recommendation for right now."
+    ).strip()
+
+    # Reality check + share card (LLM disabled in API paths today).
+    reality_check = build_restaurant_reality_check(
+        place,
+        recommended_order={
+            "item_name": recommended_order,
+            "estimated_calories": int(max(0, estimated_calories)),
+            "estimated_protein_g": int(max(0, estimated_protein_g)),
+            "confidence": float(_safe_float(menu_item_confidence, order_confidence) or order_confidence),
+            "menu_item_source": menu_item_source,
+            "menu_item_confidence": float(_safe_float(menu_item_confidence, order_confidence) or order_confidence),
+        },
+        context={
+            "top_menu_item": top_item,
+            "health_score": float(_safe_float(prof.get("health_score_10pt"), 5.0) or 5.0),
+            "mode": resolved_mode.value,
+            "fit_for_today": fit_for_today,
+            "goal": goal_value,
+        },
+        use_llm_copy=bool(use_llm_place_context),
+        allow_llm_macro=bool(use_llm_place_context),
+    )
+    share_card = build_best_order_share_card(
+        place_name=place_name,
+        health_score=float(_safe_float(prof.get("health_score_10pt"), 5.0) or 5.0),
+        best_order=recommended_order,
+        estimated_calories=estimated_calories,
+        estimated_protein_g=estimated_protein_g,
+        subtitle=_build_share_subtitle(
+            short_reason=short_reason,
+            fit_for_today=fit_for_today,
+            cut_mode_active=(resolved_mode == NutritionMode.CUT),
+        ),
+        recommended_badges=[],
+        order_strategy_tags=[],
+        cut_friendly=bool(cut_mode),
+        fat_loss_friendly=bool(cut_mode),
+        calories_saved=(reality_check.get("calories_saved") if isinstance(reality_check, dict) else None),
+    )
+
+    # Preserve fields expected by card builders + response contract.
+    # NOTE: recommended_order_label historically uses a human label; reuse recommendation_label as the safest proxy.
+    recommended_order_label = str(ranking_fields.get("recommendation_label") or "Estimated Best Fit")
+    daily_fit_score = round(float(_safe_float(ranking_fields.get("meal_fitness_score_100"), 0.0) or 0.0) / 100.0, 2)
+    matched_chain_key = str(
+        top_item.get("matched_chain_key")
+        or top_item.get("chain_key")
+        or prof.get("matched_chain_key")
+        or prof.get("chain_key")
+        or place.get("chain_key")
+        or ""
+    ).strip().lower()
+    chain_status = str(prof.get("chain_status") or place.get("chain_status") or "").strip().lower()
+    chain_features = (
+        prof.get("chain_features")
+        if isinstance(prof.get("chain_features"), dict)
+        else (place.get("chain_features") if isinstance(place.get("chain_features"), dict) else {})
+    )
+
+    return {
+        "name": place_name,
+        "place_id": place_id,
+        "lat": lat,
+        "lng": lng,
+        "distance_meters": int(distance_meters),
+        "recommended_order": recommended_order,
+        "recommended_order_label": recommended_order_label,
+        "swap_suggestion": str(top_item.get("swap_suggestion") or ""),
+        "swap_suggestions": (top_item.get("swap_suggestions") if isinstance(top_item.get("swap_suggestions"), list) else [])[:3],
+        "estimated_calories": int(max(0, estimated_calories)),
+        "estimated_protein_g": int(max(0, estimated_protein_g)),
+        "short_reason": short_reason,
+        "decision_today": decision_today,
+        "decision_reason": str(decision.get("decision_reason") or ""),
+        "fits_remaining_calories": decision.get("fits_remaining_calories"),
+        "fits_remaining_protein": decision.get("fits_remaining_protein"),
+        "fit_for_today": fit_for_today,
+        "daily_fit_score": daily_fit_score,
+        "decision_confidence": float(_safe_float(decision.get("decision_confidence"), order_confidence) or order_confidence),
+        "order_confidence": float(_clamp(order_confidence, 0.35, 0.95)),
+        "menu_item_source": menu_item_source,
+        "menu_item_confidence": round(_clamp(menu_item_confidence, 0.2, 0.95), 2),
+        "source_url": source_url,
+        "source_updated_at": str(top_item.get("last_ingested_at") or prof.get("last_ingested_at") or "").strip(),
+        "extraction_method": extraction_method,
+        "parse_method": parse_method,
+        "candidate_source_label": menu_item_source.replace("_", " ").title(),
+        "matched_chain_key": matched_chain_key,
+        "chain_key": matched_chain_key,
+        "country_code": str(place.get("country_code") or prof.get("country_code") or "").strip().upper(),
+        "chain_status": chain_status,
+        "chain_features": chain_features,
+        "health_score": int(_clamp(_safe_float(prof.get("health_score"), 50.0) or 50.0, 1, 100)),
+        "health_score_10pt": round(float(_safe_float(prof.get("health_score_10pt"), 5.0) or 5.0), 1),
+        **(ranking_fields or {}),
+        "share_card": share_card,
+        "reality_check": reality_check,
+        "personalization_goal": goal_value,
+    }
+
+def build_lunch_decision_response_from_snapshot(
+    *,
+    nearby_places: List[Dict[str, Any]],
+    snapshot: Dict[str, Any],
+    origin_lat: float,
+    origin_lng: float,
+    remaining_calories: Any = None,
+    remaining_protein_g: Any = None,
+    goal: Any = None,
+    cut_mode: bool = False,
+    target_calories: Any = None,
+    consumed_calories: Any = None,
+    target_protein_g: Any = None,
+    consumed_protein_g: Any = None,
+    current_hour: Any = None,
+    use_llm_place_context: bool = True,
+) -> Dict[str, Any]:
+    """
+    Snapshot-based /places/lunch-decision builder.
+
+    Preserves response shape but selects decision cards from a single canonical
+    ranked dataset (snapshot.ranked_places), with best_here vs best_nearby support.
+
+    To keep the change incremental + safe, we only run full enrichment (_place_profile)
+    for the 2-3 selected cards, not for every nearby place.
+    """
+    resolved_mode = NutritionMode.CUT if bool(cut_mode) else NutritionMode.DEFAULT
+    resolved_goal = normalize_personalization_goal(goal)
+    goal_value = personalization_goal_value(resolved_goal)
+
+    remaining_cal = _safe_optional_float(remaining_calories)
+    remaining_protein = _safe_optional_float(remaining_protein_g)
+    resolved_hour = int(current_hour) if current_hour is not None and str(current_hour).strip().lstrip("-").isdigit() else None
+
+    ranked_places = snapshot.get("ranked_places") if isinstance(snapshot, dict) else None
+    ranked: List[Dict[str, Any]] = ranked_places if isinstance(ranked_places, list) else []
+    best_here = snapshot.get("best_here") if isinstance(snapshot, dict) else None
+    best_nearby = snapshot.get("best_nearby") if isinstance(snapshot, dict) else None
+
+    by_id = _place_by_id(nearby_places)
+
+    def _pid(summary: Any) -> str:
+        if not isinstance(summary, dict):
+            return ""
+        return str(summary.get("place_id") or "").strip()
+
+    best_here_id = _pid(best_here)
+    best_nearby_id = _pid(best_nearby)
+    top_ranked_id = str(ranked[0].get("place_id") or "").strip() if ranked else ""
+
+    # Card selection from canonical ranked list:
+    # - If we appear to be at a venue, "best_right_now" becomes that venue's best option.
+    # - Otherwise it is the overall best nearby.
+    best_id = best_here_id or best_nearby_id or top_ranked_id
+
+    # Better alternative: prefer best_nearby if best_id is best_here and differs; else next ranked.
+    better_id = ""
+    if best_id and best_here_id and best_id == best_here_id and best_nearby_id and best_nearby_id != best_id:
+        better_id = best_nearby_id
+    else:
+        for prof in ranked[1:]:
+            pid = str(prof.get("place_id") or "").strip()
+            if pid and pid != best_id:
+                better_id = pid
+                break
+
+    # Hard-to-fit: pick first ranked candidate that evaluates to NO today (excluding chosen).
+    hard_id = ""
+    chosen = {pid for pid in (best_id, better_id) if pid}
+    for prof in ranked:
+        pid = str(prof.get("place_id") or "").strip()
+        if not pid or pid in chosen:
+            continue
+        decision = _decision_from_snapshot_profile(
+            prof,
+            remaining_calories=remaining_cal,
+            remaining_protein_g=remaining_protein,
+        )
+        if str(decision.get("decision_today") or "").strip().upper() == "NO":
+            hard_id = pid
+            break
+
+    prof_by_id: Dict[str, Dict[str, Any]] = {}
+    for p in ranked:
+        if isinstance(p, dict):
+            pid = str(p.get("place_id") or "").strip()
+            if pid and pid not in prof_by_id:
+                prof_by_id[pid] = p
+
+    def _profile_for(pid: str) -> Optional[Dict[str, Any]]:
+        if not pid:
+            return None
+        raw = by_id.get(pid)
+        prof = prof_by_id.get(pid)
+        if not isinstance(raw, dict) or not isinstance(prof, dict):
+            return None
+        try:
+            return _profile_from_snapshot_and_place(
+                prof,
+                raw,
+                origin_lat=float(_safe_float(origin_lat, 0.0) or 0.0),
+                origin_lng=float(_safe_float(origin_lng, 0.0) or 0.0),
+                remaining_calories=remaining_cal,
+                remaining_protein_g=remaining_protein,
+                goal_value=goal_value,
+                cut_mode=bool(cut_mode),
+                resolved_mode=resolved_mode,
+                use_llm_place_context=use_llm_place_context,
+            )
+        except Exception:
+            return None
+
+    cards: List[Dict[str, Any]] = []
+    best_profile = _profile_for(best_id)
+    if best_profile:
+        cards.append(_build_best_card(best_profile))
+
+    better_profile = _profile_for(better_id) if best_profile else None
+    if better_profile:
+        cards.append(_build_better_card(better_profile))
+
+    hard_profile = _profile_for(hard_id) if best_profile else None
+    if hard_profile:
+        cards.append(_build_hard_card(hard_profile, remaining_cal))
+
+    selected = cards[0] if cards else {}
+    selected_place_lat = _safe_optional_float(selected.get("place_lat"))
+    selected_place_lng = _safe_optional_float(selected.get("place_lng"))
+    day_coach = build_day_coach_payload(
+        lunch_cards=cards,
+        target_calories=target_calories,
+        consumed_calories=consumed_calories,
+        remaining_calories=remaining_cal,
+        target_protein_g=target_protein_g,
+        consumed_protein_g=consumed_protein_g,
+        remaining_protein_g=remaining_protein,
+        goal=goal_value,
+        cut_mode=bool(cut_mode),
+        current_hour=current_hour,
+    )
+
+    response = {
+        "title": "What should I eat right now?",
+        "subtitle": "Best lunch near you",
+        "summary_line": _summary_line(remaining_cal, remaining_protein),
+        "generated_at": dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
+        "decision_context": {
+            "remaining_calories": None if remaining_cal is None else round(max(0.0, remaining_cal), 1),
+            "remaining_protein_g": None if remaining_protein is None else round(max(0.0, remaining_protein), 1),
+            "goal": goal_value,
+            "cut_mode": bool(cut_mode),
+        },
+        "cards": cards[:3],
+        "selected_place_id": str(selected.get("place_id") or "").strip(),
+        "selected_place_name": str(selected.get("place_name") or "").strip(),
+        "selected_place_lat": selected_place_lat,
+        "selected_place_lng": selected_place_lng,
+        "tracking_hooks": dict(_TRACKING_EVENTS),
+        "lunch_decision_version": LUNCH_DECISION_VERSION,
+        "day_coach": day_coach,
+    }
+
+    if response["cards"] and isinstance(response["cards"][0].get("share_card"), dict):
+        response["top_share_card"] = response["cards"][0]["share_card"]
+    if response["cards"] and isinstance(response["cards"][0].get("reality_check_share_card"), dict):
+        response["top_reality_check_share_card"] = response["cards"][0]["reality_check_share_card"]
+
+    return response
 
 
 def build_lunch_decision_response(
@@ -877,7 +1296,27 @@ def build_lunch_decision_response(
     consumed_protein_g: Any = None,
     current_hour: Any = None,
     use_llm_place_context: bool = True,
+    snapshot: Optional[Dict[str, Any]] = None,
+    use_snapshot: bool = False,
 ) -> Dict[str, Any]:
+    if use_snapshot and isinstance(snapshot, dict):
+        return build_lunch_decision_response_from_snapshot(
+            nearby_places=nearby_places,
+            snapshot=snapshot,
+            origin_lat=origin_lat,
+            origin_lng=origin_lng,
+            remaining_calories=remaining_calories,
+            remaining_protein_g=remaining_protein_g,
+            goal=goal,
+            cut_mode=cut_mode,
+            target_calories=target_calories,
+            consumed_calories=consumed_calories,
+            target_protein_g=target_protein_g,
+            consumed_protein_g=consumed_protein_g,
+            current_hour=current_hour,
+            use_llm_place_context=use_llm_place_context,
+        )
+
     resolved_mode = NutritionMode.CUT if bool(cut_mode) else NutritionMode.DEFAULT
     resolved_goal = normalize_personalization_goal(goal)
     goal_value = personalization_goal_value(resolved_goal)

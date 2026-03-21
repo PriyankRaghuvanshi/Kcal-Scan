@@ -24,6 +24,128 @@ from restaurant_reality_check import build_restaurant_reality_check
 
 MENU_SCAN_VERSION = "v1"
 
+
+def _text_contains_any(haystack: str, needles: List[str]) -> bool:
+    h = str(haystack or "").lower()
+    for n in needles:
+        if not n:
+            continue
+        if str(n).lower() in h:
+            return True
+    return False
+
+
+def _infer_assumption_usage(
+    *,
+    raw_menu_text: str,
+    item_name_evidence: List[str],
+    assume_sauce_included: bool,
+    use_standard_portion: bool,
+) -> Dict[str, Any]:
+    # Soft priors only: apply only when evidence is ambiguous AND assumptions were provided.
+    # Strong evidence wins: explicit "no sauce" / explicit small/large portion tokens prevent usage.
+    sauce_no_tokens = [
+        "no mayo",
+        "no aioli",
+        "no sour cream",
+        "no cream",
+        "no sauce",
+        "no gravy",
+        "without mayo",
+        "without aioli",
+        "without sour cream",
+        "without cream",
+        "skip mayo",
+        "skip aioli",
+        "skip sauce",
+        "sauce on the side",
+    ]
+    sauce_yes_tokens = [
+        "mayo",
+        "aioli",
+        "sour cream",
+        "creamy",
+        "sauce",
+        "gravy",
+        "dressing",
+        "queso",
+        "cheese sauce",
+        "cream",
+        "mayonnaise",
+    ]
+
+    portion_small_tokens = [
+        "mini",
+        "small",
+        "half",
+        "single",
+        "lite",
+        "2 slices",
+        "two slices",
+        "no sides",
+        "skip sides",
+        "side salad",
+    ]
+    portion_large_tokens = [
+        "loaded",
+        "family",
+        "large",
+        "extra",
+        "combo",
+        "bucket",
+        "footlong",
+        "mega",
+        "party",
+    ]
+
+    names_blob = " ".join([str(x or "") for x in (item_name_evidence or []) if str(x or "").strip()]).lower()
+
+    # If we have no evidence at all, do not apply assumptions (prevents making up interpretation).
+    if not names_blob.strip():
+        return {
+            "assumption_usage": [],
+            "interpreted_sauce_inclusion": "unknown",
+            "interpreted_portion_size": "unknown",
+        }
+
+    explicit_no_sauce = _text_contains_any(names_blob, sauce_no_tokens)
+    explicit_sauce_present = _text_contains_any(names_blob, sauce_yes_tokens)
+    sauce_ambiguous = not explicit_no_sauce and not explicit_sauce_present
+
+    explicit_small_portion = _text_contains_any(names_blob, portion_small_tokens)
+    explicit_large_portion = _text_contains_any(names_blob, portion_large_tokens)
+    portion_ambiguous = not explicit_small_portion and not explicit_large_portion
+
+    assumption_usage: List[str] = []
+    interpreted_sauce_inclusion = "unknown"
+    interpreted_portion_size = "unknown"
+
+    if assume_sauce_included and sauce_ambiguous:
+        assumption_usage.append("sauce_included")
+        interpreted_sauce_inclusion = "assumed_included"
+    elif explicit_no_sauce:
+        interpreted_sauce_inclusion = "explicit_no_sauce"
+    elif explicit_sauce_present:
+        interpreted_sauce_inclusion = "explicit_sauce_present"
+    else:
+        interpreted_sauce_inclusion = "unknown"
+
+    if use_standard_portion and portion_ambiguous:
+        assumption_usage.append("standard_portion")
+        interpreted_portion_size = "assumed_standard"
+    elif explicit_small_portion:
+        interpreted_portion_size = "explicit_small_portion"
+    elif explicit_large_portion:
+        interpreted_portion_size = "explicit_large_portion"
+    else:
+        interpreted_portion_size = "unknown"
+
+    return {
+        "assumption_usage": assumption_usage,
+        "interpreted_sauce_inclusion": interpreted_sauce_inclusion,
+        "interpreted_portion_size": interpreted_portion_size,
+    }
+
 _MENU_SECTION_TOKENS = {
     "menu",
     "starters",
@@ -436,6 +558,8 @@ def build_menu_scan_response(
     restaurant_name: str = "",
     place_id: str = "",
     cuisine: str = "",
+    assume_sauce_included: bool = False,
+    use_standard_portion: bool = False,
     remaining_calories: Optional[float] = None,
     remaining_protein_g: Optional[float] = None,
     goal: str = "",
@@ -487,6 +611,12 @@ def build_menu_scan_response(
                 "headline": "Try a straighter photo with better lighting.",
                 "supporting_text": "Include item names clearly and avoid glare.",
             },
+            "initial_assumptions": {
+                "assume_sauce_included": bool(assume_sauce_included),
+                "use_standard_portion": bool(use_standard_portion),
+            }
+            if (assume_sauce_included or use_standard_portion)
+            else None,
             "parse_method": parse_method,
             "parse_version": parse_version,
             "parser_confidence": parser_confidence,
@@ -533,6 +663,12 @@ def build_menu_scan_response(
                 "headline": "Try another scan in brighter light.",
                 "supporting_text": "A clearer image helps us rank menu items accurately.",
             },
+            "initial_assumptions": {
+                "assume_sauce_included": bool(assume_sauce_included),
+                "use_standard_portion": bool(use_standard_portion),
+            }
+            if (assume_sauce_included or use_standard_portion)
+            else None,
             "parse_method": parse_method,
             "parse_version": parse_version,
             "parser_confidence": parser_confidence,
@@ -641,6 +777,28 @@ def build_menu_scan_response(
         avoid_if_cutting=avoid,
     )
 
+    # Soft interpretation for optional initial assumptions.
+    # Additive only: does not influence scoring/ranking fields above.
+    evidence_item_names: List[str] = []
+    if isinstance(best_choice_item_name, str) and best_choice_item_name.strip():
+        evidence_item_names.append(best_choice_item_name)
+    if isinstance(better_swap_item, dict) and str(better_swap_item.get("item_name") or "").strip():
+        evidence_item_names.append(str(better_swap_item.get("item_name") or ""))
+    if isinstance(avoid, dict) and str(avoid.get("item_name") or "").strip():
+        evidence_item_names.append(str(avoid.get("item_name") or ""))
+    for row in enriched_top[:3]:
+        if isinstance(row, dict):
+            nm = str(row.get("item_name") or "").strip()
+            if nm:
+                evidence_item_names.append(nm)
+
+    assumption_interp = _infer_assumption_usage(
+        raw_menu_text=raw_menu_text,
+        item_name_evidence=evidence_item_names,
+        assume_sauce_included=bool(assume_sauce_included),
+        use_standard_portion=bool(use_standard_portion),
+    )
+
     reality_place = dict(place)
     reality_place["menu_items"] = [
         {
@@ -706,6 +864,20 @@ def build_menu_scan_response(
             "recommendation_tags": list(best.get("recommendation_tags") or []),
             "llm_reasoning_used": llm_used,
         },
+        "initial_assumptions": {
+            "assume_sauce_included": bool(assume_sauce_included),
+            "use_standard_portion": bool(use_standard_portion),
+            "assumptions_note": "Optional user-selected presets. Treated as initial assumptions, not hard truth.",
+        }
+        if (assume_sauce_included or use_standard_portion)
+        else None,
+        # Soft hint usage (additive): reflects whether assumptions were applied under ambiguity.
+        **({ "assumption_usage": assumption_interp.get("assumption_usage", []) } if assumption_interp.get("assumption_usage") else {}),
+        **({
+            "interpreted_sauce_inclusion": assumption_interp.get("interpreted_sauce_inclusion"),
+            "interpreted_portion_size": assumption_interp.get("interpreted_portion_size"),
+        }
+        if assumption_interp.get("assumption_usage") else {}),
         "menu_summary": str(llm_reasoning.get("menu_summary") or "") if llm_used else "",
         "protein_catchup_option": protein_catchup,
         "lighter_recovery_option": lighter_recovery,

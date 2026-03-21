@@ -15,6 +15,7 @@ EVENT_RECOMMENDATION_VIEWED = "recommendation_viewed"
 EVENT_RECOMMENDATION_SELECTED = "recommendation_selected"
 EVENT_MEAL_SCANNED = "meal_scanned"
 EVENT_RECOMMENDATION_FOLLOWED = "recommendation_followed"
+EVENT_RECOMMENDATION_FEEDBACK = "recommendation_feedback"
 
 # Lightweight funnel extensions for lunch decision + social proof flows.
 EVENT_RECOMMENDATION_SHOWN = "recommendation_shown"
@@ -28,6 +29,7 @@ ALLOWED_FEEDBACK_EVENTS = {
     EVENT_RECOMMENDATION_SELECTED,
     EVENT_MEAL_SCANNED,
     EVENT_RECOMMENDATION_FOLLOWED,
+    EVENT_RECOMMENDATION_FEEDBACK,
     EVENT_RECOMMENDATION_SHOWN,
     EVENT_RECOMMENDATION_CLICKED,
     EVENT_PLACE_SELECTED,
@@ -48,6 +50,70 @@ def _safe_float(v: Any, default: float = 0.0) -> float:
 
 def _clamp(x: float, lo: float, hi: float) -> float:
     return max(lo, min(hi, float(x)))
+
+
+def _safe_int(v: Any, default: int = 0) -> int:
+    try:
+        return int(float(v))
+    except Exception:
+        return int(default)
+
+
+def _normalize_yes_no_not_sure(v: Any) -> str | None:
+    s = str(v or "").strip().lower()
+    if not s:
+        return None
+    s = s.replace("-", "_").replace(" ", "_")
+    if s in ("yes", "y"):
+        return "yes"
+    if s in ("no", "n"):
+        return "no"
+    if s in ("not_sure", "notsure", "unsure", "maybe", "idk"):
+        return "not_sure"
+    return None
+
+
+def _normalize_yes_no(v: Any) -> str | None:
+    s = str(v or "").strip().lower()
+    if not s:
+        return None
+    s = s.replace("-", "_").replace(" ", "_")
+    if s in ("yes", "y"):
+        return "yes"
+    if s in ("no", "n"):
+        return "no"
+    return None
+
+
+def _init_user_feedback_counts() -> Dict[str, Any]:
+    return {
+        "available": {"yes": 0, "no": 0, "not_sure": 0},
+        "ordered": {"yes": 0, "no": 0},
+        "sauce_default": {"yes": 0, "no": 0, "not_sure": 0},
+        "portion_standard": {"yes": 0, "no": 0, "not_sure": 0},
+    }
+
+
+def _confidence_from_yes_no_not_sure(counts: Dict[str, Any]) -> float:
+    yes = _safe_int(counts.get("yes"), 0)
+    no = _safe_int(counts.get("no"), 0)
+    not_sure = _safe_int(counts.get("not_sure"), 0)
+    definitive = yes + no
+    uncertain = not_sure
+    if definitive <= 0:
+        return 0.0
+    base = float(yes / definitive) if definitive > 0 else 0.0
+    coverage = float(definitive / (definitive + uncertain)) if (definitive + uncertain) > 0 else 0.0
+    return _clamp(base * coverage, 0.0, 1.0)
+
+
+def _confidence_from_yes_no(counts: Dict[str, Any]) -> float:
+    yes = _safe_int(counts.get("yes"), 0)
+    no = _safe_int(counts.get("no"), 0)
+    denom = yes + no
+    if denom <= 0:
+        return 0.0
+    return _clamp(float(yes / denom), 0.0, 1.0)
 
 
 def _now_iso() -> str:
@@ -150,16 +216,67 @@ def _compute_rates(counts: Dict[str, int]) -> Dict[str, float]:
     }
 
 
-def _update_aggregate(store: Dict[str, Any], *, place_id: str, item: str, event: str) -> Dict[str, Any]:
+def _update_aggregate(
+    store: Dict[str, Any],
+    *,
+    place_id: str,
+    item: str,
+    event: str,
+    metadata: Dict[str, Any] | None = None,
+) -> Dict[str, Any]:
     key = _aggregate_key(place_id, item)
     aggregates = store.setdefault("aggregates", {})
     current = aggregates.get(key) if isinstance(aggregates.get(key), dict) else {}
     counts = current.get("counts") if isinstance(current.get("counts"), dict) else {}
+    user_feedback_counts = (
+        current.get("user_feedback_counts") if isinstance(current.get("user_feedback_counts"), dict) else {}
+    )
+    if not user_feedback_counts:
+        user_feedback_counts = _init_user_feedback_counts()
 
     for ev in ALLOWED_FEEDBACK_EVENTS:
         counts[ev] = int(_safe_float(counts.get(ev), 0) or 0)
 
     counts[event] = counts.get(event, 0) + 1
+
+    user_feedback_events_count = int(_safe_float(current.get("user_feedback_events_count"), 0) or 0)
+    if event == EVENT_RECOMMENDATION_FEEDBACK and isinstance(metadata, dict):
+        updated_any = False
+
+        available = _normalize_yes_no_not_sure(metadata.get("available"))
+        if available:
+            user_feedback_counts.setdefault("available", {"yes": 0, "no": 0, "not_sure": 0})
+            user_feedback_counts["available"][available] = int(
+                _safe_int(user_feedback_counts["available"].get(available), 0) + 1
+            )
+            updated_any = True
+
+        ordered = _normalize_yes_no(metadata.get("ordered"))
+        if ordered:
+            user_feedback_counts.setdefault("ordered", {"yes": 0, "no": 0})
+            user_feedback_counts["ordered"][ordered] = int(
+                _safe_int(user_feedback_counts["ordered"].get(ordered), 0) + 1
+            )
+            updated_any = True
+
+        sauce_default = _normalize_yes_no_not_sure(metadata.get("sauce_default"))
+        if sauce_default:
+            user_feedback_counts.setdefault("sauce_default", {"yes": 0, "no": 0, "not_sure": 0})
+            user_feedback_counts["sauce_default"][sauce_default] = int(
+                _safe_int(user_feedback_counts["sauce_default"].get(sauce_default), 0) + 1
+            )
+            updated_any = True
+
+        portion_standard = _normalize_yes_no_not_sure(metadata.get("portion_standard"))
+        if portion_standard:
+            user_feedback_counts.setdefault("portion_standard", {"yes": 0, "no": 0, "not_sure": 0})
+            user_feedback_counts["portion_standard"][portion_standard] = int(
+                _safe_int(user_feedback_counts["portion_standard"].get(portion_standard), 0) + 1
+            )
+            updated_any = True
+
+        if updated_any:
+            user_feedback_events_count += 1
 
     rates = _compute_rates(counts)
     events_count = sum(
@@ -189,6 +306,22 @@ def _update_aggregate(store: Dict[str, Any], *, place_id: str, item: str, event:
         "success_score": rates["success_score"],
         "signal_confidence": rates["signal_confidence"],
         "score_adjustment": rates["score_adjustment"],
+        # Additive user-confirmed branch intelligence (kept separate from ranking math).
+        "user_feedback_events_count": int(user_feedback_events_count),
+        "user_feedback_counts": user_feedback_counts,
+        "availability_confidence": round(
+            _confidence_from_yes_no_not_sure(user_feedback_counts.get("available") or {}), 3
+        ),
+        "order_confirmation_rate": round(
+            _confidence_from_yes_no(user_feedback_counts.get("ordered") or {}), 3
+        ),
+        "sauce_default_confidence": round(
+            _confidence_from_yes_no_not_sure(user_feedback_counts.get("sauce_default") or {}), 3
+        ),
+        "portion_reliability": round(
+            _confidence_from_yes_no_not_sure(user_feedback_counts.get("portion_standard") or {}), 3
+        ),
+        "user_feedback_confidence_source": "user_confirmations",
         "last_updated": _now_iso(),
     }
 
@@ -241,6 +374,7 @@ def log_recommendation_feedback_event(
             place_id=canonical_place_id,
             item=item_name,
             event=event_name,
+            metadata=metadata,
         )
         # Also update place-level aggregate for fallback signals.
         _update_aggregate(
@@ -248,6 +382,7 @@ def log_recommendation_feedback_event(
             place_id=canonical_place_id,
             item="",
             event=event_name,
+            metadata=metadata,
         )
 
         store["version"] = RECOMMENDATION_FEEDBACK_VERSION
@@ -304,6 +439,12 @@ def get_place_item_feedback_signal(place_id: Any, item: Any = "") -> Dict[str, A
             "success_score": 0.0,
             "signal_confidence": 0.0,
             "score_adjustment": 0.0,
+            "user_feedback_events_count": 0,
+            "availability_confidence": 0.0,
+            "order_confirmation_rate": 0.0,
+            "sauce_default_confidence": 0.0,
+            "portion_reliability": 0.0,
+            "user_feedback_confidence_source": "none",
         }
 
     wanted_item_key = _item_key(item)
@@ -315,9 +456,20 @@ def get_place_item_feedback_signal(place_id: Any, item: Any = "") -> Dict[str, A
         item_signal = aggregates.get(_aggregate_key(canonical_place_id, item))
         place_signal = aggregates.get(_aggregate_key(canonical_place_id, ""))
 
-        if isinstance(item_signal, dict) and int(_safe_float(item_signal.get("events_count"), 0) or 0) >= 2:
+        item_events_n = int(_safe_float(item_signal.get("events_count"), 0) or 0) if isinstance(item_signal, dict) else 0
+        item_feedback_n = int(
+            _safe_float(item_signal.get("user_feedback_events_count"), 0) or 0
+        ) if isinstance(item_signal, dict) else 0
+
+        if isinstance(item_signal, dict) and (item_events_n >= 2 or item_feedback_n >= 2):
             out = dict(item_signal)
             out["signal_source"] = "place_item"
+            out.setdefault("user_feedback_events_count", 0)
+            out.setdefault("availability_confidence", 0.0)
+            out.setdefault("order_confirmation_rate", 0.0)
+            out.setdefault("sauce_default_confidence", 0.0)
+            out.setdefault("portion_reliability", 0.0)
+            out.setdefault("user_feedback_confidence_source", "none")
             return out
 
         if isinstance(place_signal, dict):
@@ -325,6 +477,12 @@ def get_place_item_feedback_signal(place_id: Any, item: Any = "") -> Dict[str, A
             out["signal_source"] = "place_level"
             out["item"] = _normalize_item_name(item)
             out["item_key"] = wanted_item_key
+            out.setdefault("user_feedback_events_count", 0)
+            out.setdefault("availability_confidence", 0.0)
+            out.setdefault("order_confirmation_rate", 0.0)
+            out.setdefault("sauce_default_confidence", 0.0)
+            out.setdefault("portion_reliability", 0.0)
+            out.setdefault("user_feedback_confidence_source", "none")
             return out
 
     return {
@@ -338,5 +496,11 @@ def get_place_item_feedback_signal(place_id: Any, item: Any = "") -> Dict[str, A
         "success_score": 0.0,
         "signal_confidence": 0.0,
         "score_adjustment": 0.0,
+        "user_feedback_events_count": 0,
+        "availability_confidence": 0.0,
+        "order_confirmation_rate": 0.0,
+        "sauce_default_confidence": 0.0,
+        "portion_reliability": 0.0,
+        "user_feedback_confidence_source": "none",
         "signal_source": "none",
     }
