@@ -8,19 +8,21 @@ The app can write **meal nutrition** (from food scans) and **weight** (from Let'
 - **Weight:** When the user logs weight in the Goal Coach Progress section, the value is written to Health (Body Measurements → Weight).
 - **iOS only.** The integration no-ops on Android and when the HealthKit native module is not linked.
 
-## Enabling HealthKit (iOS) — done at build time
+## Enabling HealthKit (iOS) — requires Apple capability first
 
-HealthKit is **enabled automatically when you build**:
+HealthKit needs both app config and Apple provisioning support. Right now the app contains the Health usage descriptions, but the release provisioning profile must also have the HealthKit capability enabled before we can ship a Health-enabled binary.
 
 1. **Dependency:** `react-native-health` is in `package.json`. Run `npm install` (you already did this).
 
-2. **Capability:** In `app.json`, `ios.entitlements` includes `com.apple.developer.healthkit: true`. When you run **EAS Build** (`eas build --platform ios` or your `npm run ios:build:production`), EAS syncs this with Apple and the built app has HealthKit enabled. No manual Xcode step is required for EAS Build.
+2. **Apple Developer:** In Apple Developer → Identifiers → `com.priyank.calorieclick`, enable the **HealthKit** capability and refresh the App Store provisioning profile.
 
-3. **Usage descriptions:** `NSHealthShareUsageDescription` and `NSHealthUpdateUsageDescription` are already in `app.json` → `ios.infoPlist`. They are baked into the build.
+3. **App config:** Add `ios.entitlements.com.apple.developer.healthkit: true` in `app.json` only after the App ID capability is enabled. If the profile does not support HealthKit yet, EAS iOS builds will fail at Xcode signing.
 
-4. **Native link:** For a **development build** (e.g. `npx expo run:ios`), run `cd ios && pod install` after `npm install` so the HealthKit native code is linked. For **EAS Build**, the cloud build runs `pod install` for you.
+4. **Usage descriptions:** `NSHealthShareUsageDescription` and `NSHealthUpdateUsageDescription` are already in `app.json` → `ios.infoPlist`. They are baked into the build.
 
-**Summary:** Run your normal iOS build (EAS or `expo run:ios`). HealthKit will be enabled in the built app. It does **not** work in Expo Go; use a dev client or production build.
+5. **Native link:** For a **development build** (e.g. `npx expo run:ios`), run `cd ios && pod install` after `npm install` so the HealthKit native code is linked. For **EAS Build**, the cloud build runs `pod install` for you.
+
+**Summary:** HealthKit does **not** work in Expo Go. To ship it in TestFlight/App Store, first enable HealthKit on the Apple App ID and regenerate provisioning, then add the HealthKit entitlement back into `app.json` and rebuild.
 
 ## Permissions
 

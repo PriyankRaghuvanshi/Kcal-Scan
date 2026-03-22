@@ -17,9 +17,6 @@
       "icon": "./assets/CalorieClick.png",
       "bundleIdentifier": "com.priyank.calorieclick",
       "supportsTablet": true,
-      "entitlements": {
-        "com.apple.developer.healthkit": true
-      },
       "infoPlist": {
         "NSCameraUsageDescription": "We need camera access to scan meals and barcodes.",
         "NSPhotoLibraryUsageDescription": "We need access to your photos if you choose an existing image to analyze.",
