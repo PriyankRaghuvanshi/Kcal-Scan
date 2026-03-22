@@ -1,0 +1,947 @@
+{
+  "version": "v1",
+  "settings": {
+    "registry_enabled": true,
+    "enforce_for_stable_only": true,
+    "verified_tag_release_enabled": true,
+    "verified_tag_policy_version": "verified_v1",
+    "verified_tag_canary_percent": 100,
+    "verified_tag_shadow_mode": false,
+    "verified_tag_allowlist_user_ids": [],
+    "verified_tag_allowlist_regions": [],
+    "verified_min_confidence": 0.8,
+    "verified_max_source_age_days": 45
+  },
+  "chains": [
+    {
+      "chain_id": "mcdonalds",
+      "chain_key": "mcdonalds",
+      "market": "AU",
+      "display_name": "McDonald's AU",
+      "status": "stable",
+      "registry_version": 1,
+      "active_config_version": "cfg_2026_03_10_stable_au_mcdonalds",
+      "baseline_snapshot_id": "snap_mcdonalds_au_v1",
+      "fallback_mode": "strict",
+      "features": {
+        "ranking_enabled": true,
+        "evidence_enabled": true,
+        "assumptions_enabled": true,
+        "branch_confidence_enabled": true,
+        "verified_enabled": true,
+        "verified_shadow_mode": false
+      },
+      "rollout": {
+        "enabled": true,
+        "canary_percent": 100,
+        "allowlist_user_ids": [],
+        "allowlist_regions": []
+      },
+      "guardrails_profile_id": "stable_default_v1",
+      "last_validated_at": "",
+      "owner": "platform-chain-core",
+      "risk_level": "low",
+      "notes": "Wave1 stable lock; baseline required before enable"
+    },
+    {
+      "chain_id": "kfc",
+      "chain_key": "kfc",
+      "market": "AU",
+      "display_name": "KFC AU",
+      "status": "stable",
+      "registry_version": 1,
+      "active_config_version": "cfg_2026_03_10_stable_au_kfc",
+      "baseline_snapshot_id": "snap_kfc_au_v1",
+      "fallback_mode": "strict",
+      "features": {
+        "ranking_enabled": true,
+        "evidence_enabled": true,
+        "assumptions_enabled": true,
+        "branch_confidence_enabled": true,
+        "verified_enabled": true,
+        "verified_shadow_mode": false
+      },
+      "rollout": {
+        "enabled": true,
+        "canary_percent": 100,
+        "allowlist_user_ids": [],
+        "allowlist_regions": []
+      },
+      "guardrails_profile_id": "stable_default_v1",
+      "last_validated_at": "",
+      "owner": "platform-chain-core",
+      "risk_level": "low",
+      "notes": "Wave1 stable lock; baseline required before enable"
+    },
+    {
+      "chain_id": "nandos",
+      "chain_key": "nandos",
+      "market": "AU",
+      "display_name": "Nando's AU",
+      "status": "stable",
+      "registry_version": 1,
+      "active_config_version": "cfg_2026_03_20_promoted_au_nandos",
+      "baseline_snapshot_id": "snap_nandos_au_v1",
+      "fallback_mode": "strict",
+      "features": {
+        "ranking_enabled": true,
+        "evidence_enabled": true,
+        "assumptions_enabled": true,
+        "branch_confidence_enabled": true,
+        "verified_enabled": true,
+        "verified_shadow_mode": false
+      },
+      "rollout": {
+        "enabled": true,
+        "canary_percent": 100,
+        "allowlist_user_ids": [],
+        "allowlist_regions": []
+      },
+      "guardrails_profile_id": "stable_default_v1",
+      "last_validated_at": "",
+      "owner": "platform-chain-core",
+      "risk_level": "low",
+      "notes": "Promoted stable: nandos::AU ingested from nandos_au seed; 5/5 fixtures no_result_rate=0; diff guardrails clean (2026-03-20)"
+    },
+    {
+      "chain_id": "hungry_jacks",
+      "chain_key": "hungry_jacks",
+      "market": "AU",
+      "display_name": "Hungry Jack's AU",
+      "status": "stable",
+      "registry_version": 1,
+      "active_config_version": "cfg_2026_03_10_stable_au_hungry_jacks",
+      "baseline_snapshot_id": "snap_hungry_jacks_au_v1",
+      "fallback_mode": "strict",
+      "features": {
+        "ranking_enabled": true,
+        "evidence_enabled": true,
+        "assumptions_enabled": true,
+        "branch_confidence_enabled": true,
+        "verified_enabled": true,
+        "verified_shadow_mode": false
+      },
+      "rollout": {
+        "enabled": true,
+        "canary_percent": 100,
+        "allowlist_user_ids": [],
+        "allowlist_regions": []
+      },
+      "guardrails_profile_id": "stable_default_v1",
+      "last_validated_at": "",
+      "owner": "platform-chain-core",
+      "risk_level": "medium",
+      "notes": "Wave1 stable lock; baseline required before enable"
+    },
+    {
+      "chain_id": "red_rooster",
+      "chain_key": "red_rooster",
+      "market": "AU",
+      "display_name": "Red Rooster AU",
+      "status": "stable",
+      "registry_version": 1,
+      "active_config_version": "cfg_2026_03_11_stable_au_red_rooster",
+      "baseline_snapshot_id": "snap_red_rooster_au_v1",
+      "fallback_mode": "strict",
+      "features": {
+        "ranking_enabled": true,
+        "evidence_enabled": true,
+        "assumptions_enabled": true,
+        "branch_confidence_enabled": true,
+        "verified_enabled": true,
+        "verified_shadow_mode": false
+      },
+      "rollout": {
+        "enabled": true,
+        "canary_percent": 100,
+        "allowlist_user_ids": [],
+        "allowlist_regions": []
+      },
+      "guardrails_profile_id": "stable_default_v1",
+      "last_validated_at": "2026-03-11",
+      "owner": "platform-chain-core",
+      "risk_level": "medium",
+      "notes": "Wave1 chain-only AU; menu ingested + baseline regenerated (strict)"
+    },
+    {
+      "chain_id": "faasos",
+      "chain_key": "faasos",
+      "market": "IN",
+      "display_name": "Faasos IN",
+      "status": "stable",
+      "registry_version": 1,
+      "active_config_version": "cfg_2026_03_20_promoted_in_faasos",
+      "baseline_snapshot_id": "snap_faasos_in_v1",
+      "fallback_mode": "strict",
+      "features": {
+        "ranking_enabled": true,
+        "evidence_enabled": true,
+        "assumptions_enabled": true,
+        "branch_confidence_enabled": true,
+        "verified_enabled": true,
+        "verified_shadow_mode": false
+      },
+      "rollout": {
+        "enabled": true,
+        "canary_percent": 100,
+        "allowlist_user_ids": [],
+        "allowlist_regions": []
+      },
+      "guardrails_profile_id": "stable_default_v1",
+      "last_validated_at": "",
+      "owner": "platform-chain-core",
+      "risk_level": "low",
+      "notes": "Promoted stable: faasos::IN menu seed + ingested store; 5/5 baseline fixtures no_result_rate=0; diff guardrails clean (2026-03-20)"
+    },
+    {
+      "chain_id": "wow_momo",
+      "chain_key": "wow_momo",
+      "market": "IN",
+      "display_name": "Wow! Momo IN",
+      "status": "stable",
+      "registry_version": 1,
+      "active_config_version": "cfg_2026_03_20_promoted_in_wow_momo",
+      "baseline_snapshot_id": "snap_wow_momo_in_v1",
+      "fallback_mode": "strict",
+      "features": {
+        "ranking_enabled": true,
+        "evidence_enabled": true,
+        "assumptions_enabled": true,
+        "branch_confidence_enabled": true,
+        "verified_enabled": true,
+        "verified_shadow_mode": false
+      },
+      "rollout": {
+        "enabled": true,
+        "canary_percent": 100,
+        "allowlist_user_ids": [],
+        "allowlist_regions": []
+      },
+      "guardrails_profile_id": "stable_default_v1",
+      "last_validated_at": "",
+      "owner": "platform-chain-core",
+      "risk_level": "low",
+      "notes": "Promoted stable: wow_momo::IN menu seed + ingested store; 5/5 baseline fixtures no_result_rate=0; diff guardrails clean (2026-03-20)"
+    },
+    {
+      "chain_id": "haldirams",
+      "chain_key": "haldirams",
+      "market": "IN",
+      "display_name": "Haldiram's IN",
+      "status": "stable",
+      "registry_version": 1,
+      "active_config_version": "cfg_2026_03_20_promoted_in_haldirams",
+      "baseline_snapshot_id": "snap_haldirams_in_v1",
+      "fallback_mode": "strict",
+      "features": {
+        "ranking_enabled": true,
+        "evidence_enabled": true,
+        "assumptions_enabled": true,
+        "branch_confidence_enabled": true,
+        "verified_enabled": true,
+        "verified_shadow_mode": false
+      },
+      "rollout": {
+        "enabled": true,
+        "canary_percent": 100,
+        "allowlist_user_ids": [],
+        "allowlist_regions": []
+      },
+      "guardrails_profile_id": "stable_default_v1",
+      "last_validated_at": "",
+      "owner": "platform-chain-core",
+      "risk_level": "low",
+      "notes": "Promoted stable: haldirams::IN menu seed + ingested store; 3/3 baseline fixtures no_result_rate=0; diff guardrails clean (2026-03-20)"
+    },
+    {
+      "chain_id": "barbeque_nation",
+      "chain_key": "barbeque_nation",
+      "market": "IN",
+      "display_name": "Barbeque Nation IN",
+      "status": "stable",
+      "registry_version": 1,
+      "active_config_version": "cfg_2026_03_20_promoted_in_barbeque_nation",
+      "baseline_snapshot_id": "snap_barbeque_nation_in_v1",
+      "fallback_mode": "strict",
+      "features": {
+        "ranking_enabled": true,
+        "evidence_enabled": true,
+        "assumptions_enabled": true,
+        "branch_confidence_enabled": true,
+        "verified_enabled": true,
+        "verified_shadow_mode": false
+      },
+      "rollout": {
+        "enabled": true,
+        "canary_percent": 100,
+        "allowlist_user_ids": [],
+        "allowlist_regions": []
+      },
+      "guardrails_profile_id": "stable_default_v1",
+      "last_validated_at": "",
+      "owner": "platform-chain-core",
+      "risk_level": "low",
+      "notes": "Promoted stable: barbeque_nation::IN menu seed + ingested store; 5/5 baseline fixtures no_result_rate=0; diff guardrails clean (2026-03-20)"
+    },
+    {
+      "chain_id": "chipotle",
+      "chain_key": "chipotle",
+      "market": "US",
+      "display_name": "Chipotle US",
+      "status": "stable",
+      "registry_version": 1,
+      "active_config_version": "cfg_2026_03_10_promoted_us_chipotle",
+      "baseline_snapshot_id": "snap_chipotle_us_v1",
+      "fallback_mode": "strict",
+      "features": {
+        "ranking_enabled": true,
+        "evidence_enabled": true,
+        "assumptions_enabled": true,
+        "branch_confidence_enabled": true,
+        "verified_enabled": true,
+        "verified_shadow_mode": false
+      },
+      "rollout": {
+        "enabled": true,
+        "canary_percent": 100,
+        "allowlist_user_ids": [],
+        "allowlist_regions": []
+      },
+      "guardrails_profile_id": "stable_default_v1",
+      "last_validated_at": "",
+      "owner": "platform-chain-core",
+      "risk_level": "low",
+      "notes": "Promoted stable: chipotle::US menu seed + ingested store; 5/5 baseline fixtures no_result_rate=0; diff guardrails clean (2026-03-10)"
+    },
+    {
+      "chain_id": "taco_bell",
+      "chain_key": "taco_bell",
+      "market": "US",
+      "display_name": "Taco Bell US",
+      "status": "stable",
+      "registry_version": 1,
+      "active_config_version": "cfg_2026_03_20_promoted_us_taco_bell",
+      "baseline_snapshot_id": "snap_taco_bell_us_v1",
+      "fallback_mode": "strict",
+      "features": {
+        "ranking_enabled": true,
+        "evidence_enabled": true,
+        "assumptions_enabled": true,
+        "branch_confidence_enabled": true,
+        "verified_enabled": true,
+        "verified_shadow_mode": false
+      },
+      "rollout": {
+        "enabled": true,
+        "canary_percent": 100,
+        "allowlist_user_ids": [],
+        "allowlist_regions": []
+      },
+      "guardrails_profile_id": "stable_default_v1",
+      "last_validated_at": "",
+      "owner": "platform-chain-core",
+      "risk_level": "low",
+      "notes": "Promoted stable: taco_bell::US menu seed + ingested store; 5/5 baseline fixtures no_result_rate=0; diff guardrails clean (2026-03-20)"
+    },
+    {
+      "chain_id": "panera",
+      "chain_key": "panera",
+      "market": "US",
+      "display_name": "Panera US",
+      "status": "stable",
+      "registry_version": 1,
+      "active_config_version": "cfg_2026_03_20_promoted_us_panera",
+      "baseline_snapshot_id": "snap_panera_us_v1",
+      "fallback_mode": "strict",
+      "features": {
+        "ranking_enabled": true,
+        "evidence_enabled": true,
+        "assumptions_enabled": true,
+        "branch_confidence_enabled": true,
+        "verified_enabled": true,
+        "verified_shadow_mode": false
+      },
+      "rollout": {
+        "enabled": true,
+        "canary_percent": 100,
+        "allowlist_user_ids": [],
+        "allowlist_regions": []
+      },
+      "guardrails_profile_id": "stable_default_v1",
+      "last_validated_at": "",
+      "owner": "platform-chain-core",
+      "risk_level": "low",
+      "notes": "Promoted stable: panera::US menu seed + ingested store; 5/5 baseline fixtures no_result_rate=0; diff guardrails clean (2026-03-20)"
+    },
+    {
+      "chain_id": "subway",
+      "chain_key": "subway",
+      "market": "AU",
+      "display_name": "Subway AU",
+      "status": "stable",
+      "registry_version": 1,
+      "active_config_version": "cfg_2026_03_19_promoted_au_subway",
+      "baseline_snapshot_id": "snap_subway_au_v1",
+      "fallback_mode": "strict",
+      "features": {
+        "ranking_enabled": true,
+        "evidence_enabled": true,
+        "assumptions_enabled": true,
+        "branch_confidence_enabled": true,
+        "verified_enabled": false,
+        "verified_shadow_mode": true
+      },
+      "rollout": {
+        "enabled": true,
+        "canary_percent": 100,
+        "allowlist_user_ids": [],
+        "allowlist_regions": []
+      },
+      "guardrails_profile_id": "stable_default_v1",
+      "last_validated_at": "2026-03-19T18:00:00Z",
+      "owner": "platform-chain-core",
+      "risk_level": "low",
+      "notes": "Promoted stable (2026-03-19): subway::AU; Wave2 expansion baseline path clean pre-promotion; fallback strict, full rollout; verified_enabled false per conservative policy (globals unchanged). High AU footprint—monitor no-result and wrong-chain."
+    },
+    {
+      "chain_id": "sweetgreen",
+      "chain_key": "sweetgreen",
+      "market": "US",
+      "display_name": "Sweetgreen US",
+      "status": "stable",
+      "registry_version": 1,
+      "active_config_version": "cfg_2026_03_20_promoted_us_sweetgreen",
+      "baseline_snapshot_id": "snap_sweetgreen_us_v1",
+      "fallback_mode": "strict",
+      "features": {
+        "ranking_enabled": true,
+        "evidence_enabled": true,
+        "assumptions_enabled": true,
+        "branch_confidence_enabled": true,
+        "verified_enabled": false,
+        "verified_shadow_mode": true
+      },
+      "rollout": {
+        "enabled": true,
+        "canary_percent": 100,
+        "allowlist_user_ids": [],
+        "allowlist_regions": []
+      },
+      "guardrails_profile_id": "stable_default_v1",
+      "last_validated_at": "2026-03-20T18:00:00Z",
+      "owner": "platform-chain-core",
+      "risk_level": "low",
+      "notes": "Promoted stable (2026-03-20): sweetgreen::US; Wave2 expansion baseline path clean pre-promotion; fallback strict, full rollout; verified_enabled false per conservative policy (globals unchanged). Monitor salad/fast-casual name variants."
+    },
+    {
+      "chain_id": "eatfit",
+      "chain_key": "eatfit",
+      "market": "IN",
+      "display_name": "EatFit IN",
+      "status": "stable",
+      "registry_version": 1,
+      "active_config_version": "cfg_2026_03_21_promoted_in_eatfit",
+      "baseline_snapshot_id": "snap_eatfit_in_v1",
+      "fallback_mode": "strict",
+      "features": {
+        "ranking_enabled": true,
+        "evidence_enabled": true,
+        "assumptions_enabled": true,
+        "branch_confidence_enabled": true,
+        "verified_enabled": false,
+        "verified_shadow_mode": true
+      },
+      "rollout": {
+        "enabled": true,
+        "canary_percent": 100,
+        "allowlist_user_ids": [],
+        "allowlist_regions": []
+      },
+      "guardrails_profile_id": "stable_default_v1",
+      "last_validated_at": "2026-03-21T18:00:00Z",
+      "owner": "platform-chain-core",
+      "risk_level": "low",
+      "notes": "Promoted stable (2026-03-21): eatfit::IN; Wave2 expansion baseline path clean pre-promotion; fallback strict, full rollout; verified_enabled false per conservative policy (globals unchanged). Monitor IN naming/alias vs generic healthy-food matches."
+    },
+    {
+      "chain_id": "grilld",
+      "chain_key": "grilld",
+      "market": "AU",
+      "display_name": "Grill'd AU",
+      "status": "stable",
+      "registry_version": 1,
+      "active_config_version": "cfg_2026_03_22_promoted_au_grilld",
+      "baseline_snapshot_id": "snap_grilld_au_v1",
+      "fallback_mode": "strict",
+      "features": {
+        "ranking_enabled": true,
+        "evidence_enabled": true,
+        "assumptions_enabled": true,
+        "branch_confidence_enabled": true,
+        "verified_enabled": false,
+        "verified_shadow_mode": true
+      },
+      "rollout": {
+        "enabled": true,
+        "canary_percent": 100,
+        "allowlist_user_ids": [],
+        "allowlist_regions": []
+      },
+      "guardrails_profile_id": "stable_default_v1",
+      "last_validated_at": "2026-03-22T18:00:00Z",
+      "owner": "platform-chain-core",
+      "risk_level": "low",
+      "notes": "Promoted stable (2026-03-22): grilld::AU; Wave2 baseline path clean pre-promotion; fallback strict, full rollout; verified_enabled false per conservative policy (globals unchanged). Monitor Grill'd vs grilld alias (apostrophe) matches."
+    },
+    {
+      "chain_id": "cava",
+      "chain_key": "cava",
+      "market": "US",
+      "display_name": "CAVA US",
+      "status": "stable",
+      "registry_version": 1,
+      "active_config_version": "cfg_2026_03_23_promoted_us_cava",
+      "baseline_snapshot_id": "snap_cava_us_v1",
+      "fallback_mode": "strict",
+      "features": {
+        "ranking_enabled": true,
+        "evidence_enabled": true,
+        "assumptions_enabled": true,
+        "branch_confidence_enabled": true,
+        "verified_enabled": false,
+        "verified_shadow_mode": true
+      },
+      "rollout": {
+        "enabled": true,
+        "canary_percent": 100,
+        "allowlist_user_ids": [],
+        "allowlist_regions": []
+      },
+      "guardrails_profile_id": "stable_default_v1",
+      "last_validated_at": "2026-03-23T18:00:00Z",
+      "owner": "platform-chain-core",
+      "risk_level": "low",
+      "notes": "Promoted stable (2026-03-23): cava::US; Wave2 baseline path clean pre-promotion; fallback strict, full rollout; verified_enabled false per conservative policy (globals unchanged). Monitor Mediterranean/fast-casual name variants (CAVA / Cava Grill)."
+    },
+    {
+      "chain_id": "freshmenu",
+      "chain_key": "freshmenu",
+      "market": "IN",
+      "display_name": "FreshMenu IN",
+      "status": "stable",
+      "registry_version": 1,
+      "active_config_version": "cfg_2026_03_24_promoted_in_freshmenu",
+      "baseline_snapshot_id": "snap_freshmenu_in_v1",
+      "fallback_mode": "strict",
+      "features": {
+        "ranking_enabled": true,
+        "evidence_enabled": true,
+        "assumptions_enabled": true,
+        "branch_confidence_enabled": true,
+        "verified_enabled": false,
+        "verified_shadow_mode": true
+      },
+      "rollout": {
+        "enabled": true,
+        "canary_percent": 100,
+        "allowlist_user_ids": [],
+        "allowlist_regions": []
+      },
+      "guardrails_profile_id": "stable_default_v1",
+      "last_validated_at": "2026-03-24T18:00:00Z",
+      "owner": "platform-chain-core",
+      "risk_level": "low",
+      "notes": "Promoted stable (2026-03-24): freshmenu::IN; Wave2 baseline path clean pre-promotion; fallback strict, full rollout; verified_enabled false per conservative policy (globals unchanged). Monitor IN Fresh Menu / FreshMenu spelling variants."
+    },
+    {
+      "chain_id": "guzman_y_gomez",
+      "chain_key": "guzman_y_gomez",
+      "market": "AU",
+      "display_name": "Guzman y Gomez AU",
+      "status": "stable",
+      "registry_version": 1,
+      "active_config_version": "cfg_2026_03_25_promoted_au_guzman_y_gomez",
+      "baseline_snapshot_id": "snap_guzman_y_gomez_au_v1",
+      "fallback_mode": "strict",
+      "features": {
+        "ranking_enabled": true,
+        "evidence_enabled": true,
+        "assumptions_enabled": true,
+        "branch_confidence_enabled": true,
+        "verified_enabled": false,
+        "verified_shadow_mode": true
+      },
+      "rollout": {
+        "enabled": true,
+        "canary_percent": 100,
+        "allowlist_user_ids": [],
+        "allowlist_regions": []
+      },
+      "guardrails_profile_id": "stable_default_v1",
+      "last_validated_at": "2026-03-25T18:00:00Z",
+      "owner": "platform-chain-core",
+      "risk_level": "low",
+      "notes": "Promoted stable (2026-03-25): guzman_y_gomez::AU; Wave2 baseline path clean pre-promotion; fallback strict, full rollout; verified_enabled false per conservative policy (globals unchanged). Monitor GYG / Guzman y Gomez / gyg alias matches."
+    },
+    {
+      "chain_id": "chick_fil_a",
+      "chain_key": "chick_fil_a",
+      "market": "US",
+      "display_name": "Chick-fil-A US",
+      "status": "stable",
+      "registry_version": 1,
+      "active_config_version": "cfg_2026_03_26_promoted_us_chick_fil_a",
+      "baseline_snapshot_id": "snap_chick_fil_a_us_v1",
+      "fallback_mode": "strict",
+      "features": {
+        "ranking_enabled": true,
+        "evidence_enabled": true,
+        "assumptions_enabled": true,
+        "branch_confidence_enabled": true,
+        "verified_enabled": false,
+        "verified_shadow_mode": true
+      },
+      "rollout": {
+        "enabled": true,
+        "canary_percent": 100,
+        "allowlist_user_ids": [],
+        "allowlist_regions": []
+      },
+      "guardrails_profile_id": "stable_default_v1",
+      "last_validated_at": "2026-03-26T18:00:00Z",
+      "owner": "platform-chain-core",
+      "risk_level": "low",
+      "notes": "Promoted stable (2026-03-26): chick_fil_a::US; Wave2 baseline path clean pre-promotion; fallback strict, full rollout; verified_enabled false per conservative policy (globals unchanged). Monitor Chick-fil-A / chick fil a alias matches vs other chicken QSR."
+    },
+    {
+      "chain_id": "behrouz_biryani",
+      "chain_key": "behrouz_biryani",
+      "market": "IN",
+      "display_name": "Behrouz Biryani IN",
+      "status": "stable",
+      "registry_version": 1,
+      "active_config_version": "cfg_2026_03_27_promoted_in_behrouz_biryani",
+      "baseline_snapshot_id": "snap_behrouz_biryani_in_v1",
+      "fallback_mode": "strict",
+      "features": {
+        "ranking_enabled": true,
+        "evidence_enabled": true,
+        "assumptions_enabled": true,
+        "branch_confidence_enabled": true,
+        "verified_enabled": false,
+        "verified_shadow_mode": true
+      },
+      "rollout": {
+        "enabled": true,
+        "canary_percent": 100,
+        "allowlist_user_ids": [],
+        "allowlist_regions": []
+      },
+      "guardrails_profile_id": "stable_default_v1",
+      "last_validated_at": "2026-03-27T18:00:00Z",
+      "owner": "platform-chain-core",
+      "risk_level": "low",
+      "notes": "Promoted stable (2026-03-27): behrouz_biryani::IN; final Wave2 expansion promotion; baseline path clean pre-promotion; fallback strict, full rollout; verified_enabled false per conservative policy (globals unchanged). Monitor long brand aliases vs generic biryani."
+    },
+    {
+      "chain_id": "dominos",
+      "chain_key": "dominos",
+      "market": "AU",
+      "display_name": "Domino's AU",
+      "status": "stable",
+      "registry_version": 1,
+      "active_config_version": "cfg_2026_03_10_promoted_au_dominos",
+      "baseline_snapshot_id": "snap_dominos_au_v1",
+      "fallback_mode": "strict",
+      "features": {
+        "ranking_enabled": true,
+        "evidence_enabled": true,
+        "assumptions_enabled": true,
+        "branch_confidence_enabled": true,
+        "verified_enabled": false,
+        "verified_shadow_mode": true
+      },
+      "rollout": {
+        "enabled": true,
+        "canary_percent": 100,
+        "allowlist_user_ids": [],
+        "allowlist_regions": []
+      },
+      "guardrails_profile_id": "stable_default_v1",
+      "last_validated_at": "2026-03-10T20:00:00Z",
+      "owner": "platform-chain-core",
+      "risk_level": "low",
+      "notes": "Promoted stable (2026-03-10): dominos::AU; expansion baseline path clean (no_result_rate=0, diff guardrails clean); fallback strict, full rollout; verified_enabled false per conservative policy (globals unchanged)."
+    },
+    {
+      "chain_id": "zambrero_au",
+      "chain_key": "zambrero",
+      "market": "AU",
+      "display_name": "Zambrero AU",
+      "status": "stable",
+      "registry_version": 1,
+      "active_config_version": "cfg_2026_03_12_promoted_au_zambrero",
+      "baseline_snapshot_id": "snap_zambrero_au_v1",
+      "fallback_mode": "strict",
+      "features": {
+        "ranking_enabled": true,
+        "evidence_enabled": true,
+        "assumptions_enabled": true,
+        "branch_confidence_enabled": true,
+        "verified_enabled": true,
+        "verified_shadow_mode": true
+      },
+      "rollout": {
+        "enabled": true,
+        "canary_percent": 100,
+        "allowlist_user_ids": [],
+        "allowlist_regions": []
+      },
+      "guardrails_profile_id": "stable_default_v1",
+      "last_validated_at": "2026-03-12T18:00:00Z",
+      "owner": "platform-chain-core",
+      "risk_level": "low",
+      "notes": "Promoted stable (2026-03-12): zambrero::AU; small ingested menu, low ambiguity; baseline path clean pre-promotion; fallback strict, full rollout. Phase A Verified (2026-03-10): verified_enabled true, verified_shadow_mode true — eligibility + reason-code monitoring; badge not visible until Phase B."
+    },
+    {
+      "chain_id": "oporto_au",
+      "chain_key": "oporto",
+      "market": "AU",
+      "display_name": "Oporto AU",
+      "status": "stable",
+      "registry_version": 1,
+      "active_config_version": "cfg_2026_03_13_promoted_au_oporto",
+      "baseline_snapshot_id": "snap_oporto_au_v1",
+      "fallback_mode": "strict",
+      "features": {
+        "ranking_enabled": true,
+        "evidence_enabled": true,
+        "assumptions_enabled": true,
+        "branch_confidence_enabled": true,
+        "verified_enabled": false,
+        "verified_shadow_mode": true
+      },
+      "rollout": {
+        "enabled": true,
+        "canary_percent": 100,
+        "allowlist_user_ids": [],
+        "allowlist_regions": []
+      },
+      "guardrails_profile_id": "stable_default_v1",
+      "last_validated_at": "2026-03-13T18:00:00Z",
+      "owner": "platform-chain-core",
+      "risk_level": "low",
+      "notes": "Promoted stable (2026-03-13): oporto::AU; AU regional, small ingested menu; baseline path clean pre-promotion; fallback strict, full rollout; verified_enabled false per conservative policy (globals unchanged)."
+    },
+    {
+      "chain_id": "dominos_us",
+      "chain_key": "dominos",
+      "market": "US",
+      "display_name": "Domino's US",
+      "status": "stable",
+      "registry_version": 1,
+      "active_config_version": "cfg_2026_03_11_promoted_us_dominos",
+      "baseline_snapshot_id": "snap_dominos_us_v1",
+      "fallback_mode": "strict",
+      "features": {
+        "ranking_enabled": true,
+        "evidence_enabled": true,
+        "assumptions_enabled": true,
+        "branch_confidence_enabled": true,
+        "verified_enabled": false,
+        "verified_shadow_mode": true
+      },
+      "rollout": {
+        "enabled": true,
+        "canary_percent": 100,
+        "allowlist_user_ids": [],
+        "allowlist_regions": []
+      },
+      "guardrails_profile_id": "stable_default_v1",
+      "last_validated_at": "2026-03-11T18:00:00Z",
+      "owner": "platform-chain-core",
+      "risk_level": "low",
+      "notes": "Promoted stable (2026-03-11): dominos::US; baseline path clean pre-promotion; fallback strict, full rollout; verified_enabled false per conservative policy (globals unchanged)."
+    },
+    {
+      "chain_id": "dominos_in",
+      "chain_key": "dominos",
+      "market": "IN",
+      "display_name": "Domino's IN",
+      "status": "stable",
+      "registry_version": 1,
+      "active_config_version": "cfg_2026_03_14_promoted_in_dominos",
+      "baseline_snapshot_id": "snap_dominos_in_v1",
+      "fallback_mode": "strict",
+      "features": {
+        "ranking_enabled": true,
+        "evidence_enabled": true,
+        "assumptions_enabled": true,
+        "branch_confidence_enabled": true,
+        "verified_enabled": false,
+        "verified_shadow_mode": true
+      },
+      "rollout": {
+        "enabled": true,
+        "canary_percent": 100,
+        "allowlist_user_ids": [],
+        "allowlist_regions": []
+      },
+      "guardrails_profile_id": "stable_default_v1",
+      "last_validated_at": "2026-03-14T18:00:00Z",
+      "owner": "platform-chain-core",
+      "risk_level": "low",
+      "notes": "Promoted stable (2026-03-14): dominos::IN; completes Domino's AU/US/IN trio; baseline path clean pre-promotion; fallback strict, full rollout; verified_enabled false per conservative policy (globals unchanged)."
+    },
+    {
+      "chain_id": "burger_king_us",
+      "chain_key": "burger_king",
+      "market": "US",
+      "display_name": "Burger King US",
+      "status": "stable",
+      "registry_version": 1,
+      "active_config_version": "cfg_2026_03_15_promoted_us_burger_king",
+      "baseline_snapshot_id": "snap_burger_king_us_v1",
+      "fallback_mode": "strict",
+      "features": {
+        "ranking_enabled": true,
+        "evidence_enabled": true,
+        "assumptions_enabled": true,
+        "branch_confidence_enabled": true,
+        "verified_enabled": false,
+        "verified_shadow_mode": true
+      },
+      "rollout": {
+        "enabled": true,
+        "canary_percent": 100,
+        "allowlist_user_ids": [],
+        "allowlist_regions": []
+      },
+      "guardrails_profile_id": "stable_default_v1",
+      "last_validated_at": "2026-03-15T18:00:00Z",
+      "owner": "platform-chain-core",
+      "risk_level": "low",
+      "notes": "Promoted stable (2026-03-15): burger_king::US; baseline path clean pre-promotion; fallback strict, full rollout; verified_enabled false per conservative policy (globals unchanged). Monitor US burger-category collision vs other QSR."
+    },
+    {
+      "chain_id": "wendys_us",
+      "chain_key": "wendys",
+      "market": "US",
+      "display_name": "Wendy's US",
+      "status": "stable",
+      "registry_version": 1,
+      "active_config_version": "cfg_2026_03_18_promoted_us_wendys",
+      "baseline_snapshot_id": "snap_wendys_us_v1",
+      "fallback_mode": "strict",
+      "features": {
+        "ranking_enabled": true,
+        "evidence_enabled": true,
+        "assumptions_enabled": true,
+        "branch_confidence_enabled": true,
+        "verified_enabled": false,
+        "verified_shadow_mode": true
+      },
+      "rollout": {
+        "enabled": true,
+        "canary_percent": 100,
+        "allowlist_user_ids": [],
+        "allowlist_regions": []
+      },
+      "guardrails_profile_id": "stable_default_v1",
+      "last_validated_at": "2026-03-18T18:00:00Z",
+      "owner": "platform-chain-core",
+      "risk_level": "low",
+      "notes": "Promoted stable (2026-03-18): wendys::US; baseline path clean pre-promotion; fallback strict, full rollout; verified_enabled false per conservative policy (globals unchanged). Monitor US QSR burger-category collision vs BK/McD."
+    },
+    {
+      "chain_id": "burger_king_in",
+      "chain_key": "burger_king",
+      "market": "IN",
+      "display_name": "Burger King IN",
+      "status": "stable",
+      "registry_version": 1,
+      "active_config_version": "cfg_2026_03_16_promoted_in_burger_king",
+      "baseline_snapshot_id": "snap_burger_king_in_v1",
+      "fallback_mode": "strict",
+      "features": {
+        "ranking_enabled": true,
+        "evidence_enabled": true,
+        "assumptions_enabled": true,
+        "branch_confidence_enabled": true,
+        "verified_enabled": false,
+        "verified_shadow_mode": true
+      },
+      "rollout": {
+        "enabled": true,
+        "canary_percent": 100,
+        "allowlist_user_ids": [],
+        "allowlist_regions": []
+      },
+      "guardrails_profile_id": "stable_default_v1",
+      "last_validated_at": "2026-03-16T18:00:00Z",
+      "owner": "platform-chain-core",
+      "risk_level": "low",
+      "notes": "Promoted stable (2026-03-16): burger_king::IN; pairs with stable burger_king::US; baseline path clean pre-promotion; fallback strict, full rollout; verified_enabled false per conservative policy (globals unchanged). Monitor IN naming/alias vs other QSR."
+    },
+    {
+      "chain_id": "pizza_hut_in",
+      "chain_key": "pizza_hut",
+      "market": "IN",
+      "display_name": "Pizza Hut IN",
+      "status": "stable",
+      "registry_version": 1,
+      "active_config_version": "cfg_2026_03_17_promoted_in_pizza_hut",
+      "baseline_snapshot_id": "snap_pizza_hut_in_v1",
+      "fallback_mode": "strict",
+      "features": {
+        "ranking_enabled": true,
+        "evidence_enabled": true,
+        "assumptions_enabled": true,
+        "branch_confidence_enabled": true,
+        "verified_enabled": false,
+        "verified_shadow_mode": true
+      },
+      "rollout": {
+        "enabled": true,
+        "canary_percent": 100,
+        "allowlist_user_ids": [],
+        "allowlist_regions": []
+      },
+      "guardrails_profile_id": "stable_default_v1",
+      "last_validated_at": "2026-03-17T18:00:00Z",
+      "owner": "platform-chain-core",
+      "risk_level": "low",
+      "notes": "Promoted stable (2026-03-17): pizza_hut::IN; complements stable dominos::IN; baseline path clean pre-promotion; fallback strict, full rollout; verified_enabled false per conservative policy (globals unchanged). Keep pizza_hut CHAIN_KEYS narrow."
+    },
+    {
+      "chain_id": "local_kebab_cohort",
+      "chain_key": "local_kebab_cohort",
+      "market": "IN",
+      "display_name": "Local Kebab Cohort IN",
+      "status": "experimental",
+      "registry_version": 1,
+      "active_config_version": "cfg_2026_03_10_experimental_in_kebab",
+      "baseline_snapshot_id": "",
+      "fallback_mode": "conservative",
+      "features": {
+        "ranking_enabled": true,
+        "evidence_enabled": false,
+        "assumptions_enabled": false,
+        "branch_confidence_enabled": false,
+        "verified_enabled": false,
+        "verified_shadow_mode": true
+      },
+      "rollout": {
+        "enabled": true,
+        "canary_percent": 1,
+        "allowlist_user_ids": ["internal_qa_user"],
+        "allowlist_regions": []
+      },
+      "guardrails_profile_id": "experimental_strict_v1",
+      "last_validated_at": "",
+      "owner": "platform-chain-core",
+      "risk_level": "high",
+      "notes": "Scaffold experimental cohort; keep isolated from stable rollout."
+    }
+  ]
+}

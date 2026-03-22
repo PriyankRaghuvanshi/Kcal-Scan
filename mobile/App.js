@@ -8468,8 +8468,8 @@ async function openCamera(mode = "meal") {
                       {`Assumptions used: ${assumptionUsageLabels.join(", ")}`}
                     </Text>
                   ) : null}
-                  {Number.isFinite(num(menuScanResult?.scan_confidence)) ? (
-                    <Text style={styles.tiny}>Scan confidence {Math.round(num(menuScanResult.scan_confidence) * 100)}%</Text>
+                  {finiteNumOrNull(menuScanResult?.scan_confidence) !== null ? (
+                    <Text style={styles.tiny}>Scan confidence {Math.round(finiteNumOrNull(menuScanResult?.scan_confidence) * 100)}%</Text>
                   ) : null}
 
                   {bestChoice ? (
@@ -8477,11 +8477,11 @@ async function openCamera(mode = "meal") {
                       <Text style={styles.dayCoachSectionTitle}>Best Choice Here</Text>
                       <Text style={styles.healthyPanelItemName}>{String(bestChoice?.item_name || "Smart pick")}</Text>
                       <Text style={styles.tiny}>
-                        {Number.isFinite(num(bestChoice?.estimated_calories))
-                          ? `${Math.round(num(bestChoice.estimated_calories))} kcal`
+                        {finiteNumOrNull(bestChoice?.estimated_calories) !== null
+                          ? `${Math.round(finiteNumOrNull(bestChoice?.estimated_calories))} kcal`
                           : "Calories n/a"}
-                        {Number.isFinite(num(bestChoice?.estimated_protein_g))
-                          ? ` • ${Math.round(num(bestChoice.estimated_protein_g))}g protein`
+                        {finiteNumOrNull(bestChoice?.estimated_protein_g) !== null
+                          ? ` • ${Math.round(finiteNumOrNull(bestChoice?.estimated_protein_g))}g protein`
                           : ""}
                       </Text>
                       {!!String(bestChoice?.short_reason || "").trim() ? (
@@ -8501,8 +8501,8 @@ async function openCamera(mode = "meal") {
                       <Text style={styles.dayCoachSectionTitle}>Better Swap</Text>
                       <Text style={styles.tiny}>
                         {String(betterSwap?.item_name || "Lighter menu swap")}
-                        {Number.isFinite(num(betterSwap?.estimated_calories))
-                          ? ` • ${Math.round(num(betterSwap.estimated_calories))} kcal`
+                        {finiteNumOrNull(betterSwap?.estimated_calories) !== null
+                          ? ` • ${Math.round(finiteNumOrNull(betterSwap?.estimated_calories))} kcal`
                           : ""}
                       </Text>
                       {!!String(betterSwap?.short_reason || "").trim() ? (
@@ -8516,8 +8516,8 @@ async function openCamera(mode = "meal") {
                       <Text style={styles.dayCoachSectionTitle}>Avoid if Cutting</Text>
                       <Text style={styles.tiny}>
                         {String(avoidCutting?.item_name || "Calorie-dense option")}
-                        {Number.isFinite(num(avoidCutting?.estimated_calories))
-                          ? ` • ~${Math.round(num(avoidCutting.estimated_calories))} kcal`
+                        {finiteNumOrNull(avoidCutting?.estimated_calories) !== null
+                          ? ` • ~${Math.round(finiteNumOrNull(avoidCutting?.estimated_calories))} kcal`
                           : ""}
                       </Text>
                       {!!String(avoidCutting?.short_reason || "").trim() ? (
@@ -8617,11 +8617,13 @@ async function openCamera(mode = "meal") {
                     : [];
                   const mealWindow = String(dailyDecision?.meal_window || "").trim();
                   const goalLabel = String(dailyDecision?.decision_context?.goal || "").trim();
-                  const remainingCal = Number.isFinite(num(dailyDecision?.decision_context?.remaining_calories))
-                    ? Math.round(num(dailyDecision.decision_context.remaining_calories))
+                  const decisionRemainingCal = finiteNumOrNull(dailyDecision?.decision_context?.remaining_calories);
+                  const remainingCal = decisionRemainingCal !== null
+                    ? Math.round(decisionRemainingCal)
                     : null;
-                  const remainingProtein = Number.isFinite(num(dailyDecision?.decision_context?.remaining_protein_g))
-                    ? Math.round(num(dailyDecision.decision_context.remaining_protein_g))
+                  const decisionRemainingProtein = finiteNumOrNull(dailyDecision?.decision_context?.remaining_protein_g);
+                  const remainingProtein = decisionRemainingProtein !== null
+                    ? Math.round(decisionRemainingProtein)
                     : null;
 
                   return (
@@ -8655,11 +8657,11 @@ async function openCamera(mode = "meal") {
                               ? ` — ${String(primary.recommended_order).trim()}`
                               : ""}
                           </Text>
-                          {(Number.isFinite(num(primary?.estimated_calories)) || Number.isFinite(num(primary?.estimated_protein_g))) ? (
+                          {(finiteNumOrNull(primary?.estimated_calories) !== null || finiteNumOrNull(primary?.estimated_protein_g) !== null) ? (
                             <Text style={styles.tiny}>
-                              {Number.isFinite(num(primary?.estimated_calories)) ? `${Math.round(num(primary.estimated_calories))} kcal` : ""}
-                              {Number.isFinite(num(primary?.estimated_calories)) && Number.isFinite(num(primary?.estimated_protein_g)) ? " • " : ""}
-                              {Number.isFinite(num(primary?.estimated_protein_g)) ? `${Math.round(num(primary.estimated_protein_g))}g protein` : ""}
+                              {finiteNumOrNull(primary?.estimated_calories) !== null ? `${Math.round(finiteNumOrNull(primary?.estimated_calories))} kcal` : ""}
+                              {finiteNumOrNull(primary?.estimated_calories) !== null && finiteNumOrNull(primary?.estimated_protein_g) !== null ? " • " : ""}
+                              {finiteNumOrNull(primary?.estimated_protein_g) !== null ? `${Math.round(finiteNumOrNull(primary?.estimated_protein_g))}g protein` : ""}
                             </Text>
                           ) : null}
                           {(() => {
@@ -8687,11 +8689,11 @@ async function openCamera(mode = "meal") {
                               ? ` — ${String(row.recommended_order).trim()}`
                               : ""}
                           </Text>
-                          {(Number.isFinite(num(row?.estimated_calories)) || Number.isFinite(num(row?.estimated_protein_g))) ? (
+                          {(finiteNumOrNull(row?.estimated_calories) !== null || finiteNumOrNull(row?.estimated_protein_g) !== null) ? (
                             <Text style={styles.tiny}>
-                              {Number.isFinite(num(row?.estimated_calories)) ? `${Math.round(num(row.estimated_calories))} kcal` : ""}
-                              {Number.isFinite(num(row?.estimated_calories)) && Number.isFinite(num(row?.estimated_protein_g)) ? " • " : ""}
-                              {Number.isFinite(num(row?.estimated_protein_g)) ? `${Math.round(num(row.estimated_protein_g))}g protein` : ""}
+                              {finiteNumOrNull(row?.estimated_calories) !== null ? `${Math.round(finiteNumOrNull(row?.estimated_calories))} kcal` : ""}
+                              {finiteNumOrNull(row?.estimated_calories) !== null && finiteNumOrNull(row?.estimated_protein_g) !== null ? " • " : ""}
+                              {finiteNumOrNull(row?.estimated_protein_g) !== null ? `${Math.round(finiteNumOrNull(row?.estimated_protein_g))}g protein` : ""}
                             </Text>
                           ) : null}
                           {(() => {
@@ -8728,23 +8730,29 @@ async function openCamera(mode = "meal") {
                   const progress = daySummary?.progress && typeof daySummary.progress === "object"
                     ? daySummary.progress
                     : {};
-                  const consumedCal = Number.isFinite(num(progress?.consumed_calories))
-                    ? Math.round(num(progress.consumed_calories))
+                  const consumedCalRaw = finiteNumOrNull(progress?.consumed_calories);
+                  const consumedCal = consumedCalRaw !== null
+                    ? Math.round(consumedCalRaw)
                     : null;
-                  const targetCal = Number.isFinite(num(progress?.target_calories))
-                    ? Math.round(num(progress.target_calories))
+                  const targetCalRaw = finiteNumOrNull(progress?.target_calories);
+                  const targetCal = targetCalRaw !== null
+                    ? Math.round(targetCalRaw)
                     : null;
-                  const remainingCal = Number.isFinite(num(progress?.remaining_calories))
-                    ? Math.round(num(progress.remaining_calories))
+                  const remainingCalRaw = finiteNumOrNull(progress?.remaining_calories);
+                  const remainingCal = remainingCalRaw !== null
+                    ? Math.round(remainingCalRaw)
                     : null;
-                  const consumedProtein = Number.isFinite(num(progress?.consumed_protein_g))
-                    ? Math.round(num(progress.consumed_protein_g))
+                  const consumedProteinRaw = finiteNumOrNull(progress?.consumed_protein_g);
+                  const consumedProtein = consumedProteinRaw !== null
+                    ? Math.round(consumedProteinRaw)
                     : null;
-                  const targetProtein = Number.isFinite(num(progress?.target_protein_g))
-                    ? Math.round(num(progress.target_protein_g))
+                  const targetProteinRaw = finiteNumOrNull(progress?.target_protein_g);
+                  const targetProtein = targetProteinRaw !== null
+                    ? Math.round(targetProteinRaw)
                     : null;
-                  const remainingProtein = Number.isFinite(num(progress?.remaining_protein_g))
-                    ? Math.round(num(progress.remaining_protein_g))
+                  const remainingProteinRaw = finiteNumOrNull(progress?.remaining_protein_g);
+                  const remainingProtein = remainingProteinRaw !== null
+                    ? Math.round(remainingProteinRaw)
                     : null;
 
                   return (
@@ -8780,11 +8788,11 @@ async function openCamera(mode = "meal") {
                             {String(nextMeal?.recommended_place_name || "Nearby pick")}
                             {String(nextMeal?.recommended_order || "").trim() ? ` — ${String(nextMeal.recommended_order).trim()}` : ""}
                           </Text>
-                          {(Number.isFinite(num(nextMeal?.estimated_calories)) || Number.isFinite(num(nextMeal?.estimated_protein_g))) ? (
+                          {(finiteNumOrNull(nextMeal?.estimated_calories) !== null || finiteNumOrNull(nextMeal?.estimated_protein_g) !== null) ? (
                             <Text style={styles.tiny}>
-                              {Number.isFinite(num(nextMeal?.estimated_calories)) ? `${Math.round(num(nextMeal.estimated_calories))} kcal` : ""}
-                              {Number.isFinite(num(nextMeal?.estimated_calories)) && Number.isFinite(num(nextMeal?.estimated_protein_g)) ? " • " : ""}
-                              {Number.isFinite(num(nextMeal?.estimated_protein_g)) ? `${Math.round(num(nextMeal.estimated_protein_g))}g protein` : ""}
+                              {finiteNumOrNull(nextMeal?.estimated_calories) !== null ? `${Math.round(finiteNumOrNull(nextMeal?.estimated_calories))} kcal` : ""}
+                              {finiteNumOrNull(nextMeal?.estimated_calories) !== null && finiteNumOrNull(nextMeal?.estimated_protein_g) !== null ? " • " : ""}
+                              {finiteNumOrNull(nextMeal?.estimated_protein_g) !== null ? `${Math.round(finiteNumOrNull(nextMeal?.estimated_protein_g))}g protein` : ""}
                             </Text>
                           ) : null}
                           {!!String(nextMeal?.supporting_text || "").trim() ? (
