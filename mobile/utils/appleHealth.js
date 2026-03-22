@@ -21,7 +21,8 @@ let healthKitReady = false;
 
 try {
   if (isIOS) {
-    AppleHealthKit = require("react-native-health").default;
+    const healthModule = require("react-native-health");
+    AppleHealthKit = healthModule?.default || healthModule || null;
   }
 } catch (_) {
   // Module not installed or not linked
