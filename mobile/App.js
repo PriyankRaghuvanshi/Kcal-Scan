@@ -1,4 +1,4 @@
-// build: 2026-02-04
+// bundle-stamp: 2026-03-10 — bump when verifying App Store / EAS ships latest JS
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
@@ -6430,6 +6430,19 @@ async function openCamera(mode = "meal") {
                 Missing Supabase env vars. Add EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY.
               </Text>
             ) : null}
+            <Text
+              style={{
+                marginTop: 18,
+                fontSize: 11,
+                color: "#9ca3af",
+                textAlign: "center",
+              }}
+              testID="app-build-fingerprint"
+            >
+              {`Build ${String(Constants.expoConfig?.version || "?")}${
+                Constants.nativeBuildVersion ? ` · ${String(Constants.nativeBuildVersion)}` : ""
+              }`}
+            </Text>
           </View>
         </KeyboardAvoidingView>
       </SafeAreaView>
