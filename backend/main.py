@@ -73,8 +73,8 @@ from contribution_auto_promotion import (
     run_auto_promotion_all,
     get_auto_promotion_status,
 )
-from meal_feedback_store import upsert_meal_feedback_event
-from meal_decision_event_store import log_meal_decision_event
+from meal_feedback_store import upsert_meal_feedback_event, list_meal_feedback_events
+from meal_decision_event_store import log_meal_decision_event, list_meal_decision_events
 from goal_coach_action_tracking import log_goal_coach_event
 from yieldpilot_case_routes import router as yieldpilot_case_router
 from push_token_store import (
@@ -13624,6 +13624,8 @@ def _healthy_places_from_snapshot_ranked(
     diet_preference_val: str,
     user_id: str,
     personalization_goal_value_str: str,
+    feedback_events_prefetch: Optional[List[Dict[str, Any]]] = None,
+    decision_events_prefetch: Optional[List[Dict[str, Any]]] = None,
 ) -> List[Dict[str, Any]]:
     """
     Map snapshot ranked_places to /places/healthy response item shape.
@@ -13703,6 +13705,8 @@ def _healthy_places_from_snapshot_ranked(
                     item_name=place_for_ranking["best_order"],
                     goal=goal,
                     time_of_day="",
+                    _feedback_events=feedback_events_prefetch,
+                    _decision_events=decision_events_prefetch,
                 )
                 user_context_meal["personal_memory"] = mem
             except Exception:
@@ -13784,7 +13788,7 @@ async def healthy_places(
 
     use_fast_path = str(os.getenv("USE_FAST_PATH", "1")).strip().lower() in ("1", "true", "yes")
     rank_limit = max(1, min(HEALTHY_PLACES_LIMIT_MAX, int(limit or os.getenv("HEALTHY_PLACES_LIMIT", str(HEALTHY_PLACES_LIMIT_DEFAULT)) or HEALTHY_PLACES_LIMIT_DEFAULT)))
-    shortlist_size = min(rank_limit, max(8, min(15, int(os.getenv("HEALTHY_SHORTLIST_SIZE", "10") or 10))))
+    shortlist_size = min(rank_limit, max(6, min(15, int(os.getenv("HEALTHY_SHORTLIST_SIZE", "8") or 8))))
     places_to_rank = list(places)
     shortlist_debug = {"fetched_count": len(places), "shortlisted_count": len(places), "skipped_count": 0}
     if use_fast_path and len(places) > shortlist_size:
@@ -13805,6 +13809,17 @@ async def healthy_places(
     personalization_goal_value_str = personalization_goal_value(personalization_goal)
     from diet_filters import normalize_diet_preference
     diet_preference_val = normalize_diet_preference(diet_preference) if str(diet_preference or "").strip() else "omnivore"
+    feedback_events_prefetch: Optional[List[Dict[str, Any]]] = None
+    decision_events_prefetch: Optional[List[Dict[str, Any]]] = None
+    if str(user_id or "").strip():
+        try:
+            feedback_events_prefetch = list_meal_feedback_events(user_id=str(user_id or "").strip(), limit=2000)
+        except Exception:
+            feedback_events_prefetch = None
+        try:
+            decision_events_prefetch = list_meal_decision_events(user_id=str(user_id or "").strip(), limit=4000)
+        except Exception:
+            decision_events_prefetch = None
     use_nearby_v2 = str(os.getenv("NEARBY_PIPELINE_V2", "")).strip().lower() in ("1", "true", "yes")
     scored: List[Dict[str, Any]] = []
     t_rank_start = time.perf_counter()
@@ -13833,6 +13848,8 @@ async def healthy_places(
             diet_preference_val=diet_preference_val,
             user_id=user_id or "",
             personalization_goal_value_str=personalization_goal_value_str,
+            feedback_events_prefetch=feedback_events_prefetch,
+            decision_events_prefetch=decision_events_prefetch,
         )
     else:
         for p in places_to_rank:
@@ -14217,6 +14234,8 @@ async def healthy_places(
                         item_name=best_order,
                         goal=goal,
                         time_of_day="",
+                        _feedback_events=feedback_events_prefetch,
+                        _decision_events=decision_events_prefetch,
                     )
                     mem_dict = mem.to_dict()
                     user_context_meal["personal_memory"] = mem
@@ -14396,32 +14415,6 @@ async def healthy_places(
                 }
             )
     
-        # Personal memory enrichment (optional; does not affect ranking math).
-        if str(user_id or "").strip():
-            for row in scored:
-                try:
-                    mem = get_personal_meal_memory(
-                        user_id=user_id,
-                        place_id=row.get("place_id"),
-                        place_name=row.get("name"),
-                        item_name=row.get("best_item_name") or row.get("best_order") or "",
-                        goal=goal,
-                        time_of_day="",
-                    )
-                    row.update(mem.to_dict())
-                except Exception:
-                    row.update(
-                        {
-                            "worked_before": False,
-                            "personal_memory_label": "",
-                            "times_chosen": 0,
-                            "repeat_success_rate": 0.0,
-                            "swap_accept_rate": 0.0,
-                            "avg_fullness": None,
-                            "avg_craving_score": None,
-                        }
-                    )
-
     t_rank_ms = round((time.perf_counter() - t_rank_start) * 1000, 1)
     t_total_ms = round((time.perf_counter() - t_start) * 1000, 1)
 

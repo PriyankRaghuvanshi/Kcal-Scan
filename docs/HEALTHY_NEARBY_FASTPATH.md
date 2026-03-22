@@ -17,7 +17,7 @@ The live `/places/healthy` request follows a strict fast path:
 
 1. **Retrieve nearby places** — Google Places Nearby Search (New) only. No Place Details, no menu URLs.
 2. **Normalize & classify** — Place types, names, coordinates. Cheap chain token check (name substrings).
-3. **Shortlist** — Pre-rank by distance, type relevance, chain hint, cache hit, rating. Deep-rank only top N (default 10, max 20).
+3. **Shortlist** — Pre-rank by distance, type relevance, chain hint, cache hit, rating. Deep-rank only top N (default 8, max 15).
 4. **Load cached intelligence** — `venue_intelligence_cache` lookup by `place_id`. Chain registry lookup by place name.
 5. **Generate candidates** — From cache, chain registry, or heuristic. No LLM. No website fetch. No live parsing.
 6. **Rank & return** — Canonical `build_ranked_place_profile`; specificity-aware tie-breaks; return top results.
@@ -42,7 +42,7 @@ Before deep ranking (menu scoring, health scoring, personalization), we pre-rank
 | Cache hit         | Place has cached intelligence +12 |
 | Rating count      | High ratings +2–5               |
 
-- **Shortlist size**: Default 10, max 20. Configurable via `HEALTHY_SHORTLIST_SIZE`.
+- **Shortlist size**: Default 8, clamped 6–15. Configurable via `HEALTHY_SHORTLIST_SIZE`.
 - **Example**: Fetch 20 places → pre-rank → deep-rank only top 8–10. Skipped places are logged in `shortlist_debug`.
 
 ## Chain coverage architecture
@@ -146,6 +146,6 @@ Adding a new chain is **data/config work**, not custom code. Extend the chain co
 ## Env vars
 
 - `USE_FAST_PATH` — Default 1; set 0 to disable shortlisting
-- `HEALTHY_SHORTLIST_SIZE` — Default 10 (clamped 8–15)
+- `HEALTHY_SHORTLIST_SIZE` — Default 8 (clamped 6–15)
 - `VENUE_INTELLIGENCE_CACHE_PATH` — Override cache file path
 - `BACKGROUND_ENRICHMENT_QUEUE_PATH` — Override queue file path

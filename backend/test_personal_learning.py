@@ -105,6 +105,36 @@ class TestPersonalMemoryLabels(unittest.TestCase):
         mem = get_personal_meal_memory(user_id="u1", place_id="p2", place_name="Pizza Hut", item_name="Pizza")
         self.assertEqual(mem.personal_memory_label, "Often followed by cravings")
 
+    def test_prefetched_event_lists_skip_store_reads(self):
+        feedback = [
+            {
+                "user_id": "u1",
+                "place_id": "p3",
+                "place_name": "Subway",
+                "selected_item_name": "Chicken sub",
+                "fullness_score": 4,
+                "craving_score": 1,
+                "repeat_intent": True,
+                "swap_accepted": True,
+            }
+            for _ in range(3)
+        ]
+        decision = [
+            {"user_id": "u1", "place_id": "p3", "event_type": "swap_viewed"},
+            {"user_id": "u1", "place_id": "p3", "event_type": "swap_accepted"},
+        ]
+        mem = get_personal_meal_memory(
+            user_id="u1",
+            place_id="p3",
+            place_name="Subway",
+            item_name="Chicken sub",
+            _feedback_events=feedback,
+            _decision_events=decision,
+        )
+        self.assertTrue(mem.worked_before)
+        self.assertEqual(mem.times_chosen, 3)
+        self.assertGreater(mem.swap_accept_rate, 0.0)
+
 
 class TestApiEnrichment(unittest.TestCase):
     def test_audit_enrichment_when_user_id_provided(self):
@@ -137,4 +167,3 @@ class TestApiEnrichment(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

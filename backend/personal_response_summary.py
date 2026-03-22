@@ -301,6 +301,8 @@ def get_personal_meal_memory(
     item_name: Any = "",
     goal: Any = "",
     time_of_day: Any = "",
+    _feedback_events: Optional[List[Dict[str, Any]]] = None,
+    _decision_events: Optional[List[Dict[str, Any]]] = None,
 ) -> PersonalMemory:
     """
     Deterministic lookup over stored feedback and decision events.
@@ -320,7 +322,11 @@ def get_personal_meal_memory(
     tod = _norm_lower(time_of_day)
     cuisine = _infer_cuisine_group(pname)
 
-    feedback = list_meal_feedback_events(user_id=uid, limit=2000)
+    feedback = (
+        _feedback_events
+        if isinstance(_feedback_events, list)
+        else list_meal_feedback_events(user_id=uid, limit=2000)
+    )
 
     def match(e: Dict[str, Any], *, mode: str) -> bool:
         if not isinstance(e, dict):
@@ -349,7 +355,11 @@ def get_personal_meal_memory(
     agg = _aggregate_from_feedback(chosen)
 
     # swap accept rate can be supplemented by decision events (swap_accepted events)
-    decision = list_meal_decision_events(user_id=uid, limit=4000)
+    decision = (
+        _decision_events
+        if isinstance(_decision_events, list)
+        else list_meal_decision_events(user_id=uid, limit=4000)
+    )
     relevant_decision = [
         e for e in decision
         if isinstance(e, dict)
@@ -373,4 +383,3 @@ def get_personal_meal_memory(
         avg_fullness=agg.get("avg_fullness"),
         avg_craving_score=agg.get("avg_craving"),
     )
-
