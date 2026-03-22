@@ -24,6 +24,18 @@ HealthKit needs both app config and Apple provisioning support. Right now the ap
 
 **Summary:** HealthKit does **not** work in Expo Go. To ship it in TestFlight/App Store, first enable HealthKit on the Apple App ID and regenerate provisioning, then add the HealthKit entitlement back into `app.json` and rebuild.
 
+## Troubleshooting
+
+If CalorieClick still does not appear in Apple Health after a new native build:
+
+1. Confirm the build on your phone was created after the `react-native-health` Expo plugin was added and installed through TestFlight or App Store, not Expo Go.
+2. In Apple Developer, make sure HealthKit is enabled for `com.priyank.calorieclick`, then refresh the App Store provisioning profile used by EAS.
+3. Open the app, log in, analyze a meal, and allow Health access when iOS prompts.
+4. In the Health app, look for **CalorieClick AI** under:
+   - **Health → Sharing → Apps**
+   - or **Settings → Privacy & Security → Health → Data Access & Devices**
+5. If you tapped **Don't Allow** earlier, re-enable access from those same Apple Health settings pages.
+
 ## Permissions
 
 On first run (when the user is logged in), the app calls `initAppleHealth()`, which requests write permission for:

@@ -68,6 +68,13 @@
           "locationWhenInUsePermission": "Allow CalorieClick.ai to access your location to find healthier restaurants nearby."
         }
       ],
+      [
+        "react-native-health",
+        {
+          "healthSharePermission": "CalorieClick can write your meal nutrition and weight to Apple Health so your data stays in one place.",
+          "healthUpdatePermission": "CalorieClick saves calories, protein, and other nutrients from your scans, and weight from your journey, to Health."
+        }
+      ],
       "expo-web-browser",
       "expo-notifications"
     ]
