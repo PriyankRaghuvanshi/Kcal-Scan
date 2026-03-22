@@ -265,6 +265,10 @@ function num(x) {
   const n = Number(x);
   return Number.isFinite(n) ? n : 0;
 }
+function finiteNumOrNull(x) {
+  const n = Number(x);
+  return Number.isFinite(n) ? n : null;
+}
 function round1(x) {
   const n = Number(x);
   return Number.isFinite(n) ? Math.round(n * 10) / 10 : 0;
@@ -5207,24 +5211,32 @@ async function openCamera(mode = "meal") {
         payload?.recommended_order ||
         "Lighter menu option"
     ).trim();
-    const calories = Number.isFinite(num(activeCard?.estimated_calories))
-      ? Math.round(num(activeCard.estimated_calories))
-      : Number.isFinite(num(realityShare?.smarter_calories))
-      ? Math.round(num(realityShare.smarter_calories))
-      : Number.isFinite(num(payload?.estimated_calories))
-      ? Math.round(num(payload.estimated_calories))
+    const activeCardCalories = finiteNumOrNull(activeCard?.estimated_calories);
+    const smarterCalories = finiteNumOrNull(realityShare?.smarter_calories);
+    const payloadCalories = finiteNumOrNull(payload?.estimated_calories);
+    const calories = activeCardCalories !== null
+      ? Math.round(activeCardCalories)
+      : smarterCalories !== null
+      ? Math.round(smarterCalories)
+      : payloadCalories !== null
+      ? Math.round(payloadCalories)
       : null;
-    const protein = Number.isFinite(num(activeCard?.estimated_protein_g))
-      ? Math.round(num(activeCard.estimated_protein_g))
-      : Number.isFinite(num(payload?.estimated_protein_g))
-      ? Math.round(num(payload.estimated_protein_g))
+    const activeCardProtein = finiteNumOrNull(activeCard?.estimated_protein_g);
+    const payloadProtein = finiteNumOrNull(payload?.estimated_protein_g);
+    const protein = activeCardProtein !== null
+      ? Math.round(activeCardProtein)
+      : payloadProtein !== null
+      ? Math.round(payloadProtein)
       : null;
-    const caloriesSaved = Number.isFinite(num(activeCard?.calories_saved))
-      ? Math.max(0, Math.round(num(activeCard.calories_saved)))
-      : Number.isFinite(num(realityShare?.calories_saved))
-      ? Math.max(0, Math.round(num(realityShare.calories_saved)))
-      : Number.isFinite(num(realityCheck?.calories_saved))
-      ? Math.max(0, Math.round(num(realityCheck.calories_saved)))
+    const activeCardCaloriesSaved = finiteNumOrNull(activeCard?.calories_saved);
+    const realityShareCaloriesSaved = finiteNumOrNull(realityShare?.calories_saved);
+    const realityCheckCaloriesSaved = finiteNumOrNull(realityCheck?.calories_saved);
+    const caloriesSaved = activeCardCaloriesSaved !== null
+      ? Math.max(0, Math.round(activeCardCaloriesSaved))
+      : realityShareCaloriesSaved !== null
+      ? Math.max(0, Math.round(realityShareCaloriesSaved))
+      : realityCheckCaloriesSaved !== null
+      ? Math.max(0, Math.round(realityCheckCaloriesSaved))
       : null;
     const heroLine =
       String(activeCard?.hero_line || "").trim() ||
@@ -8516,14 +8528,14 @@ async function openCamera(mode = "meal") {
                   {reality ? (
                     <View style={styles.dayCoachSection}>
                       <Text style={styles.dayCoachSectionTitle}>Reality Check</Text>
-                      {Number.isFinite(num(reality?.typical_order?.estimated_calories)) ? (
-                        <Text style={styles.tiny}>Typical order: ~{Math.round(num(reality.typical_order.estimated_calories))} kcal</Text>
+                      {finiteNumOrNull(reality?.typical_order?.estimated_calories) !== null ? (
+                        <Text style={styles.tiny}>Typical order: ~{Math.round(finiteNumOrNull(reality?.typical_order?.estimated_calories))} kcal</Text>
                       ) : null}
-                      {Number.isFinite(num(reality?.smarter_order?.estimated_calories)) ? (
-                        <Text style={styles.tiny}>Smarter order: ~{Math.round(num(reality.smarter_order.estimated_calories))} kcal</Text>
+                      {finiteNumOrNull(reality?.smarter_order?.estimated_calories) !== null ? (
+                        <Text style={styles.tiny}>Smarter order: ~{Math.round(finiteNumOrNull(reality?.smarter_order?.estimated_calories))} kcal</Text>
                       ) : null}
-                      {Number.isFinite(num(reality?.calories_saved)) ? (
-                        <Text style={[styles.tiny, styles.realitySavedText]}>You save ~{Math.max(0, Math.round(num(reality.calories_saved)))} kcal</Text>
+                      {finiteNumOrNull(reality?.calories_saved) !== null ? (
+                        <Text style={[styles.tiny, styles.realitySavedText]}>You save ~{Math.max(0, Math.round(finiteNumOrNull(reality?.calories_saved)))} kcal</Text>
                       ) : null}
                     </View>
                   ) : null}
@@ -8842,8 +8854,9 @@ async function openCamera(mode = "meal") {
                 const orderLabel = String(card?.recommended_order_label || "").trim();
                 const fitForToday = card?.fit_for_today;
                 const realityCheck = card?.reality_check && typeof card.reality_check === "object" ? card.reality_check : null;
-                const caloriesSaved = Number.isFinite(num(realityCheck?.calories_saved))
-                  ? Math.max(0, Math.round(num(realityCheck.calories_saved)))
+                const caloriesSavedRaw = finiteNumOrNull(realityCheck?.calories_saved);
+                const caloriesSaved = caloriesSavedRaw !== null
+                  ? Math.max(0, Math.round(caloriesSavedRaw))
                   : null;
                 const typicalOrderName = String(realityCheck?.typical_order?.name || "").trim();
                 const orderCal = Number.isFinite(num(card?.estimated_calories)) ? num(card.estimated_calories) : null;
@@ -11580,4 +11593,3 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
 });
-
