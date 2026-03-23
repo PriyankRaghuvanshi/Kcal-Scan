@@ -65,7 +65,7 @@ export function buildVenueContributionPayload({
       suggested_item_text: String(suggestedItemText || "").trim(),
       current_recommended_item: String(p.best_item_name || p.best_order || "").trim(),
       diet_context: dietContext || null,
-      platform: Platform.OS,
+      platform: Platform?.OS || "unknown",
     },
   };
   return payload;
@@ -83,4 +83,3 @@ if (typeof module !== "undefined" && module.exports) {
     postVenueContribution,
   };
 }
-

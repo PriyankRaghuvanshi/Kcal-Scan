@@ -306,8 +306,8 @@ export function derivePreferredModeFromContext(context, actionType) {
   const remainingCal = num(context.remaining_calories) ?? 0;
   const reason = safeStr(context.reason || context.coach_focus).toLowerCase();
 
-  if (remainingCal <= 400 && remainingProtein >= 20) return PREFERRED_MODES.LIGHTER_OPTION;
   if (remainingProtein >= 35 && remainingCal >= 300) return PREFERRED_MODES.PROTEIN_RESCUE;
+  if (remainingCal <= 400 && remainingProtein >= 20) return PREFERRED_MODES.LIGHTER_OPTION;
   if (reason.includes("dinner") || reason.includes("evening")) return PREFERRED_MODES.DINNER_RECOVERY;
   if (reason.includes("log") || reason.includes("track")) return PREFERRED_MODES.LOGGING_SUPPORT;
   return PREFERRED_MODES.BEST_FIT_TODAY;
