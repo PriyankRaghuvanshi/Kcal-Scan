@@ -45,6 +45,7 @@ import {
   buildDecisionEventPayload,
   buildMealFeedbackPayload,
 } from "./personalLearningApi";
+import { fetchRecipeSuggestions, postRecipeFeedback } from "./utils/recipeSuggestionsApi";
 import MealFeedbackPrompt from "./MealFeedbackPrompt";
 import {
   fetchSmartFoodAlertCandidates,
@@ -76,6 +77,8 @@ import { WeeklyPlanReviewCard } from "./components/WeeklyPlanReviewCard";
 import { PlanPaywallCard } from "./components/PlanPaywallCard";
 import { VenueContributionSheet } from "./components/VenueContributionSheet";
 import { HomeTodayHero } from "./components/HomeTodayHero";
+import { RecipeSuggestionsRow } from "./components/RecipeSuggestionsRow";
+import { SavedRecipesList } from "./components/SavedRecipesList";
 import { spacing as tSpacing } from "./designTokens";
 import { premium } from "./ui/premiumSystem";
 import { hapticLight, layoutEaseInOut } from "./ui/feedback";
@@ -1673,6 +1676,9 @@ export default function App() {
   const [scanProgress, setScanProgress] = useState("");
   const [rerunBusy, setRerunBusy] = useState(false);
   const [clarificationSelections, setClarificationSelections] = useState({});
+  const [recipeSuggestPayload, setRecipeSuggestPayload] = useState(null);
+  const [recipeSuggestBusy, setRecipeSuggestBusy] = useState(false);
+  const [recipeDismissedLocal, setRecipeDismissedLocal] = useState({});
   const [editMacrosModalVisible, setEditMacrosModalVisible] = useState(false);
   const [macroDraft, setMacroDraft] = useState({ protein_g: "", carbs_g: "", fat_g: "" });
   const [nearbyDecisionFeedback, setNearbyDecisionFeedback] = useState({});
@@ -1845,6 +1851,13 @@ export default function App() {
   );
   const sanitizeCoachForDiet = (payload) => sanitizeCoachPayloadForDiet(payload, activeDietStyle);
   const sanitizeVoiceForDiet = (payload) => sanitizeCoachVoiceForDiet(payload, activeDietStyle);
+  const recipeSuggestFiltered = useMemo(() => {
+    if (!recipeSuggestPayload) return null;
+    const list = (recipeSuggestPayload.recipes || []).filter(
+      (r) => !recipeDismissedLocal[String(r?.recipe_key || "")]
+    );
+    return { ...recipeSuggestPayload, recipes: list };
+  }, [recipeSuggestPayload, recipeDismissedLocal]);
   const coachPreviewTiles = useMemo(() => (canCoaching ? [] : buildCoachPreviewTiles(plan)), [canCoaching, plan]);
   const previewPhotoUri = useMemo(() => {
     if (photoUri) return photoUri;
@@ -1991,6 +2004,51 @@ export default function App() {
   }, [result?.analysis_id, JSON.stringify((result?.clarification_questions || []).map((q) => q?.key || ""))]);
 
   useEffect(() => {
+    setRecipeDismissedLocal({});
+  }, [result?.analysis_id]);
+
+  useEffect(() => {
+    const aid = result?.analysis_id || result?.meal_id || result?.id;
+    if (!aid || !userId || !aiConsentGiven) {
+      setRecipeSuggestPayload(null);
+      setRecipeSuggestBusy(false);
+      return;
+    }
+    let cancelled = false;
+    setRecipeSuggestBusy(true);
+    setRecipeSuggestPayload(null);
+    void (async () => {
+      try {
+        const data = await fetchRecipeSuggestions({
+          userId,
+          analysisId: String(aid),
+          meal: result,
+          dietStyle: coachProfile?.diet_style || "non_veg",
+          goalType: coachProfile?.goal_type || "fat_loss",
+          plan,
+        });
+        if (!cancelled) setRecipeSuggestPayload(data);
+      } catch {
+        if (!cancelled) setRecipeSuggestPayload(null);
+      } finally {
+        if (!cancelled) setRecipeSuggestBusy(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    result?.analysis_id,
+    result?.meal_id,
+    result?.id,
+    userId,
+    aiConsentGiven,
+    plan,
+    coachProfile?.diet_style,
+    coachProfile?.goal_type,
+  ]);
+
+  useEffect(() => {
     let cancelled = false;
     let unsub = null;
     markLaunchPhase("auth_hydration_start");
@@ -2090,6 +2148,9 @@ export default function App() {
     setCoachProfileDraft(DEFAULT_COACH_PROFILE);
     setCoachProfileReady(false);
     setCoachProfileModal(false);
+    setRecipeSuggestPayload(null);
+    setRecipeSuggestBusy(false);
+    setRecipeDismissedLocal({});
     setBarcodeManual("");
     setBarcodeOpen(false);
     setBarcodeMode("lookup");
@@ -6584,11 +6645,12 @@ async function openCamera(mode = "meal") {
 
     return "AI helps you eat smarter anywhere.";
   })();
+  const homeMainVisible = activeScreen !== "healthy_nearby" && activeScreen !== "saved_recipes";
 
   return (
-    <SafeAreaView style={[styles.safe, activeScreen === "healthy_nearby" ? styles.nearbyScreenBg : null]}>
+    <SafeAreaView style={[styles.safe, activeScreen === "healthy_nearby" || activeScreen === "saved_recipes" ? styles.nearbyScreenBg : null]}>
       <ScrollView ref={mainScrollRef} contentContainerStyle={styles.container}>
-        {activeScreen !== "healthy_nearby" ? (
+        {homeMainVisible ? (
         <View style={styles.topRow}>
           <View>
             <Text style={styles.h1}>CalorieClick.ai</Text>
@@ -6597,6 +6659,17 @@ async function openCamera(mode = "meal") {
             </Text>
           </View>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            {userId ? (
+              <TouchableOpacity
+                style={styles.smallBtn}
+                onPress={() => {
+                  setActiveScreen("saved_recipes");
+                  _scrollToTop();
+                }}
+              >
+                <Text style={styles.smallBtnText}>Saved recipes</Text>
+              </TouchableOpacity>
+            ) : null}
             {!planAtLeast(plan, "pro") ? (
               <TouchableOpacity style={styles.smallBtn} onPress={() => openPaywall(null)}>
                 <Text style={styles.smallBtnText}>Plans</Text>
@@ -6616,7 +6689,7 @@ async function openCamera(mode = "meal") {
           >
             <Text style={styles.nearbyBackBtnText}>‹ Back</Text>
           </TouchableOpacity>
-          <Text style={styles.nearbyScreenTitle}>Healthy Nearby</Text>
+          <Text style={styles.nearbyScreenTitle}>{activeScreen === "saved_recipes" ? "Saved recipes" : "Healthy Nearby"}</Text>
           <View style={{ width: 60 }} />
         </View>
         )}
@@ -6631,7 +6704,21 @@ async function openCamera(mode = "meal") {
           </View>
         ) : null}
 
-        {activeScreen !== "healthy_nearby" ? (
+        {activeScreen === "saved_recipes" ? (
+          <SavedRecipesList
+            userId={userId}
+            aiConsentGiven={aiConsentGiven}
+            onOpenUrl={(url) => void openURLSafe(url, "Could not open link.")}
+            onBack={() => {
+              setActiveScreen("home");
+              _scrollToTop();
+            }}
+            onUpgradePress={openPaywall}
+            planAtLeastPro={planAtLeast(plan, "pro")}
+          />
+        ) : null}
+
+        {homeMainVisible ? (
         <View style={styles.homeSectionTight}>
           <HomeTodayHero
             plan={plan}
@@ -6649,7 +6736,7 @@ async function openCamera(mode = "meal") {
         </View>
         ) : null}
 
-        {activeScreen !== "healthy_nearby" ? (
+        {homeMainVisible ? (
         <View style={styles.launcherCard}>
           <Text style={styles.launcherTitle}>CalorieClick AI</Text>
           <Text style={styles.launcherQuestion}>What should I eat right now?</Text>
@@ -6781,7 +6868,7 @@ async function openCamera(mode = "meal") {
         </View>
         ) : null}
 
-        {activeScreen !== "healthy_nearby" ? (
+        {homeMainVisible ? (
         <>
         {/* Daily progress (pulled up for above-the-fold momentum) */}
         {goalPlan ? (
@@ -7971,6 +8058,44 @@ async function openCamera(mode = "meal") {
               ) : (
                 <Text style={styles.tiny}>No coaching data returned.</Text>
               )}
+
+              {aiConsentGiven ? (
+                <RecipeSuggestionsRow
+                  busy={recipeSuggestBusy}
+                  payload={recipeSuggestFiltered}
+                  mealTag={String(result?.items?.[0]?.name || result?.top_candidates?.[0]?.label || "").trim()}
+                  onOpenUrl={(url) => void openURLSafe(url, "Could not open recipe link.")}
+                  onUpgradePress={openPaywall}
+                  onFeedback={({ recipeKey, action, cuisine, mealTag, recipe }) => {
+                    const uid = userId || session?.user?.id;
+                    if (!uid || !recipeKey) return;
+                    const snap =
+                      action === "save" && recipe && typeof recipe === "object"
+                        ? {
+                            title: recipe.title,
+                            source_url: recipe.source_url,
+                            image_url: recipe.image_url,
+                            est_kcal_per_serving: recipe.est_kcal_per_serving,
+                            est_protein_g_per_serving: recipe.est_protein_g_per_serving,
+                            source: recipe.source,
+                            cuisines: recipe.cuisines,
+                            why_similar: recipe.why_similar,
+                          }
+                        : undefined;
+                    postRecipeFeedback({
+                      userId: uid,
+                      recipeKey,
+                      action,
+                      cuisine,
+                      mealTag,
+                      recipeSnapshot: snap,
+                    });
+                    if (action === "dismiss") {
+                      setRecipeDismissedLocal((prev) => ({ ...prev, [recipeKey]: true }));
+                    }
+                  }}
+                />
+              ) : null}
 
               {/* Health disclaimer + sources (Guideline 1.4.1) */}
               <View style={{ marginTop: 14 }}>
@@ -9316,7 +9441,7 @@ async function openCamera(mode = "meal") {
         </>
         ) : null}
 
-        {activeScreen !== "healthy_nearby" ? (
+        {homeMainVisible ? (
         <>
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Barcode</Text>

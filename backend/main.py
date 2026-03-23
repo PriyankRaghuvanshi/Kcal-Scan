@@ -106,6 +106,7 @@ from push_rollout import (
     get_rollout_status,
 )
 from user_last_location_store import upsert_user_location, get_user_location
+from recipe_suggestions import build_recipe_suggest_response, record_recipe_feedback, list_saved_recipes
 from push_send_flow import send_smart_alert_for_user as _send_smart_alert_for_user
 from personal_response_summary import get_personal_meal_memory
 from nutrition_mode import NutritionMode
@@ -1443,6 +1444,24 @@ class CoachFeedbackRequestModel(BaseModel):
     rating: Optional[int] = None
     free_text: str = ""
     corrections: CoachFeedbackCorrectionsModel = Field(default_factory=CoachFeedbackCorrectionsModel)
+
+
+class RecipeSuggestRequestModel(BaseModel):
+    user_id: str
+    analysis_id: str = ""
+    meal: Dict[str, Any] = Field(default_factory=dict)
+    diet_style: str = "non-veg"
+    goal_type: str = "fat_loss"
+    plan: str = "free"
+
+
+class RecipeFeedbackRequestModel(BaseModel):
+    user_id: str
+    recipe_key: str = ""
+    action: str = ""
+    cuisine: str = ""
+    meal_tag: str = ""
+    recipe_snapshot: Dict[str, Any] = Field(default_factory=dict)
 
 
 class CoachToneRewriteDiagnosisModel(BaseModel):
@@ -10232,6 +10251,61 @@ def coach_voice(
     )
     _coach_voice_cache_set(uid, day_iso, payload_hash, tone_pref, output)
     return _attach_debug_schema(output, bool(debug))
+
+
+@app.post("/recipes/suggest")
+def recipes_suggest(
+    payload: Dict[str, Any] = Body(...),
+    user_id: Optional[str] = None,
+    x_user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
+):
+    try:
+        req = _model_validate(RecipeSuggestRequestModel, payload or {})
+    except Exception as e:
+        raise HTTPException(status_code=400, detail={"error": "invalid_recipe_suggest_payload", "raw": str(e)[:300]})
+    uid = require_user_id(x_user_id, user_id or req.user_id)
+    require_ai_consent(uid)
+    spoon_key = (os.getenv("SPOONACULAR_API_KEY") or "").strip()
+    return build_recipe_suggest_response(
+        uid,
+        req.meal or {},
+        str(req.diet_style or "non-veg"),
+        str(req.goal_type or "fat_loss"),
+        GEMINI_API_KEY,
+        _SINGLE_SUPPORTED_GEMINI_MODEL,
+        spoon_key,
+        str(req.plan or "free"),
+    )
+
+
+@app.get("/recipes/saved")
+def recipes_saved(
+    user_id: Optional[str] = None,
+    x_user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
+):
+    uid = require_user_id(x_user_id, user_id)
+    require_ai_consent(uid)
+    return list_saved_recipes(uid)
+
+
+@app.post("/recipes/feedback")
+def recipes_feedback(
+    payload: Dict[str, Any] = Body(...),
+    user_id: Optional[str] = None,
+    x_user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
+):
+    try:
+        req = _model_validate(RecipeFeedbackRequestModel, payload or {})
+    except Exception as e:
+        raise HTTPException(status_code=400, detail={"error": "invalid_recipe_feedback_payload", "raw": str(e)[:300]})
+    uid = require_user_id(x_user_id, user_id or req.user_id)
+    require_ai_consent(uid)
+    meta = {
+        "cuisine": str(req.cuisine or "").strip(),
+        "meal_tag": str(req.meal_tag or "").strip(),
+        "recipe_snapshot": req.recipe_snapshot if isinstance(req.recipe_snapshot, dict) else {},
+    }
+    return record_recipe_feedback(uid, str(req.recipe_key or "").strip(), str(req.action or "").strip(), meta)
 
 
 @app.post("/coach/memory/feedback")
