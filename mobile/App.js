@@ -64,6 +64,7 @@ import { SmartAlertCard } from "./components/SmartAlertCard";
 import { SmartAlertInbox } from "./components/SmartAlertInbox";
 import { SmartAlertSettings } from "./components/SmartAlertSettings";
 import { HealthyNearbyMapScreen } from "./components/HealthyNearbyMapScreen";
+import { HealthyNearbyDiscoverLayout } from "./components/HealthyNearbyDiscoverLayout";
 import { HealthyPlaceListCard } from "./components/HealthyPlaceListCard";
 import { AdminOpsDashboard } from "./components/AdminOpsDashboard";
 import { ScanConfirmationChips } from "./components/ScanConfirmationChips";
@@ -183,7 +184,15 @@ const HEALTH_SOURCES = [
   { title: "WHO: Healthy diet (general nutrition guidance)", url: "https://www.who.int/news-room/fact-sheets/detail/healthy-diet" },
 ];
 
-
+/** Rotating tips while meal/menu/supplement/barcode scans run (sync or async). */
+const SCAN_LOADING_FACTS = [
+  "Protein helps you stay full longer after meals.",
+  "Fiber supports steady energy and digestion.",
+  "Portion size often matters as much as food choice.",
+  "Hydration supports appetite cues and recovery.",
+  "Whole foods often score lower on ultra-processed scales.",
+  "Consistency beats perfection for long-term progress.",
+];
 
 // ===================== CONFIG =====================
 const API_BASE =
@@ -1674,6 +1683,7 @@ export default function App() {
   const [goalsBusy, setGoalsBusy] = useState(false);
   const [busy, setBusy] = useState(false);
   const [scanProgress, setScanProgress] = useState("");
+  const [scanLoadingFactLine, setScanLoadingFactLine] = useState("");
   const [rerunBusy, setRerunBusy] = useState(false);
   const [clarificationSelections, setClarificationSelections] = useState({});
   const [recipeSuggestPayload, setRecipeSuggestPayload] = useState(null);
@@ -1858,6 +1868,22 @@ export default function App() {
     );
     return { ...recipeSuggestPayload, recipes: list };
   }, [recipeSuggestPayload, recipeDismissedLocal]);
+
+  useEffect(() => {
+    const scanLoading = busy || menuScanBusy || supplementBusy || upfScanBusy || barcodeBusy;
+    if (!scanLoading) {
+      setScanLoadingFactLine("");
+      return;
+    }
+    const facts = SCAN_LOADING_FACTS;
+    let idx = 0;
+    setScanLoadingFactLine(facts[0]);
+    const id = setInterval(() => {
+      idx = (idx + 1) % facts.length;
+      setScanLoadingFactLine(facts[idx]);
+    }, 4200);
+    return () => clearInterval(id);
+  }, [busy, menuScanBusy, supplementBusy, upfScanBusy, barcodeBusy]);
   const coachPreviewTiles = useMemo(() => (canCoaching ? [] : buildCoachPreviewTiles(plan)), [canCoaching, plan]);
   const previewPhotoUri = useMemo(() => {
     if (photoUri) return photoUri;
@@ -4540,11 +4566,12 @@ async function openCamera(mode = "meal") {
     analyzeCancelRef.current = false;
     setBusy(true);
     setResult(null);
-    setScanProgress("");
+    setScanProgress("Preparing photo…");
 
     try {
       const { prepareImageForScan } = await import("./utils/imageCompress");
       const uriToUpload = await prepareImageForScan(photoUri);
+      setScanProgress("Sending for analysis…");
       const form = new FormData();
       form.append("file", {
         uri: uriToUpload,
@@ -7742,12 +7769,21 @@ async function openCamera(mode = "meal") {
           </View>
 
           {busy ? (
-            <View style={styles.row}>
-              <TouchableOpacity style={styles.secondaryBtn} onPress={cancelAnalyzeJob}>
-                <Text style={styles.btnText}>Cancel analyze</Text>
-              </TouchableOpacity>
-              {!!scanProgress ? (
-                <Text style={[styles.tiny, { marginLeft: 10, alignSelf: "center" }]}>{scanProgress}</Text>
+            <View style={{ marginTop: 6 }}>
+              <View style={styles.row}>
+                <TouchableOpacity style={styles.secondaryBtn} onPress={cancelAnalyzeJob}>
+                  <Text style={styles.btnText}>Cancel analyze</Text>
+                </TouchableOpacity>
+                <Text style={[styles.tiny, { marginLeft: 10, alignSelf: "center", flex: 1 }]}>
+                  {scanProgress || "Analyzing…"}
+                </Text>
+              </View>
+              {!!scanLoadingFactLine ? (
+                <Text
+                  style={[styles.tiny, { marginTop: 10, color: "#94a3b8", fontStyle: "italic", lineHeight: 18 }]}
+                >
+                  {scanLoadingFactLine}
+                </Text>
               ) : null}
             </View>
           ) : null}
@@ -8545,6 +8581,14 @@ async function openCamera(mode = "meal") {
           {menuScanBusy && !menuScanResult ? (
             <View style={{ marginTop: 10 }}>
               <ActivityIndicator />
+              <Text style={[styles.tiny, { marginTop: 8 }]}>Reading menu and finding best picks…</Text>
+              {!!scanLoadingFactLine ? (
+                <Text
+                  style={[styles.tiny, { marginTop: 6, color: "#94a3b8", fontStyle: "italic", lineHeight: 18 }]}
+                >
+                  {scanLoadingFactLine}
+                </Text>
+              ) : null}
             </View>
           ) : null}
           {menuScanResult ? (
@@ -9282,13 +9326,24 @@ async function openCamera(mode = "meal") {
                 style={[styles.smallBtn, healthyViewMode === "map" ? styles.healthyViewToggleActive : null]}
                 onPress={() => setHealthyViewMode("map")}
               >
-                <Text style={styles.smallBtnText}>Healthy Food Map</Text>
+                <Text style={styles.smallBtnText}>Map</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.smallBtn, healthyViewMode === "browse" ? styles.healthyViewToggleActive : null]}
+                onPress={() => {
+                  setHealthyViewMode("browse");
+                  if (!(effectivePlaces || []).length && !healthyPlacesBusy) {
+                    void loadHealthyPlacesNearby();
+                  }
+                }}
+              >
+                <Text style={styles.smallBtnText}>Browse</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.smallBtn, healthyViewMode === "list" ? styles.healthyViewToggleActive : null]}
                 onPress={() => setHealthyViewMode("list")}
               >
-                <Text style={styles.smallBtnText}>List View</Text>
+                <Text style={styles.smallBtnText}>List</Text>
               </TouchableOpacity>
             </View>
           ) : null}
@@ -9358,6 +9413,49 @@ async function openCamera(mode = "meal") {
                   });
                 }
               }}
+            />
+          ) : null}
+
+          {healthyViewMode === "browse" ? (
+            <HealthyNearbyDiscoverLayout
+              places={healthyVisiblePlaces}
+              filterKey={healthyMapFilter}
+              onFilterChange={setHealthyMapFilter}
+              selectedPlaceStableId={String(selectedHealthyPlaceId || "").trim()}
+              onSelectPlace={(place, idx) => {
+                setSelectedHealthyPlaceId(place ? healthyPlaceStableId(place, idx) : "");
+                if (place && Number.isFinite(num(place?.lat)) && Number.isFinite(num(place?.lng))) {
+                  setHealthyMapFocusCoords({ lat: num(place.lat), lng: num(place.lng) });
+                }
+                const uid = userId || session?.user?.id;
+                if (uid && goalCoachContext?.action_type === ACTION_OPEN_HEALTHY_NEARBY) {
+                  trackGoalCoachActionCompleted(API_BASE, uid, {
+                    source_surface: goalCoachContext.source_surface,
+                    action_type: ACTION_OPEN_HEALTHY_NEARBY,
+                    completion_type: "place_selected",
+                    place_id: place?.place_id,
+                    place_name: place?.place_name || place?.name,
+                    goal_type: goalCoachContext.goal,
+                    remaining_protein_g: goalCoachContext.remaining_protein_g,
+                    remaining_calories: goalCoachContext.remaining_calories,
+                  });
+                }
+              }}
+              userCoords={healthyPlaceCoords}
+              focusCoords={healthyMapCenter}
+              onLoadPlaces={() => void loadHealthyPlacesNearby()}
+              onRefreshAroundMe={async () => {
+                try {
+                  const fresh = await getCurrentCoords();
+                  await loadHealthyPlacesNearby({ coords: fresh, preserveFilter: true });
+                } catch (e) {
+                  Alert.alert("Location needed", errorToMessage(e?.message || e || "", 0));
+                }
+              }}
+              busy={healthyPlacesBusy && !hasFreshNearbySnapshot}
+              error={healthyPlacesError}
+              formatDistanceFromMeters={formatDistanceFromMeters}
+              getPlaceStableId={healthyPlaceStableId}
             />
           ) : null}
 
@@ -11182,6 +11280,7 @@ const styles = StyleSheet.create({
   healthyViewToggleRow: {
     marginTop: 14,
     flexDirection: "row",
+    flexWrap: "wrap",
     alignItems: "center",
     gap: 10,
   },

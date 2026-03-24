@@ -15,7 +15,7 @@
       "autoIncrement": true,
       "cache": {
         "disabled": false,
-        "key": "production-v4-20260310"
+        "key": "production-v5-20260310-fresh"
       },
       "env": {
         "EXPO_PUBLIC_SUPABASE_URL": "https://mgrwrthvhjpmbrvmvkeo.supabase.co",

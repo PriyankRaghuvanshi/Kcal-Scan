@@ -10,8 +10,10 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "ios:build:production": "npx eas-cli build --platform ios --profile production --non-interactive",
+    "ios:build:production:fresh": "npx eas-cli build --platform ios --profile production --clear-cache --non-interactive",
     "ios:submit:production": "npx eas-cli submit --platform ios --profile production --non-interactive",
-    "ios:release": "npx eas-cli build --platform ios --profile production_auto_submit --auto-submit --non-interactive"
+    "ios:release": "npx eas-cli build --platform ios --profile production_auto_submit --auto-submit --non-interactive",
+    "ios:release:fresh": "npx eas-cli build --platform ios --profile production_auto_submit --auto-submit --clear-cache --non-interactive"
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "^2.2.0",
@@ -27,6 +29,7 @@
     "expo-file-system": "~19.0.21",
     "expo-image-manipulator": "~14.0.8",
     "expo-image-picker": "~17.0.10",
+    "expo-linear-gradient": "~15.0.8",
     "expo-location": "~19.0.7",
     "expo-notifications": "~0.32.16",
     "expo-status-bar": "~3.0.9",
@@ -34,8 +37,8 @@
     "jsonwebtoken": "^9.0.3",
     "react": "19.1.0",
     "react-native": "0.81.5",
-    "react-native-maps": "1.20.1",
     "react-native-health": "^1.19.0",
+    "react-native-maps": "1.20.1",
     "react-native-purchases": "^9.7.1",
     "react-native-url-polyfill": "^3.0.0"
   },
