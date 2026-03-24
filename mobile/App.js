@@ -184,15 +184,53 @@ const HEALTH_SOURCES = [
   { title: "WHO: Healthy diet (general nutrition guidance)", url: "https://www.who.int/news-room/fact-sheets/detail/healthy-diet" },
 ];
 
-/** Rotating tips while meal/menu/supplement/barcode scans run (sync or async). */
-const SCAN_LOADING_FACTS = [
-  "Protein helps you stay full longer after meals.",
-  "Fiber supports steady energy and digestion.",
-  "Portion size often matters as much as food choice.",
-  "Hydration supports appetite cues and recovery.",
-  "Whole foods often score lower on ultra-processed scales.",
-  "Consistency beats perfection for long-term progress.",
-];
+/** Rotating tips while scans run (large non-repeating deck). */
+function _buildScanLoadingFacts() {
+  const lead = [
+    "Protein-forward meals",
+    "High-fiber choices",
+    "Balanced plates",
+    "Portion-aware picks",
+    "Lower-UPF options",
+    "Hydration habits",
+    "Slow-carb swaps",
+    "Sleep-friendly dinners",
+    "Lunch prep habits",
+    "Recovery meals",
+  ];
+  const action = [
+    "can improve satiety",
+    "often reduce afternoon crashes",
+    "help steady blood sugar swings",
+    "can lower late-night hunger",
+    "usually improve consistency",
+    "can make calorie targets easier",
+    "help protect muscle during cuts",
+    "often improve food quality scores",
+    "can reduce impulse snacking",
+    "help improve weekly outcomes",
+  ];
+  const suffix = [
+    "over 2-4 weeks.",
+    "when repeated most days.",
+    "with realistic portions.",
+    "without needing perfect eating.",
+    "even with takeout meals.",
+    "when paired with hydration.",
+    "for most goal-focused plans.",
+    "with simple repeatable routines.",
+    "for many fat-loss workflows.",
+    "when combined with protein timing.",
+  ];
+  const out = [];
+  for (let i = 0; i < lead.length; i++) {
+    for (let j = 0; j < action.length; j++) {
+      out.push(`${lead[i]} ${action[j]} ${suffix[(i + j) % suffix.length]}`);
+    }
+  }
+  return out;
+}
+const SCAN_LOADING_FACTS = _buildScanLoadingFacts();
 
 // ===================== CONFIG =====================
 const API_BASE =
@@ -884,6 +922,16 @@ function normalizeMealQA(raw) {
 
 function sleepMs(ms) {
   return new Promise((resolve) => setTimeout(resolve, Math.max(0, Number(ms) || 0)));
+}
+function shuffleArray(list) {
+  const arr = Array.isArray(list) ? [...list] : [];
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    const t = arr[i];
+    arr[i] = arr[j];
+    arr[j] = t;
+  }
+  return arr;
 }
 function normalizeRerunPatch(patch, editableItems = []) {
   const src = patch && typeof patch === "object" ? patch : {};
@@ -1875,9 +1923,13 @@ export default function App() {
       setScanLoadingFactLine("");
       return;
     }
-    const facts = SCAN_LOADING_FACTS;
-    let idx = 0;
-    setScanLoadingFactLine(facts[0]);
+    const facts = shuffleArray(SCAN_LOADING_FACTS);
+    if (!facts.length) {
+      setScanLoadingFactLine("Analyzing your meal...");
+      return;
+    }
+    let idx = Math.floor(Math.random() * facts.length);
+    setScanLoadingFactLine(facts[idx]);
     const id = setInterval(() => {
       idx = (idx + 1) % facts.length;
       setScanLoadingFactLine(facts[idx]);
@@ -4594,10 +4646,10 @@ async function openCamera(mode = "meal") {
           throw new Error("Analyze job was queued without a job_id.");
         }
         const startedAt = Date.now();
-        let pollDelay = 800;
+        let pollDelay = 450;
         let finalPayload = null;
         let partialPayload = null;
-        const hardTimeoutMs = 45000;
+        const hardTimeoutMs = 60000;
         while (Date.now() - startedAt < hardTimeoutMs) {
           if (analyzeCancelRef.current) {
             throw new Error("Analyze cancelled.");
@@ -4636,7 +4688,7 @@ async function openCamera(mode = "meal") {
             throw new Error(errMsg || "Analyze failed while processing image.");
           }
           await sleepMs(pollDelay);
-          pollDelay = Math.min(5000, Math.round(pollDelay * 1.2));
+          pollDelay = Math.min(1800, Math.round(pollDelay * 1.18));
         }
         if (!finalPayload) {
           if (partialPayload) {
@@ -5670,7 +5722,7 @@ async function openCamera(mode = "meal") {
           throw new Error("Analysis was queued without a job_id.");
         }
         const startedAt = Date.now();
-        let pollDelay = 800;
+        let pollDelay = 450;
         let finalPayload = null;
         while (Date.now() - startedAt < 120000) {
           const jobUrl = withTimezoneQuery(
@@ -5689,7 +5741,7 @@ async function openCamera(mode = "meal") {
             throw new Error(errorToMessage(pollData?.error || pollData?.message || "Scan failed.", 0) || "Scan failed.");
           }
           await sleepMs(pollDelay);
-          pollDelay = Math.min(5000, Math.round(pollDelay * 1.2));
+          pollDelay = Math.min(1800, Math.round(pollDelay * 1.18));
         }
         if (!finalPayload) throw new Error("Scan timed out. Please try again.");
         data = finalPayload;

@@ -1,9 +1,10 @@
 /**
  * Resize and compress image before upload to reduce latency.
- * Target: max 900px long edge, JPEG quality 0.7 (faster upload).
+ * Target: max 768px long edge, JPEG quality 0.58 (faster upload).
+ * This trims upload + decode latency while keeping food-shape fidelity.
  */
-const MAX_EDGE_PX = 900;
-const COMPRESS_QUALITY = 0.7;
+const MAX_EDGE_PX = 768;
+const COMPRESS_QUALITY = 0.58;
 
 export async function prepareImageForScan(uri) {
   if (!uri || typeof uri !== "string") return uri;

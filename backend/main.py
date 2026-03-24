@@ -493,6 +493,7 @@ _EXPECTED_SCHEMA_TABLES = {
 _ANALYSIS_JOBS_CACHE: Dict[str, Dict[str, Any]] = {}
 _ANALYSIS_JOB_QUEUE: "queue.Queue[Dict[str, Any]]" = queue.Queue(maxsize=2048)
 _ANALYSIS_JOB_WORKER_STARTED = False
+_ANALYSIS_JOB_WORKER_COUNT = 0
 _ANALYSIS_JOB_WORKER_LOCK = threading.Lock()
 _AI_CONSENT_CACHE: Dict[str, Dict[str, Any]] = {}
 _MFR_VERIFY_CACHE: Dict[str, Dict[str, Any]] = {}
@@ -2207,17 +2208,32 @@ def _analysis_job_worker_loop() -> None:
 
 
 def _ensure_analysis_worker_started() -> None:
-    global _ANALYSIS_JOB_WORKER_STARTED
+    global _ANALYSIS_JOB_WORKER_STARTED, _ANALYSIS_JOB_WORKER_COUNT
     if _ANALYSIS_JOB_WORKER_STARTED:
         return
     with _ANALYSIS_JOB_WORKER_LOCK:
         if _ANALYSIS_JOB_WORKER_STARTED:
             return
         _ensure_dir(ANALYZE_JOB_DIR)
-        t = threading.Thread(target=_analysis_job_worker_loop, daemon=True, name="analysis-job-worker")
-        t.start()
+        try:
+            requested = int(max(1, min(6, round(float(os.getenv("ANALYZE_JOB_WORKERS", "3") or 3)))))
+        except Exception:
+            requested = 3
+        for idx in range(requested):
+            t = threading.Thread(
+                target=_analysis_job_worker_loop,
+                daemon=True,
+                name=f"analysis-job-worker-{idx+1}",
+            )
+            t.start()
+            _ANALYSIS_JOB_WORKER_COUNT += 1
         _ANALYSIS_JOB_WORKER_STARTED = True
-        logger.info("analysis job worker started dir=%s", ANALYZE_JOB_DIR)
+        logger.info(
+            "analysis job workers started dir=%s workers=%s queue_max=%s",
+            ANALYZE_JOB_DIR,
+            _ANALYSIS_JOB_WORKER_COUNT,
+            2048,
+        )
 
 
 def _enqueue_analysis_job(job: Dict[str, Any]) -> None:
