@@ -17,7 +17,12 @@ from llm_menu_reasoning import (
     candidate_protein,
 )
 from menu_item_scoring import recommend_menu_items_for_place
-from recommendation_safety import has_strong_menu_evidence, sanitize_recommended_item
+from recommendation_safety import (
+    has_strong_menu_evidence,
+    honest_no_menu_order_copy,
+    sanitize_recommended_item,
+    should_use_honest_no_menu_order_copy,
+)
 from nutrition_mode import NutritionMode
 from personalization_profiles import (
     normalize_personalization_goal,
@@ -370,6 +375,16 @@ def _place_profile(
         or "Lighter menu option"
     )
     top_item["item_name"] = recommended_order
+    if should_use_honest_no_menu_order_copy(
+        strong_menu_evidence=top_item_evidence,
+        menu_item_source=menu_item_source,
+        menu_item_confidence=menu_item_confidence,
+    ):
+        honest_order, honest_lbl = honest_no_menu_order_copy(menu_context_text)
+        recommended_order = honest_order
+        top_item["item_name"] = recommended_order
+        top_item["display_label"] = honest_lbl
+        top_item["honest_no_menu_copy"] = True
     order_type = str(top_item.get("order_type") or order.get("order_type") or "").strip().lower()
     if order_type not in {"exact", "likely", "estimated"}:
         if menu_item_source == "real_menu" and menu_item_confidence >= 0.72:

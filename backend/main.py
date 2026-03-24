@@ -1,3 +1,4 @@
+import asyncio
 import io
 import os
 import json
@@ -12,6 +13,7 @@ import threading
 import queue
 import random
 from collections import deque
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Callable, Dict, Optional, List, Tuple, Union, Literal
 from zoneinfo import ZoneInfo
 
@@ -73,8 +75,8 @@ from contribution_auto_promotion import (
     run_auto_promotion_all,
     get_auto_promotion_status,
 )
-from meal_feedback_store import upsert_meal_feedback_event
-from meal_decision_event_store import log_meal_decision_event
+from meal_feedback_store import upsert_meal_feedback_event, list_meal_feedback_events
+from meal_decision_event_store import log_meal_decision_event, list_meal_decision_events
 from goal_coach_action_tracking import log_goal_coach_event
 from yieldpilot_case_routes import router as yieldpilot_case_router
 from push_token_store import (
@@ -106,6 +108,7 @@ from push_rollout import (
     get_rollout_status,
 )
 from user_last_location_store import upsert_user_location, get_user_location
+from recipe_suggestions import build_recipe_suggest_response, record_recipe_feedback, list_saved_recipes
 from push_send_flow import send_smart_alert_for_user as _send_smart_alert_for_user
 from personal_response_summary import get_personal_meal_memory
 from nutrition_mode import NutritionMode
@@ -124,7 +127,9 @@ from healthy_places_audit import (
     build_filtered_out_entry,
 )
 from place_trace_debug import build_place_trace
+from google_nearby_cache import get as google_nearby_cache_get, set as google_nearby_cache_set
 from healthy_nearby_fastpath import shortlist_places
+from healthy_nearby_rank_one import build_rank_context_from_request, rank_one_healthy_nearby_place
 from local_venue_enrichment import summarize_launch_area_coverage
 from launch_readiness_report import build_launch_readiness_report, build_all_areas_report
 from suburb_remediation import generate_prioritized_remediation
@@ -351,9 +356,10 @@ try:
 except Exception:
     COACH_LLM_TIMEOUT_SEC = 8.0
 try:
-    COACH_VOICE_TIMEOUT_SEC = max(3.0, min(8.0, float(os.getenv("COACH_VOICE_TIMEOUT_SEC", "8").strip() or "8")))
+    # Coach voice LLM: allow a bit more wall time than scan LLM; configurable (default 12s, cap 20s).
+    COACH_VOICE_TIMEOUT_SEC = max(3.0, min(20.0, float(os.getenv("COACH_VOICE_TIMEOUT_SEC", "12").strip() or "12")))
 except Exception:
-    COACH_VOICE_TIMEOUT_SEC = 8.0
+    COACH_VOICE_TIMEOUT_SEC = 12.0
 try:
     COACH_VOICE_CACHE_TTL_MIN = max(10, min(30, int(float(os.getenv("COACH_VOICE_CACHE_TTL_MIN", "20").strip() or "20"))))
 except Exception:
@@ -648,10 +654,12 @@ def _call_llm_with_timeout(
 ) -> Tuple[str, str, List[str]]:
     selected_model = _choose_single_llm_model(model_name or COACH_LLM_MODEL, None)
     purpose_key = str(purpose or "").strip().lower()
+    caller_timeout = float(timeout_sec if timeout_sec is not None else 8.0)
+    # Vision scan needs headroom; other callers (e.g. coach_voice_human) must honor their timeout_sec.
     if purpose_key.startswith("scan:vision_scan"):
-        effective_timeout = 25.0
+        effective_timeout = max(25.0, min(90.0, caller_timeout))
     else:
-        effective_timeout = 8.0
+        effective_timeout = max(3.0, min(120.0, caller_timeout))
     attempts = max(1, min(2, int(retries or 1) + 1))
     tried_models: List[str] = []
     last_err = ""
@@ -987,12 +995,23 @@ class PortionMultiplierEdit(BaseModel):
     multiplier: float
 
 
+class ItemMacroOverrideEdit(BaseModel):
+    """Manual correction for one line item after USDA resolution (rerun only)."""
+
+    item_id: str = ""
+    kcal: Optional[float] = None
+    protein_g: Optional[float] = None
+    carbs_g: Optional[float] = None
+    fat_g: Optional[float] = None
+
+
 class AnalyzeRerunEditsModel(BaseModel):
     portion_multiplier: Optional[Union[float, PortionMultiplierEdit]] = None
     set_cooking_method: Optional[SetCookingMethodEdit] = None
     set_oil_added_tsp: Optional[SetOilAddedEdit] = None
     swap_item: Optional[SwapItemEdit] = None
     set_item_grams: Optional[SetItemGramsEdit] = None
+    macro_override: Optional[ItemMacroOverrideEdit] = None
     clarifying_answer: Optional[str] = None
     clarifying_answers: Optional[List[Dict[str, str]]] = None
 
@@ -1100,7 +1119,7 @@ def _friendly_rerun_validation_error(exc: Exception) -> Dict[str, Any]:
             "set_cooking_method": {"item_id": "string", "method": "string"},
             "swap_item": {"item_id": "string", "new_name": "string"},
             "edits_array_action": {
-                "type": "set_oil_added_tsp|set_cooking_method|swap_candidate|swap_item|set_portion_multiplier",
+                "type": "set_oil_added_tsp|set_cooking_method|swap_candidate|swap_item|set_portion_multiplier|macro_override|set_item_grams",
                 "item_id": "string",
             },
         },
@@ -1184,10 +1203,37 @@ def _merge_rerun_edit_action(edits: Dict[str, Any], action: Dict[str, Any], defa
         if mult is not None:
             edits["portion_multiplier"] = {"item_id": item_id, "multiplier": max(0.3, min(3.0, float(mult)))}
         return
+    if action_type in {"set_item_grams", "set_grams"}:
+        grams = _safe_float(act.get("grams", act.get("value")), None)
+        if grams is not None and float(grams) > 0:
+            edits["set_item_grams"] = {"item_id": item_id, "grams": max(0.0, float(grams))}
+        return
+    if action_type in {"macro_override", "set_macro_override"}:
+        mo: Dict[str, Any] = {"item_id": item_id}
+        for k in ("kcal", "protein_g", "carbs_g", "fat_g"):
+            v = _safe_float(act.get(k), None)
+            if v is not None:
+                mo[k] = max(0.0, float(v))
+        if len(mo) > 1:
+            edits["macro_override"] = mo
+        return
     if action_type in {"clarifying_answer", "set_clarifying_answer"}:
         answer = str(act.get("value") or act.get("clarifying_answer") or "").strip()
         if answer:
             edits["clarifying_answer"] = answer
+        return
+    if action_type in {"clarifying_answers", "set_clarifying_answers"}:
+        raw = act.get("answers") if isinstance(act.get("answers"), list) else act.get("clarifying_answers")
+        if isinstance(raw, list):
+            merged: List[Dict[str, str]] = []
+            for x in raw:
+                if isinstance(x, dict):
+                    k = str(x.get("key") or "").strip()
+                    v = str(x.get("value") or "").strip()
+                    if k and v:
+                        merged.append({"key": k, "value": v})
+            if merged:
+                edits["clarifying_answers"] = merged
         return
 
 
@@ -1384,6 +1430,7 @@ class CoachVoiceRequestModel(BaseModel):
     user_profile: CoachVoiceProfileModel = Field(default_factory=CoachVoiceProfileModel)
     tone_preference: str = "supportive"
     tone_id: str = ""
+    health_context: Dict[str, Any] = Field(default_factory=dict)
 
 
 class CoachFeedbackConfirmedItemModel(BaseModel):
@@ -1409,6 +1456,24 @@ class CoachFeedbackRequestModel(BaseModel):
     rating: Optional[int] = None
     free_text: str = ""
     corrections: CoachFeedbackCorrectionsModel = Field(default_factory=CoachFeedbackCorrectionsModel)
+
+
+class RecipeSuggestRequestModel(BaseModel):
+    user_id: str
+    analysis_id: str = ""
+    meal: Dict[str, Any] = Field(default_factory=dict)
+    diet_style: str = "non-veg"
+    goal_type: str = "fat_loss"
+    plan: str = "free"
+
+
+class RecipeFeedbackRequestModel(BaseModel):
+    user_id: str
+    recipe_key: str = ""
+    action: str = ""
+    cuisine: str = ""
+    meal_tag: str = ""
+    recipe_snapshot: Dict[str, Any] = Field(default_factory=dict)
 
 
 class CoachToneRewriteDiagnosisModel(BaseModel):
@@ -4097,15 +4162,15 @@ def get_plan_limits(plan: str) -> Dict[str, int]:
     if not row:
         # safe fallback if table not seeded
         if plan == "free":
-            return {"daily_limit": 25, "monthly_limit": 25}
+            return {"daily_limit": 5, "monthly_limit": 50}
         if plan == "elite":
-            return {"daily_limit": 15, "monthly_limit": 50}
+            return {"daily_limit": 10, "monthly_limit": 300}
         if plan == "advanced":
-            return {"daily_limit": 20, "monthly_limit": 100}
+            return {"daily_limit": 20, "monthly_limit": 600}
         if plan == "pro":
-            return {"daily_limit": 25, "monthly_limit": 1000}
+            return {"daily_limit": 40, "monthly_limit": 1200}
         if plan == "infinite":
-            return {"daily_limit": 30, "monthly_limit": 10000}
+            return {"daily_limit": 200, "monthly_limit": 100000}
         return {"daily_limit": 3, "monthly_limit": 25}
 
     return {
@@ -5200,6 +5265,270 @@ def _supplement_explanation(score: Any, risk_flags: List[str]) -> str:
     )
 
 
+def _build_supplement_trust_payload(
+    *,
+    score: float,
+    flags: List[str],
+    normalized_barcode: str,
+    off_status: int,
+    off_brand: str,
+    inferred_brand: str,
+    gs1_info: Dict[str, Any],
+    mfr_result: Dict[str, Any],
+    mfr_status: str,
+    fssai_license: str,
+    proof_mode_enabled: bool,
+    seal_detected: Any,
+    batch_scan_count: int,
+) -> Dict[str, Any]:
+    """Human-readable trust signals for the supplement scanner UI (not a legal certification)."""
+    fs = {str(x or "").strip().lower() for x in (flags or []) if str(x or "").strip()}
+    has_barcode = bool(str(normalized_barcode or "").strip())
+    gs1_cc = str((gs1_info or {}).get("country_code") or "").strip().upper()
+    gs1_hint = str((gs1_info or {}).get("org_hint") or "").strip()
+    off_brand_s = str(off_brand or "").strip()
+    brand_s = str(inferred_brand or "").strip()
+    mfr_src = str((mfr_result or {}).get("source") or "").strip().lower() or "registry"
+    mfr_src_label = {
+        "openfoodfacts": "Open Food Facts product record",
+        "gs1_licensed": "GS1 licensed data (if configured)",
+    }.get(mfr_src, "Manufacturer / GTIN registry signal")
+
+    sources: List[Dict[str, str]] = []
+
+    sources.append(
+        {
+            "id": "label_ocr",
+            "name": "Label photos & OCR",
+            "detail": "Front/back images analyzed to read barcode, batch, and nutrition panel text.",
+            "status": "info",
+        }
+    )
+
+    if not has_barcode:
+        sources.append(
+            {
+                "id": "open_food_facts",
+                "name": "Open Food Facts",
+                "detail": "Public product database — skipped (no barcode to look up).",
+                "status": "warn",
+            }
+        )
+    elif "barcode_checksum_invalid" in fs or "barcode_invalid_format" in fs:
+        sources.append(
+            {
+                "id": "open_food_facts",
+                "name": "Open Food Facts",
+                "detail": "Barcode failed format or checksum; database lookup not reliable.",
+                "status": "bad",
+            }
+        )
+    elif "barcode_not_found_public_db" in fs:
+        sources.append(
+            {
+                "id": "open_food_facts",
+                "name": "Open Food Facts",
+                "detail": "No matching product found for this barcode in the public database.",
+                "status": "warn",
+            }
+        )
+    elif "barcode_brand_mismatch" in fs:
+        detail = "Product found, but listed brand differs from the label we read."
+        if off_brand_s:
+            detail += f" DB: {off_brand_s[:72]}{'…' if len(off_brand_s) > 72 else ''}."
+        sources.append(
+            {
+                "id": "open_food_facts",
+                "name": "Open Food Facts",
+                "detail": detail,
+                "status": "warn",
+            }
+        )
+    elif off_status == 1:
+        detail = "Barcode matched a public product record."
+        if off_brand_s:
+            detail += f" Listed brand: {off_brand_s[:72]}{'…' if len(off_brand_s) > 72 else ''}."
+        sources.append(
+            {
+                "id": "open_food_facts",
+                "name": "Open Food Facts",
+                "detail": detail,
+                "status": "ok",
+            }
+        )
+    else:
+        sources.append(
+            {
+                "id": "open_food_facts",
+                "name": "Open Food Facts",
+                "detail": "Product database check did not return a confident match.",
+                "status": "warn",
+            }
+        )
+
+    if not has_barcode:
+        sources.append(
+            {
+                "id": "gs1_prefix",
+                "name": "GS1 company prefix",
+                "detail": "Not evaluated without a valid barcode.",
+                "status": "info",
+            }
+        )
+    elif "gs1_prefix_mismatch_region" in fs:
+        sources.append(
+            {
+                "id": "gs1_prefix",
+                "name": "GS1 company prefix",
+                "detail": "Prefix country does not align with your scan region (plausibility check).",
+                "status": "bad",
+            }
+        )
+    elif "gs1_prefix_unknown" in fs or not gs1_cc:
+        sources.append(
+            {
+                "id": "gs1_prefix",
+                "name": "GS1 company prefix",
+                "detail": "Prefix could not be mapped to a country (reference data may be incomplete).",
+                "status": "warn",
+            }
+        )
+    else:
+        extra = f" {gs1_hint}" if gs1_hint else ""
+        sources.append(
+            {
+                "id": "gs1_prefix",
+                "name": "GS1 company prefix",
+                "detail": f"Prefix maps to region {gs1_cc}.{extra}".strip(),
+                "status": "ok",
+            }
+        )
+
+    if "mfr_verified_company_match" in fs:
+        sources.append(
+            {
+                "id": "manufacturer",
+                "name": "Brand / manufacturer link",
+                "detail": f"GTIN owner aligns with label brand ({mfr_src_label}).",
+                "status": "ok",
+            }
+        )
+    elif "mfr_verified_company_mismatch" in fs:
+        sources.append(
+            {
+                "id": "manufacturer",
+                "name": "Brand / manufacturer link",
+                "detail": f"Registered GTIN owner does not match the label brand ({mfr_src_label}).",
+                "status": "bad",
+            }
+        )
+    elif "mfr_verification_not_found" in fs:
+        sources.append(
+            {
+                "id": "manufacturer",
+                "name": "Brand / manufacturer link",
+                "detail": f"No owner record found for this GTIN ({mfr_src_label}).",
+                "status": "warn",
+            }
+        )
+    elif "mfr_verification_unavailable" in fs:
+        sources.append(
+            {
+                "id": "manufacturer",
+                "name": "Brand / manufacturer link",
+                "detail": "Registry lookup unavailable for this scan.",
+                "status": "info",
+            }
+        )
+    elif has_barcode:
+        sources.append(
+            {
+                "id": "manufacturer",
+                "name": "Brand / manufacturer link",
+                "detail": f"No strong manufacturer signal ({mfr_src_label}).",
+                "status": "info",
+            }
+        )
+
+    fssai_digits = _supplement_digits(fssai_license)
+    if fssai_digits:
+        sources.append(
+            {
+                "id": "fssai",
+                "name": "FSSAI license (label text)",
+                "detail": f"Read from packaging: {fssai_digits}. Confirm on the official FSSAI portal.",
+                "status": "info",
+            }
+        )
+
+    n_scans = max(1, int(_safe_float(batch_scan_count, 0) or 0) + 1)
+    sources.append(
+        {
+            "id": "community",
+            "name": "Community batch signals",
+            "detail": f"Anonymous scan patterns for this batch in your region (n≈{n_scans}). More scans improve stability.",
+            "status": "ok" if n_scans >= 8 else "info",
+        }
+    )
+
+    if proof_mode_enabled:
+        if seal_detected is True:
+            sources.append(
+                {
+                    "id": "seal",
+                    "name": "Seal photo (high confidence mode)",
+                    "detail": "Seal/cap evidence provided.",
+                    "status": "ok",
+                }
+            )
+        elif "seal_missing" in fs:
+            sources.append(
+                {
+                    "id": "seal",
+                    "name": "Seal photo (high confidence mode)",
+                    "detail": "Expected seal evidence — photo missing or inconclusive.",
+                    "status": "warn",
+                }
+            )
+        else:
+            sources.append(
+                {
+                    "id": "seal",
+                    "name": "Seal photo (high confidence mode)",
+                    "detail": "Optional seal check — no penalty applied.",
+                    "status": "info",
+                }
+            )
+
+    barcode_verified = (
+        off_status == 1
+        and "barcode_brand_mismatch" not in fs
+        and "barcode_checksum_invalid" not in fs
+        and "barcode_not_found_public_db" not in fs
+    )
+    s_val = float(_safe_float(score, 0.0) or 0.0)
+    if barcode_verified and s_val >= 68.0 and "mfr_verified_company_mismatch" not in fs:
+        tier = "strong"
+        badge_label = "Cross-checked with Open Food Facts + label analysis"
+    elif not has_barcode or "barcode_not_found_public_db" in fs or "barcode_checksum_invalid" in fs or s_val < 42.0:
+        tier = "limited"
+        badge_label = "Limited external confirmation — rely on breakdown below"
+    else:
+        tier = "moderate"
+        badge_label = "Partial external match — review sources below"
+
+    return {
+        "badge": {"tier": tier, "label": badge_label},
+        "sources": sources,
+        "reference_urls": {
+            "open_food_facts": "https://world.openfoodfacts.org/",
+            "open_food_facts_product": f"https://world.openfoodfacts.org/product/{_supplement_digits(normalized_barcode)}"
+            if has_barcode and _supplement_digits(normalized_barcode)
+            else "",
+        },
+    }
+
+
 def _infer_supplement_region(
     region_hint: Any = "",
     *,
@@ -5820,9 +6149,11 @@ _COACH_SYSTEM_PROMPT = (
     "You have seen their meal scans, today's totals, protein/fiber gaps, fat loss stats, and weekly patterns. "
     "Talk like a coach who actually looked at their data: reference their numbers and meals in natural language. "
     "Use different words and sentence structures every time—never repeat the same phrases. Sound like a person, not a template. "
+    "If RELATIONSHIP_STANCE is warm_reset: treat off-plan meals as normal human moments—reassure, then one specific compensating action. "
+    "If RELATIONSHIP_STANCE is accountability: the pattern is repeating; be calm, direct, and caring, ask for a simple plan, mention timeline pressure qualitatively (no exact weight promises). No insults, no shouting. "
     "Provide behavior-focused suggestions only. No medical advice, diagnosis, treatment, or supplement recommendations. "
     "Use ONLY the provided numbers and context; do not invent metrics. Output strict JSON only. "
-    "Your voice must feel distinctly different by the requested tone (supportive/strict/funny/indian_coach): each tone has its own energy and way of speaking so the user can tell which coach they chose."
+    "Your voice must feel distinctly different by the requested tone (supportive/strict/funny/indian_coach): each tone has its own energy and way of speaking so the user can tell which coach they chose. Keep language caring, calm, and never shouty."
 )
 
 _DAILY_TONE_ALIASES = {
@@ -5838,24 +6169,29 @@ _DAILY_TONE_ALIASES = {
 
 _DAILY_TONE_PROMPTS = {
     "supportive": (
-        "Tone supportive: warm and encouraging like a real coach. Acknowledge what they've scanned and their effort. "
-        "Use different words each time—rephrase naturally. No guilt or shame. Reference their actual protein/fiber gaps, "
-        "meal timing, or scan patterns in plain language. Sound like a person, not a script."
+        "Tone supportive: like a real coach who knows them—warm, human, conversational. "
+        "If they went off-plan or had a treat, normalize it ('enjoying food sometimes is normal'), never shame them, "
+        "then give one concrete next move tied to their numbers (e.g. trim refined carbs at dinner if kcal are high). "
+        "If the data shows a repeating junk or overshoot pattern across days, shift firmer: clear expectations, plan the next meals, "
+        "mention their goal timeline can slip if it keeps up—still respectful, never cruel. "
+        "Vary wording; reference real gaps and scans; avoid corporate wellness filler."
     ),
     "strict": (
-        "Tone strict: direct and accountable, like a coach who tells it straight. Short, clear phrasing. No emoji. "
-        "One concise consequence line (no medical claims). Vary your wording—don't repeat the same commands. "
-        "Reference their numbers and meals naturally."
+        "Tone strict: direct and accountable, like a high-performance coach who is calm and caring. Short, clear phrasing. No emoji. "
+        "Show empathy first, then directional action and one concise consequence line (no medical claims). "
+        "No harsh or shouting language; keep it respectful and supportive."
     ),
     "funny": (
         "Tone funny: playful, human coach. Use fresh hook phrases (not only 'Plot twist' or 'Cheat code'—vary: 'Here's the thing', "
-        "'Real talk', 'Pro move', etc.). Max 2 emoji. Keep facts and advice solid. Change how you say it every time."
+        "'Real talk', 'Pro move', etc.). Max 2 emoji. Keep facts and advice solid with real direction. "
+        "Mix humor + empathy + motivation without becoming generic."
     ),
     "indian_coach": (
         "Tone indian_coach: talk like a real Indian coach—natural Hinglish. Mix Hindi and English the way people actually speak "
         "(e.g. 'bhai', 'dost', 'yaar', 'chalo', 'karo', 'thoda', 'bilkul', 'sahi hai', 'theek hai', 'ab', 'dekho', 'simple', 'pakka', "
         "'mast', 'solid', 'kya baat', 'no tension', 'ho jayega'). Vary your phrases; don't limit to 2–3 words. "
-        "Practical, respectful, and conversational. Reference their scans and stats in natural Hinglish."
+        "Practical, respectful, conversational, and inspiring. Occasionally use a short Bhagavad Gita-inspired action idea "
+        "(focus on karm/action and discipline, not religious preaching), while staying grounded in scan data."
     ),
 }
 
@@ -5923,21 +6259,47 @@ _COACH_SUMMARY_STYLE_BANK = {
         "You are on track. Main lever now: {summary_fact}",
         "Progress looks steady. Key shift: {summary_fact}",
         "Strong check-in. Highest-impact change: {summary_fact}",
-        "Today’s direction improves if you fix this: {summary_fact}",
+        "Today's direction improves if you fix this: {summary_fact}",
         "Good base today. Priority lever: {summary_fact}",
         "Simple focus for today: {summary_fact}",
+        "Your log today points to one habit to refine: {summary_fact}",
+        "Reading your day like a coach: {summary_fact}",
+        "Fat loss loves clarity—here is today's clearest signal: {summary_fact}",
+        "Momentum is decent; the upgrade path is: {summary_fact}",
+        "You've logged enough for a useful pattern read: {summary_fact}",
+        "The gentle upgrade for today is: {summary_fact}",
+        "Your habits are teachable—main lesson right now: {summary_fact}",
+        "No shame, just navigation: {summary_fact}",
+        "Today's highest-ROI habit tweak: {summary_fact}",
+        "Keep the wins; tighten this one thread: {summary_fact}",
+        "If you change one routine today, make it this: {summary_fact}",
+        "This is the lever that most protects your weekly average: {summary_fact}",
+        "You are closer than it feels—next hinge is: {summary_fact}",
+        "Stack small choices; start with: {summary_fact}",
     ],
     "strict": [
-        "Current bottleneck: {bottleneck_label}. {summary_fact} Fix this today.",
-        "Non-negotiable lever is {bottleneck_label}. {summary_fact}",
-        "Results are limited by {bottleneck_label}. {summary_fact} Act now.",
+        "Current bottleneck is {bottleneck_label}. {summary_fact} Let's fix this today.",
+        "Most important lever is {bottleneck_label}. {summary_fact}",
+        "Results are limited by {bottleneck_label}. {summary_fact} Start now.",
         "{summary_fact} Do this today.",
-        "Main limiter: {bottleneck_label}. {summary_fact} Execute now.",
-        "This must be corrected today: {summary_fact}",
-        "No drift today. {summary_fact}",
+        "Main limiter is {bottleneck_label}. {summary_fact} Let's execute now.",
+        "This needs a gentle correction today: {summary_fact}",
+        "Let's avoid more drift today. {summary_fact}",
         "Priority is {bottleneck_label}. {summary_fact} Keep it tight.",
-        "Direct fix required: {summary_fact}",
+        "Clear fix needed: {summary_fact}",
         "If unchanged, progress slows. {summary_fact}",
+        "Timeline pressure is real—tighten {bottleneck_label}: {summary_fact}",
+        "Your choices today either compound or cost—focus: {summary_fact}",
+        "No extra lectures: the fix is {bottleneck_label}. {summary_fact}",
+        "We protect fat-loss velocity by fixing: {summary_fact}",
+        "One disciplined adjustment beats five vague intentions: {summary_fact}",
+        "Standards slip when {bottleneck_label} slips; reset with: {summary_fact}",
+        "Hold the line on {bottleneck_label} starting now: {summary_fact}",
+        "This is the day-part that moves the needle: {summary_fact}",
+        "Let's not negotiate with the log—execute: {summary_fact}",
+        "Repeatable wins need a repeatable fix: {summary_fact}",
+        "Your next meal is where you vote for the trend you want: {summary_fact}",
+        "Quiet the noise; single priority: {summary_fact}",
     ],
     "funny": [
         "Plot twist: {summary_fact}",
@@ -5945,11 +6307,23 @@ _COACH_SUMMARY_STYLE_BANK = {
         "Boss move alert: {summary_fact}",
         "Side quest check: {summary_fact}",
         "Quick plot update: {summary_fact}",
-        "Today’s cheat code is simple: {summary_fact}",
+        "Today's cheat code is simple: {summary_fact}",
         "Boss move for this meal cycle: {summary_fact}",
         "Tiny side quest, big payoff: {summary_fact}",
         "Game plan update: {summary_fact}",
         "Level-up lever today: {summary_fact}",
+        "Patch notes incoming: {summary_fact}",
+        "Your build needs one stat buff: {summary_fact}",
+        "RNG didn't break; habits did—hotfix: {summary_fact}",
+        "Speedrun cancelled; slow-and-steady wins: {summary_fact}",
+        "Daily quest reminder: {summary_fact}",
+        "Achievement almost unlocked—finish with: {summary_fact}",
+        "Inventory check says: {summary_fact}",
+        "Tutorial skipped; here's the real lesson: {summary_fact}",
+        "Mini-boss named {bottleneck_label} spotted: {summary_fact}",
+        "Combo broken—re-chain with: {summary_fact}",
+        "Respawn screen avoided if you: {summary_fact}",
+        "Loot box closed; grind this instead: {summary_fact}",
     ],
     "indian_coach": [
         "Scene simple hai: {summary_fact}",
@@ -5962,6 +6336,150 @@ _COACH_SUMMARY_STYLE_BANK = {
         "Chalo practical rakhte hain: {summary_fact}",
         "Aaj ka ROI move: {summary_fact}",
         "Simple scene, strong result: {summary_fact}",
+        "Dekho data kya bol raha hai: {summary_fact}",
+        "Thoda discipline, zyada result—yeh line: {summary_fact}",
+        "Bhai, fat loss mein clarity king hai; aaj ki clarity: {summary_fact}",
+        "Aaj habit ka ek thread pakadna hai: {summary_fact}",
+        "Theek hai, no fluff—main point: {summary_fact}",
+        "Pakka wala fix aaj yeh hai: {summary_fact}",
+        "Dost, next step obvious hai: {summary_fact}",
+        "Solid week banane ke liye aaj yeh lock karo: {summary_fact}",
+        "Hinglish mein seedhi baat: {summary_fact}",
+        "Energy aur hunger dono ke liye best move: {summary_fact}",
+        "Scene tab set hota hai jab {bottleneck_label} set ho—{summary_fact}",
+        "Chalo compass sahi karte hain: {summary_fact}",
+        "Mast effort; ab sharp edge: {summary_fact}",
+    ],
+    "supportive_warm": [
+        "You're a little off plan today—and that's completely human. {summary_fact}",
+        "Real talk: you enjoyed something heavier; that doesn't erase your week. {summary_fact}",
+        "Today drifted, and that's okay—plenty of strong weeks include one loose meal. {summary_fact}",
+        "Totally normal to want a treat; now we just balance the rest of the day. {summary_fact}",
+        "You veered from target—no drama, we fix the next meal. {summary_fact}",
+        "One richer choice happened; you can still land today softly. {summary_fact}",
+        "Your body wanted flavor; your week still wants steadiness—bridge them with: {summary_fact}",
+        "Gentle reset beats harsh shame; next hinge: {summary_fact}",
+        "Label it a detour, not a disaster—course-correct with: {summary_fact}",
+        "Comfort food days happen; learning still counts: {summary_fact}",
+        "You did not fail a diet—you lived a day; tighten with: {summary_fact}",
+        "Self-compassion plus one smart meal preserves fat-loss momentum: {summary_fact}",
+        "Return to basics without punishing yourself: {summary_fact}",
+        "Hunger and joy both matter; balance looks like: {summary_fact}",
+        "One loose round does not undo your habits unless you let it stack: {summary_fact}",
+        "Warm coaching mode: breathe, then execute: {summary_fact}",
+        "Treat logged; values unchanged—next move: {summary_fact}",
+        "We are protecting the trend, not judging a moment: {summary_fact}",
+    ],
+    "supportive_accountability": [
+        "I'm going to be straight: this ultra-processed / calorie pattern is repeating—not a one-off. {summary_fact}",
+        "We've seen several days like this; we need a tighter plan or your fat-loss timeline keeps stretching. {summary_fact}",
+        "This isn't about guilt—it's a habit loop showing up in your scans. {summary_fact}",
+        "Pattern check: junk-heavy days are stacking; time to reset structure together. {summary_fact}",
+        "Your data says this is recurring, not random—let's lock the next 48 hours. {summary_fact}",
+        "I care about your outcome, so I'm naming the pattern clearly: {summary_fact}",
+        "Your fat-loss graph bends on weeks like this—interrupt the loop: {summary_fact}",
+        "The signal is repetition, not a bad day—upgrade the system: {summary_fact}",
+        "Cravings are human; predictable loops are fixable—start with: {summary_fact}",
+        "Support means honesty: this needs structure before it becomes default: {summary_fact}",
+        "We coach the habit, not your character—focus area: {summary_fact}",
+        "If this rhythm continues, the goal date shifts—let's stabilize: {summary_fact}",
+        "Your logs are asking for a plan, not more willpower: {summary_fact}",
+        "Together we tighten the environment that keeps triggering this: {summary_fact}",
+        "Pattern familiarity is a cue to change the script: {summary_fact}",
+        "Repetition is information—use it: {summary_fact}",
+        "Accountability is kindness with boundaries—here is the boundary: {summary_fact}",
+    ],
+    "strict_warm": [
+        "You went over today—once is fine. Recover cleanly at the next meal: {summary_fact}",
+        "Slip logged. No drama; execute balance now: {summary_fact}",
+        "Treat happened. Tighten the next plate—protein and vegetables first: {summary_fact}",
+        "Off-target calories today. Fix it with one disciplined next meal: {summary_fact}",
+        "Deviation accepted. Close the day without stacking mistakes: {summary_fact}",
+        "One indulgence ends here; next plate returns standards: {summary_fact}",
+        "No spiraling—just realign macros and timing: {summary_fact}",
+        "Discipline is the recovery tool; apply it now: {summary_fact}",
+        "Close the loop today so tomorrow starts clean: {summary_fact}",
+        "You enjoyed it; now earn back control in one action: {summary_fact}",
+        "Single correction prevents a weekly overshoot: {summary_fact}",
+        "Reset calories without self-attack—execute the fix: {summary_fact}",
+        "Balance is a skill; practice it at the next sitting: {summary_fact}",
+        "Own the slip, then own the comeback meal: {summary_fact}",
+    ],
+    "strict_accountability": [
+        "Pattern check: high junk / calories are repeating across days. {summary_fact} Let's tighten structure.",
+        "This habit loop is showing in your scans. {summary_fact} Plan the next 48 hours so your timeline stays on track.",
+        "Repeated UPF drift is visible. {summary_fact} Start a steady reset from the next meal.",
+        "Same pattern for multiple days. {summary_fact} Try a written two-meal plan.",
+        "Data suggests this is recurring, not a one-off. {summary_fact} Let's lock consistency now.",
+        "Fat loss doesn't negotiate with repeated shortcuts—interrupt this: {summary_fact}",
+        "Your timeline needs protection; the pattern won't self-heal: {summary_fact}",
+        "Repetition means rules, not motivation speeches: {summary_fact}",
+        "We stop the drift where it starts—next intentional block: {summary_fact}",
+        "Habit stacks fast; unwind it with structure today: {summary_fact}",
+        "Enough data—time for a written protocol: {summary_fact}",
+        "If you want the outcome, match the inputs—fix: {summary_fact}",
+        "Process calories are a choice pattern now—change the choice architecture: {summary_fact}",
+        "Serious weeks need serious guardrails: {summary_fact}",
+    ],
+    "funny_warm": [
+        "Side quest: you ate the loot. Main quest: balance dinner. {summary_fact}",
+        "Plot twist—you had fun. Don't wipe the save; fix the next meal. {summary_fact}",
+        "Treat debuff applied; stack protein + veg to cleanse. {summary_fact}",
+        "You cashed a cheat code—cool. Re-spec the next plate. {summary_fact}",
+        "Boss fight paused for cake; resume with a clean round. {summary_fact}",
+        "Snack DLC installed; uninstall with one clean meal plan: {summary_fact}",
+        "Plot armor expired briefly—re-equip discipline: {summary_fact}",
+        "You farmed joy points; now farm consistency: {summary_fact}",
+        "Desync fixed by syncing dinner to target: {summary_fact}",
+        "Treat arc ended—speedrun recovery: {summary_fact}",
+        "Lag spike from sugar; stabilize with: {summary_fact}",
+        "Buff eating happened; re-buff protein: {summary_fact}",
+        "Save corruption risk: zero if you patch next meal: {summary_fact}",
+    ],
+    "funny_accountability": [
+        "Speed-running snack mode again? {summary_fact} Patch the build this week.",
+        "Same mini-boss every day—boring pattern. {summary_fact} Change the route.",
+        "Your log is stuck in junk chapter. {summary_fact} Hard-mode plan required.",
+        "Streak of processed pulls—RNG isn't the problem. {summary_fact} Commit to two clean meals.",
+        "Achievement unlocked: pattern detected. {summary_fact} Grind consistency next.",
+        "Daily quest: stop repeating the snack cutscene: {summary_fact}",
+        "Your macro storyline needs a new writer: {summary_fact}",
+        "Meta is broken—too many comfort pulls: {summary_fact}",
+        "Grindset.exe crashed—reboot with structure: {summary_fact}",
+        "World record attempt for same mistake—retire the category: {summary_fact}",
+        "Inventory full of excuses; clear slot with a plan: {summary_fact}",
+        "Patch Tuesday is now; deploy habits v2: {summary_fact}",
+    ],
+    "indian_coach_warm": [
+        "Arre treat ho gaya—scene bigad nahi gaya. {summary_fact}",
+        "Boss, aaj thoda zyada ho gaya, normal hai. Next meal se balance. {summary_fact}",
+        "Ek rich meal—koi tension nahi, ab protein + veg se set karte hain. {summary_fact}",
+        "Thoda drift hua, theek hai; ab practical fix karo. {summary_fact}",
+        "Mast enjoy kiya—ab chalo next meal tight rakho. {summary_fact}",
+        "Zindagi mein mithaas chahiye; trend ko bhi chahiye control—{summary_fact}",
+        "Thoda comfort khaya, ab comfort zone se nikal ke action: {summary_fact}",
+        "Ghar ka ya bahar ka, koi baat nahi—ab balance wala move: {summary_fact}",
+        "Fat loss journey mein kabhi kabhi day heavy hota hai; lesson: {summary_fact}",
+        "Chill maar, par next plate conscious rakho: {summary_fact}",
+        "Boss, guilt ka scene chhodo, execution pakdo: {summary_fact}",
+        "Ek meal heavy, next meal smart—yeh rhythm: {summary_fact}",
+        "Treat = pause button, not game over—resume with: {summary_fact}",
+        "Sahi coach wali baat: dhairya rakho, plan follow karo—{summary_fact}",
+    ],
+    "indian_coach_accountability": [
+        "Bhai, pattern repeat ho raha hai scans mein—ab calm aur serious plan chahiye. {summary_fact}",
+        "Dekho, junk days stack ho rahe hain; timeline stretch ho jayega. {summary_fact}",
+        "Same scene baar baar—habit dikh rahi hai. {summary_fact} Ab structure lock karo.",
+        "Data bol raha hai recurring hai, random nahi. {summary_fact} 48 ghante ka plan banao.",
+        "Boss, consistency tut rahi hai—ab clear supportive rules set karte hain. {summary_fact}",
+        "Samajh aa raha hai habit set ho gayi hai—ab todo badlo: {summary_fact}",
+        "Fat loss tabhi grip karti hai jab pattern break hota hai—start: {summary_fact}",
+        "Dost, repetition ko respect do—system change karo: {summary_fact}",
+        "Weekly trend alarming nahi, lekin serious hai—intercept: {summary_fact}",
+        "Ab sirf motivation nahi, protocol chahiye: {summary_fact}",
+        "Aadat ko data se pakdo, phir replace karo: {summary_fact}",
+        "Scene yeh hai: comfort eating loop—exit strategy: {summary_fact}",
+        "Thoda tough love: yeh tab tak rahega jab tak plan na ho—{summary_fact}",
     ],
 }
 
@@ -5970,21 +6488,153 @@ _COACH_WHY_STYLE_BANK = {
         "{impact}",
         "Why this matters: {impact}",
         "This matters because {impact}",
+        "For your habits and weekly average: {impact}",
+        "This is how the day shapes fat loss: {impact}",
+        "Connect the dots: {impact}",
+        "Your future week feels this choice: {impact}",
+        "Coaching lens—cause and effect: {impact}",
+        "Gentle truth for momentum: {impact}",
+        "Hunger and calories both learn from this: {impact}",
+        "Pattern-wise, here's the cost of ignoring it: {impact}",
+        "Understanding beats guilt: {impact}",
+        "This is the story your log is telling: {impact}",
     ],
     "strict": [
         "{impact}",
         "Reason: {impact}",
-        "If unchanged, this will keep progress unstable. {impact}",
+        "If unchanged, progress may stay unstable. {impact}",
+        "Reality check: {impact}",
+        "Non-negotiable link to results: {impact}",
+        "Cause → effect, plainly: {impact}",
+        "Timelines follow habits; note this: {impact}",
+        "No sugar-coating the mechanism: {impact}",
+        "Discipline exists because of facts like this: {impact}",
+        "Your deficit math interacts with: {impact}",
+        "This is where adherence meets outcome: {impact}",
+        "Ignore it and the trend bends: {impact}",
+        "Straight mechanism: {impact}",
     ],
     "funny": [
         "{impact}",
         "Why it matters: {impact}",
         "Translation: {impact}",
+        "Lore drop: {impact}",
+        "Plot relevance: {impact}",
+        "Stats screen says: {impact}",
+        "If you skip the tutorial: {impact}",
+        "Bonus XP reason: {impact}",
+        "Speedrun penalty if you ignore: {impact}",
+        "Patch rationale: {impact}",
+        "Devs notes (your body edition): {impact}",
+        "Quest journal entry: {impact}",
     ],
     "indian_coach": [
         "{impact}",
         "Why matter karta hai: {impact}",
         "Simple reason: {impact}",
+        "Samajh lo mechanism: {impact}",
+        "Practical angle: {impact}",
+        "Fat loss angle se: {impact}",
+        "Dimaag mein yeh baithao: {impact}",
+        "Seedha science-wali baat: {impact}",
+        "Habit aur result ka link: {impact}",
+        "Aaj ka lesson yeh hai: {impact}",
+        "Boss, reason clear karte hain: {impact}",
+        "Chalo cause-effect dekho: {impact}",
+    ],
+    "supportive_warm": [
+        "{impact}",
+        "Here's the human side: {impact}",
+        "No stress—{impact}",
+        "Soft landing still needs honesty: {impact}",
+        "Warm framing, same physics: {impact}",
+        "You're not bad; the day had friction—{impact}",
+        "Recovery wisdom: {impact}",
+        "One treat doesn't erase this truth: {impact}",
+        "Self-kindness includes seeing: {impact}",
+        "Balance needs this awareness: {impact}",
+        "Gentle guardrail: {impact}",
+        "Your nervous system and your goal both care about: {impact}",
+    ],
+    "supportive_accountability": [
+        "{impact}",
+        "Holding you accountable with care: {impact}",
+        "Straight talk: {impact}",
+        "Repeating patterns have repeating outcomes: {impact}",
+        "I'm on your side—not the excuse's side: {impact}",
+        "This is how loops stay loops: {impact}",
+        "Love the person; tighten the habit: {impact}",
+        "Your goal deserves this honesty: {impact}",
+        "We name it so we can change it: {impact}",
+        "Data-backed reality: {impact}",
+        "Support sounds like naming the pattern: {impact}",
+        "Fat-loss roadmap gets clearer when you see: {impact}",
+    ],
+    "strict_warm": [
+        "{impact}",
+        "Bottom line: {impact}",
+        "Execute knowing: {impact}",
+        "Clear-eyed view: {impact}",
+        "Correction without drama needs facts: {impact}",
+        "One slip, still true: {impact}",
+        "Mechanics don't pause for feelings: {impact}",
+        "Know this, then move: {impact}",
+        "Reality after indulgence: {impact}",
+        "No spiral—just this fact: {impact}",
+    ],
+    "strict_accountability": [
+        "{impact}",
+        "If this repeats: {impact}",
+        "Impact of drift: {impact}",
+        "Compounding risk: {impact}",
+        "This is what repetition buys you: {impact}",
+        "Your deficit can't outrun this habit: {impact}",
+        "Timeline math: {impact}",
+        "Habit cost, quantified in behavior: {impact}",
+        "Stop the bleed by seeing: {impact}",
+        "Accountability means staring at: {impact}",
+        "Nothing changes if this stays invisible: {impact}",
+    ],
+    "funny_warm": [
+        "{impact}",
+        "Real talk buff: {impact}",
+        "Debuff explanation: {impact}",
+        "Treat lore—still canon: {impact}",
+        "Rewind isn't free; here's why: {impact}",
+        "Patch explained like you are five: {impact}",
+        "Snack chapter footnote: {impact}",
+        "Fun detected; physics unchanged: {impact}",
+    ],
+    "funny_accountability": [
+        "{impact}",
+        "Patch notes: {impact}",
+        "Meta update: {impact}",
+        "Repeat quest penalty: {impact}",
+        "Achievement: Groundhog Day—why it stings: {impact}",
+        "Speedrun banned until you read: {impact}",
+        "Bug report: same input, same output—{impact}",
+        "Leaderboard of habits—you slipped here: {impact}",
+        "Nerf incoming unless you fix: {impact}",
+    ],
+    "indian_coach_warm": [
+        "{impact}",
+        "Dekho simple baat: {impact}",
+        "Samjho: {impact}",
+        "Arre tension nahi, lekin sach yeh hai: {impact}",
+        "Mast, par mechanism bhi sun lo: {impact}",
+        "Treat ke baad bhi seedhi baat: {impact}",
+        "Dost, yeh samajh lo: {impact}",
+        "Thoda pyar se, par clear: {impact}",
+    ],
+    "indian_coach_accountability": [
+        "{impact}",
+        "Seedhi baat: {impact}",
+        "Dhyaan do: {impact}",
+        "Dekho bhai, loop wahi rahega agar: {impact}",
+        "Pattern ko serious lo: {impact}",
+        "Yeh repeat tab tak jab tak: {impact}",
+        "Boss, data friendly nahi—honest hai: {impact}",
+        "Timeline tight rakhni hai toh yeh samjho: {impact}",
     ],
 }
 
@@ -5996,14 +6646,34 @@ _COACH_ACTION_STYLE_BANK = {
         "Highest-ROI step now: {one_change}",
         "Simple action right now: {one_change}",
         "One practical move: {one_change}",
+        "Habit anchor for today: {one_change}",
+        "When in doubt, default to: {one_change}",
+        "Make your future week easier by: {one_change}",
+        "Gentle but decisive—{one_change}",
+        "This protects satiety and your average: {one_change}",
+        "Copy-paste this into your evening: {one_change}",
+        "Lock one ritual: {one_change}",
+        "Your coaching homework: {one_change}",
+        "Start the upward trend with: {one_change}",
+        "One choice that signals you're serious: {one_change}",
+        "Tiny repeat, big trajectory: {one_change}",
     ],
     "strict": [
-        "Do this today: {one_change}",
-        "Immediate fix: {one_change}",
-        "Non-negotiable action: {one_change}",
-        "Execute now: {one_change}",
+        "Try this today: {one_change}",
+        "Immediate next step: {one_change}",
         "Priority action: {one_change}",
+        "Start now: {one_change}",
         "Fix this in your next meal: {one_change}",
+        "Execute without debate: {one_change}",
+        "Non-optional if you want the trend: {one_change}",
+        "Calories follow behavior—so do: {one_change}",
+        "Do this before the day runs away: {one_change}",
+        "Standards action: {one_change}",
+        "Proof over promises: {one_change}",
+        "Tighten the weakest link now: {one_change}",
+        "Single decisive move: {one_change}",
+        "No second helpings of excuses—{one_change}",
+        "Timeline protection looks like: {one_change}",
     ],
     "funny": [
         "Cheat code: {one_change}",
@@ -6012,6 +6682,16 @@ _COACH_ACTION_STYLE_BANK = {
         "Level-up move: {one_change}",
         "Tiny hack, big impact: {one_change}",
         "Main quest action: {one_change}",
+        "Equip this strategy: {one_change}",
+        "Stack the combo: {one_change}",
+        "Unlock the sane macro path: {one_change}",
+        "Press A to adult: {one_change}",
+        "OP strat (balanced edition): {one_change}",
+        "Speedrun to stability: {one_change}",
+        "Equip protein shield—{one_change}",
+        "Daily quest objective: {one_change}",
+        "Patch your build: {one_change}",
+        "Collectible: discipline—route: {one_change}",
     ],
     "indian_coach": [
         "Chalo, next meal fix: {one_change}",
@@ -6020,6 +6700,258 @@ _COACH_ACTION_STYLE_BANK = {
         "Aaj ka direct action: {one_change}",
         "Seedha next step: {one_change}",
         "Simple fix abhi: {one_change}",
+        "Practical rule aaj ke liye: {one_change}",
+        "Zada socho mat, yeh execute karo: {one_change}",
+        "Pakka plan—{one_change}",
+        "Fat loss friendly move: {one_change}",
+        "Habit tight karni hai toh: {one_change}",
+        "Dekho, easiest win yeh hai: {one_change}",
+        "Next meal ko sorted karo: {one_change}",
+        "Aaj commitment dikhane ka tareeka: {one_change}",
+        "Seedhi discipline yeh hai: {one_change}",
+    ],
+    "supportive_warm_action": [
+        "{one_change}",
+        "Next meal, keep it simple: {one_change}",
+        "You've got this—{one_change}",
+        "Easy win: {one_change}",
+        "Soft landing recipe: {one_change}",
+        "Come back gently with: {one_change}",
+        "No punishment, just: {one_change}",
+        "Rebuild trust with your plan via: {one_change}",
+        "Nourish without spiraling—{one_change}",
+        "One calm corrective: {one_change}",
+        "Bounce-back move: {one_change}",
+        "Close the day kindly with: {one_change}",
+    ],
+    "supportive_accountability_action": [
+        "{one_change}",
+        "We need this locked in: {one_change}",
+        "Non-negotiable next step: {one_change}",
+        "Plan it like this: {one_change}",
+        "Structure beats cravings—start with: {one_change}",
+        "Write it down, then do: {one_change}",
+        "Break the loop concretely: {one_change}",
+        "Your week turns when you commit to: {one_change}",
+        "Protective habit to install: {one_change}",
+        "Repeat until boring, then repeat: {one_change}",
+        "Accountability looks like executing: {one_change}",
+        "Two-meal contract: {one_change}",
+    ],
+    "strict_warm_action": [
+        "{one_change}",
+        "Next meal—execute: {one_change}",
+        "Recovery move: {one_change}",
+        "Clean correction: {one_change}",
+        "Stop the bleed: {one_change}",
+        "Tighten now; relax later: {one_change}",
+        "One disciplined plate: {one_change}",
+        "Reset calories with: {one_change}",
+    ],
+    "strict_accountability_action": [
+        "{one_change}",
+        "48-hour plan: {one_change}",
+        "Baseline step: {one_change}",
+        "Hard reset protocol: {one_change}",
+        "Do this before anything else: {one_change}",
+        "Pattern interrupt command: {one_change}",
+        "Minimum viable discipline: {one_change}",
+        "Non-negotiable baseline: {one_change}",
+    ],
+    "funny_warm_action": [
+        "{one_change}",
+        "Respawn move: {one_change}",
+        "Next checkpoint: {one_change}",
+        "Debuff cleanse: {one_change}",
+        "Re-spec breakfast/dinner: {one_change}",
+        "Loot responsibly next: {one_change}",
+        "Press restart without rage-quitting: {one_change}",
+    ],
+    "funny_accountability_action": [
+        "{one_change}",
+        "Hotfix: {one_change}",
+        "Required patch: {one_change}",
+        "Mandatory update: {one_change}",
+        "Critical bugfix: {one_change}",
+        "Server maintenance (you): {one_change}",
+        "Nerf snack meta via: {one_change}",
+    ],
+    "indian_coach_warm_action": [
+        "{one_change}",
+        "Bas ab ye karo: {one_change}",
+        "Next meal fix: {one_change}",
+        "Abhi simple execution: {one_change}",
+        "Thoda sa tight, bahut zyada calm: {one_change}",
+        "Balance wala move: {one_change}",
+        "Chalo undo nahi, adjust—{one_change}",
+    ],
+    "indian_coach_accountability_action": [
+        "{one_change}",
+        "Ab ye pakka karo: {one_change}",
+        "Priority step: {one_change}",
+        "Pakka commitment: {one_change}",
+        "Ab rules follow karne hain: {one_change}",
+        "Structure ab non-optional: {one_change}",
+        "Yehi week badalne wala step: {one_change}",
+    ],
+}
+
+_COACH_INSPIRATION_STYLE_BANK = {
+    "supportive": [
+        "Progress is built one honest meal at a time. You are doing that now.",
+        "You don't need perfection today; you need consistency in the next step.",
+        "Every corrected meal is a vote for your future self.",
+        "Fat loss is mostly habit math—your next choice keeps the math kind.",
+        "Understanding your own patterns is the quiet superpower here.",
+        "Small repeats beat heroic once-in-a-while efforts.",
+        "Your week is a mosaic; one tile still matters.",
+        "Gentle pacing still moves the graph in the right direction.",
+        "Self-trust grows when you follow through once, then again.",
+        "You're learning what triggers hunger and what satisfies it—that's coaching gold.",
+        "Coherence beats intensity for lasting change.",
+        "Steady is not boring; steady is how goals survive real life.",
+    ],
+    "strict": [
+        "Discipline is a skill, not a mood; train it in this next meal.",
+        "Standards create outcomes. Hold the standard now.",
+        "Execution beats intention. Prove it with this next action.",
+        "Your timeline listens to your habits more than your intentions.",
+        "Choose the harder helpful move once; it pays rent all week.",
+        "Adherence is the product; everything else is marketing.",
+        "Calm rigidity beats chaotic motivation.",
+        "Protect the deficit by protecting structure.",
+        "One decisive execution closes ten open loops in your head.",
+        "The mirror and the scale both follow behavior, not wishes.",
+        "Don't negotiate with the plan at the moment of hunger—pre-decide.",
+        "Win the next hour and the day follows.",
+    ],
+    "funny": [
+        "Main-character move: recover fast and keep the streak alive.",
+        "You dropped one level, not the whole game. Respawn smart.",
+        "Tiny correction now, big boss win later.",
+        "NPC energy is skipping protein; main-character energy is logging it.",
+        "Your macro quest line continues—don't abandon it over one cutscene.",
+        "Lag is temporary; clean meals are the FPS boost.",
+        "Keep the season pass to consistency rolling.",
+        "Boss loot is discipline; grind responsibly.",
+        "Save file intact if the next plate is intentional.",
+        "You can't speedrun fat loss, but you can speedrun a smart breakfast.",
+        "Tutorial tip: hunger is a skill tree; feed it wisely.",
+        "Patch notes say: one good meal fixes the vibe meter.",
+    ],
+    "indian_coach": [
+        "Bhagavad Gita style: karm par focus rakho, fal par tension kam.",
+        "Gita yaad rakho: action tumhare haath mein hai, outcome follow karega.",
+        "Aaj ka karm clear rakho; kal ka result strong hoga.",
+        "Niyat sahi + roz ka chhota karm = sustainable fat loss.",
+        "Dhairya rakho—body ko samajhna time leta hai, consistency se response aata hai.",
+        "Jo aadat repeat hoti hai, wahi result repeat hota hai—simple equation.",
+        "Control jo hai woh abhi ka meal hai; usi pe focus karo.",
+        "Discipline ego ka fight nahi, future self ka favour hai.",
+        "Scene tough ho to bhi agla step simple rakho.",
+        "Energy aur focus dono protein-fiber rhythm se stable hote hain.",
+        "Fat loss mein guru mantra: chhoti cheezein daily, bada drama nahi.",
+        "Karm = aaj ka plate; phal = weeks ka trend—dono alag cheez hai.",
+    ],
+    "supportive_warm": [
+        "One off-plan moment does not define you; your next decision does.",
+        "You are not behind, you are adjusting. That's real progress.",
+        "Treat happened, journey continues. Next meal is your reset.",
+        "Compassion plus clarity moves you faster than shame ever could.",
+        "Your habits are still yours; one bite didn't steal them.",
+        "Warm nights happen; calm mornings still do too.",
+        "Return to baseline without drama—that's advanced skill.",
+        "You can enjoy food and still steer the weekly average.",
+        "Forgive the slip, fund the comeback meal with intention.",
+        "The kindest coaches still tell the truth; you're ready to hear it gently.",
+        "Hunger is human; structure is how you meet it kindly.",
+        "You're learning boundary, not punishment—that's growth.",
+    ],
+    "supportive_accountability": [
+        "Respect yourself enough to break this loop today.",
+        "Habits change when standards are repeated, especially on hard days.",
+        "Your goal deserves structure, not random decisions.",
+        "Patterns repeat until the environment changes—design yours on purpose.",
+        "The story you tell about food should match the life you want.",
+        "Accountability is love with edges; edges keep you honest.",
+        "Fat loss respects systems more than mood spikes.",
+        "When the same trigger fires daily, change the response once.",
+        "You're not broken; the habit pathway is just well-worn—lay new tracks.",
+        "Your scans are a mirror; adjust the routine, not your worth.",
+        "Strong weeks include boring repetitions of good basics.",
+        "Choose identity-level consistency: 'I'm someone who plans.'",
+    ],
+    "strict_warm": [
+        "No guilt, no excuses—just a clean correction now.",
+        "One slip is noise. Response is the signal.",
+        "Reset immediately and momentum returns.",
+        "The fastest recovery is a boring, high-protein plate.",
+        "Discipline after indulgence is self-respect, not punishment.",
+        "Close the loop so your brain stops rumination.",
+        "Tight next meal protects blood sugar drama and regret loops.",
+        "You ate it; now earn the calm of being back on plan.",
+        "Correct hard once instead of negotiating soft for days.",
+        "Your future self pays for stacked slips—pay now, cheaply.",
+    ],
+    "strict_accountability": [
+        "This is where commitment is proven, not promised.",
+        "Protect the timeline by protecting your next two meals.",
+        "Pattern broken today becomes progress tomorrow.",
+        "Serious goals need non-optional guardrails—install them now.",
+        "Repetition is expensive; pay the discipline bill early.",
+        "You can't out-train, out-walk, or out-hope a recurring calorie pattern.",
+        "Structure now prevents another regret week.",
+        "Your word to yourself should weigh more than a craving.",
+        "Interrupt the autopilot with a written plan—that's leverage.",
+        "Decide once, repeat mechanically; that's how loops die.",
+    ],
+    "funny_warm": [
+        "Treat tax paid. Now collect your consistency refund.",
+        "Patch applied: back to hero mode next meal.",
+        "You are one smart plate away from a comeback arc.",
+        "Snack villain appeared; protein hero time.",
+        "Save corruption avoided—you still control dinner.",
+        "Debuff wore off; stack a veggie buff.",
+        "Rewind isn't free, but salad is cheaper than regret.",
+        "You grabbed epic loot; now balance the inventory.",
+        "Plot armor recharges with water, protein, and sleep.",
+        "Side quest complete; resume main storyline: habits.",
+    ],
+    "funny_accountability": [
+        "Lore update: discipline arc unlocked, snack arc cancelled.",
+        "Patch notes v2: fewer junk pulls, more wins.",
+        "Daily boss rule: plan beats cravings.",
+        "Meta shift: stop speedrunning the pantry.",
+        "Achievement hunting is cool; hunting chips daily is not.",
+        "Your build sheet says 'human', not 'vending machine'.",
+        "Seasonal event 'Stress Eating' needs a nerf—patch today.",
+        "Leaderboards lie; your log doesn't—listen to it.",
+        "Hard mode is just two planned meals—unlock it.",
+        "RNG won't save a streak of same inputs—change the inputs.",
+    ],
+    "indian_coach_warm": [
+        "Arjun style focus: agla step sahi, baaki sab set ho jayega.",
+        "Gita wali clarity: aaj ka karm strong rakho, kal ka phal better hoga.",
+        "No tension—seedha next action pe dhyan do.",
+        "Treat ho gaya toh guilt ka scene band—ab smart karm shuru.",
+        "Thoda zyada khaya = data point, drama nahin.",
+        "Next meal se scene control mein lao—simple.",
+        "Mann aur pet dono ko respect do—balance se dono khush.",
+        "Jo beet gaya so beet gaya; ab jo karna hai woh karo.",
+        "Dost, comeback strong Indians karte hain—ab tumhari baari.",
+        "Calm rakho, plate set karo, age badho.",
+    ],
+    "indian_coach_accountability": [
+        "Bhai, Gita ka seedha lesson: action repeat karo, result repeat hoga.",
+        "Discipline ko daily karm banao; tabhi timeline bachegi.",
+        "Scene tab badlega jab habit badlegi—ab se.",
+        "Comfort zone mein fat loss nahi milti—thoda structured rehna padega.",
+        "Jo pattern baar baar dikhe, wahi system change maangta hai.",
+        "Willpower kabhi kabhi; systems har din—choose systems.",
+        "Data se argue mat karo—use karo, phir adjust karo.",
+        "Thodi strictness ab = zyada freedom baad mein.",
+        "Goal serious ho toh routine bhi serious honi chahiye.",
+        "Har roz ka chhota karm bada faayda laata hai—promise.",
     ],
 }
 
@@ -6057,10 +6989,14 @@ _COACH_PERSONA_PROMPTS = {
 }
 _COACH_VOICE_SYSTEM_PROMPT = (
     "You are a real human coach who has seen this user's meals and stats. "
+    "The user message includes COACH_TONE_RULES—follow that tone closely so supportive vs strict vs funny vs indian_coach feel obviously different. "
+    "If RELATIONSHIP_STANCE=warm_reset: sound human—it's okay they enjoyed something off-plan; normalize, no guilt; one concrete next move from their numbers; reassure they can get back on track. "
+    "If RELATIONSHIP_STANCE=accountability: pattern is repeating; be direct and caring-firm, insist on a simple plan, mention their goal timeline slips if this keeps up (no exact weight promises). "
     "Talk in natural, varied language—change your wording every time. Reference their actual scans, gaps, and patterns like a coach would. "
+    "Avoid generic AI filler (e.g. 'leverage', 'optimize your journey', 'holistic wellness') unless the tone is playful and it fits. "
     "Output strict JSON only, no markdown, no extra keys. "
     "Never provide medical diagnosis, treatment, or disease claims. Never guarantee body-weight outcomes. "
-    "Keep empathy_line effort-acknowledging and practical."
+    "empathy_line: warm for supportive/funny/indian_coach; for strict tone use brief, matter-of-fact acknowledgment (not mushy). Include motivational direction, not generic filler. Avoid all-caps emphasis and shouting words."
 )
 _UNCERTAINTY_HINTS = ("likely", "might", "looks like", "appears", "could")
 
@@ -6896,7 +7832,7 @@ def _pick_style_line(
     if not bank:
         return _clip_line(fallback_line, max_words=max_words)
     idx = int(hashlib.sha256(str(seed or "seed").encode("utf-8")).hexdigest(), 16) % len(bank)
-    for step in range(min(len(bank), 4)):
+    for step in range(min(len(bank), 10)):
         tmpl = bank[(idx + step) % len(bank)]
         try:
             candidate = tmpl.format(**fmt)
@@ -6928,6 +7864,7 @@ def _apply_dynamic_coach_copy(
     scan_id: str,
     scan_count: int,
     recent_messages: List[str],
+    weekly_predictive: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     out = dict(coach_resp or {})
     recent_for_pick = _normalize_short_text_list(recent_messages, limit=6, max_chars=220)
@@ -6945,7 +7882,21 @@ def _apply_dynamic_coach_copy(
         or (norm_payload.get("tone_preference") if isinstance(norm_payload, dict) else "")
         or "supportive"
     )
+    try:
+        fs_coach = int(_safe_float(out.get("fat_loss_score"), -1))
+        if fs_coach < 0 and isinstance(norm_payload, dict) and norm_payload.get("goals"):
+            fs_coach = int(coach_logic.compute_fat_loss_score(norm_payload))
+    except Exception:
+        fs_coach = -1
+    stance = _compute_coach_relationship_stance(
+        norm_payload if isinstance(norm_payload, dict) else {},
+        weekly_predictive=weekly_predictive,
+        fat_loss_score=fs_coach if fs_coach >= 0 else None,
+    )
+    sk_sum, sk_why, sk_act = _effective_coach_style_keys(tone, stance)
+
     classifier = _classify_coach_bottleneck(norm_payload if isinstance(norm_payload, dict) else {})
+    classifier = _stance_tune_classifier(classifier, stance, norm_payload if isinstance(norm_payload, dict) else {})
     bottleneck_label = str(classifier.get("bottleneck") or "consistency").replace("_", " ")
     summary_fact = str(classifier.get("summary") or "").strip() or "Consistency is the top lever for today."
     impact = str(classifier.get("impact") or "").strip() or "This pattern can slow progress if repeated."
@@ -6959,57 +7910,67 @@ def _apply_dynamic_coach_copy(
         "bottleneck_label": bottleneck_label,
     }
     summary_line = _pick_style_line(
-        _COACH_SUMMARY_STYLE_BANK.get(tone, _COACH_SUMMARY_STYLE_BANK["supportive"]),
-        f"{seed}:summary:{tone}:{bottleneck_label}",
+        _COACH_SUMMARY_STYLE_BANK.get(sk_sum, _COACH_SUMMARY_STYLE_BANK["supportive"]),
+        f"{seed}:summary:{sk_sum}:{bottleneck_label}",
         fmt,
         recent_for_pick,
         summary_fact,
-        max_words=28,
+        max_words=36,
     )
     why_line = _pick_style_line(
-        _COACH_WHY_STYLE_BANK.get(tone, _COACH_WHY_STYLE_BANK["supportive"]),
-        f"{seed}:why:{tone}:{bottleneck_label}",
+        _COACH_WHY_STYLE_BANK.get(sk_why, _COACH_WHY_STYLE_BANK["supportive"]),
+        f"{seed}:why:{sk_why}:{bottleneck_label}",
         fmt,
         recent_for_pick,
         impact,
-        max_words=30,
+        max_words=34,
     )
     one_action_line = _pick_style_line(
-        _COACH_ACTION_STYLE_BANK.get(tone, _COACH_ACTION_STYLE_BANK["supportive"]),
-        f"{seed}:action:{tone}:{bottleneck_label}",
+        _COACH_ACTION_STYLE_BANK.get(sk_act, _COACH_ACTION_STYLE_BANK["supportive"]),
+        f"{seed}:action:{sk_act}:{bottleneck_label}",
         fmt,
         recent_for_pick,
         one_change,
-        max_words=24,
+        max_words=28,
+    )
+    motivation_line = _pick_style_line(
+        _COACH_INSPIRATION_STYLE_BANK.get(sk_sum, _COACH_INSPIRATION_STYLE_BANK.get(tone, _COACH_INSPIRATION_STYLE_BANK["supportive"])),
+        f"{seed}:motivation:{sk_sum}:{bottleneck_label}",
+        fmt,
+        recent_for_pick,
+        "Consistency compounds.",
+        max_words=22,
     )
     if prev_summary and _is_repetitive_line(summary_line, [prev_summary], threshold=0.86):
         summary_line = _pick_style_line(
-            _COACH_SUMMARY_STYLE_BANK.get(tone, _COACH_SUMMARY_STYLE_BANK["supportive"]),
-            f"{seed}:summary:reroll:{tone}:{bottleneck_label}",
+            _COACH_SUMMARY_STYLE_BANK.get(sk_sum, _COACH_SUMMARY_STYLE_BANK["supportive"]),
+            f"{seed}:summary:reroll:{sk_sum}:{bottleneck_label}",
             fmt,
             [prev_summary],
             summary_fact,
-            max_words=28,
+            max_words=36,
         )
     if prev_one_thing and _is_repetitive_line(one_action_line, [prev_one_thing], threshold=0.86):
         one_action_line = _pick_style_line(
-            _COACH_ACTION_STYLE_BANK.get(tone, _COACH_ACTION_STYLE_BANK["supportive"]),
-            f"{seed}:action:reroll:{tone}:{bottleneck_label}",
+            _COACH_ACTION_STYLE_BANK.get(sk_act, _COACH_ACTION_STYLE_BANK["supportive"]),
+            f"{seed}:action:reroll:{sk_act}:{bottleneck_label}",
             fmt,
             [prev_one_thing],
             one_change,
-            max_words=24,
+            max_words=28,
         )
 
     out["one_sentence_summary"] = summary_line
     out["if_you_do_one_thing"] = one_action_line
 
     out["coach_summary"] = out["one_sentence_summary"]
-    out["why_it_matters"] = why_line
+    out["why_it_matters"] = _clip_line(f"{why_line} {motivation_line}".strip(), max_words=48)
     out["one_action"] = out["if_you_do_one_thing"]
+    out["coach_motivation_line"] = motivation_line
     out["variation_seed"] = seed
+    out["coach_relationship_stance"] = stance
     out["summary_signature"] = hashlib.sha256(
-        f"{str(out.get('coach_summary') or '')}|{seed}|{tone}".encode("utf-8")
+        f"{str(out.get('coach_summary') or '')}|{seed}|{tone}|{stance}".encode("utf-8")
     ).hexdigest()[:20]
     return out
 
@@ -9001,6 +9962,277 @@ def _projection_trend_from_predictive(predictive: Optional[Dict[str, Any]]) -> s
     return "stable"
 
 
+def _compute_coach_relationship_stance(
+    norm_payload: Dict[str, Any],
+    *,
+    weekly_predictive: Optional[Dict[str, Any]] = None,
+    fat_loss_score: Optional[int] = None,
+) -> str:
+    """
+    Layer coaching voice: warm_reset (one-off slip), accountability (repeated pattern), or steady.
+    """
+    goals = (norm_payload.get("goals") or {}) if isinstance(norm_payload.get("goals"), dict) else {}
+    consumed = (norm_payload.get("consumed") or {}) if isinstance(norm_payload.get("consumed"), dict) else {}
+    signals = (norm_payload.get("signals") or {}) if isinstance(norm_payload.get("signals"), dict) else {}
+
+    gk = float(_safe_float(goals.get("kcal"), 1.0)) or 1.0
+    ck = float(_safe_float(consumed.get("kcal"), 0.0))
+    kcal_over_pct = ((ck - gk) / gk) * 100.0 if gk > 0 else 0.0
+    upf_day = float(_safe_float(signals.get("ultra_processed_avg"), 0.0))
+    sat = float(_safe_float(signals.get("avg_satiety"), 0.0))
+    gl = float(_safe_float(signals.get("avg_glycemic_load"), 0.0))
+
+    score = int(_safe_float(fat_loss_score, -1)) if fat_loss_score is not None else -1
+
+    pred = weekly_predictive if isinstance(weekly_predictive, dict) else {}
+    upf_week = float(_safe_float(pred.get("upf_avg"), 0.0))
+    days_tr = int(_safe_float(pred.get("days_tracked"), 0) or 0)
+    diet_vol = float(_safe_float(pred.get("diet_volatility_index"), 0.0))
+    protein_cons = float(_safe_float(pred.get("protein_consistency"), 50.0))
+    vel = float(_safe_float(pred.get("fat_loss_velocity_score"), 50.0))
+    eb = pred.get("energy_balance_trend_7d") if isinstance(pred.get("energy_balance_trend_7d"), dict) else {}
+    energy_trend = str(eb.get("trend") or "").strip().lower()
+
+    acc = 0
+    if days_tr >= 3 and upf_week >= 5.9:
+        acc += 2
+    if days_tr >= 4 and upf_week >= 6.2:
+        acc += 1
+    if diet_vol >= 56 and upf_day >= 5.4:
+        acc += 1
+    if 0 < protein_cons < 44 and days_tr >= 3 and upf_week >= 5.6:
+        acc += 1
+    if days_tr >= 3 and "surplus" in energy_trend:
+        acc += 1
+    if days_tr >= 4 and vel < 40 and upf_week >= 5.5:
+        acc += 1
+    if upf_day >= 6.8 and kcal_over_pct > 4:
+        acc += 1
+
+    slip_today = kcal_over_pct > 5.5 or upf_day >= 5.8 or gl >= 22.5 or (sat > 0 and sat < 52 and upf_day >= 5.1)
+    soft_day = score < 0 or score < 63
+
+    if acc >= 3:
+        return "accountability"
+    if slip_today and soft_day and acc <= 1:
+        return "warm_reset"
+    return "steady"
+
+
+def _stance_tune_classifier(
+    classifier: Dict[str, str],
+    stance: str,
+    norm_payload: Dict[str, Any],
+) -> Dict[str, str]:
+    out = dict(classifier or {})
+    goals = (norm_payload.get("goals") or {}) if isinstance(norm_payload.get("goals"), dict) else {}
+    consumed = (norm_payload.get("consumed") or {}) if isinstance(norm_payload.get("consumed"), dict) else {}
+    gk = float(_safe_float(goals.get("kcal"), 1.0)) or 1.0
+    ck = float(_safe_float(consumed.get("kcal"), 0.0))
+    kcal_over = max(0.0, ck - gk)
+    kcal_over_pct = (kcal_over / gk) * 100.0 if gk > 0 else 0.0
+
+    if stance == "warm_reset":
+        out["impact"] = (
+            "One richer or treat-style choice doesn't erase your week—what you do for the next meal is what steadies hunger and calories."
+        )
+        if kcal_over_pct > 4:
+            out["one_change"] = (
+                f"Tonight bias your plate to protein + vegetables and trim refined carbs a bit—you're roughly {int(round(kcal_over))} kcal over target."
+            )
+        else:
+            out["one_change"] = (
+                "Next meal: protein and vegetables first, keep starches smaller so today lands softly without punishing yourself."
+            )
+        base_s = str(out.get("summary") or "").strip()
+        out["summary"] = (f"You're slightly off track today—that's normal. {base_s}" if base_s else out.get("summary", "")).strip()
+    elif stance == "accountability":
+        out["impact"] = (
+            "Your scans show this is becoming a habit—not a random craving—so we need a clearer plan or your fat-loss timeline keeps stretching."
+        )
+        out["one_change"] = (
+            "Pre-plan your next two meals around whole foods and cap ultra-processed snacks; walk me through it by logging those meals."
+        )
+        base_s = str(out.get("summary") or "").strip()
+        out["summary"] = (
+            (f"Pattern alert: processed calories are trending high across multiple days. {base_s}" if base_s else base_s)
+        ).strip()
+    return out
+
+
+def _effective_coach_style_keys(tone: str, stance: str) -> Tuple[str, str, str]:
+    t = _normalize_daily_tone_id(tone)
+    if stance == "steady":
+        return t, t, t
+    if stance == "warm_reset":
+        if t == "supportive":
+            return "supportive_warm", "supportive_warm", "supportive_warm_action"
+        if t == "strict":
+            return "strict_warm", "strict_warm", "strict_warm_action"
+        if t == "funny":
+            return "funny_warm", "funny_warm", "funny_warm_action"
+        if t == "indian_coach":
+            return "indian_coach_warm", "indian_coach_warm", "indian_coach_warm_action"
+    if stance == "accountability":
+        if t == "supportive":
+            return "supportive_accountability", "supportive_accountability", "supportive_accountability_action"
+        if t == "strict":
+            return "strict_accountability", "strict_accountability", "strict_accountability_action"
+        if t == "funny":
+            return "funny_accountability", "funny_accountability", "funny_accountability_action"
+        if t == "indian_coach":
+            return "indian_coach_accountability", "indian_coach_accountability", "indian_coach_accountability_action"
+    return t, t, t
+
+
+def _normalize_health_context(raw: Any) -> Dict[str, Any]:
+    src = raw if isinstance(raw, dict) else {}
+    signals = src.get("signals") if isinstance(src.get("signals"), dict) else {}
+    out = {
+        "source": str(src.get("source") or "").strip().lower(),
+        "signals": {
+            "steps_avg_7d": _safe_float(signals.get("steps_avg_7d"), 0.0),
+            "steps_yesterday": _safe_float(signals.get("steps_yesterday"), 0.0),
+            "sleep_hours_avg_7d": _safe_float(signals.get("sleep_hours_avg_7d"), 0.0),
+            "sleep_last_night_hours": _safe_float(signals.get("sleep_last_night_hours"), 0.0),
+            "resting_hr_avg_7d": _safe_float(signals.get("resting_hr_avg_7d"), 0.0),
+            "hrv_ms_avg_7d": _safe_float(signals.get("hrv_ms_avg_7d"), 0.0),
+            "weight_kg_latest": _safe_float(signals.get("weight_kg_latest"), 0.0),
+        },
+    }
+    return out
+
+
+def _build_health_parameter_advice(health_context: Dict[str, Any]) -> Dict[str, Any]:
+    hc = _normalize_health_context(health_context)
+    s = hc.get("signals") if isinstance(hc.get("signals"), dict) else {}
+    steps = float(_safe_float(s.get("steps_avg_7d"), 0.0))
+    steps_yday = float(_safe_float(s.get("steps_yesterday"), 0.0))
+    sleep_h = float(_safe_float(s.get("sleep_hours_avg_7d"), 0.0))
+    sleep_last = float(_safe_float(s.get("sleep_last_night_hours"), 0.0))
+    rhr = float(_safe_float(s.get("resting_hr_avg_7d"), 0.0))
+    hrv = float(_safe_float(s.get("hrv_ms_avg_7d"), 0.0))
+
+    weak: List[Dict[str, Any]] = []
+    if steps > 0 and steps < 7000:
+        weak.append(
+            {
+                "parameter": "activity_steps",
+                "severity": "high" if steps < 5000 else "moderate",
+                "value": round(steps, 0),
+                "target": "7000-9000 avg steps/day",
+                "suggestion": "Add two 12-minute brisk walks after meals and one 8-minute walk after dinner.",
+            }
+        )
+    if sleep_h > 0 and sleep_h < 7.0:
+        weak.append(
+            {
+                "parameter": "sleep_duration",
+                "severity": "high" if sleep_h < 6.0 else "moderate",
+                "value": round(sleep_h, 1),
+                "target": "7.0-8.0 hours/night",
+                "suggestion": "Set a fixed wind-down alarm and protect a 60-minute no-screen pre-sleep routine.",
+            }
+        )
+    if rhr > 0 and rhr > 72:
+        weak.append(
+            {
+                "parameter": "resting_heart_rate",
+                "severity": "high" if rhr >= 78 else "moderate",
+                "value": round(rhr, 0),
+                "target": "downward trend over 2-4 weeks",
+                "suggestion": "Prioritize sleep consistency, hydration, and lower late-night heavy meals this week.",
+            }
+        )
+    if hrv > 0 and hrv < 35:
+        weak.append(
+            {
+                "parameter": "hrv_recovery",
+                "severity": "high" if hrv < 28 else "moderate",
+                "value": round(hrv, 1),
+                "target": "upward trend over 2-4 weeks",
+                "suggestion": "Use one lighter recovery day, breathing work for 10 minutes, and regular sleep timing.",
+            }
+        )
+
+    weak_sorted = sorted(
+        weak,
+        key=lambda x: (0 if str(x.get("severity")) == "high" else 1, str(x.get("parameter") or "")),
+    )
+    top = weak_sorted[:2]
+    lines = [str(item.get("suggestion") or "").strip() for item in top if str(item.get("suggestion") or "").strip()]
+    summary = (
+        f"Health signals from {str(hc.get('source') or 'device')} show "
+        + ", ".join([str(item.get("parameter") or "").replace("_", " ") for item in top])
+        + " as the main weak spots."
+    ) if top else ""
+    engaging_line = ""
+    if steps_yday > 0 and steps_yday < 7000:
+        engaging_line = (
+            f"Yesterday you did about {int(round(steps_yday))} steps. Let's hit at least 7000 today—quick post-meal walks will get you there."
+        )
+    elif sleep_last > 0 and sleep_last < 7.0:
+        engaging_line = (
+            f"Last night sleep was about {round(sleep_last, 1)}h. Let's push for 7+ hours tonight so hunger and recovery improve tomorrow."
+        )
+    elif top:
+        engaging_line = "You are close—lock one health habit today and your fat-loss trend gets easier to sustain."
+
+    def _bar(value: float, target: float, label: str) -> Dict[str, Any]:
+        pct = 0.0
+        if target > 0:
+            pct = max(0.0, min(1.0, float(value) / float(target)))
+        return {"label": label, "value": round(value, 1), "target": target, "pct": round(pct, 3)}
+
+    bars: List[Dict[str, Any]] = []
+    if steps > 0:
+        bars.append(_bar(steps, 7000.0, "Steps avg (7d)"))
+    if sleep_h > 0:
+        bars.append(_bar(sleep_h, 7.5, "Sleep hrs avg (7d)"))
+    if hrv > 0:
+        bars.append(_bar(hrv, 45.0, "HRV avg (ms)"))
+    if rhr > 0:
+        # For resting HR lower is better; represent inverse progress to <=65.
+        inv = max(0.0, 80.0 - rhr)
+        bars.append(_bar(inv, 15.0, "Resting HR recovery"))
+
+    return {
+        "source": str(hc.get("source") or "unknown"),
+        "weak_parameters": weak_sorted,
+        "coach_summary": summary,
+        "coach_steps": lines[:2],
+        "engaging_line": engaging_line,
+        "chart_bars": bars[:4],
+    }
+
+
+def _apply_health_advice_to_coach_response(resp: Dict[str, Any], health_context: Dict[str, Any]) -> Dict[str, Any]:
+    out = dict(resp or {})
+    advice = _build_health_parameter_advice(health_context)
+    weak = advice.get("weak_parameters") if isinstance(advice.get("weak_parameters"), list) else []
+    out["health_context_used"] = bool(weak)
+    out["health_signal_source"] = str(advice.get("source") or "")
+    out["health_parameter_advice"] = advice
+    out["health_coach_line"] = str(advice.get("engaging_line") or "")
+    out["health_chart_bars"] = advice.get("chart_bars") if isinstance(advice.get("chart_bars"), list) else []
+    if weak:
+        summary = str(advice.get("coach_summary") or "").strip()
+        steps = advice.get("coach_steps") if isinstance(advice.get("coach_steps"), list) else []
+        if summary:
+            existing = str(out.get("why_it_matters") or out.get("insight_line") or "").strip()
+            merged = _clip_line(f"{existing} {summary}".strip(), max_words=60)
+            if str(out.get("why_it_matters") or "").strip():
+                out["why_it_matters"] = merged
+            elif str(out.get("insight_line") or "").strip():
+                out["insight_line"] = merged[:200]
+        if steps and isinstance(out.get("one_action"), dict):
+            curr_steps = out["one_action"].get("steps") if isinstance(out["one_action"].get("steps"), list) else []
+            out["one_action"]["steps"] = (curr_steps + [str(s) for s in steps])[:3]
+        if str(out.get("health_coach_line") or "").strip() and str(out.get("insight_line") or "").strip():
+            out["insight_line"] = _limit_text(f"{out.get('insight_line')} {out.get('health_coach_line')}", 200)
+    return out
+
+
 def _coach_user_prompt(
     norm_payload: Dict[str, Any],
     fat_loss_score: int,
@@ -9086,6 +10318,23 @@ def _coach_user_prompt(
         },
         "projection_trend": _projection_trend_from_predictive(predictive),
     }
+    rel_stance = _compute_coach_relationship_stance(
+        norm_payload,
+        weekly_predictive=weekly_predictive,
+        fat_loss_score=int(fat_loss_score),
+    )
+    compact["relationship_stance"] = rel_stance
+    relationship_voice_rules = {
+        "warm_reset": (
+            "RELATIONSHIP_STANCE=warm_reset. User had a treat or heavier meal—normalize it like a real coach, zero shame, "
+            "reassure they can get back on track, then one compensating action from their kcal/carb/protein gaps."
+        ),
+        "accountability": (
+            "RELATIONSHIP_STANCE=accountability. Repeating high ultra-processed / calorie overshoot pattern across days—be direct but respectful, "
+            "insist on a written-down plan for the next 48h; mention fat-loss timeline stretches if it continues (no exact kg/lb promises)."
+        ),
+        "steady": "RELATIONSHIP_STANCE=steady. Coach per tone without exaggerated drama.",
+    }.get(rel_stance, "RELATIONSHIP_STANCE=steady.")
     template = {
         "one_sentence_summary": "string",
         "pattern_detected": "string",
@@ -9153,6 +10402,7 @@ def _coach_user_prompt(
         return (
             "FAST_MODE: produce concise high-signal coaching from compact metrics only.\n"
             + snapshot_line
+            + f"{relationship_voice_rules}\n"
             + mode_line
             + "Voice: Write like a real human coach who has seen this user's meal scans and fat loss stats. "
             "Reference their actual numbers (gaps, scans, timing) in natural language. Use different words and sentence structures—never sound like a template or repeat the same phrases.\n"
@@ -9185,6 +10435,7 @@ def _coach_user_prompt(
     return (
         "Use this daily nutrition summary and produce coaching insight, not a stat report.\n"
         + snapshot_line
+        + f"{relationship_voice_rules}\n"
         + mode_line
         + "Voice: You are a real human coach who has seen this user's meal scans, today's totals, protein/fiber gaps, and fat loss stats. "
         "Talk like you understand their data: reference their actual numbers and patterns in natural, varied language. "
@@ -9213,7 +10464,7 @@ def _coach_user_prompt(
         "- Every action must clearly reference at least one metric keyword from this set: "
         "protein, fiber, glycemic load, ultra-processed, leucine, late calories, kcal, carbs, fat.\n"
         "- Max 3 actions.\n"
-        "- Keep language concise.\n"
+        "- Keep language concise.\n- Every response should include: empathy, motivation, directional next-step coaching, and an inspiring tone grounded in their data.\n"
         "- Balance levers: do not default to glycemic load every day. Weight protein gap and fiber gap equally with glycemic/UPF/timing; only make glycemic the primary lever when it is clearly the biggest risk from the data.\n"
         "- Vary the primary lever day to day: e.g. protein one day, fiber another, timing or UPF another. Avoid repeating the same main lever two days in a row unless data strongly demands it.\n"
         "- Vary if_you_do_one_thing and tomorrow_focus: do not repeat the same focus or same phrasing three days in a row. Pick a different angle (protein vs fiber vs timing vs quality) when possible.\n\n"
@@ -9633,6 +10884,7 @@ def _build_quick_fli_response(
     user_id: str = "",
 ) -> Dict[str, Any]:
     norm = coach_logic.normalize_daily_payload(payload or {})
+    health_context = payload.get("health_context") if isinstance(payload, dict) and isinstance(payload.get("health_context"), dict) else {}
     tone_pref = _normalize_daily_tone_id(
         tone_preference
         or (payload.get("tone_preference") if isinstance(payload, dict) else "")
@@ -9707,6 +10959,7 @@ def _build_quick_fli_response(
         scan_id=str(latest_scan_id or ""),
         scan_count=int(_safe_float(((norm.get("signals") or {}).get("meals_count")), 0) or 0),
         recent_messages=recent_msgs,
+        weekly_predictive=weekly_predictive,
     )
     return out
 
@@ -9811,6 +11064,20 @@ def _voice_metrics_from_request(req: CoachVoiceRequestModel) -> Dict[str, Any]:
         "upf_hints": upf_hints,
         "meals_count": len(meals),
     }
+
+
+def _voice_relationship_stance(metrics: Dict[str, Any]) -> str:
+    """Match daily coach: one-off slip vs repeating treat/junk pattern from meal list heuristics."""
+    kcal_delta = float(_safe_float((metrics or {}).get("kcal_delta"), 0.0))
+    upf_hints = int(_safe_float((metrics or {}).get("upf_hints"), 0) or 0)
+    meals_count = int(_safe_float((metrics or {}).get("meals_count"), 0) or 0)
+    if meals_count >= 4 and upf_hints >= 3 and kcal_delta > 180:
+        return "accountability"
+    if meals_count >= 3 and upf_hints >= 2 and kcal_delta > 320:
+        return "accountability"
+    if kcal_delta > 85 or upf_hints >= 1:
+        return "warm_reset"
+    return "steady"
 
 
 def _voice_requested_tone(req: CoachVoiceRequestModel) -> str:
@@ -9949,6 +11216,7 @@ def _voice_fallback_response(
     timeout_mode: bool = False,
 ) -> Dict[str, Any]:
     metrics = _voice_metrics_from_request(req)
+    v_stance = _voice_relationship_stance(metrics)
     candidate = _pick_non_repeating_advice_key(_voice_action_templates(metrics), recent_keys)
     tone_pref = _voice_requested_tone(req)
     tone_map = {
@@ -9960,21 +11228,34 @@ def _voice_fallback_response(
     tone_tag = tone_map.get(tone_pref, "neutral")
 
     empathy = "Good job logging this meal. Small changes now will compound."
+    if v_stance == "warm_reset":
+        empathy = "Hey—you're human; one heavier choice doesn't wreck your week. We'll balance the next meal."
+    elif v_stance == "accountability":
+        empathy = "I'm with you, but your last few logs show the same treat pattern—we need a tighter plan today."
     if tone_pref == "strict":
-        empathy = "Logged. Now execute one correction."
+        empathy = "Logged. Now execute one correction." if v_stance == "steady" else empathy
     elif tone_pref == "funny":
-        empathy = "Nice check-in. Let’s win this next meal."
+        empathy = "Nice check-in. Let’s win this next meal." if v_stance == "steady" else empathy
     elif tone_pref == "indian_coach":
-        empathy = "Boss, meal logged. Chalo ek strong next step set karte hain."
+        empathy = "Boss, meal logged. Chalo ek strong next step set karte hain." if v_stance == "steady" else empathy
 
     protein_gap = float(_safe_float(metrics.get("protein_gap"), 0.0) or 0.0)
     fiber_gap = float(_safe_float(metrics.get("fiber_gap"), 0.0) or 0.0)
     late_pct = float(_safe_float(metrics.get("late_calories_pct"), 0.0) or 0.0)
     avg_conf = float(_safe_float(metrics.get("avg_confidence"), 1.0) or 1.0)
+    kcal_delta = float(_safe_float(metrics.get("kcal_delta"), 0.0) or 0.0)
     if timeout_mode:
         insight = "I’m still refining details. Use one practical step now while your full coaching updates."
     elif avg_conf < 0.55:
         insight = "This scan likely needs one quick confirmation before precision coaching."
+    elif v_stance == "warm_reset" and kcal_delta > 50:
+        insight = (
+            f"You're roughly {int(round(max(0, kcal_delta)))} kcal over target—bias your next meal to protein + veg and trim refined carbs a bit."
+        )
+    elif v_stance == "accountability":
+        insight = (
+            "If this snack-heavy pattern keeps up, your fat-loss timeline stretches—pre-plan the next two meals around whole foods."
+        )
     elif protein_gap >= fiber_gap and protein_gap > 0:
         insight = f"Protein shortfall is still about {round(protein_gap, 1)}g, which is the main limiter today."
     elif fiber_gap > 0:
@@ -10065,6 +11346,7 @@ def _generate_human_coach_voice_llm(
     _require_gemini_key()
     metrics = _voice_metrics_from_request(req)
     tone_pref = _voice_requested_tone(req)
+    v_stance = _voice_relationship_stance(metrics)
     candidate_actions = _voice_action_templates(metrics)
     allowed_keys = [_normalize_semantic_key(a.get("advice_key")) for a in candidate_actions if _normalize_semantic_key(a.get("advice_key"))]
     recent_norm = _normalize_semantic_key_list(recent_keys, limit=24)
@@ -10073,6 +11355,7 @@ def _generate_human_coach_voice_llm(
         "goals": req.goals,
         "consumed": req.consumed,
         "metrics": metrics,
+        "relationship_stance": v_stance,
         "user_profile": _model_dump(req.user_profile),
         "tone_preference": tone_pref,
         "allowed_actions": candidate_actions,
@@ -10088,7 +11371,17 @@ def _generate_human_coach_voice_llm(
         "advice_key": "string",
         "safety_disclaimer": "string",
     }
+    tone_guidance = _daily_tone_prompt_text(tone_pref)
+    stance_note = {
+        "warm_reset": "RELATIONSHIP_STANCE=warm_reset (post-treat / off-plan meal). empathy_line: normalize, no shame. insight_line: one compensating move from kcal/protein/fiber gaps.",
+        "accountability": "RELATIONSHIP_STANCE=accountability (repeating junk pattern in meal list). empathy_line: brief real talk. insight_line: direct plan + timeline pressure, still respectful.",
+        "steady": "RELATIONSHIP_STANCE=steady.",
+    }.get(v_stance, "RELATIONSHIP_STANCE=steady.")
     prompt = (
+        f"COACH_TONE_ID: {tone_pref}\n"
+        f"COACH_TONE_RULES: {tone_guidance}\n"
+        f"{stance_note}\n\n"
+        "empathy_line and insight_line must clearly match COACH_TONE_ID (voice, rhythm, word choice—not the same style for every tone).\n"
         "Return strict JSON only, no markdown, no extra keys.\n"
         "No medical claims or diagnosis.\n"
         "Keep empathy_line short and human.\n"
@@ -10101,7 +11394,7 @@ def _generate_human_coach_voice_llm(
     text, model_name, tried_models = _call_llm_with_timeout(
         [_COACH_VOICE_SYSTEM_PROMPT, prompt],
         model_name=COACH_VOICE_LLM_MODEL,
-        timeout_sec=min(float(COACH_VOICE_TIMEOUT_SEC), 8.0),
+        timeout_sec=float(COACH_VOICE_TIMEOUT_SEC),
         retries=1,
         purpose="coach_voice_human",
     )
@@ -10141,6 +11434,7 @@ def coach_voice(
                     "goals": req.goals,
                     "consumed": req.consumed,
                     "meals": [_model_dump(m) for m in (req.meals or [])],
+                    "health_context": _normalize_health_context(req.health_context),
                     "tone_preference": tone_pref,
                 },
                 sort_keys=True,
@@ -10189,6 +11483,7 @@ def coach_voice(
     output["tone_requested"] = tone_pref
     output["tone_used"] = tone_pref
     output["tone_mode"] = _tone_mode_from_source(voice_source)
+    output = _apply_health_advice_to_coach_response(output, req.health_context)
 
     _append_coach_memory_entry(
         uid,
@@ -10198,6 +11493,62 @@ def coach_voice(
     )
     _coach_voice_cache_set(uid, day_iso, payload_hash, tone_pref, output)
     return _attach_debug_schema(output, bool(debug))
+
+
+@app.post("/recipes/suggest")
+def recipes_suggest(
+    payload: Dict[str, Any] = Body(...),
+    user_id: Optional[str] = None,
+    x_user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
+):
+    try:
+        req = _model_validate(RecipeSuggestRequestModel, payload or {})
+    except Exception as e:
+        raise HTTPException(status_code=400, detail={"error": "invalid_recipe_suggest_payload", "raw": str(e)[:300]})
+    uid = require_user_id(x_user_id, user_id or req.user_id)
+    require_ai_consent(uid)
+    spoon_key = (os.getenv("SPOONACULAR_API_KEY") or "").strip()
+    out = build_recipe_suggest_response(
+        uid,
+        req.meal or {},
+        str(req.diet_style or "non-veg"),
+        str(req.goal_type or "fat_loss"),
+        GEMINI_API_KEY,
+        _SINGLE_SUPPORTED_GEMINI_MODEL,
+        spoon_key,
+        str(req.plan or "free"),
+    )
+    return out
+
+
+@app.get("/recipes/saved")
+def recipes_saved(
+    user_id: Optional[str] = None,
+    x_user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
+):
+    uid = require_user_id(x_user_id, user_id)
+    require_ai_consent(uid)
+    return list_saved_recipes(uid)
+
+
+@app.post("/recipes/feedback")
+def recipes_feedback(
+    payload: Dict[str, Any] = Body(...),
+    user_id: Optional[str] = None,
+    x_user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
+):
+    try:
+        req = _model_validate(RecipeFeedbackRequestModel, payload or {})
+    except Exception as e:
+        raise HTTPException(status_code=400, detail={"error": "invalid_recipe_feedback_payload", "raw": str(e)[:300]})
+    uid = require_user_id(x_user_id, user_id or req.user_id)
+    require_ai_consent(uid)
+    meta = {
+        "cuisine": str(req.cuisine or "").strip(),
+        "meal_tag": str(req.meal_tag or "").strip(),
+        "recipe_snapshot": req.recipe_snapshot if isinstance(req.recipe_snapshot, dict) else {},
+    }
+    return record_recipe_feedback(uid, str(req.recipe_key or "").strip(), str(req.action or "").strip(), meta)
 
 
 @app.post("/coach/memory/feedback")
@@ -11161,6 +12512,8 @@ def coach_daily(
     fat_loss_score = coach_logic.compute_fat_loss_score(norm)
     rule_alerts = coach_logic.build_rule_risk_alerts(norm)
     p_hash = hashlib.sha256(f"{coach_logic.payload_hash(norm)}:tone:{tone_pref}".encode("utf-8")).hexdigest()
+    health_sig_hash = hashlib.sha256(json.dumps(_normalize_health_context(health_context), sort_keys=True).encode("utf-8")).hexdigest()
+    p_hash = hashlib.sha256(f"{p_hash}:health:{health_sig_hash}".encode("utf-8")).hexdigest()
     day_iso = str(norm.get("date") or _today_date().isoformat())
     requested_meal_id = str(
         meal_id
@@ -11346,6 +12699,7 @@ def coach_daily(
             scan_id=processed_scan_id,
             scan_count=meals_count_today,
             recent_messages=recent_coach_messages,
+            weekly_predictive=weekly_predictive,
         )
         logger.info(
             f"fli_fetch source=cache user={uid} updatedAt={out.get('updatedAt')} "
@@ -11384,6 +12738,7 @@ def coach_daily(
                 "day": day_iso,
             },
         )
+        out = _apply_health_advice_to_coach_response(out, health_context)
         return _attach_debug_schema(out, bool(debug))
 
     # IMPORTANT: do not block core experience on LLM.
@@ -11448,6 +12803,7 @@ def coach_daily(
                 scan_id=processed_scan_id,
                 scan_count=meals_count_today,
                 recent_messages=recent_coach_messages,
+                weekly_predictive=weekly_predictive,
             )
             try:
                 roi_cached = final_resp.get("highest_roi_change") if isinstance(final_resp.get("highest_roi_change"), dict) else {}
@@ -11494,6 +12850,7 @@ def coach_daily(
                     "day": day_iso,
                 },
             )
+            final_resp = _apply_health_advice_to_coach_response(final_resp, health_context)
             return _attach_debug_schema(final_resp, bool(debug))
 
         llm_resp = coach_logic.build_fallback_coach_response(norm, fat_loss_score, rule_alerts)
@@ -11629,6 +12986,7 @@ def coach_daily(
         scan_id=processed_scan_id,
         scan_count=meals_count_today,
         recent_messages=recent_coach_messages,
+        weekly_predictive=weekly_predictive,
     )
     try:
         roi_main = final_resp.get("highest_roi_change") if isinstance(final_resp.get("highest_roi_change"), dict) else {}
@@ -11675,6 +13033,7 @@ def coach_daily(
             "day": day_iso,
         },
     )
+    final_resp = _apply_health_advice_to_coach_response(final_resp, health_context)
     return _attach_debug_schema(final_resp, bool(debug))
 
 
@@ -12276,6 +13635,183 @@ def _resolve_nutrition_usda(name: str) -> Dict[str, Any]:
     )
 
 
+def _scan_nutrition_one_item(idx: int, d: Any) -> Dict[str, Any]:
+    """Resolve one vision item to a nutrition row. Safe to run concurrently (cache layers use locks)."""
+    if not isinstance(d, dict):
+        return {"kind": "skip"}
+    name = str((d or {}).get("name") or "").strip()
+    if not name:
+        return {"kind": "skip"}
+    grams = max(0.0, float(_safe_float((d or {}).get("grams"), 0.0) or 0.0))
+    if grams <= 0:
+        return {"kind": "skip"}
+    conf = _clamp01((d or {}).get("confidence"), 0.6)
+    item_id = str((d or {}).get("item_id") or f"i{idx + 1}")
+    cooking_method = str((d or {}).get("cooking_method") or "unknown").strip().lower() or "unknown"
+    oil_added_tsp = max(0.0, float(_safe_float((d or {}).get("oil_added_tsp"), 0.0) or 0.0))
+    if oil_added_tsp <= 0 and "fried" in cooking_method:
+        oil_added_tsp = 1.0
+    candidate_alternatives = [
+        str(x).strip() for x in ((d or {}).get("candidate_alternatives") or []) if str(x).strip()
+    ][:4]
+
+    details = None
+    macros100 = None
+    micros100 = None
+    fdc_id = None
+    last_item_err = None
+    powder_meta: Optional[Dict[str, Any]] = None
+    cache_hit_delta = 0
+    cache_miss_delta = 0
+
+    try:
+        from scan_food_rules import detect_powder_like, parse_powder_sentinel, resolve_powder_nutrition
+
+        is_powder, powder_guess, needs_confirm = detect_powder_like(name, candidate_alternatives)
+        sentinel_type = parse_powder_sentinel(name)
+        resolved_type = sentinel_type or powder_guess
+        if is_powder and resolved_type:
+            resolved_powder = resolve_powder_nutrition(powder_type=resolved_type, grams=grams)
+            if resolved_powder.get("macros100"):
+                macros100 = resolved_powder.get("macros100")
+                micros100 = resolved_powder.get("micros100") or {}
+                details = {"description": resolved_powder.get("description"), "dataType": resolved_powder.get("dataType")}
+                powder_meta = {
+                    "is_powder_like": True,
+                    "powder_type_guess": powder_guess,
+                    "powder_type_resolved": resolved_type,
+                    "needs_powder_confirmation": bool(needs_confirm and not sentinel_type),
+                    "powder_confirmation": resolved_powder.get("powder_confirmation"),
+                    "nutrition_source": "supplement_table",
+                }
+    except Exception:
+        powder_meta = None
+
+    resolved: Dict[str, Any] = {}
+    try:
+        if macros100 is None:
+            resolved = resolve_nutrition_with_cache({"name": name}, _resolve_nutrition_usda) or {}
+        if resolved.get("macros100"):
+            macros100 = resolved["macros100"]
+            micros100 = resolved.get("micros100")
+            fdc_id = resolved.get("fdc_id")
+            details = {"description": resolved.get("description"), "dataType": resolved.get("dataType")}
+            if resolved.get("_cache_hit"):
+                cache_hit_delta += 1
+            else:
+                cache_miss_delta += 1
+    except Exception as e:
+        last_item_err = str(getattr(e, "detail", str(e)))[:220]
+
+    if not details and not macros100:
+        try:
+            candidates = usda_search_candidates(name)
+        except Exception as e:
+            last_item_err = str(getattr(e, "detail", str(e)))[:220]
+            candidates = []
+        for cand in (candidates or [])[:6]:
+            try:
+                fdc_id = int(cand["fdcId"])
+                maybe_details = usda_food_details(fdc_id)
+                maybe_macros = extract_macros_per_100g(maybe_details)
+                maybe_micros = extract_micros_per_100g(maybe_details)
+                details = maybe_details
+                macros100 = maybe_macros
+                micros100 = maybe_micros
+                cache_miss_delta += 1
+                break
+            except Exception as e:
+                last_item_err = str(getattr(e, "detail", e))
+                continue
+
+    if not details or not macros100:
+        warn = {
+            "item_id": item_id,
+            "name": name,
+            "warning": "nutrition_lookup_failed",
+            "detail": (last_item_err or "No usable USDA match found")[:220],
+        }
+        row = {
+            "item_id": item_id,
+            "name": name,
+            "grams": round(grams, 1),
+            "confidence": round(conf, 2),
+            "cooking_method": cooking_method,
+            "oil_added_tsp": round(oil_added_tsp, 2),
+            "candidate_alternatives": candidate_alternatives,
+            "kcal": 0.0,
+            "macros": {"protein_g": 0.0, "carbs_g": 0.0, "fat_g": 0.0},
+            "micros": {},
+            "micros_units": None,
+            "unverified": True,
+            "_powder_meta": powder_meta,
+        }
+        return {
+            "kind": "row",
+            "result": row,
+            "warning": warn,
+            "cache_hit_delta": cache_hit_delta,
+            "cache_miss_delta": cache_miss_delta,
+            "kcal": 0.0,
+            "p": 0.0,
+            "c": 0.0,
+            "f": 0.0,
+            "micros_delta": {},
+        }
+
+    factor = grams / 100.0
+    kcal = macros100["kcal_per_100g"] * factor
+    p = macros100["protein_g_per_100g"] * factor
+    c = macros100["carbs_g_per_100g"] * factor
+    f = macros100["fat_g_per_100g"] * factor
+
+    if oil_added_tsp > 0:
+        kcal += oil_added_tsp * 40.5
+        f += oil_added_tsp * 4.5
+
+    micros: Dict[str, Any] = {}
+    for k, v in (micros100 or {}).items():
+        if k == "_units":
+            continue
+        micros[k] = round(float(v) * factor, 3)
+
+    row = {
+        "item_id": item_id,
+        "name": name,
+        "grams": round(grams, 1),
+        "confidence": round(conf, 2),
+        "cooking_method": cooking_method,
+        "oil_added_tsp": round(oil_added_tsp, 2),
+        "candidate_alternatives": candidate_alternatives,
+        "kcal": round(kcal, 1),
+        "macros": {
+            "protein_g": round(p, 1),
+            "carbs_g": round(c, 1),
+            "fat_g": round(f, 1),
+        },
+        "micros": micros,
+        "micros_units": (micros100 or {}).get("_units"),
+        "usda": {
+            "fdcId": fdc_id,
+            "description": (details or {}).get("description"),
+            "dataType": (details or {}).get("dataType"),
+        },
+        "_powder_meta": powder_meta,
+    }
+    return {
+        "kind": "row",
+        "result": row,
+        "warning": None,
+        "cache_hit_delta": cache_hit_delta,
+        "cache_miss_delta": cache_miss_delta,
+        "kcal": float(kcal),
+        "p": float(p),
+        "c": float(c),
+        "f": float(f),
+        "micros_delta": micros,
+    }
+
+
 def _compute_scan_nutrition(detected_items: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], Dict[str, float], Dict[str, float], List[Dict[str, Any]], Dict[str, int]]:
     cache_hit_count = 0
     cache_miss_count = 0
@@ -12295,166 +13831,30 @@ def _compute_scan_nutrition(detected_items: List[Dict[str, Any]]) -> Tuple[List[
     }
     item_warnings: List[Dict[str, Any]] = []
 
-    for idx, d in enumerate(detected_items or []):
-        name = str((d or {}).get("name") or "").strip()
-        if not name:
+    pairs = list(enumerate(detected_items or []))
+    parallel = str(os.getenv("SCAN_NUTRITION_PARALLEL", "1")).strip().lower() in ("1", "true", "yes")
+    if parallel and len(pairs) > 1:
+        max_workers = min(8, len(pairs))
+        with ThreadPoolExecutor(max_workers=max_workers) as pool:
+            outcomes = list(pool.map(lambda ij: _scan_nutrition_one_item(ij[0], ij[1]), pairs))
+    else:
+        outcomes = [_scan_nutrition_one_item(i, d) for i, d in pairs]
+
+    for oc in outcomes:
+        if not isinstance(oc, dict) or oc.get("kind") == "skip":
             continue
-        grams = max(0.0, float(_safe_float((d or {}).get("grams"), 0.0) or 0.0))
-        if grams <= 0:
-            continue
-        conf = _clamp01((d or {}).get("confidence"), 0.6)
-        item_id = str((d or {}).get("item_id") or f"i{idx + 1}")
-        cooking_method = str((d or {}).get("cooking_method") or "unknown").strip().lower() or "unknown"
-        oil_added_tsp = max(0.0, float(_safe_float((d or {}).get("oil_added_tsp"), 0.0) or 0.0))
-        if oil_added_tsp <= 0 and "fried" in cooking_method:
-            oil_added_tsp = 1.0
-        candidate_alternatives = [
-            str(x).strip() for x in ((d or {}).get("candidate_alternatives") or []) if str(x).strip()
-        ][:4]
-
-        details = None
-        macros100 = None
-        micros100 = None
-        fdc_id = None
-        last_item_err = None
-        powder_meta: Optional[Dict[str, Any]] = None
-
-        # Deterministic powder/supplement override (avoid wrong USDA matches).
-        try:
-            from scan_food_rules import detect_powder_like, parse_powder_sentinel, resolve_powder_nutrition
-
-            is_powder, powder_guess, needs_confirm = detect_powder_like(name, candidate_alternatives)
-            sentinel_type = parse_powder_sentinel(name)
-            resolved_type = sentinel_type or powder_guess
-            if is_powder and resolved_type:
-                resolved = resolve_powder_nutrition(powder_type=resolved_type, grams=grams)
-                if resolved.get("macros100"):
-                    macros100 = resolved.get("macros100")
-                    micros100 = resolved.get("micros100") or {}
-                    details = {"description": resolved.get("description"), "dataType": resolved.get("dataType")}
-                    powder_meta = {
-                        "is_powder_like": True,
-                        "powder_type_guess": powder_guess,
-                        "powder_type_resolved": resolved_type,
-                        "needs_powder_confirmation": bool(needs_confirm and not sentinel_type),
-                        "powder_confirmation": resolved.get("powder_confirmation"),
-                        "nutrition_source": "supplement_table",
-                    }
-        except Exception:
-            powder_meta = None
-        try:
-            if macros100 is None:
-                resolved = resolve_nutrition_with_cache({"name": name}, _resolve_nutrition_usda)
-            if resolved.get("macros100"):
-                macros100 = resolved["macros100"]
-                micros100 = resolved.get("micros100")
-                fdc_id = resolved.get("fdc_id")
-                details = {"description": resolved.get("description"), "dataType": resolved.get("dataType")}
-                if resolved.get("_cache_hit"):
-                    cache_hit_count += 1
-                else:
-                    cache_miss_count += 1
-        except Exception as e:
-            last_item_err = str(getattr(e, "detail", str(e)))[:220]
-
-        if not details and not macros100:
-            try:
-                candidates = usda_search_candidates(name)
-            except Exception as e:
-                last_item_err = str(getattr(e, "detail", str(e)))[:220]
-                candidates = []
-            for cand in (candidates or [])[:6]:
-                try:
-                    fdc_id = int(cand["fdcId"])
-                    maybe_details = usda_food_details(fdc_id)
-                    maybe_macros = extract_macros_per_100g(maybe_details)
-                    maybe_micros = extract_micros_per_100g(maybe_details)
-                    details = maybe_details
-                    macros100 = maybe_macros
-                    micros100 = maybe_micros
-                    cache_miss_count += 1
-                    break
-                except Exception as e:
-                    last_item_err = str(getattr(e, "detail", e))
-                    continue
-
-        if not details or not macros100:
-            item_warnings.append(
-                {
-                    "item_id": item_id,
-                    "name": name,
-                    "warning": "nutrition_lookup_failed",
-                    "detail": (last_item_err or "No usable USDA match found")[:220],
-                }
-            )
-            results.append(
-                {
-                    "item_id": item_id,
-                    "name": name,
-                    "grams": round(grams, 1),
-                    "confidence": round(conf, 2),
-                    "cooking_method": cooking_method,
-                    "oil_added_tsp": round(oil_added_tsp, 2),
-                    "candidate_alternatives": candidate_alternatives,
-                    "kcal": 0.0,
-                    "macros": {"protein_g": 0.0, "carbs_g": 0.0, "fat_g": 0.0},
-                    "micros": {},
-                    "micros_units": None,
-                    "unverified": True,
-                    "_powder_meta": powder_meta,
-                }
-            )
-            continue
-
-        factor = grams / 100.0
-        kcal = macros100["kcal_per_100g"] * factor
-        p = macros100["protein_g_per_100g"] * factor
-        c = macros100["carbs_g_per_100g"] * factor
-        f = macros100["fat_g_per_100g"] * factor
-
-        # User oil edit: when set_oil_added_tsp is 0 (no oil) we do not add oil kcal; when > 0 we add ~40.5 kcal/tsp.
-        # Rerun applies edits then calls this; so "no oil" / "less oil" correctly reduce displayed totals.
-        if oil_added_tsp > 0:
-            kcal += oil_added_tsp * 40.5
-            f += oil_added_tsp * 4.5
-
-        micros = {}
-        for k, v in (micros100 or {}).items():
-            if k == "_units":
-                continue
-            micros[k] = round(float(v) * factor, 3)
-
-        results.append(
-            {
-                "item_id": item_id,
-                "name": name,
-                "grams": round(grams, 1),
-                "confidence": round(conf, 2),
-                "cooking_method": cooking_method,
-                "oil_added_tsp": round(oil_added_tsp, 2),
-                "candidate_alternatives": candidate_alternatives,
-                "kcal": round(kcal, 1),
-                "macros": {
-                    "protein_g": round(p, 1),
-                    "carbs_g": round(c, 1),
-                    "fat_g": round(f, 1),
-                },
-                "micros": micros,
-                "micros_units": (micros100 or {}).get("_units"),
-                "usda": {
-                    "fdcId": fdc_id,
-                    "description": (details or {}).get("description"),
-                    "dataType": (details or {}).get("dataType"),
-                },
-                "_powder_meta": powder_meta,
-            }
-        )
-
-        total_kcal += kcal
-        total_p += p
-        total_c += c
-        total_f += f
-        for mk, mv in micros.items():
+        w = oc.get("warning")
+        if isinstance(w, dict):
+            item_warnings.append(w)
+        results.append(oc.get("result") or {})
+        cache_hit_count += int(oc.get("cache_hit_delta") or 0)
+        cache_miss_count += int(oc.get("cache_miss_delta") or 0)
+        total_kcal += float(_safe_float(oc.get("kcal"), 0.0) or 0.0)
+        total_p += float(_safe_float(oc.get("p"), 0.0) or 0.0)
+        total_c += float(_safe_float(oc.get("c"), 0.0) or 0.0)
+        total_f += float(_safe_float(oc.get("f"), 0.0) or 0.0)
+        md = oc.get("micros_delta") if isinstance(oc.get("micros_delta"), dict) else {}
+        for mk, mv in md.items():
             if mk in total_micros:
                 total_micros[mk] += float(mv)
 
@@ -12466,6 +13866,111 @@ def _compute_scan_nutrition(detected_items: List[Dict[str, Any]]) -> Tuple[List[
     }
     cache_stats = {"hit_count": cache_hit_count, "miss_count": cache_miss_count}
     return results, totals, total_micros, item_warnings, cache_stats
+
+
+_SCAN_MICRO_TOTAL_KEYS: Tuple[str, ...] = (
+    "vitamin_d_ug",
+    "vitamin_b12_ug",
+    "iron_mg",
+    "magnesium_mg",
+    "calcium_mg",
+    "potassium_mg",
+    "sodium_mg",
+    "fiber_g",
+    "sugar_g",
+)
+
+
+def _retotal_scan_from_item_results(results: List[Dict[str, Any]]) -> Tuple[Dict[str, float], Dict[str, float]]:
+    """Re-sum meal totals and micronutrients from per-item scan rows."""
+    total_kcal = 0.0
+    total_p = total_c = total_f = 0.0
+    total_micros: Dict[str, float] = {k: 0.0 for k in _SCAN_MICRO_TOTAL_KEYS}
+    for r in results or []:
+        if not isinstance(r, dict):
+            continue
+        total_kcal += float(_safe_float(r.get("kcal"), 0.0) or 0.0)
+        m = r.get("macros") if isinstance(r.get("macros"), dict) else {}
+        total_p += float(_safe_float(m.get("protein_g"), 0.0) or 0.0)
+        total_c += float(_safe_float(m.get("carbs_g"), 0.0) or 0.0)
+        total_f += float(_safe_float(m.get("fat_g"), 0.0) or 0.0)
+        mic = r.get("micros") if isinstance(r.get("micros"), dict) else {}
+        for k in _SCAN_MICRO_TOTAL_KEYS:
+            if k in mic:
+                total_micros[k] += float(_safe_float(mic.get(k), 0.0) or 0.0)
+    totals = {
+        "kcal": round(total_kcal, 1),
+        "protein_g": round(total_p, 1),
+        "carbs_g": round(total_c, 1),
+        "fat_g": round(total_f, 1),
+    }
+    return totals, total_micros
+
+
+def _macro_override_has_any_field(override: Any) -> bool:
+    if override is None:
+        return False
+    for k in ("kcal", "protein_g", "carbs_g", "fat_g"):
+        v = getattr(override, k, None)
+        if v is not None:
+            return True
+    return False
+
+
+def _apply_macro_override_to_scan(
+    results: List[Dict[str, Any]],
+    totals: Dict[str, float],
+    total_micros: Dict[str, float],
+    override: Any,
+    default_item_id: str,
+) -> Tuple[List[Dict[str, Any]], Dict[str, float], Dict[str, float]]:
+    """Patch one item's kcal/macros and re-total; scale that item's micros when kcal changes."""
+    if not _macro_override_has_any_field(override):
+        return results, totals, total_micros
+    rows = [dict(x or {}) for x in (results or [])]
+    if not rows:
+        return results, totals, total_micros
+    target_id = str(getattr(override, "item_id", "") or default_item_id or "").strip()
+    idx = -1
+    for i, it in enumerate(rows):
+        if str(it.get("item_id") or "").strip() == target_id:
+            idx = i
+            break
+    if idx < 0:
+        idx = 0
+    it = dict(rows[idx])
+    old_kcal = float(_safe_float(it.get("kcal"), 0.0) or 0.0)
+    macros: Dict[str, Any] = dict(it.get("macros") or {}) if isinstance(it.get("macros"), dict) else {}
+    if getattr(override, "kcal", None) is not None:
+        it["kcal"] = max(0.0, round(float(override.kcal), 1))
+    if getattr(override, "protein_g", None) is not None:
+        macros["protein_g"] = max(0.0, round(float(override.protein_g), 1))
+    if getattr(override, "carbs_g", None) is not None:
+        macros["carbs_g"] = max(0.0, round(float(override.carbs_g), 1))
+    if getattr(override, "fat_g", None) is not None:
+        macros["fat_g"] = max(0.0, round(float(override.fat_g), 1))
+    it["macros"] = macros
+    # Totals sum item.kcal for energy but macros from item.macros; if the user edits only P/C/F,
+    # we must sync kcal from macros (Atwater 4/4/9) or "Total kcal" stays stale while macros update.
+    explicit_kcal = getattr(override, "kcal", None) is not None
+    macro_touched = any(
+        getattr(override, k, None) is not None for k in ("protein_g", "carbs_g", "fat_g")
+    )
+    if not explicit_kcal and macro_touched:
+        pg = float(_safe_float(macros.get("protein_g"), 0.0) or 0.0)
+        cg = float(_safe_float(macros.get("carbs_g"), 0.0) or 0.0)
+        fg = float(_safe_float(macros.get("fat_g"), 0.0) or 0.0)
+        it["kcal"] = round(4.0 * pg + 4.0 * cg + 9.0 * fg, 1)
+    new_kcal = float(_safe_float(it.get("kcal"), 0.0) or 0.0)
+    kcal_changed = abs(new_kcal - old_kcal) > 0.01
+    mic = it.get("micros") if isinstance(it.get("micros"), dict) else {}
+    if kcal_changed and mic and old_kcal > 0.001:
+        ratio = new_kcal / old_kcal
+        it["micros"] = {k: round(float(v) * ratio, 3) for k, v in mic.items() if str(k) != "_units"}
+    it["manual_macro_override"] = True
+    rows[idx] = it
+    new_totals, new_micros = _retotal_scan_from_item_results(rows)
+    return rows, new_totals, new_micros
 
 
 def _build_micros_payload(total_micros: Dict[str, float]) -> Dict[str, Any]:
@@ -13297,6 +14802,26 @@ async def supplement_scan(
     level = interpret_supplement_score(score)
     explanation = _supplement_explanation(score, flags)
 
+    _reg_trust = structured_payload.get("regulatory") if isinstance(structured_payload.get("regulatory"), dict) else {}
+    _fssai_trust = str(_reg_trust.get("fssai_license_number") or "")
+    _trust_pkg = _build_supplement_trust_payload(
+        score=float(_safe_float(score, 0.0) or 0.0),
+        flags=list(flags or []),
+        normalized_barcode=str(normalized_barcode or ""),
+        off_status=int(_safe_float(off_status, 0) or 0),
+        off_brand=str(off_brand or ""),
+        inferred_brand=str(inferred_brand or ""),
+        gs1_info=gs1_info if isinstance(gs1_info, dict) else {},
+        mfr_result=mfr_result if isinstance(mfr_result, dict) else {},
+        mfr_status=str(mfr_status or ""),
+        fssai_license=_fssai_trust,
+        proof_mode_enabled=bool(proof_mode_enabled),
+        seal_detected=seal_detected,
+        batch_scan_count=int(_safe_float(batch_scan_count, 0) or 0),
+    )
+    _ref_urls = _trust_pkg.get("reference_urls") if isinstance(_trust_pkg.get("reference_urls"), dict) else {}
+    _verification_reference_urls = {k: str(v).strip() for k, v in _ref_urls.items() if str(v or "").strip()}
+
     row = {
         "id": str(uuid.uuid4()),
         "user_id": uid,
@@ -13344,6 +14869,9 @@ async def supplement_scan(
         "community_scan_count": max(1, batch_scan_count + 1),
         "batch_anomaly_score": float(_safe_float(batch_anomaly.get("anomaly_score"), 0.0) or 0.0),
         "request_id": request_id,
+        "trust_badge": _trust_pkg.get("badge") if isinstance(_trust_pkg.get("badge"), dict) else {},
+        "verification_sources": _trust_pkg.get("sources") if isinstance(_trust_pkg.get("sources"), list) else [],
+        "verification_reference_urls": _verification_reference_urls,
     }
     logger.info(
         "supplement_barcode_verification",
@@ -13425,6 +14953,10 @@ async def fetch_google_places(
         logger.info("fetch_google_places: GOOGLE_PLACES_API_KEY not configured, returning empty list")
         return [], "places_api_key_not_configured", None
 
+    cached = google_nearby_cache_get(lat, lng, radius)
+    if cached is not None:
+        return cached[0], cached[1], cached[2]
+
     payload = build_nearby_search_payload(
         lat,
         lng,
@@ -13498,6 +15030,7 @@ async def fetch_google_places(
         except Exception as e2:
             logger.info(f"fetch_google_places: wider fallback failed: {e2}")
 
+    google_nearby_cache_set(lat, lng, radius, results, None, raw_count)
     return results, None, raw_count
 
 
@@ -13559,7 +15092,8 @@ async def healthy_places(
 
     use_fast_path = str(os.getenv("USE_FAST_PATH", "1")).strip().lower() in ("1", "true", "yes")
     rank_limit = max(1, min(HEALTHY_PLACES_LIMIT_MAX, int(limit or os.getenv("HEALTHY_PLACES_LIMIT", str(HEALTHY_PLACES_LIMIT_DEFAULT)) or HEALTHY_PLACES_LIMIT_DEFAULT)))
-    shortlist_size = min(rank_limit, max(8, min(15, int(os.getenv("HEALTHY_SHORTLIST_SIZE", "10") or 10))))
+    # Default 8 (was 10): fewer deep-ranked places = faster first paint for Healthy Nearby
+    shortlist_size = min(rank_limit, max(6, min(15, int(os.getenv("HEALTHY_SHORTLIST_SIZE", "8") or 8))))
     places_to_rank = list(places)
     shortlist_debug = {"fetched_count": len(places), "shortlisted_count": len(places), "skipped_count": 0}
     if use_fast_path and len(places) > shortlist_size:
@@ -13578,596 +15112,50 @@ async def healthy_places(
     nutrition_mode = NutritionMode.CUT if bool(cut_mode) else NutritionMode.DEFAULT
     personalization_goal = normalize_personalization_goal(goal)
     personalization_goal_value_str = personalization_goal_value(personalization_goal)
-    from diet_filters import normalize_diet_preference
-    diet_preference_val = normalize_diet_preference(diet_preference) if str(diet_preference or "").strip() else "omnivore"
-    scored: List[Dict[str, Any]] = []
+    # One disk read per request (not per place): parallel rank workers used to each reload feedback/decision JSON.
+    uid_clean = str(user_id or "").strip()
+    feedback_events_prefetch: Optional[List[Dict[str, Any]]] = None
+    decision_events_prefetch: Optional[List[Dict[str, Any]]] = None
+    if uid_clean:
+        try:
+            feedback_events_prefetch = list_meal_feedback_events(user_id=uid_clean, limit=2000)
+            decision_events_prefetch = list_meal_decision_events(user_id=uid_clean, limit=4000)
+        except Exception:
+            feedback_events_prefetch = None
+            decision_events_prefetch = None
     t_rank_start = time.perf_counter()
-    for p in places_to_rank:
-        place_id = str(p.get("place_id") or p.get("id") or "").strip()
-        cached = venue_cache_get(place_id) if place_id else None
-        if cached:
-            try:
-                menu_recommendations = cache_to_menu_payload(cached, p)
-            except Exception:
-                cached = None
-        if not cached:
-            try:
-                menu_recommendations = recommend_menu_items_for_place(
-                    p,
-                    mode=nutrition_mode,
-                    personalization_goal=personalization_goal,
-                    use_llm_place_context=False,
-                    diet_preference=diet_preference_val,
-                )
-            except Exception:
-                menu_recommendations = {
-                    "menu_item_scoring_available": False,
-                    "menu_items_source": "heuristic",
-                    "menu_source": "heuristic",
-                    "menu_confidence": 0.0,
-                    "extraction_method": "",
-                    "parse_method": "",
-                    "source_url": "",
-                    "top_menu_items": [],
-                    "best_menu_items": [],
-                    "top_menu_item": None,
-                    "top_item": "",
-                    "cut_mode_active": bool(cut_mode),
-                }
+    rank_ctx = build_rank_context_from_request(
+        lat=float(lat),
+        lng=float(lng),
+        cut_mode=bool(cut_mode),
+        goal=str(goal or "").strip(),
+        nutrition_mode=nutrition_mode,
+        personalization_goal=personalization_goal,
+        personalization_goal_value_str=personalization_goal_value_str,
+        diet_preference=diet_preference,
+        remaining_calories=remaining_calories,
+        remaining_protein_g=remaining_protein_g,
+        post_workout=bool(post_workout),
+        late_night=bool(late_night),
+        poor_sleep_flag=bool(poor_sleep_flag),
+        high_craving_risk_flag=bool(high_craving_risk_flag),
+        context_mode=str(context_mode or "").strip(),
+        local_hour=local_hour,
+        user_id=uid_clean,
+        feedback_events_prefetch=feedback_events_prefetch,
+        decision_events_prefetch=decision_events_prefetch,
+    )
+    parallel_rank = str(os.getenv("HEALTHY_NEARBY_PARALLEL_RANK", "1")).strip().lower() in ("1", "true", "yes")
+    if parallel_rank and len(places_to_rank) > 1:
+        scored = await asyncio.gather(
+            *[asyncio.to_thread(rank_one_healthy_nearby_place, p, rank_ctx) for p in places_to_rank]
+        )
+        scored = list(scored)
+    else:
+        scored = [rank_one_healthy_nearby_place(p, rank_ctx) for p in places_to_rank]
 
-        try:
-            scoring = score_healthy_place(
-                p,
-                mode=nutrition_mode,
-                personalization_goal=personalization_goal,
-                menu_payload=menu_recommendations,
-            )
-        except Exception:
-            scoring = {
-                "health_score": compute_health_score(p),
-                "best_options": _best_options_for_place(p),
-                "score_breakdown": None,
-                "fat_loss_friendly": False,
-                "recommended_badges": [],
-                "nutrition_data_available": False,
-                "scoring_version": HEALTHY_PLACE_SCORING_VERSION,
-                "cut_mode_active": bool(cut_mode),
-                "cut_friendly": False,
-                "cut_warning": "",
-            }
-
-        fallback_score = 5.0
-        score = float(_safe_float(scoring.get("health_score"), fallback_score) or fallback_score)
-        options = scoring.get("best_options") if isinstance(scoring.get("best_options"), list) else _best_options_for_place(p)
-
-        try:
-            order_suggestion = suggest_best_order_for_place(
-                p,
-                health_score=score,
-                mode=nutrition_mode,
-                use_llm_copy=False,
-                allow_llm_macro=False,
-                diet_preference=diet_preference_val,
-            )
-        except Exception:
-            order_suggestion = {}
-
-        best_order = str(order_suggestion.get("best_order") or "Lighter menu option")
-        estimated_calories = int(_safe_float(order_suggestion.get("estimated_calories"), 520) or 520)
-        estimated_protein_g = int(_safe_float(order_suggestion.get("estimated_protein_g"), 32) or 32)
-        top_menu_item = dict(menu_recommendations.get("top_menu_item")) if isinstance(menu_recommendations.get("top_menu_item"), dict) else {}
-        top_menu_source = str(
-            top_menu_item.get("menu_item_source")
-            or menu_recommendations.get("menu_source_resolved")
-            or menu_recommendations.get("menu_items_source_resolved")
-            or menu_recommendations.get("menu_source")
-            or menu_recommendations.get("menu_items_source")
-            or "heuristic"
-        ).strip().lower()
-        top_menu_conf = float(
-            _safe_float(
-                top_menu_item.get("menu_item_confidence"),
-                _safe_float(top_menu_item.get("confidence"), 0.0),
-            )
-            or 0.0
-        )
-        menu_context_text = " ".join(
-            [
-                str(p.get("name") or ""),
-                str(p.get("vicinity") or p.get("address") or ""),
-                " ".join(str(t or "") for t in (p.get("types") if isinstance(p.get("types"), list) else [])),
-            ]
-        ).strip()
-        top_menu_evidence = has_strong_menu_evidence(
-            menu_item_source=top_menu_source,
-            menu_item_confidence=top_menu_conf,
-            source_url=top_menu_item.get("source_url") or menu_recommendations.get("source_url"),
-            extraction_method=top_menu_item.get("extraction_method") or menu_recommendations.get("extraction_method"),
-            parse_method=top_menu_item.get("parse_method") or menu_recommendations.get("parse_method"),
-            raw_text_snippet=top_menu_item.get("raw_text_snippet"),
-        )
-        top_menu_safety = sanitize_recommended_item(
-            item_name=top_menu_item.get("item_name"),
-            context_text=menu_context_text,
-            menu_item_source=top_menu_source,
-            menu_item_confidence=top_menu_conf if top_menu_conf > 0 else 0.45,
-            strong_menu_evidence=top_menu_evidence,
-            display_label=top_menu_item.get("display_label"),
-            order_type=top_menu_item.get("order_type"),
-        )
-        if top_menu_item:
-            top_menu_item["item_name"] = str(top_menu_safety.get("item_name") or top_menu_item.get("item_name") or "")
-            top_menu_item["menu_item_source"] = str(top_menu_safety.get("menu_item_source") or top_menu_source or "heuristic")
-            top_menu_item["menu_item_confidence"] = round(
-                _safe_float(top_menu_safety.get("menu_item_confidence"), top_menu_conf),
-                2,
-            )
-            top_menu_item["display_label"] = str(top_menu_safety.get("display_label") or top_menu_item.get("display_label") or "")
-            top_menu_item["order_type"] = str(top_menu_safety.get("order_type") or top_menu_item.get("order_type") or "")
-            top_menu_item["menu_item_safety_reason"] = str(top_menu_safety.get("safety_reason") or "")
-            top_menu_item["menu_item_strong_evidence"] = bool(top_menu_evidence)
-        top_menu_source = str(top_menu_item.get("menu_item_source") or top_menu_source or "heuristic").strip().lower()
-        top_menu_conf = float(
-            _safe_float(
-                top_menu_item.get("menu_item_confidence"),
-                top_menu_conf,
-            )
-            or 0.0
-        )
-        top_menu_source_weight = float(
-            _safe_float(
-                top_menu_item.get("source_rank_weight"),
-                1.0 if top_menu_source == "real_menu" else 0.95 if top_menu_source == "user_scan" else 0.8 if top_menu_source == "llm_inferred" else 0.65,
-            )
-            or 0.65
-        )
-        if top_menu_item and not top_menu_item.get("source_rank_weight"):
-            top_menu_item["source_rank_weight"] = round(_safe_float(top_menu_source_weight, 0.65), 2)
-        top_menu_order_type = str(top_menu_item.get("order_type") or "").strip().lower()
-        if top_menu_order_type not in {"exact", "likely", "estimated"}:
-            if top_menu_source in {
-                "real_menu",
-                "menu_intelligence_store",
-                "structured_menu",
-                "scraped_menu",
-                "website_menu",
-                "website_text",
-                "review_text",
-                "ocr_menu",
-                "user_scan",
-            } and top_menu_conf >= 0.72:
-                top_menu_order_type = "exact"
-            elif top_menu_conf >= 0.56:
-                top_menu_order_type = "likely"
-            else:
-                top_menu_order_type = "estimated"
-        top_menu_name = str(top_menu_item.get("item_name") or "").strip()
-        strong_real_menu = bool(
-            top_menu_name
-            and top_menu_source in {
-                "real_menu",
-                "menu_intelligence_store",
-                "structured_menu",
-                "scraped_menu",
-                "website_menu",
-                "website_text",
-                "review_text",
-                "ocr_menu",
-                "user_scan",
-            }
-            and top_menu_conf >= 0.45
-        )
-        strong_inferred_menu = bool(
-            top_menu_name
-            and top_menu_source == "llm_inferred"
-            and top_menu_conf >= 0.76
-            and top_menu_order_type in {"likely", "exact"}
-        )
-        use_menu_order = bool(
-            top_menu_name
-            and (
-                strong_real_menu
-                or strong_inferred_menu
-            )
-        )
-        if use_menu_order:
-            best_order = top_menu_name
-            estimated_calories = int(_safe_float(top_menu_item.get("estimated_calories"), estimated_calories) or estimated_calories)
-            estimated_protein_g = int(_safe_float(top_menu_item.get("estimated_protein_g"), estimated_protein_g) or estimated_protein_g)
-        final_order_confidence = round(
-            float(
-                _safe_float(
-                    top_menu_conf if use_menu_order else order_suggestion.get("order_confidence"),
-                    _safe_float(order_suggestion.get("order_confidence"), 0.46),
-                )
-                or 0.46
-            ),
-            2,
-        )
-        order_type = top_menu_order_type if use_menu_order else str(order_suggestion.get("order_type") or "estimated")
-        if order_type not in {"exact", "likely", "estimated"}:
-            order_type = "estimated"
-        swap_suggestion = str(
-            (top_menu_item.get("swap_suggestion") if use_menu_order else "")
-            or order_suggestion.get("swap_suggestion")
-            or order_suggestion.get("better_swap")
-            or "Skip heavy sides and add a lighter side."
-        )
-        skip_items = (
-            top_menu_item.get("skip_items")
-            if use_menu_order and isinstance(top_menu_item.get("skip_items"), list)
-            else order_suggestion.get("skip_items")
-            if isinstance(order_suggestion.get("skip_items"), list)
-            else []
-        )
-        add_items = (
-            top_menu_item.get("add_items")
-            if use_menu_order and isinstance(top_menu_item.get("add_items"), list)
-            else order_suggestion.get("add_items")
-            if isinstance(order_suggestion.get("add_items"), list)
-            else []
-        )
-        swap_suggestions = build_swap_suggestions(
-            swap_suggestion=swap_suggestion,
-            skip_items=skip_items if isinstance(skip_items, list) else [],
-            add_items=add_items if isinstance(add_items, list) else [],
-            better_swap=order_suggestion.get("better_swap"),
-            place_context=" ".join(
-                [
-                    str(p.get("name") or ""),
-                    str(p.get("vicinity") or p.get("address") or ""),
-                    " ".join(str(t or "") for t in (p.get("types") if isinstance(p.get("types"), list) else [])),
-                ]
-            ),
-            menu_item_source=(
-                top_menu_item.get("menu_item_source")
-                or menu_recommendations.get("menu_source_resolved")
-                or menu_recommendations.get("menu_items_source_resolved")
-                or menu_recommendations.get("menu_source")
-                or menu_recommendations.get("menu_items_source")
-                or "heuristic"
-            ),
-            menu_item_confidence=(
-                top_menu_item.get("menu_item_confidence")
-                or top_menu_item.get("confidence")
-                or final_order_confidence
-            ),
-            max_items=3,
-        )
-        decision_estimated_calories = int(
-            _safe_float(top_menu_item.get("estimated_calories"), estimated_calories) or estimated_calories
-        )
-        decision_estimated_protein_g = int(
-            _safe_float(top_menu_item.get("estimated_protein_g"), estimated_protein_g) or estimated_protein_g
-        )
-        short_reason = str(
-            (top_menu_item.get("short_reason") if use_menu_order else "")
-            or order_suggestion.get("short_reason")
-            or "Balanced default when menu details are limited."
-        )
-        order_strategy_tags = (
-            order_suggestion.get("order_strategy_tags")
-            if isinstance(order_suggestion.get("order_strategy_tags"), list)
-            else ["high_protein", "better_swap", "fat_loss_friendly"]
-        )
-        recommended_badges = (
-            scoring.get("recommended_badges")
-            if isinstance(scoring.get("recommended_badges"), list)
-            else []
-        )
-
-        personalized_health_score = None
-        personalized_best_order = ""
-        personalized_reason = ""
-
-        if personalization_goal:
-            try:
-                personalized_scoring = score_healthy_place(
-                    p,
-                    mode=nutrition_mode,
-                    personalization_goal=personalization_goal,
-                    menu_payload=menu_recommendations,
-                )
-                personalized_health_score = round(
-                    max(1.0, min(10.0, float(_safe_float(personalized_scoring.get("health_score"), score) or score))),
-                    1,
-                )
-            except Exception:
-                personalized_health_score = round(max(1.0, min(10.0, score)), 1)
-
-            try:
-                personalized_order = suggest_best_order_for_place(
-                    p,
-                    health_score=float(personalized_health_score),
-                    mode=nutrition_mode,
-                    personalization_goal=personalization_goal,
-                    diet_preference=diet_preference_val,
-                )
-                personalized_best_order = str(
-                    personalized_order.get("personalized_best_order")
-                    or personalized_order.get("best_order")
-                    or best_order
-                )
-                personalized_reason = str(
-                    personalized_order.get("personalized_reason")
-                    or get_personalized_reason(personalization_goal)
-                    or ""
-                )
-            except Exception:
-                personalized_best_order = best_order
-                personalized_reason = str(get_personalized_reason(personalization_goal) or "")
-
-        decision_today = evaluate_place_for_today(
-            estimated_calories=decision_estimated_calories,
-            estimated_protein_g=decision_estimated_protein_g,
-            remaining_calories=remaining_calories,
-            remaining_protein_g=remaining_protein_g,
-            health_score=score,
-        )
-        fit_for_today = (str(decision_today.get("decision_today") or "").strip().upper() != "NO")
-        place_name = str(p.get("name") or "Unknown place").strip()
-        cuisine_hint = ", ".join(
-            str(t or "").replace("_", " ") for t in (p.get("types") or [])[:3]
-            if t and str(t) not in {"restaurant", "food", "point_of_interest", "establishment", "meal_takeaway"}
-        )
-        _lat = _safe_float(p.get("lat"), 0.0)
-        _lng = _safe_float(p.get("lng"), 0.0)
-        _dist_m = int(max(0, (math.hypot((_lat - float(lat)) * 111320, (_lng - float(lng)) * 111320 * max(0.7, math.cos(math.radians(_lat)))) * 1000))) if (_lat and _lng) else 2000
-        place_for_ranking = {
-            "name": place_name,
-            "cuisine_hint": cuisine_hint,
-            "recommended_order": best_order,
-            "best_order": best_order,
-            "decision_today": decision_today.get("decision_today"),
-            "fit_for_today": fit_for_today,
-            "estimated_calories": estimated_calories,
-            "estimated_protein_g": estimated_protein_g,
-            "menu_item_confidence": final_order_confidence,
-            "order_confidence": final_order_confidence,
-            "distance_meters": _dist_m,
-            "menu_item_source": top_menu_source,
-            "health_score": score,
-            "fit_today_score_100": decision_today.get("fit_today_score_100"),
-            "calorie_fit_score_100": decision_today.get("calorie_fit_score_100"),
-            "protein_fit_score_100": decision_today.get("protein_fit_score_100"),
-            "overshoot_penalty_100": decision_today.get("overshoot_penalty_100"),
-            "chain_key": menu_recommendations.get("chain_key"),
-            "chain_id": menu_recommendations.get("chain_id"),
-            "chain_name": menu_recommendations.get("chain_name"),
-        }
-        context_info_raw = {
-            "remaining_calories": remaining_calories,
-            "remaining_protein_g": remaining_protein_g,
-            "post_workout": bool(post_workout),
-            "late_night": bool(late_night),
-            "poor_sleep_flag": bool(poor_sleep_flag),
-            "high_craving_risk_flag": bool(high_craving_risk_flag),
-            "context_mode_override": (context_mode or "").strip() or None,
-            "local_hour": int(local_hour) if local_hour is not None else 12,
-        }
-        ctx_modes = infer_context_mode(context_info_raw)
-        context_info = {**context_info_raw, **ctx_modes}
-        user_context_meal = {
-            "remaining_protein_g": remaining_protein_g,
-            "cut_mode": bool(cut_mode),
-            "goal": personalization_goal_value_str,
-            "context_info": context_info,
-            "diet_preference": diet_preference_val,
-        }
-        mem_dict = None
-        if str(user_id or "").strip():
-            try:
-                mem = get_personal_meal_memory(
-                    user_id=user_id,
-                    place_id=str(p.get("place_id") or p.get("id") or ""),
-                    place_name=place_name,
-                    item_name=best_order,
-                    goal=goal,
-                    time_of_day="",
-                )
-                mem_dict = mem.to_dict()
-                user_context_meal["personal_memory"] = mem
-            except Exception:
-                mem_dict = None
-
-        ranking_fields = build_ranked_place_profile(place_for_ranking, user_context_meal)
-
-        reality_check = build_restaurant_reality_check(
-            p,
-            recommended_order={
-                "item_name": str(top_menu_item.get("item_name") or order_suggestion.get("best_order") or best_order),
-                "estimated_calories": int(max(0, decision_estimated_calories)),
-                "estimated_protein_g": int(max(0, decision_estimated_protein_g)),
-                "confidence": float(
-                    _safe_float(
-                        top_menu_item.get("confidence"),
-                        _safe_float(final_order_confidence, 0.52),
-                    )
-                    or 0.52
-                ),
-                "menu_item_source": str(
-                    top_menu_item.get("menu_item_source")
-                    or menu_recommendations.get("menu_items_source")
-                    or "heuristic"
-                ),
-                "menu_item_confidence": float(
-                    _safe_float(
-                        top_menu_item.get("menu_item_confidence"),
-                        _safe_float(top_menu_item.get("confidence"), _safe_float(final_order_confidence, 0.52)),
-                    )
-                    or 0.52
-                ),
-                "order_type": order_type,
-                "swap_suggestion": swap_suggestion,
-                "swap_suggestions": swap_suggestions,
-                "skip_items": skip_items if isinstance(skip_items, list) else [],
-                "add_items": add_items if isinstance(add_items, list) else [],
-            },
-            context={
-                "top_menu_item": top_menu_item,
-                "top_menu_items": (
-                    menu_recommendations.get("top_menu_items")
-                    if isinstance(menu_recommendations.get("top_menu_items"), list)
-                    else []
-                ),
-                "health_score": score,
-                "mode": nutrition_mode.value,
-                "goal": personalization_goal_value_str,
-            },
-            use_llm_copy=False,
-            allow_llm_macro=False,
-        )
-
-        scored.append(
-            {
-                "place_id": str(p.get("place_id") or p.get("id") or ""),
-                "name": p.get("name"),
-                "lat": p.get("lat"),
-                "lng": p.get("lng"),
-                "health_score": round(max(1.0, min(10.0, score)), 1),
-                "best_options": options,
-                "address": p.get("vicinity"),
-                "rating": p.get("rating"),
-                # Optional backward-compatible enrichment fields for newer clients.
-                "score_breakdown": scoring.get("score_breakdown"),
-                "fat_loss_friendly": bool(scoring.get("fat_loss_friendly")),
-                "recommended_badges": recommended_badges,
-                "nutrition_data_available": bool(scoring.get("nutrition_data_available", False)),
-                "menu_health_signals": scoring.get("menu_health_signals") if isinstance(scoring.get("menu_health_signals"), dict) else None,
-                "menu_distribution_score": float(_safe_float(scoring.get("menu_distribution_score"), 0.0) or 0.0),
-                "menu_dominance": float(_safe_float(scoring.get("menu_dominance"), 0.0) or 0.0),
-                "scoring_version": str(scoring.get("scoring_version") or HEALTHY_PLACE_SCORING_VERSION),
-                # Optional consumer-facing order guidance (v1 heuristic).
-                "best_order": best_order,
-                "better_swap": str(
-                    (top_menu_item.get("swap_suggestion") if use_menu_order else "")
-                    or order_suggestion.get("better_swap")
-                    or "Pick water and keep sauces on the side"
-                ),
-                "swap_suggestion": swap_suggestion,
-                "swap_suggestions": swap_suggestions,
-                "best_item_swaps": (
-                    top_menu_item.get("best_item_swaps")
-                    if use_menu_order and isinstance(top_menu_item.get("best_item_swaps"), list)
-                    else []
-                ),
-                "skip_items": skip_items if isinstance(skip_items, list) else [],
-                "add_items": add_items if isinstance(add_items, list) else [],
-                "order_type": order_type,
-                "avoid_if_cutting": order_suggestion.get("avoid_if_cutting", "Large fried combo meals"),
-                "estimated_calories": estimated_calories,
-                "estimated_protein_g": estimated_protein_g,
-                "estimated_carbs_g": int(_safe_float(order_suggestion.get("estimated_carbs_g"), 45) or 45),
-                "estimated_fat_g": int(_safe_float(order_suggestion.get("estimated_fat_g"), 18) or 18),
-                "estimated_satiety": str(order_suggestion.get("estimated_satiety") or "medium"),
-                "macro_confidence": round(float(_safe_float(order_suggestion.get("macro_confidence"), 0.52) or 0.52), 2),
-                "macro_estimation_version": str(order_suggestion.get("macro_estimation_version") or "v1"),
-                "order_confidence": final_order_confidence,
-                "short_reason": short_reason,
-                "order_strategy_tags": order_strategy_tags,
-                "recommendation_version": str(order_suggestion.get("recommendation_version") or "v1"),
-                # Optional cut-mode enrichment fields (backward-compatible).
-                "cut_mode_active": bool(order_suggestion.get("cut_mode_active", bool(cut_mode))),
-                "cut_friendly": bool(order_suggestion.get("cut_friendly", scoring.get("cut_friendly", False))),
-                "cut_warning": str(order_suggestion.get("cut_warning") or scoring.get("cut_warning") or ""),
-                "best_order_for_cut": str(order_suggestion.get("best_order_for_cut") or order_suggestion.get("best_order") or "Lighter menu option"),
-                # Goal-based personalization (additive; baseline fields remain unchanged).
-                "personalization_goal": personalization_goal_value_str,
-                "personalized_health_score": personalized_health_score,
-                "personalized_best_order": personalized_best_order,
-                "personalized_reason": personalized_reason,
-                # New optional menu-item recommendations (v1 deterministic scoring).
-                "menu_item_scoring_available": bool(menu_recommendations.get("menu_item_scoring_available", False)),
-                "menu_items_source": str(menu_recommendations.get("menu_items_source") or "heuristic"),
-                "menu_source": str(menu_recommendations.get("menu_source") or menu_recommendations.get("menu_items_source") or "heuristic"),
-                "menu_items_source_resolved": str(
-                    menu_recommendations.get("menu_items_source_resolved")
-                    or menu_recommendations.get("menu_source_resolved")
-                    or menu_recommendations.get("menu_items_source")
-                    or "heuristic"
-                ),
-                "menu_source_resolved": str(
-                    menu_recommendations.get("menu_source_resolved")
-                    or menu_recommendations.get("menu_items_source_resolved")
-                    or menu_recommendations.get("menu_source")
-                    or menu_recommendations.get("menu_items_source")
-                    or "heuristic"
-                ),
-                "menu_source_priority": int(_safe_float(menu_recommendations.get("menu_source_priority"), 1) or 1),
-                "menu_confidence": float(_safe_float(menu_recommendations.get("menu_confidence"), 0.0) or 0.0),
-                "menu_item_source": str(top_menu_item.get("menu_item_source") or ""),
-                "menu_item_confidence": float(_safe_float(top_menu_item.get("menu_item_confidence"), 0.0) or 0.0),
-                "source_rank_weight": float(_safe_float(top_menu_item.get("source_rank_weight"), 0.0) or 0.0),
-                "menu_item_safety_reason": str(top_menu_item.get("menu_item_safety_reason") or ""),
-                "restaurant_rank_reason": "",
-                "extraction_method": str(menu_recommendations.get("extraction_method") or ""),
-                "parse_method": str(menu_recommendations.get("parse_method") or ""),
-                "source_url": str(menu_recommendations.get("source_url") or ""),
-                "top_menu_items": menu_recommendations.get("top_menu_items") if isinstance(menu_recommendations.get("top_menu_items"), list) else [],
-                "best_menu_items": menu_recommendations.get("best_menu_items") if isinstance(menu_recommendations.get("best_menu_items"), list) else [],
-                "top_menu_item": menu_recommendations.get("top_menu_item") if isinstance(menu_recommendations.get("top_menu_item"), dict) else None,
-                "chain_key": menu_recommendations.get("chain_key"),
-                "chain_id": menu_recommendations.get("chain_id"),
-                "top_item": str(menu_recommendations.get("top_item") or ""),
-                "diet_preference": diet_preference_val,
-                "_diet_excluded_candidate_count": p.get("_diet_excluded_candidate_count"),
-                # Optional daily fit decision layer (Can I Eat Here Today).
-                "decision_today": decision_today.get("decision_today"),
-                "decision_reason": str(decision_today.get("decision_reason") or ""),
-                "fits_remaining_calories": decision_today.get("fits_remaining_calories"),
-                "fits_remaining_protein": decision_today.get("fits_remaining_protein"),
-                "decision_confidence": decision_today.get("decision_confidence"),
-                "reality_check": reality_check,
-                "reality_check_share_card": (
-                    reality_check.get("share_card") if isinstance(reality_check.get("share_card"), dict) else None
-                ),
-                "share_card": build_best_order_share_card(
-                    place_name=p.get("name"),
-                    health_score=score,
-                    best_order=best_order,
-                    estimated_calories=estimated_calories,
-                    estimated_protein_g=estimated_protein_g,
-                    subtitle=short_reason,
-                    recommended_badges=recommended_badges,
-                    order_strategy_tags=order_strategy_tags,
-                    cut_friendly=bool(order_suggestion.get("cut_friendly", False)),
-                    fat_loss_friendly=bool(scoring.get("fat_loss_friendly", False)),
-                    calories_saved=(
-                        reality_check.get("calories_saved") if isinstance(reality_check, dict) else None
-                    ),
-                ),
-                # Canonical ranking fields from ranked_place_builder
-                **ranking_fields,
-                "candidate_source_label": top_menu_source.replace("_", " ").title(),
-                **(mem_dict or {}),
-            }
-        )
-
-    # Personal memory enrichment (optional; does not affect ranking math).
-    if str(user_id or "").strip():
-        for row in scored:
-            try:
-                mem = get_personal_meal_memory(
-                    user_id=user_id,
-                    place_id=row.get("place_id"),
-                    place_name=row.get("name"),
-                    item_name=row.get("best_item_name") or row.get("best_order") or "",
-                    goal=goal,
-                    time_of_day="",
-                )
-                row.update(mem.to_dict())
-            except Exception:
-                row.update(
-                    {
-                        "worked_before": False,
-                        "personal_memory_label": "",
-                        "times_chosen": 0,
-                        "repeat_success_rate": 0.0,
-                        "swap_accept_rate": 0.0,
-                        "avg_fullness": None,
-                        "avg_craving_score": None,
-                    }
-                )
+    # Personal memory is merged in rank_one_healthy_nearby_place (mem_dict + ranking_fields).
+    # Avoid a second pass that re-fetched the same stores N times.
 
     t_rank_ms = round((time.perf_counter() - t_rank_start) * 1000, 1)
     t_total_ms = round((time.perf_counter() - t_start) * 1000, 1)
@@ -15799,6 +16787,187 @@ def estimate_ultra_processed_score(total_kcal: float, carbs_g: float, fat_g: flo
     score = (carb_frac * 6.0) + (fat_frac * 6.0) + (total_kcal / 800.0) * 4.0
     return clamp(score, 0.0, 10.0)
 
+def _joined_item_names_lower(results: List[Dict[str, Any]]) -> str:
+    parts: List[str] = []
+    for it in results or []:
+        if not isinstance(it, dict):
+            continue
+        n = str(it.get("name") or "").strip().lower()
+        if n:
+            parts.append(n)
+    return " ".join(parts)
+
+
+_PROTEIN_PRODUCT_HINTS = (
+    "whey",
+    "protein",
+    "isolate",
+    "concentrate",
+    "casein",
+    "bcaa",
+    "protein bar",
+    "energy bar",
+    "granola bar",
+    "supplement",
+    "powder",
+    "shake",
+    "blend",
+    "mass gainer",
+)
+_PACKAGED_SNACK_HINTS = (
+    "chips",
+    "crisps",
+    "cookie",
+    "biscuit",
+    "candy",
+    "chocolate bar",
+    "snack bar",
+    "cereal bar",
+    "cracker",
+    "instant ",
+    "ready to drink",
+    "rtd",
+)
+_SUGARY_DRINK_HINTS = (
+    "cola",
+    "soda",
+    "soft drink",
+    "lemonade",
+    "iced tea",
+    "energy drink",
+    "coke",
+    "pepsi",
+    "sprite",
+    "fanta",
+    "mountain dew",
+    "ginger ale",
+    "root beer",
+    "tonic water",
+)
+
+
+def _build_protein_kcal_insight(
+    totals: Dict[str, Any],
+    results: List[Dict[str, Any]],
+    *,
+    powder_detected: bool,
+) -> Optional[Dict[str, Any]]:
+    """Single-serve / supplement scans: protein per calorie density with a simple emoji band."""
+    kcal = float(_safe_float(totals.get("kcal"), 0.0) or 0.0)
+    protein_g = float(_safe_float(totals.get("protein_g"), 0.0) or 0.0)
+    if kcal < 35:
+        return None
+    names = _joined_item_names_lower(results)
+    n_items = len(
+        [x for x in (results or []) if isinstance(x, dict) and str(x.get("name") or "").strip()]
+    )
+    protein_hint = any(h in names for h in _PROTEIN_PRODUCT_HINTS)
+    packaged_hint = any(h in names for h in _PACKAGED_SNACK_HINTS) or " bar" in names or names.endswith(" bar")
+    small_portion = n_items <= 2 and kcal <= 550
+    relevant = bool(
+        powder_detected
+        or protein_hint
+        or (small_portion and packaged_hint)
+        or (small_portion and protein_g >= 12.0 and kcal <= 520)
+    )
+    if not relevant:
+        return None
+
+    protein_per_100_kcal = (protein_g / max(kcal, 1.0)) * 100.0
+    pct_cals_from_protein = min(100.0, (protein_g * 4.0 / max(kcal, 1.0)) * 100.0)
+
+    if protein_per_100_kcal >= 9.0 or pct_cals_from_protein >= 30:
+        band = "strong"
+        emoji = "😊"
+        headline = "Strong protein for the calories"
+    elif protein_per_100_kcal >= 6.5 or pct_cals_from_protein >= 22:
+        band = "good"
+        emoji = "🙂"
+        headline = "Decent protein density"
+    elif protein_per_100_kcal >= 4.5 or pct_cals_from_protein >= 15:
+        band = "ok"
+        emoji = "😐"
+        headline = "Okay — not a protein standout"
+    else:
+        band = "weak"
+        emoji = "⚠️"
+        headline = "Low protein for the calories"
+
+    caption = (
+        f"About {round1(protein_per_100_kcal)} g protein per 100 kcal "
+        f"(~{round1(pct_cals_from_protein)}% of calories from protein)."
+    )
+    if "isolate" in names and "concentrate" not in names:
+        caption += " Label wording suggests isolate — often a higher protein % than concentrate for the same calories."
+    elif "concentrate" in names and "isolate" not in names:
+        caption += " Label wording suggests concentrate — isolate is often higher protein % per scoop if you are comparing tubs."
+
+    return {
+        "relevant": True,
+        "band": band,
+        "emoji": emoji,
+        "headline": headline,
+        "caption": caption.strip(),
+        "protein_per_100_kcal": round1(protein_per_100_kcal),
+        "protein_calorie_pct": round1(pct_cals_from_protein),
+        "protein_g": round1(protein_g),
+        "kcal": round1(kcal),
+    }
+
+
+def _build_scan_swap_suggestions(
+    totals: Dict[str, Any],
+    coaching: Dict[str, Any],
+    results: List[Dict[str, Any]],
+) -> List[Dict[str, Any]]:
+    """Goal-aware nudges when the plate looks calorie-dense or ultra-processed (generic copy, no brand names)."""
+    kcal = float(_safe_float(totals.get("kcal"), 0.0) or 0.0)
+    protein_g = float(_safe_float(totals.get("protein_g"), 0.0) or 0.0)
+    carbs_g = float(_safe_float(totals.get("carbs_g"), 0.0) or 0.0)
+    names = _joined_item_names_lower(results)
+    up = float(_safe_float(coaching.get("ultra_processed_score"), 0.0) or 0.0)
+
+    swaps: List[Dict[str, Any]] = []
+    seen = set()
+
+    def add(title: str, reason: str, kind: str) -> None:
+        key = (title, kind)
+        if key in seen:
+            return
+        seen.add(key)
+        swaps.append({"title": title, "reason": reason, "kind": kind})
+
+    if up >= 6.0 and kcal >= 120:
+        add(
+            "Try a less processed choice next time",
+            "Refined carb + fat combos are easy to overeat — whole-food swaps often improve fullness for the same goal.",
+            "upf",
+        )
+
+    if kcal >= 70 and protein_g < 4 and carbs_g >= 12:
+        if any(h in names for h in _SUGARY_DRINK_HINTS) or ("juice" in names and kcal >= 80):
+            add(
+                "Lower-calorie drink swap",
+                "If you want flavor with fewer calories, a no-sugar version or sparkling water often fits fat-loss goals better.",
+                "beverage",
+            )
+        elif carbs_g >= 18:
+            add(
+                "Watch liquid calories",
+                "Sweet drinks rarely add fullness — unsweetened tea, coffee, or water can free calories for food.",
+                "beverage",
+            )
+
+    if kcal >= 180 and protein_g < 8 and up >= 5.5:
+        add(
+            "Add protein or fiber alongside",
+            "Pairing with Greek yogurt, fruit, vegetables, or nuts can steady energy and hunger.",
+            "balance",
+        )
+
+    return swaps[:4]
+
+
 def build_coaching_payload(total_kcal: float, protein_g: float, carbs_g: float, fat_g: float, mps_threshold_g: float = 2.5) -> Dict[str, Any]:
     sat = estimate_satiety_score(total_kcal, protein_g, carbs_g, fat_g)
     bv = estimate_protein_bv_score(protein_g, total_kcal)
@@ -15922,6 +17091,17 @@ DIMENSION_REGISTRY: Dict[str, Dict[str, Any]] = {
         "label": "Portion size?",
         "options": ["Small", "Medium", "Large"],
         "impact_kcal": 180,
+    },
+    "frozen_treat_style": {
+        "label": "Frozen treat type?",
+        "options": [
+            "Regular / full-fat",
+            "Light / low-fat",
+            "High-protein (whey)",
+            "Frozen yogurt",
+            "Dairy-free / vegan",
+        ],
+        "impact_kcal": 95,
     },
     "starch_portion": {
         "label": "Starch portion?",
@@ -16191,6 +17371,39 @@ _CLARIFICATION_RULES: List[Dict[str, Any]] = [
                     ("greek|high.?protein yogurt", "Greek high-protein"),
                     ("greek yogurt", "Greek regular"),
                     ("yogurt", "Regular"),
+                ],
+            },
+        ],
+    },
+    {
+        "pattern": re.compile(r"\b(ice cream|gelato|sundae|soft serve|frozen yogurt|frozen yoghurt|fro yo|froyo|ice pop|popsicle|sorbet)\b", re.I),
+        "questions": [
+            {
+                "key": "frozen_treat_style",
+                "label": "What kind of frozen treat?",
+                "options": [
+                    "Regular / full-fat",
+                    "Light / low-fat",
+                    "High-protein (whey)",
+                    "Frozen yogurt",
+                    "Dairy-free / vegan",
+                ],
+                "name_hints": [
+                    (r"protein|whey|halo|enlightened|skinny|low.?cal ice|high.?protein ice", "High-protein (whey)"),
+                    (r"low.?fat|light|lite|reduced.?fat|skim", "Light / low-fat"),
+                    (r"fro.?yo|frozen yogurt|frozen yoghurt|yogurt ice", "Frozen yogurt"),
+                    (r"vegan|dairy.?free|oat ice|almond|cashew|coconut.?based|^sorbet\b", "Dairy-free / vegan"),
+                    (r"gelato|premium|full.?fat", "Regular / full-fat"),
+                ],
+            },
+            {
+                "key": "sweetener",
+                "label": "Sweetener?",
+                "name_hints": [
+                    (r"no sugar|unsweetened|sugar.?free", "None"),
+                    (r"stevia|sucralose|artificial|sweetener", "Artificial"),
+                    (r"honey|syrup|maple|agave", "Honey"),
+                    (r"sugar|sweetened", "Sugar"),
                 ],
             },
         ],
@@ -16650,6 +17863,19 @@ def _build_scan_response(
         response["powder_confirmed_type"] = None
         response["powder_confirmed_grams"] = None
         response["nutrition_resolution_mode"] = "usda"
+    try:
+        pk_insight = _build_protein_kcal_insight(
+            totals,
+            results,
+            powder_detected=bool(powder_items),
+        )
+        if pk_insight:
+            response["protein_kcal_insight"] = pk_insight
+        swap_list = _build_scan_swap_suggestions(totals, coaching, results)
+        if swap_list:
+            response["swap_suggestions"] = swap_list
+    except Exception:
+        logger.warning("scan insight attachments skipped", exc_info=False)
     if item_warnings:
         response["warnings"] = item_warnings[:8]
     if plan_at_least(plan, "pro"):
@@ -17372,10 +18598,17 @@ def analyze_rerun(
                             parts.append(f"with {choices_to_save['spread'].lower()}")
                         if choices_to_save.get("toppings") and choices_to_save["toppings"].lower() not in _s:
                             parts.append(f"with {choices_to_save['toppings'].lower()}")
+                        fts = str(choices_to_save.get("frozen_treat_style") or "").strip()
+                        if fts and fts.lower() not in ("regular / full-fat", "not sure", ""):
+                            parts.append(f"({fts.lower()})")
                         if len(parts) > 1:
                             items_for_nutrition = [dict(first_item, name=" ".join(parts).strip())] + list(items_for_nutrition[1:])
 
     results, totals, total_micros, item_warnings, _ = _compute_scan_nutrition(items_for_nutrition)
+    default_iid = _default_item_id_from_analysis_row(existing)
+    results, totals, total_micros = _apply_macro_override_to_scan(
+        results, totals, total_micros, req.edits.macro_override, default_iid
+    )
     micros_payload = _build_micros_payload(total_micros)
     total_kcal = float(_safe_float(totals.get("kcal"), 0.0) or 0.0)
     total_p = float(_safe_float(totals.get("protein_g"), 0.0) or 0.0)
