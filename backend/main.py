@@ -10208,28 +10208,32 @@ def _build_health_parameter_advice(health_context: Dict[str, Any]) -> Dict[str, 
 
 def _apply_health_advice_to_coach_response(resp: Dict[str, Any], health_context: Dict[str, Any]) -> Dict[str, Any]:
     out = dict(resp or {})
-    advice = _build_health_parameter_advice(health_context)
-    weak = advice.get("weak_parameters") if isinstance(advice.get("weak_parameters"), list) else []
-    out["health_context_used"] = bool(weak)
-    out["health_signal_source"] = str(advice.get("source") or "")
-    out["health_parameter_advice"] = advice
-    out["health_coach_line"] = str(advice.get("engaging_line") or "")
-    out["health_chart_bars"] = advice.get("chart_bars") if isinstance(advice.get("chart_bars"), list) else []
-    if weak:
-        summary = str(advice.get("coach_summary") or "").strip()
-        steps = advice.get("coach_steps") if isinstance(advice.get("coach_steps"), list) else []
-        if summary:
-            existing = str(out.get("why_it_matters") or out.get("insight_line") or "").strip()
-            merged = _clip_line(f"{existing} {summary}".strip(), max_words=60)
-            if str(out.get("why_it_matters") or "").strip():
-                out["why_it_matters"] = merged
-            elif str(out.get("insight_line") or "").strip():
-                out["insight_line"] = merged[:200]
-        if steps and isinstance(out.get("one_action"), dict):
-            curr_steps = out["one_action"].get("steps") if isinstance(out["one_action"].get("steps"), list) else []
-            out["one_action"]["steps"] = (curr_steps + [str(s) for s in steps])[:3]
-        if str(out.get("health_coach_line") or "").strip() and str(out.get("insight_line") or "").strip():
-            out["insight_line"] = _limit_text(f"{out.get('insight_line')} {out.get('health_coach_line')}", 200)
+    try:
+        advice = _build_health_parameter_advice(health_context)
+        weak = advice.get("weak_parameters") if isinstance(advice.get("weak_parameters"), list) else []
+        out["health_context_used"] = bool(weak)
+        out["health_signal_source"] = str(advice.get("source") or "")
+        out["health_parameter_advice"] = advice
+        out["health_coach_line"] = str(advice.get("engaging_line") or "")
+        out["health_chart_bars"] = advice.get("chart_bars") if isinstance(advice.get("chart_bars"), list) else []
+        if weak:
+            summary = str(advice.get("coach_summary") or "").strip()
+            steps = advice.get("coach_steps") if isinstance(advice.get("coach_steps"), list) else []
+            if summary:
+                existing = str(out.get("why_it_matters") or out.get("insight_line") or "").strip()
+                merged = _clip_line(f"{existing} {summary}".strip(), max_words=60)
+                if str(out.get("why_it_matters") or "").strip():
+                    out["why_it_matters"] = merged
+                elif str(out.get("insight_line") or "").strip():
+                    out["insight_line"] = merged[:200]
+            if steps and isinstance(out.get("one_action"), dict):
+                curr_steps = out["one_action"].get("steps") if isinstance(out["one_action"].get("steps"), list) else []
+                out["one_action"]["steps"] = (curr_steps + [str(s) for s in steps])[:3]
+            if str(out.get("health_coach_line") or "").strip() and str(out.get("insight_line") or "").strip():
+                out["insight_line"] = _limit_text(f"{out.get('insight_line')} {out.get('health_coach_line')}", 200)
+    except Exception as e:
+        # Fail-open: never break coach response if optional health enrichment fails.
+        logger.info("health advice enrichment skipped: %s", str(e)[:200])
     return out
 
 
