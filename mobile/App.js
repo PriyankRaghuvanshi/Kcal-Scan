@@ -1923,18 +1923,13 @@ export default function App() {
       setScanLoadingFactLine("");
       return;
     }
-    const facts = shuffleArray(SCAN_LOADING_FACTS);
+    const facts = SCAN_LOADING_FACTS;
     if (!facts.length) {
       setScanLoadingFactLine("Analyzing your meal...");
       return;
     }
-    let idx = Math.floor(Math.random() * facts.length);
+    const idx = Math.floor(Math.random() * facts.length);
     setScanLoadingFactLine(facts[idx]);
-    const id = setInterval(() => {
-      idx = (idx + 1) % facts.length;
-      setScanLoadingFactLine(facts[idx]);
-    }, 4200);
-    return () => clearInterval(id);
   }, [busy, menuScanBusy, supplementBusy, upfScanBusy, barcodeBusy]);
   const coachPreviewTiles = useMemo(() => (canCoaching ? [] : buildCoachPreviewTiles(plan)), [canCoaching, plan]);
   const previewPhotoUri = useMemo(() => {

@@ -2111,6 +2111,9 @@ def _process_analysis_job(job: Dict[str, Any]) -> None:
             _patch_analysis_job(
                 job_id,
                 {
+                    # Mark as done for client fast-return SLA; worker will overwrite
+                    # this with enriched final result when complete.
+                    "status": "done",
                     "result_json": partial,
                     "stage": "enriching",
                     "updated_at": _now_utc_naive().isoformat(),
@@ -17619,7 +17622,8 @@ def get_analysis_job(
         if isinstance(result_obj, str):
             result_obj = _parse_jsonish(result_obj, {})
         out["result"] = result_obj if isinstance(result_obj, dict) else {}
-        out["result_complete"] = status == "done"
+        # If stage is enriching, return partial payload even if status is done.
+        out["result_complete"] = bool(status == "done" and str(progress_stage or "").strip().lower() != "enriching")
     return _attach_debug_schema(out, bool(debug))
 
 
