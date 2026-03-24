@@ -12497,6 +12497,7 @@ def coach_daily(
     request_id = _new_request_id()
     started = time.time()
     norm = coach_logic.normalize_daily_payload(payload or {})
+    health_context = payload.get("health_context") if isinstance(payload, dict) and isinstance(payload.get("health_context"), dict) else {}
     incoming_profile = payload.get("profile") if isinstance(payload, dict) and isinstance(payload.get("profile"), dict) else {}
     tone_pref = _normalize_daily_tone_id(
         tone_id
