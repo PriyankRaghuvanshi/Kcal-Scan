@@ -81,6 +81,22 @@ export function getGoalFitLine(result, remainingToday) {
   return null;
 }
 
+/**
+ * Grams protein per 100 kcal — compact quality signal with emoji.
+ * @returns {{ emoji: string, line: string } | null}
+ */
+export function getProteinKcalDensityLine(result) {
+  const kcal = num(result?.total_kcal);
+  const p = num(result?.totals?.protein_g);
+  if (kcal == null || kcal <= 0 || p == null || p < 0) return null;
+  const per100 = (p / kcal) * 100;
+  const v = Math.round(per100 * 10) / 10;
+  const valueStr = `${v}g protein / 100 kcal`;
+  if (per100 >= 7.5) return { emoji: "😊", line: `${valueStr} — strong` };
+  if (per100 >= 4.5) return { emoji: "😐", line: `${valueStr} — moderate` };
+  return { emoji: "😟", line: `${valueStr} — room to improve` };
+}
+
 // ─── Hero ────────────────────────────────────────────────────────────────
 
 export function ScanResultHero({ photoUri, result, coaching }) {
@@ -227,6 +243,7 @@ export function ScanResultMacroCard({ result }) {
   const protein = t.protein_g != null ? round1(t.protein_g) : "—";
   const carbs = t.carbs_g != null ? round1(t.carbs_g) : "—";
   const fat = t.fat_g != null ? round1(t.fat_g) : "—";
+  const density = getProteinKcalDensityLine(result || {});
 
   return (
     <View style={[premium.cardBase, styles.card]}>
@@ -248,6 +265,12 @@ export function ScanResultMacroCard({ result }) {
           <Text style={styles.macroUnit}>F</Text>
         </View>
       </View>
+      {density ? (
+        <View style={styles.proteinDensityRow}>
+          <Text style={styles.proteinDensityEmoji}>{density.emoji}</Text>
+          <Text style={styles.proteinDensityText}>{density.line}</Text>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -596,6 +619,25 @@ const styles = StyleSheet.create({
     fontSize: typography.sm,
     color: colors.text.muted,
     marginTop: spacing.xxs,
+  },
+  proteinDensityRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: spacing.base,
+    paddingTop: spacing.base,
+    borderTopWidth: 1,
+    borderTopColor: colors.surface.cardBorder,
+    gap: spacing.sm,
+  },
+  proteinDensityEmoji: {
+    fontSize: typography.hero,
+  },
+  proteinDensityText: {
+    flex: 1,
+    fontSize: typography.sm,
+    fontWeight: typography.weight.semibold,
+    color: colors.text.secondary,
+    lineHeight: typography.sm * 1.35,
   },
   goalFitText: {
     fontSize: typography.md,

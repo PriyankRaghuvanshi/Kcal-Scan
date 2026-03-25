@@ -66,6 +66,7 @@ import { SmartAlertSettings } from "./components/SmartAlertSettings";
 import { HealthyNearbyMapScreen } from "./components/HealthyNearbyMapScreen";
 import { HealthyNearbyDiscoverLayout } from "./components/HealthyNearbyDiscoverLayout";
 import { HealthyPlaceListCard } from "./components/HealthyPlaceListCard";
+import { HealthyNearbyDecisionShowcase } from "./components/HealthyNearbyDecisionShowcase";
 import { AdminOpsDashboard } from "./components/AdminOpsDashboard";
 import { ScanConfirmationChips } from "./components/ScanConfirmationChips";
 import { ScanResultScreen } from "./components/ScanResultScreen";
@@ -261,6 +262,8 @@ const COACH_FEEDBACK_QUEUE_KEY = "kcal_coach_feedback_queue_v1";
 const coachFeedbackQueueKey = (uid) => `${COACH_FEEDBACK_QUEUE_KEY}:${uid}`;
 const WEEKLY_COACH_CHOICES_KEY = "kcal_weekly_coach_choices_v1";
 const weeklyCoachChoicesKey = (uid) => `${WEEKLY_COACH_CHOICES_KEY}:${uid}`;
+const GOAL_PLAN_CACHE_KEY = "kcal_goal_plan_cache_v1";
+const goalPlanCacheKey = (uid) => `${GOAL_PLAN_CACHE_KEY}:${uid}`;
 
 const RC_IOS_KEY = process.env.EXPO_PUBLIC_RC_IOS_KEY || "";
 const RC_ANDROID_KEY = process.env.EXPO_PUBLIC_RC_ANDROID_KEY || "";
@@ -1883,6 +1886,7 @@ export default function App() {
   const [journeyData, setJourneyData] = useState(null);
   const [goalCoachCreateBusy, setGoalCoachCreateBusy] = useState(false);
   const [goalCoachContext, setGoalCoachContext] = useState(null);
+  const lastGoalPlanFetchUidRef = useRef("");
 
   // ===== Push Notifications =====
   const [pushPermissionStatus, setPushPermissionStatus] = useState(null);
@@ -4395,13 +4399,36 @@ async function openCamera(mode = "meal") {
   async function fetchGoalPlan() {
     const uid = userId || session?.user?.id;
     if (!uid) return;
+    const prevFetchUid = lastGoalPlanFetchUidRef.current;
+    lastGoalPlanFetchUidRef.current = uid;
+    if (prevFetchUid && prevFetchUid !== uid) setGoalPlan(null);
     setGoalPlanLoading(true);
+    let cachedPlan = null;
+    try {
+      const raw = await AsyncStorage.getItem(goalPlanCacheKey(uid));
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === "object" && parsed.plan_id) {
+          cachedPlan = parsed;
+          setGoalPlan(parsed);
+        }
+      }
+    } catch (_) {}
     try {
       const data = await getGoalPlan(API_BASE, uid);
-      setGoalPlan(data?.has_plan ? data.plan : null);
+      if (data?.has_plan && data?.plan) {
+        setGoalPlan(data.plan);
+        try {
+          await AsyncStorage.setItem(goalPlanCacheKey(uid), JSON.stringify(data.plan));
+        } catch (_) {}
+      } else if (!data?.has_plan) {
+        if (cachedPlan) setGoalPlan(cachedPlan);
+        else setGoalPlan(null);
+      }
     } catch (e) {
       console.log("fetchGoalPlan failed", e);
-      setGoalPlan(null);
+      if (cachedPlan) setGoalPlan(cachedPlan);
+      else setGoalPlan(null);
     } finally {
       setGoalPlanLoading(false);
     }
@@ -4462,6 +4489,9 @@ async function openCamera(mode = "meal") {
       const data = await createGoalPlan(API_BASE, uid, body);
       if (data?.ok && data?.plan) {
         setGoalPlan(data.plan);
+        try {
+          await AsyncStorage.setItem(goalPlanCacheKey(uid), JSON.stringify(data.plan));
+        } catch (_) {}
         setLetsGoModalVisible(false);
         await fetchGoalCoachDaily();
         await fetchGoalCoachWeekly();
@@ -6726,13 +6756,15 @@ async function openCamera(mode = "meal") {
       <ScrollView ref={mainScrollRef} contentContainerStyle={styles.container}>
         {homeMainVisible ? (
         <View style={styles.topRow}>
-          <View>
-            <Text style={styles.h1}>CalorieClick.ai</Text>
-            <Text style={styles.p}>
+          <View style={styles.topRowTitle}>
+            <Text style={styles.h1} numberOfLines={1} ellipsizeMode="tail">
+              CalorieClick.ai
+            </Text>
+            <Text style={styles.p} numberOfLines={1} ellipsizeMode="tail">
               Plan: <Text style={styles.plan}>{plan}</Text>
             </Text>
           </View>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+          <View style={styles.topRowActions}>
             {userId ? (
               <TouchableOpacity
                 style={styles.smallBtn}
@@ -8816,6 +8848,13 @@ async function openCamera(mode = "meal") {
             </View>
           ) : null}
           {effectiveLunchDecision && Array.isArray(effectiveLunchDecision.cards) && effectiveLunchDecision.cards.length ? (
+            <HealthyNearbyDecisionShowcase
+              decision={effectiveLunchDecision}
+              onPrimaryPress={() => void handleLunchDecisionCTA(effectiveLunchDecision.cards[0])}
+              onCardPress={(card) => void handleLunchDecisionCTA(card)}
+            />
+          ) : null}
+          {false && effectiveLunchDecision && Array.isArray(effectiveLunchDecision.cards) && effectiveLunchDecision.cards.length ? (
             <View style={styles.lunchDecisionWrap}>
               <Text style={styles.cardTitle}>{String(effectiveLunchDecision.title || "What should I eat right now?")}</Text>
               <Text style={styles.p}>{String(effectiveLunchDecision.subtitle || "Best next meal near you")}</Text>
@@ -10424,7 +10463,30 @@ const styles = StyleSheet.create({
   muted: { fontSize: 12, color: "#aab4c4", lineHeight: 17 },
   plan: { color: "#fff", fontWeight: "800" },
 
-  topRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 10 },
+  topRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 10,
+    rowGap: 8,
+    flexWrap: "wrap",
+    width: "100%",
+  },
+  topRowTitle: {
+    flexGrow: 1,
+    flexShrink: 1,
+    minWidth: 0,
+    paddingRight: 4,
+  },
+  topRowActions: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "flex-end",
+    alignItems: "center",
+    gap: 8,
+    alignSelf: "flex-end",
+    maxWidth: "100%",
+  },
   row: { flexDirection: "row", gap: 10, marginTop: 12 },
   rowWrap: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginTop: 12 },
 

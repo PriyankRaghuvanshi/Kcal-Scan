@@ -169,6 +169,54 @@ export function getHealthyPanelItemHeading(place) {
   return getHealthyItemLineLabel(rec);
 }
 
+/**
+ * Collect swap / skip / add hints from a recommendation card or similar object.
+ * Mirrors App.js / RecommendationCard.js logic for consistent copy.
+ */
+export function extractSwapSuggestions(...sources) {
+  const out = [];
+  const seen = new Set();
+
+  function pushLine(raw) {
+    const text = String(raw || "").trim().replace(/\s+/g, " ");
+    if (!text) return;
+    const key = text.toLowerCase();
+    if (seen.has(key)) return;
+    seen.add(key);
+    out.push(text);
+  }
+
+  function asSkipLine(raw) {
+    const text = String(raw || "").trim();
+    if (!text) return "";
+    return /^skip\s+/i.test(text) ? text : `Skip ${text}`;
+  }
+
+  function asAddLine(raw) {
+    const text = String(raw || "").trim();
+    if (!text) return "";
+    return /^(add|choose|pick|go for)\s+/i.test(text) ? text : `Add ${text}`;
+  }
+
+  for (const src of sources) {
+    if (!src || typeof src !== "object") continue;
+    const swaps = Array.isArray(src?.swap_suggestions) ? src.swap_suggestions : [];
+    swaps.forEach((row) => pushLine(row));
+
+    if (Array.isArray(src?.skip_items)) {
+      src.skip_items.forEach((row) => pushLine(asSkipLine(row)));
+    }
+    if (Array.isArray(src?.add_items)) {
+      src.add_items.forEach((row) => pushLine(asAddLine(row)));
+    }
+
+    pushLine(src?.swap_suggestion);
+    pushLine(src?.better_swap);
+  }
+
+  return out.slice(0, 3);
+}
+
 if (typeof module !== "undefined" && module.exports) {
   module.exports = {
     normalizeHealthyPlacesResponse,
@@ -177,5 +225,6 @@ if (typeof module !== "undefined" && module.exports) {
     getRecommendationHeroLabel,
     getGoalCoachBannerText,
     getGoalCoachHeroLabel,
+    extractSwapSuggestions,
   };
 }
