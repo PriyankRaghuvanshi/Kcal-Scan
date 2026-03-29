@@ -541,13 +541,14 @@ export function ScanResultScreen({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: "#fff8eb",
   },
   content: {
     padding: spacing.lg,
     paddingBottom: spacing.section * 2,
   },
   section: {
-    marginBottom: spacing.xl,
+    marginBottom: spacing.lg,
   },
   // Local overrides only; base card comes from premium.cardBase.
   card: {},
@@ -556,6 +557,8 @@ const styles = StyleSheet.create({
     position: "relative",
     borderRadius: radius.xl,
     overflow: "hidden",
+    borderWidth: 2,
+    borderColor: "#ffbc0d",
     ...shadows.md,
   },
   heroImage: {
@@ -575,7 +578,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     padding: spacing.lg,
-    backgroundColor: "rgba(0,0,0,0.65)",
+    backgroundColor: "rgba(17,24,39,0.72)",
   },
   heroMealLabel: {
     fontSize: typography.lg,
@@ -596,7 +599,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm,
     borderRadius: radius.pill,
     borderWidth: 1,
-    backgroundColor: colors.surface.primary,
+    backgroundColor: "#fff7e6",
   },
   qualityBadgeText: {
     fontSize: typography.sm,
@@ -606,6 +609,12 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+    backgroundColor: "rgba(255,188,13,0.12)",
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: "rgba(245,158,11,0.28)",
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.base,
   },
   macroItem: {
     alignItems: "center",
@@ -642,6 +651,12 @@ const styles = StyleSheet.create({
   goalFitText: {
     fontSize: typography.md,
     fontWeight: typography.weight.semibold,
+    backgroundColor: "rgba(255,255,255,0.7)",
+    borderRadius: radius.md,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.base,
+    borderWidth: 1,
+    borderColor: "rgba(245,158,11,0.30)",
   },
   goalFitSuccess: {
     color: colors.success.text,
@@ -713,22 +728,22 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: spacing.base,
     padding: spacing.base,
-    backgroundColor: colors.surface.elevated,
+    backgroundColor: "#ffefc8",
     borderRadius: radius.lg,
     borderWidth: 1,
-    borderColor: colors.surface.cardBorder,
+    borderColor: "#f7b500",
   },
   upgradeBannerText: {
     flex: 1,
     fontSize: typography.sm,
-    color: colors.text.secondary,
+    color: "#7c2d12",
   },
   upgradeBannerBtnWrap: {
     marginLeft: spacing.sm,
   },
   upgradeBannerBtn: {
     fontSize: typography.sm,
-    color: colors.accent.primary,
+    color: "#92400e",
     fontWeight: typography.weight.semibold,
   },
   upgradeBannerCloseWrap: {
@@ -737,7 +752,7 @@ const styles = StyleSheet.create({
   },
   upgradeBannerClose: {
     fontSize: typography.sm,
-    color: colors.text.muted,
+    color: "#92400e",
   },
   detailsToggle: {
     paddingVertical: spacing.base,
@@ -764,10 +779,10 @@ const styles = StyleSheet.create({
     lineHeight: typography.xs * 1.4,
   },
   rewardBanner: {
-    backgroundColor: "rgba(34, 197, 94, 0.10)",
+    backgroundColor: "rgba(255, 188, 13, 0.18)",
     borderRadius: radius.xl,
     borderWidth: 1,
-    borderColor: "rgba(34, 197, 94, 0.26)",
+    borderColor: "rgba(245, 158, 11, 0.40)",
     paddingVertical: spacing.base,
     paddingHorizontal: spacing.lg,
   },
@@ -780,19 +795,19 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 999,
-    backgroundColor: colors.success.primary,
+    backgroundColor: "#f59e0b",
     marginRight: spacing.sm,
   },
   rewardKicker: {
     fontSize: typography.sm,
     fontWeight: typography.weight.extrabold,
-    color: colors.success.text,
+    color: "#92400e",
     letterSpacing: 0.2,
   },
   rewardBannerText: {
     fontSize: typography.md,
     fontWeight: typography.weight.semibold,
-    color: colors.success.text,
+    color: "#7c2d12",
     lineHeight: typography.md * typography.lineHeight.relaxed,
   },
   rewardMetaRow: {

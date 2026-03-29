@@ -8,6 +8,9 @@ from __future__ import annotations
 import json
 import os
 from typing import Any, Dict, List, Optional
+from urllib.error import HTTPError, URLError
+from urllib.parse import urlencode
+from urllib.request import Request, urlopen
 
 TBL_VENUE_INTELLIGENCE_CACHE = "venue_intelligence_cache"
 TBL_LOCAL_VENUE_PROFILES = "local_venue_profiles"
@@ -40,22 +43,89 @@ def _supabase_headers(prefer: Optional[str] = None) -> Dict[str, str]:
     return h
 
 
+def _requests_module() -> Any:
+    """Return requests module when installed, else None."""
+    try:
+        import requests  # type: ignore
+        return requests
+    except ModuleNotFoundError:
+        return None
+
+
+def _http_get_json(url: str, headers: Dict[str, str], params: Optional[Dict[str, str]] = None, timeout: int = 5) -> tuple[int, Any]:
+    """
+    Execute JSON GET using requests when available, else urllib.
+    Returns (status_code, parsed_json_or_none). Raises on transport / HTTP errors.
+    """
+    requests = _requests_module()
+    if requests is not None:
+        resp = requests.get(url, headers=headers, params=params, timeout=timeout)
+        resp.raise_for_status()
+        return resp.status_code, resp.json() if resp.text else None
+
+    qs = urlencode(params or {}, doseq=True)
+    full_url = f"{url}?{qs}" if qs else url
+    req = Request(full_url, headers=headers, method="GET")
+    try:
+        with urlopen(req, timeout=timeout) as resp:  # nosec B310
+            body = resp.read().decode("utf-8", errors="ignore")
+            return resp.status, json.loads(body) if body else None
+    except HTTPError:
+        raise
+    except URLError:
+        raise
+
+
+def _http_post_json(
+    url: str,
+    headers: Dict[str, str],
+    payload: Any,
+    params: Optional[Dict[str, str]] = None,
+    timeout: int = 30,
+) -> tuple[int, Any]:
+    """
+    Execute JSON POST using requests when available, else urllib.
+    Returns (status_code, parsed_json_or_none). Raises on transport / HTTP errors.
+    """
+    requests = _requests_module()
+    if requests is not None:
+        resp = requests.post(url, headers=headers, params=params, json=payload, timeout=timeout)
+        resp.raise_for_status()
+        return resp.status_code, resp.json() if resp.text else None
+
+    qs = urlencode(params or {}, doseq=True)
+    full_url = f"{url}?{qs}" if qs else url
+    req = Request(
+        full_url,
+        data=json.dumps(payload).encode("utf-8"),
+        headers=headers,
+        method="POST",
+    )
+    try:
+        with urlopen(req, timeout=timeout) as resp:  # nosec B310
+            body = resp.read().decode("utf-8", errors="ignore")
+            return resp.status, json.loads(body) if body else None
+    except HTTPError:
+        raise
+    except URLError:
+        raise
+
+
 def _sb_safe_get_one(table: str, params: Dict[str, str]) -> Optional[Dict[str, Any]]:
     """Safe Supabase get. Returns None on any error. Fails open for robustness."""
     if not _supabase_available():
         return None
     try:
-        import requests
         url = f"{os.getenv('SUPABASE_URL')}/rest/v1/{table}"
         headers = {
             "apikey": os.getenv("SUPABASE_SERVICE_ROLE_KEY", ""),
             "Authorization": f"Bearer {os.getenv('SUPABASE_SERVICE_ROLE_KEY', '')}",
             "Content-Type": "application/json",
         }
-        r = requests.get(url, headers=headers, params=params, timeout=5)
-        if r.status_code != 200:
+        status, payload = _http_get_json(url, headers=headers, params=params, timeout=5)
+        if status != 200:
             return None
-        rows = r.json() or []
+        rows = payload or []
         if not rows or not isinstance(rows, list):
             return None
         row = rows[0] if isinstance(rows[0], dict) else {}
@@ -68,17 +138,16 @@ def _sb_safe_get_many(table: str, params: Dict[str, str]) -> List[Dict[str, Any]
     if not _supabase_available():
         return []
     try:
-        import requests
         url = f"{os.getenv('SUPABASE_URL')}/rest/v1/{table}"
         headers = {
             "apikey": os.getenv("SUPABASE_SERVICE_ROLE_KEY", ""),
             "Authorization": f"Bearer {os.getenv('SUPABASE_SERVICE_ROLE_KEY', '')}",
             "Content-Type": "application/json",
         }
-        r = requests.get(url, headers=headers, params=params, timeout=5)
-        if r.status_code != 200:
+        status, payload = _http_get_json(url, headers=headers, params=params, timeout=5)
+        if status != 200:
             return []
-        rows = r.json() or []
+        rows = payload or []
         return [dict(x) for x in rows if isinstance(x, dict)]
     except Exception:
         return []
@@ -182,17 +251,15 @@ def upsert_chain_menu_profile(row: Dict[str, Any]) -> Optional[Dict[str, Any]]:
             print("SUPABASE DEBUG upsert_chain_menu_profile: supabase not available")
         return None
     try:
-        import requests
         url = f"{_supabase_base_url()}/{TBL_CHAIN_MENU_PROFILES}"
         headers = _supabase_headers("resolution=merge-duplicates,return=representation")
         params = {"on_conflict": "chain_key,market_tag"}
         if _chain_sync_debug():
             print("SUPABASE DEBUG PROFILE POST url:", url, "params:", params, "row keys:", list(row.keys()))
-        resp = requests.post(url, headers=headers, params=params, json=[row], timeout=30)
+        status, payload = _http_post_json(url, headers=headers, payload=[row], params=params, timeout=30)
         if _chain_sync_debug():
-            print("SUPABASE DEBUG PROFILE POST status:", resp.status_code)
-        resp.raise_for_status()
-        rows = resp.json() or []
+            print("SUPABASE DEBUG PROFILE POST status:", status)
+        rows = payload or []
         return dict(rows[0]) if rows else dict(row)
     except Exception as e:
         if _chain_sync_debug():
@@ -223,14 +290,12 @@ def upsert_chain_menu_items(chain_key: str, market_tag: str, items: List[Dict[st
     if not rows:
         return 0
     try:
-        import requests
         url = f"{_supabase_base_url()}/{TBL_CHAIN_MENU_ITEMS}"
         headers = _supabase_headers("resolution=merge-duplicates,return=minimal")
         params = {"on_conflict": "chain_key,market_tag,item_key"}
-        resp = requests.post(url, headers=headers, params=params, json=rows, timeout=30)
+        status, _ = _http_post_json(url, headers=headers, payload=rows, params=params, timeout=30)
         if _chain_sync_debug():
-            print("SUPABASE DEBUG upsert_chain_menu_items POST status:", resp.status_code)
-        resp.raise_for_status()
+            print("SUPABASE DEBUG upsert_chain_menu_items POST status:", status)
         return len(rows)
     except Exception as e:
         if _chain_sync_debug():

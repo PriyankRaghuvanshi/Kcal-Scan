@@ -76,7 +76,17 @@ class LunchDecisionTests(unittest.TestCase):
         self.assertIsInstance(top.get("swap_suggestions"), list)
         self.assertGreaterEqual(len(top.get("swap_suggestions") or []), 1)
         self.assertLessEqual(len(top.get("swap_suggestions") or []), 3)
-        self.assertIn(top.get("recommended_order_label"), {"Best Menu Item", "Likely Better Choice", "Suggested Lighter Option", "Estimated Best Fit", "Needs Menu Check"})
+        self.assertIn(
+            top.get("recommended_order_label"),
+            {
+                "Best Menu Item",
+                "Likely Better Choice",
+                "Suggested Lighter Option",
+                "Estimated Best Fit",
+                "Needs Menu Check",
+                "No menu on file",
+            },
+        )
         self.assertIn("fit_for_today", top)
         self.assertIn("daily_fit_score", top)
 
@@ -295,13 +305,20 @@ class LunchDecisionTests(unittest.TestCase):
         )
         card = out["cards"][0]
         self.assertNotIn("greek yogurt protein bowl", str(card.get("recommended_order") or "").lower())
-        self.assertIn(
-            str(card.get("recommended_order") or "").lower(),
-            {
-                "idli or plain dosa-style option",
-                "tandoori or grilled style option",
-                "needs menu check: choose lighter savory options",
-            },
+        ro = str(card.get("recommended_order") or "").lower()
+        self.assertIn("no menu on file", ro)
+        self.assertTrue(
+            any(
+                x in ro
+                for x in (
+                    "idli",
+                    "dosa",
+                    "tandoori",
+                    "lentil",
+                    "savory",
+                )
+            ),
+            msg=f"expected south indian / indian pattern copy, got: {ro!r}",
         )
         self.assertIsInstance(card.get("swap_suggestions"), list)
         self.assertGreaterEqual(len(card.get("swap_suggestions") or []), 1)

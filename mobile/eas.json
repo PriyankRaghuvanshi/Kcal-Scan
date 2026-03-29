@@ -35,11 +35,21 @@
   },
   "submit": {
     "production": {
+      "android": {
+        "serviceAccountKeyPath": "./credentials/google-play-service-account.json",
+        "track": "internal",
+        "releaseStatus": "draft"
+      },
       "ios": {
         "ascAppId": "6757768893"
       }
     },
     "production_auto_submit": {
+      "android": {
+        "serviceAccountKeyPath": "./credentials/google-play-service-account.json",
+        "track": "internal",
+        "releaseStatus": "draft"
+      },
       "ios": {
         "ascAppId": "6757768893"
       }

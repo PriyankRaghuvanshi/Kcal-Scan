@@ -49,3 +49,12 @@ export async function hapticLight({ key = "", cooldownMs = 800 } = {}) {
   } catch (_) {}
 }
 
+/** Short “tick” — good as a listen start/stop cue when a tone asset isn’t bundled. */
+export async function hapticSelection({ key = "", cooldownMs = 400 } = {}) {
+  try {
+    if (!_Haptics?.selectionAsync) return;
+    if (!_shouldFire(key, cooldownMs)) return;
+    await _Haptics.selectionAsync();
+  } catch (_) {}
+}
+

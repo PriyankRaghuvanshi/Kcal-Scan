@@ -65,6 +65,16 @@ class LlmCoachPhrasingTests(unittest.TestCase):
         self.assertFalse(bool(out.get("phrasing_attempted")))
 
 
+    def test_day_coach_variation_is_deterministic_without_llm(self):
+        from day_coach import build_day_coach_summary
+        a = build_day_coach_summary(remaining_protein_g=72, goal="fat_loss", cut_mode=True)
+        b = build_day_coach_summary(remaining_protein_g=72, goal="fat_loss", cut_mode=True)
+        c = build_day_coach_summary(remaining_protein_g=38, goal="fat_loss", cut_mode=True)
+        self.assertEqual((a.get("headline"), a.get("supporting_text")), (b.get("headline"), b.get("supporting_text")))
+        self.assertNotEqual((a.get("headline"), a.get("supporting_text")), (c.get("headline"), c.get("supporting_text")))
+        self.assertEqual(a.get("phrasing_method"), "deterministic")
+
+
 if __name__ == "__main__":
     unittest.main()
 

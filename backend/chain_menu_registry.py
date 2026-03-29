@@ -120,6 +120,7 @@ CHAIN_KEYS: Dict[str, List[str]] = {
     "chick_fil_a": ["chick-fil-a", "chick fil a", "chickfila"],
     "taco_bell": ["taco bell", "tacobell"],
     "panera": ["panera", "panera bread", "panera bread bakery cafe"],
+    "starbucks": ["starbucks", "starbucks coffee"],
     "sweetgreen": ["sweetgreen", "sweet green"],
     "eatfit": ["eatfit", "eat fit"],
     "faasos": ["faasos", "faasos wraps", "faasos by eatsure"],

@@ -11,7 +11,6 @@
       "chain_id": "subway_au",
       "country_codes": [
         "AU",
-        "US",
         "GB",
         "CA",
         "IN"
@@ -45,10 +44,40 @@
       ],
       "brand_family": "subway",
       "canonical_name": "Subway",
+      "chain_id": "subway_us",
+      "country_codes": [
+        "US"
+      ],
+      "known_variants": [
+        "Subway - Times Square"
+      ],
+      "normalized_tokens": [
+        "sub",
+        "subway",
+        "way"
+      ],
+      "notes": "US chain identity record for official Domain/places resolution and baseline stability",
+      "official_website_domains": [
+        "subway.com"
+      ],
+      "parent_brand": "",
+      "priority_tier": 1,
+      "source_metadata": {
+        "seed_type": "curated_open_data",
+        "source_ref": "official_chain_websites",
+        "updated_at": "2026-03-25T18:00:00Z"
+      }
+    },
+    {
+      "aliases": [
+        "Subway",
+        "Sub-way"
+      ],
+      "brand_family": "subway",
+      "canonical_name": "Subway",
       "chain_id": "subway_global",
       "country_codes": [
         "GLOBAL",
-        "US",
         "GB",
         "CA",
         "NZ"
@@ -83,7 +112,6 @@
       "chain_id": "mcdonalds_au",
       "country_codes": [
         "AU",
-        "US",
         "GB",
         "CA"
       ],
@@ -119,14 +147,81 @@
       ],
       "brand_family": "mcdonalds",
       "canonical_name": "McDonald's",
+      "chain_id": "mcdonalds_us",
+      "country_codes": [
+        "US"
+      ],
+      "known_variants": [
+        "McDonald's Times Square",
+        "McCafe Times Square"
+      ],
+      "normalized_tokens": [
+        "cafe",
+        "mc",
+        "mccafe",
+        "mcdonalds"
+      ],
+      "notes": "US identity for McDonald's family brands",
+      "official_website_domains": [
+        "mcdonalds.com"
+      ],
+      "parent_brand": "mcdonalds",
+      "priority_tier": 1,
+      "source_metadata": {
+        "seed_type": "curated_open_data",
+        "source_ref": "official_chain_websites",
+        "updated_at": "2026-03-26T22:00:00Z"
+      }
+    },
+    {
+      "aliases": [
+        "McDonald's",
+        "McCafe",
+        "Mc Cafe"
+      ],
+      "brand_family": "mcdonalds",
+      "canonical_name": "McDonald's",
+      "chain_id": "mcdonalds_in",
+      "country_codes": [
+        "IN"
+      ],
+      "known_variants": [
+        "McDonald's Connaught Place",
+        "McCafe Connaught Place"
+      ],
+      "normalized_tokens": [
+        "cafe",
+        "mc",
+        "mccafe",
+        "mcdonalds"
+      ],
+      "notes": "IN identity for McDonald's family brands",
+      "official_website_domains": [
+        "mcdonaldsindia.com",
+        "mcdonalds.com"
+      ],
+      "parent_brand": "mcdonalds",
+      "priority_tier": 1,
+      "source_metadata": {
+        "seed_type": "curated_open_data",
+        "source_ref": "official_chain_websites",
+        "updated_at": "2026-03-27T00:30:00Z"
+      }
+    },
+    {
+      "aliases": [
+        "McDonald's",
+        "McCafe",
+        "Mc Cafe"
+      ],
+      "brand_family": "mcdonalds",
+      "canonical_name": "McDonald's",
       "chain_id": "mcdonalds_global",
       "country_codes": [
         "GLOBAL",
-        "US",
         "GB",
         "CA",
-        "NZ",
-        "IN"
+        "NZ"
       ],
       "known_variants": [],
       "normalized_tokens": [
@@ -657,6 +752,97 @@
     {
       "aliases": [
         "Starbucks",
+        "Starbucks Coffee",
+        "starbucks coffee"
+      ],
+      "brand_family": "starbucks",
+      "canonical_name": "Starbucks",
+      "chain_id": "starbucks_us",
+      "country_codes": [
+        "US"
+      ],
+      "known_variants": [],
+      "normalized_tokens": [
+        "coffee",
+        "starbucks"
+      ],
+      "notes": "US chain identity record for official places resolution and baseline stability",
+      "official_website_domains": [
+        "starbucks.com"
+      ],
+      "parent_brand": "starbucks",
+      "priority_tier": 1,
+      "source_metadata": {
+        "seed_type": "curated_open_data",
+        "source_ref": "official_chain_websites",
+        "updated_at": "2026-03-26T18:00:00Z"
+      }
+    },
+    {
+      "aliases": [
+        "Starbucks",
+        "starbucks coffee"
+      ],
+      "brand_family": "starbucks",
+      "canonical_name": "Starbucks",
+      "chain_id": "starbucks_au",
+      "country_codes": [
+        "AU"
+      ],
+      "known_variants": [
+        "Starbucks Sydney CBD"
+      ],
+      "normalized_tokens": [
+        "coffee",
+        "starbucks"
+      ],
+      "notes": "AU chain identity record for official places resolution and baseline stability",
+      "official_website_domains": [
+        "starbucks.com.au",
+        "starbucks.com"
+      ],
+      "parent_brand": "starbucks",
+      "priority_tier": 1,
+      "source_metadata": {
+        "seed_type": "curated_open_data",
+        "source_ref": "official_chain_websites",
+        "updated_at": "2026-03-26T22:30:00Z"
+      }
+    },
+    {
+      "aliases": [
+        "Starbucks",
+        "starbucks coffee"
+      ],
+      "brand_family": "starbucks",
+      "canonical_name": "Starbucks",
+      "chain_id": "starbucks_in",
+      "country_codes": [
+        "IN"
+      ],
+      "known_variants": [
+        "Starbucks Connaught Place"
+      ],
+      "normalized_tokens": [
+        "coffee",
+        "starbucks"
+      ],
+      "notes": "IN chain identity record for official places resolution and baseline stability",
+      "official_website_domains": [
+        "starbucks.in",
+        "starbucks.com"
+      ],
+      "parent_brand": "starbucks",
+      "priority_tier": 1,
+      "source_metadata": {
+        "seed_type": "curated_open_data",
+        "source_ref": "official_chain_websites",
+        "updated_at": "2026-03-27T01:00:00Z"
+      }
+    },
+    {
+      "aliases": [
+        "Starbucks",
         "starbucks coffee"
       ],
       "brand_family": "starbucks",
@@ -664,11 +850,8 @@
       "chain_id": "starbucks_global",
       "country_codes": [
         "GLOBAL",
-        "US",
         "GB",
         "CA",
-        "AU",
-        "IN",
         "SG"
       ],
       "known_variants": [],

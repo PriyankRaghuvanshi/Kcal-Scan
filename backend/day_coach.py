@@ -5,7 +5,9 @@ from typing import Any, Dict, List, Optional
 from llm_coach_phrasing import maybe_rephrase_coach_message
 
 
-DAY_COACH_VERSION = "v1"
+import hashlib
+
+DAY_COACH_VERSION = "v2"
 
 
 def _safe_float(value: Any, default: float = 0.0) -> float:
@@ -71,6 +73,20 @@ def _resolve_macro_progress(
     }
 
 
+def _variant_index(*parts: Any, modulo: int) -> int:
+    seed = "|".join(str(part or "").strip().lower() for part in parts)
+    digest = hashlib.sha256(seed.encode("utf-8")).hexdigest()
+    return int(digest[:8], 16) % max(1, int(modulo or 1))
+
+
+def _pick_variant(options: List[tuple[str, str]], *parts: Any) -> tuple[str, str]:
+    variants = [opt for opt in options if isinstance(opt, tuple) and len(opt) >= 2]
+    if not variants:
+        return ("You're on track right now.", "Keep your next meal protein-first and macro-friendly.")
+    idx = _variant_index(*parts, modulo=len(variants))
+    return variants[idx]
+
+
 def build_day_coach_summary(
     *,
     target_calories: Any = None,
@@ -98,21 +114,57 @@ def build_day_coach_summary(
     consumed_protein = progress.get("consumed_protein_g")
     target_protein = progress.get("target_protein_g")
 
-    headline = "You're on track right now."
-    supporting_text = "Keep your next meal protein-first and macro-friendly."
+    variant_parts = (goal, str(cut_mode).lower(), remain_cal or '', remain_protein or '', consumed_cal or '', consumed_protein or '')
+    headline, supporting_text = _pick_variant(
+        [
+            ("You're on track right now.", "Keep your next meal protein-first and macro-friendly."),
+            ("Today still looks manageable.", "Stay steady with a protein-first next meal."),
+            ("You're in a decent spot so far.", "Keep the next choice clean and macro-aware."),
+        ],
+        *variant_parts,
+        'baseline',
+    )
 
     if remain_cal is not None and remain_cal <= 350:
-        headline = "Calories are getting tight."
-        supporting_text = "Keep the next meal lighter and skip calorie-dense sides."
+        headline, supporting_text = _pick_variant(
+            [
+                ("Calories are getting tight.", "Keep the next meal lighter and skip calorie-dense sides."),
+                ("Not much calorie room left.", "Best move now is a lighter meal with minimal extras."),
+                ("You’re in the tighter end of the day now.", "Stay light and keep sauces and sides under control."),
+            ],
+            *variant_parts,
+            'tight_calories',
+        )
     elif remain_protein is not None and remain_protein >= 70:
-        headline = "Good start today."
-        supporting_text = f"You still need about {int(round(remain_protein))}g protein by tonight."
+        headline, supporting_text = _pick_variant(
+            [
+                ("Good start today.", f"You still need about {int(round(remain_protein))}g protein by tonight."),
+                ("Plenty of room to build the day well.", f"Protein is still short by roughly {int(round(remain_protein))}g."),
+                ("Early day still leaves a big protein opportunity.", f"Aim to recover around {int(round(remain_protein))}g protein across the rest of the day."),
+            ],
+            *variant_parts,
+            'high_protein_gap',
+        )
     elif remain_protein is not None and remain_protein >= 35:
-        headline = "Solid momentum so far."
-        supporting_text = "One strong protein meal keeps the day on track."
+        headline, supporting_text = _pick_variant(
+            [
+                ("Solid momentum so far.", "One strong protein meal keeps the day on track."),
+                ("You’re moving well, but protein still matters.", "A strong next meal should close the gap nicely."),
+                ("The day is still recoverable with one smart meal.", "Prioritise protein next and the rest gets easier."),
+            ],
+            *variant_parts,
+            'mid_protein_gap',
+        )
     elif remain_cal is not None and remain_cal >= 1000:
-        headline = "Good runway for a smart lunch."
-        supporting_text = "Use this window for a high-protein meal with controlled calories."
+        headline, supporting_text = _pick_variant(
+            [
+                ("Good runway for a smart lunch.", "Use this window for a high-protein meal with controlled calories."),
+                ("You still have room for a strong main meal.", "Use it on protein and better food quality."),
+                ("There’s enough room to build the day properly.", "A structured high-protein meal makes sense here."),
+            ],
+            *variant_parts,
+            'high_calorie_room',
+        )
 
     goal_token = str(goal or "").strip().lower()
     if (goal_token == "fat_loss" or bool(cut_mode)) and remain_cal is not None and remain_cal < 700:

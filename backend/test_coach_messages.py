@@ -31,7 +31,7 @@ class CoachMessageTests(unittest.TestCase):
             today_fit={"decision": "NO"},
         )
         self.assertEqual(msg.get("tone"), "warning")
-        self.assertIn("hard", msg["headline"].lower())
+        self.assertTrue(any(token in msg["headline"].lower() for token in ("hard", "heavy", "tough")))
 
     def test_high_calorie_saving_message(self):
         msg = build_place_coach_message(
@@ -62,6 +62,25 @@ class CoachMessageTests(unittest.TestCase):
         self.assertGreaterEqual(float(msg.get("confidence", 0.0)), 0.45)
         self.assertIn(msg.get("phrasing_method"), {"deterministic", "llm"})
         self.assertEqual(msg.get("phrasing_version"), "v1")
+
+    def test_deterministic_variation_changes_with_place_signature(self):
+        msg_a = build_place_coach_message(
+            place={"place_id": "subway_a", "decision_today": "YES", "health_score": 8.5},
+            top_menu_item={"item_name": "Chicken bowl", "estimated_protein_g": 42},
+            today_fit={"decision": "YES"},
+            context={"goal": "fat_loss", "cut_mode": True},
+        )
+        msg_b = build_place_coach_message(
+            place={"place_id": "subway_b", "decision_today": "YES", "health_score": 8.5},
+            top_menu_item={"item_name": "Chicken bowl", "estimated_protein_g": 42},
+            today_fit={"decision": "YES"},
+            context={"goal": "fat_loss", "cut_mode": True},
+        )
+        self.assertNotEqual(
+            (msg_a.get("headline"), msg_a.get("supporting_text")),
+            (msg_b.get("headline"), msg_b.get("supporting_text")),
+        )
+        self.assertEqual(msg_a.get("phrasing_method"), "deterministic")
 
 
 if __name__ == "__main__":

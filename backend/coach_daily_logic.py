@@ -95,6 +95,7 @@ def normalize_daily_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
     timing_src = _obj(src.get("meal_timing"))
     constraints_src = _obj(src.get("constraints"))
     profile_src = _obj(src.get("profile"))
+    health_src = _obj(src.get("health_context"))
 
     goals = {
         k: _safe_float(goals_src.get(k), _DEFAULT_GOALS[k]) for k in _METRIC_KEYS
@@ -131,6 +132,16 @@ def normalize_daily_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
         "training_time": str(profile_src.get("training_time") or "").strip().lower(),
     }
 
+    health_context = {
+        "source": str(health_src.get("source") or "").strip().lower(),
+        "steps_count": max(0.0, _safe_float(health_src.get("steps_count"), 0.0)),
+        "sleep_hours": max(0.0, _safe_float(health_src.get("sleep_hours"), 0.0)),
+        "hydration_l": max(0.0, _safe_float(health_src.get("hydration_l"), 0.0)),
+        "poor_sleep_flag": bool(health_src.get("poor_sleep_flag")),
+        "low_hydration_flag": bool(health_src.get("low_hydration_flag")),
+        "low_steps_flag": bool(health_src.get("low_steps_flag")),
+    }
+
     date_raw = str(src.get("date") or "").strip()
     date_iso = date_raw[:10] if re.match(r"^\d{4}-\d{2}-\d{2}", date_raw) else ""
 
@@ -142,6 +153,7 @@ def normalize_daily_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
         "meal_timing": meal_timing,
         "constraints": constraints,
         "profile": profile,
+        "health_context": health_context,
     }
 
 
@@ -161,6 +173,7 @@ def compute_fat_loss_score(norm_payload: Dict[str, Any]) -> int:
     consumed = _obj(norm_payload.get("consumed"))
     signals = _obj(norm_payload.get("signals"))
     timing = _obj(norm_payload.get("meal_timing"))
+    health = _obj(norm_payload.get("health_context"))
 
     kcal_goal = _safe_float(goals.get("kcal"), _DEFAULT_GOALS["kcal"])
     kcal_used = _safe_float(consumed.get("kcal"), 0.0)
@@ -192,15 +205,25 @@ def compute_fat_loss_score(norm_payload: Dict[str, Any]) -> int:
     late_pct = _safe_float(timing.get("late_calories_pct"), 0.0)
     late_component = clamp(1.0 - ((late_pct - 35.0) / 40.0), 0.0, 1.0)
 
+    sleep_hours = _safe_float(health.get("sleep_hours"), 0.0)
+    hydration_l = _safe_float(health.get("hydration_l"), 0.0)
+    steps_count = _safe_float(health.get("steps_count"), 0.0)
+    recovery_component = 1.0 if sleep_hours <= 0 else clamp((sleep_hours - 5.0) / 3.0, 0.0, 1.0)
+    hydration_component = 1.0 if hydration_l <= 0 else clamp(hydration_l / 2.2, 0.0, 1.0)
+    activity_component = 1.0 if steps_count <= 0 else clamp(steps_count / 8000.0, 0.0, 1.0)
+
     score = (
         protein_component(protein_ratio) * 0.24
         + kcal_component * 0.20
         + fiber_ratio * 0.14
         + leucine_component * 0.10
         + satiety_component * 0.08
-        + gl_component * 0.09
-        + upf_component * 0.09
-        + late_component * 0.06
+        + gl_component * 0.08
+        + upf_component * 0.08
+        + late_component * 0.05
+        + recovery_component * 0.07
+        + hydration_component * 0.05
+        + activity_component * 0.04
     ) * 100.0
 
     return int(round(clamp(score, 0.0, 100.0)))
@@ -221,6 +244,7 @@ def build_rule_risk_alerts(norm_payload: Dict[str, Any]) -> List[Dict[str, str]]
     consumed = _obj(norm_payload.get("consumed"))
     signals = _obj(norm_payload.get("signals"))
     timing = _obj(norm_payload.get("meal_timing"))
+    health = _obj(norm_payload.get("health_context"))
 
     alerts: List[Dict[str, str]] = []
     p_ratio = _ratio(_safe_float(consumed.get("protein_g"), 0.0), _safe_float(goals.get("protein_g"), _DEFAULT_GOALS["protein_g"]))
@@ -269,6 +293,28 @@ def build_rule_risk_alerts(norm_payload: Dict[str, Any]) -> List[Dict[str, str]]
             "type": "muscle_signal_gap",
             "level": "high" if l_ratio < 0.35 else "medium",
             "reason": f"Leucine triggers hit {int(round(l_hit))}/{int(round(l_target))}.",
+        })
+
+    sleep_hours = _safe_float(health.get("sleep_hours"), 0.0)
+    hydration_l = _safe_float(health.get("hydration_l"), 0.0)
+    steps_count = _safe_float(health.get("steps_count"), 0.0)
+    if bool(health.get("poor_sleep_flag")) or (sleep_hours and sleep_hours < 6.5):
+        alerts.append({
+            "type": "recovery_risk",
+            "level": "high" if sleep_hours and sleep_hours < 5.5 else "medium",
+            "reason": f"Sleep looks low at {round1(sleep_hours)}h, which can raise hunger and lower recovery quality.",
+        })
+    if bool(health.get("low_hydration_flag")) or (hydration_l and hydration_l < 1.8):
+        alerts.append({
+            "type": "hydration_gap",
+            "level": "medium",
+            "reason": f"Hydration looks light at {round1(hydration_l)}L so far.",
+        })
+    if bool(health.get("low_steps_flag")) or (steps_count and steps_count < 4500):
+        alerts.append({
+            "type": "activity_dip",
+            "level": "medium",
+            "reason": f"Steps are only around {int(round(steps_count))}, so appetite and energy may feel flatter today.",
         })
 
     return alerts

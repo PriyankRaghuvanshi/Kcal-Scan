@@ -44,6 +44,66 @@
       "notes": "Wave1 stable lock; baseline required before enable"
     },
     {
+      "chain_id": "mcdonalds",
+      "chain_key": "mcdonalds",
+      "market": "US",
+      "display_name": "McDonald's US",
+      "status": "stable",
+      "registry_version": 1,
+      "active_config_version": "cfg_2026_03_28_stable_hygiene_us_mcdonalds",
+      "baseline_snapshot_id": "snap_mcdonalds_us_v1",
+      "fallback_mode": "strict",
+      "features": {
+        "ranking_enabled": true,
+        "evidence_enabled": true,
+        "assumptions_enabled": true,
+        "branch_confidence_enabled": true,
+        "verified_enabled": false,
+        "verified_shadow_mode": true
+      },
+      "rollout": {
+        "enabled": true,
+        "canary_percent": 100,
+        "allowlist_user_ids": [],
+        "allowlist_regions": []
+      },
+      "guardrails_profile_id": "stable_default_v1",
+      "last_validated_at": "2026-03-28T11:30:00Z",
+      "owner": "platform-chain-core",
+      "risk_level": "low",
+      "notes": "Stable-row metadata normalized (2026-03-28): mcdonalds::US remains stable with chain-specific and fleet diffs green; fallback strict; verified_enabled remains false (conservative); no global Verified changes. This pass updated metadata wording only and was not a rollout promotion."
+    },
+    {
+      "chain_id": "mcdonalds",
+      "chain_key": "mcdonalds",
+      "market": "IN",
+      "display_name": "McDonald's IN",
+      "status": "stable",
+      "registry_version": 1,
+      "active_config_version": "cfg_2026_03_28_stable_hygiene_in_mcdonalds",
+      "baseline_snapshot_id": "snap_mcdonalds_in_v1",
+      "fallback_mode": "strict",
+      "features": {
+        "ranking_enabled": true,
+        "evidence_enabled": true,
+        "assumptions_enabled": true,
+        "branch_confidence_enabled": true,
+        "verified_enabled": false,
+        "verified_shadow_mode": true
+      },
+      "rollout": {
+        "enabled": true,
+        "canary_percent": 100,
+        "allowlist_user_ids": [],
+        "allowlist_regions": []
+      },
+      "guardrails_profile_id": "stable_default_v1",
+      "last_validated_at": "2026-03-28T11:45:00Z",
+      "owner": "platform-chain-core",
+      "risk_level": "low",
+      "notes": "Stable-row metadata normalized (2026-03-28): mcdonalds::IN remains stable with chain-specific and fleet diffs green; fallback strict; verified_enabled remains false (conservative); no global Verified changes. This pass updated metadata only and was not a rollout promotion."
+    },
+    {
       "chain_id": "kfc",
       "chain_key": "kfc",
       "market": "AU",
@@ -128,10 +188,10 @@
         "allowlist_regions": []
       },
       "guardrails_profile_id": "stable_default_v1",
-      "last_validated_at": "",
+      "last_validated_at": "2026-03-28T12:00:00Z",
       "owner": "platform-chain-core",
-      "risk_level": "medium",
-      "notes": "Wave1 stable lock; baseline required before enable"
+      "risk_level": "low",
+      "notes": "Stable-row metadata normalized (2026-03-28): hungry_jacks::AU remains stable with chain-specific and fleet diffs green; fallback strict; verified_enabled remains true; no global Verified changes. This pass updated metadata only and was not a rollout promotion."
     },
     {
       "chain_id": "red_rooster",
@@ -158,10 +218,10 @@
         "allowlist_regions": []
       },
       "guardrails_profile_id": "stable_default_v1",
-      "last_validated_at": "2026-03-11",
+      "last_validated_at": "2026-03-28T12:15:00Z",
       "owner": "platform-chain-core",
-      "risk_level": "medium",
-      "notes": "Wave1 chain-only AU; menu ingested + baseline regenerated (strict)"
+      "risk_level": "low",
+      "notes": "Stable-row metadata normalized (2026-03-28): red_rooster::AU remains stable with chain-specific and fleet diffs green; fallback strict; verified_enabled remains true; verified_shadow_mode remains false; no global Verified changes. This pass updated metadata only and was not a rollout promotion."
     },
     {
       "chain_id": "faasos",
@@ -401,7 +461,37 @@
       "last_validated_at": "2026-03-19T18:00:00Z",
       "owner": "platform-chain-core",
       "risk_level": "low",
-      "notes": "Promoted stable (2026-03-19): subway::AU; Wave2 expansion baseline path clean pre-promotion; fallback strict, full rollout; verified_enabled false per conservative policy (globals unchanged). High AU footprint—monitor no-result and wrong-chain."
+      "notes": "Promoted stable (2026-03-19): subway::AU; Wave2 expansion baseline path clean pre-promotion; fallback strict, full rollout; verified_enabled false per conservative policy (globals unchanged). High AU footprint\u2014monitor no-result and wrong-chain."
+    },
+    {
+      "chain_id": "subway",
+      "chain_key": "subway",
+      "market": "US",
+      "display_name": "Subway US",
+      "status": "stable",
+      "registry_version": 1,
+      "active_config_version": "cfg_2026_03_25_promoted_us_subway",
+      "baseline_snapshot_id": "snap_subway_us_v1",
+      "fallback_mode": "strict",
+      "features": {
+        "ranking_enabled": true,
+        "evidence_enabled": true,
+        "assumptions_enabled": true,
+        "branch_confidence_enabled": true,
+        "verified_enabled": false,
+        "verified_shadow_mode": true
+      },
+      "rollout": {
+        "enabled": true,
+        "canary_percent": 100,
+        "allowlist_user_ids": [],
+        "allowlist_regions": []
+      },
+      "guardrails_profile_id": "stable_default_v1",
+      "last_validated_at": "2026-03-25T18:00:00Z",
+      "owner": "platform-chain-core",
+      "risk_level": "low",
+      "notes": "Promoted stable (2026-03-25): subway::US; seed + ingested menu support; baseline path clean pre-promotion; fallback strict, full rollout; verified_enabled false per conservative policy (globals unchanged). Monitor no-result and wrong-chain."
     },
     {
       "chain_id": "sweetgreen",
@@ -701,7 +791,7 @@
       "last_validated_at": "2026-03-12T18:00:00Z",
       "owner": "platform-chain-core",
       "risk_level": "low",
-      "notes": "Promoted stable (2026-03-12): zambrero::AU; small ingested menu, low ambiguity; baseline path clean pre-promotion; fallback strict, full rollout. Phase A Verified (2026-03-10): verified_enabled true, verified_shadow_mode true — eligibility + reason-code monitoring; badge not visible until Phase B."
+      "notes": "Promoted stable (2026-03-12): zambrero::AU; small ingested menu, low ambiguity; baseline path clean pre-promotion; fallback strict, full rollout. Phase A Verified (2026-03-10): verified_enabled true, verified_shadow_mode true \u2014 eligibility + reason-code monitoring; badge not visible until Phase B."
     },
     {
       "chain_id": "oporto_au",
@@ -791,7 +881,7 @@
       "last_validated_at": "2026-03-14T18:00:00Z",
       "owner": "platform-chain-core",
       "risk_level": "low",
-      "notes": "Promoted stable (2026-03-14): dominos::IN; completes Domino's AU/US/IN trio; baseline path clean pre-promotion; fallback strict, full rollout. Phase A Verified: verified_enabled true, verified_shadow_mode true — second shadow pilot (higher volume vs zambrero::AU); eligibility + reason-code monitoring; badge not visible until Phase B. Monitor IN naming/alias vs other pizza QSR."
+      "notes": "Promoted stable (2026-03-14): dominos::IN; completes Domino's AU/US/IN trio; baseline path clean pre-promotion; fallback strict, full rollout. Phase A Verified: verified_enabled true, verified_shadow_mode true \u2014 second shadow pilot (higher volume vs zambrero::AU); eligibility + reason-code monitoring; badge not visible until Phase B. Monitor IN naming/alias vs other pizza QSR."
     },
     {
       "chain_id": "burger_king_us",
@@ -914,6 +1004,96 @@
       "notes": "Promoted stable (2026-03-17): pizza_hut::IN; complements stable dominos::IN; baseline path clean pre-promotion; fallback strict, full rollout; verified_enabled false per conservative policy (globals unchanged). Keep pizza_hut CHAIN_KEYS narrow."
     },
     {
+      "chain_id": "starbucks",
+      "chain_key": "starbucks",
+      "market": "US",
+      "display_name": "Starbucks US",
+      "status": "stable",
+      "registry_version": 1,
+      "active_config_version": "cfg_2026_03_26_promoted_us_starbucks",
+      "baseline_snapshot_id": "snap_starbucks_us_v1",
+      "fallback_mode": "strict",
+      "features": {
+        "ranking_enabled": true,
+        "evidence_enabled": true,
+        "assumptions_enabled": true,
+        "branch_confidence_enabled": true,
+        "verified_enabled": false,
+        "verified_shadow_mode": true
+      },
+      "rollout": {
+        "enabled": true,
+        "canary_percent": 100,
+        "allowlist_user_ids": [],
+        "allowlist_regions": []
+      },
+      "guardrails_profile_id": "stable_default_v1",
+      "last_validated_at": "2026-03-26T21:00:00Z",
+      "owner": "platform-chain-core",
+      "risk_level": "low",
+      "notes": "Promoted to stable (2026-03-26): starbucks::US; chain-specific baseline/diff checks green and full fleet diff green after targeted cleanup; fallback strict; verified_enabled remains false (conservative); no global Verified changes and no pilot changes in this promotion."
+    },
+    {
+      "chain_id": "starbucks",
+      "chain_key": "starbucks",
+      "market": "AU",
+      "display_name": "Starbucks AU",
+      "status": "stable",
+      "registry_version": 1,
+      "active_config_version": "cfg_2026_03_28_promoted_au_starbucks",
+      "baseline_snapshot_id": "snap_starbucks_au_v1",
+      "fallback_mode": "strict",
+      "features": {
+        "ranking_enabled": true,
+        "evidence_enabled": true,
+        "assumptions_enabled": true,
+        "branch_confidence_enabled": true,
+        "verified_enabled": false,
+        "verified_shadow_mode": true
+      },
+      "rollout": {
+        "enabled": true,
+        "canary_percent": 100,
+        "allowlist_user_ids": [],
+        "allowlist_regions": []
+      },
+      "guardrails_profile_id": "stable_default_v1",
+      "last_validated_at": "2026-03-28T10:00:00Z",
+      "owner": "platform-chain-core",
+      "risk_level": "low",
+      "notes": "Promoted to stable (2026-03-28): starbucks::AU; chain-specific baseline/diff checks green and full fleet diff green; fallback strict; verified_enabled remains false (conservative); no global Verified changes and no pilot changes in this promotion."
+    },
+    {
+      "chain_id": "starbucks",
+      "chain_key": "starbucks",
+      "market": "IN",
+      "display_name": "Starbucks IN",
+      "status": "stable",
+      "registry_version": 1,
+      "active_config_version": "cfg_2026_03_28_promoted_in_starbucks",
+      "baseline_snapshot_id": "snap_starbucks_in_v1",
+      "fallback_mode": "strict",
+      "features": {
+        "ranking_enabled": true,
+        "evidence_enabled": true,
+        "assumptions_enabled": true,
+        "branch_confidence_enabled": true,
+        "verified_enabled": false,
+        "verified_shadow_mode": true
+      },
+      "rollout": {
+        "enabled": true,
+        "canary_percent": 100,
+        "allowlist_user_ids": [],
+        "allowlist_regions": []
+      },
+      "guardrails_profile_id": "stable_default_v1",
+      "last_validated_at": "2026-03-28T10:30:00Z",
+      "owner": "platform-chain-core",
+      "risk_level": "low",
+      "notes": "Promoted to stable (2026-03-28): starbucks::IN; chain-specific baseline/diff checks green and full fleet diff green; fallback strict; verified_enabled remains false (conservative); no global Verified changes and no pilot changes in this promotion."
+    },
+    {
       "chain_id": "local_kebab_cohort",
       "chain_key": "local_kebab_cohort",
       "market": "IN",
@@ -934,7 +1114,9 @@
       "rollout": {
         "enabled": true,
         "canary_percent": 1,
-        "allowlist_user_ids": ["internal_qa_user"],
+        "allowlist_user_ids": [
+          "internal_qa_user"
+        ],
         "allowlist_regions": []
       },
       "guardrails_profile_id": "experimental_strict_v1",

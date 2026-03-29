@@ -88,6 +88,7 @@ export function HealthyNearbyMapScreen({
   const mapRef = useRef(null);
   const [mapReady, setMapReady] = useState(false);
   const initialCenterDone = useRef(false);
+  const useSafeAndroidMap = Platform.OS === "android";
 
   const markersWithCoords = (Array.isArray(places) ? places : [])
     .map((place, idx) => ({ place, idx, coords: getPlaceCoords(place) }))
@@ -204,9 +205,12 @@ export function HealthyNearbyMapScreen({
           showsUserLocation={!!userCoords}
           showsMyLocationButton={!!userCoords}
           mapType={Platform.OS === "ios" ? "mutedStandard" : "standard"}
+          moveOnMarkerPress={false}
+          toolbarEnabled={false}
+          rotateEnabled={!useSafeAndroidMap}
           onMapReady={() => setMapReady(true)}
         >
-          {markersWithCoords.map(({ place, idx, coords }) => {
+          {mapReady && markersWithCoords.map(({ place, idx, coords }) => {
             const stableId = getPlaceStableId ? getPlaceStableId(place, idx) : null;
             const isSelected = Boolean(selectedStableId && stableId === selectedStableId);
             const tier = idx === 0 ? 1 : idx === 1 ? 2 : idx === 2 ? 3 : 0;
@@ -215,7 +219,7 @@ export function HealthyNearbyMapScreen({
               : tier === 2 ? colors.success.muted
               : tier === 3 ? colors.success.border
               : colors.slate.primary;
-            const useNumberedPin = tier >= 1 && tier <= 3;
+            const useNumberedPin = !useSafeAndroidMap && tier >= 1 && tier <= 3;
 
             return (
               <Marker
@@ -294,6 +298,12 @@ export function HealthyNearbyMapScreen({
                 <Text style={styles.retryBtnText}>Retry</Text>
               </TouchableOpacity>
             ) : null}
+          </View>
+        ) : null}
+
+        {useSafeAndroidMap ? (
+          <View pointerEvents="none" style={styles.androidMapHint}>
+            <Text style={styles.androidMapHintText}>Android map mode uses a lighter preview for stability.</Text>
           </View>
         ) : null}
       </View>
@@ -404,18 +414,19 @@ export function HealthyNearbyMapScreen({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.surface.primary,
+    backgroundColor: "#fff8eb",
   },
   goalCoachBanner: {
-    backgroundColor: colors.success.bg,
+    backgroundColor: "#fff3cd",
     borderBottomWidth: 1,
-    borderBottomColor: colors.success.border,
+    borderBottomColor: "#f7b500",
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.base,
   },
   goalCoachBannerText: {
     fontSize: typography.sm,
-    color: colors.success.text,
+    color: "#92400e",
+    fontWeight: typography.weight.semibold,
   },
   mapWrap: {
     flex: 1,
@@ -442,7 +453,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: spacing.md,
     padding: spacing.base,
-    backgroundColor: colors.surface.overlay,
+    backgroundColor: "rgba(17,24,39,0.78)",
     borderRadius: radius.lg,
   },
   loadingText: {
@@ -462,6 +473,22 @@ const styles = StyleSheet.create({
     color: colors.warning.text,
     fontSize: typography.base,
   },
+  androidMapHint: {
+    position: "absolute",
+    left: spacing.sm,
+    right: spacing.sm,
+    bottom: spacing.sm,
+    borderRadius: radius.lg,
+    backgroundColor: "rgba(15, 23, 42, 0.7)",
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+  },
+  androidMapHintText: {
+    color: "#fff",
+    fontSize: typography.xs,
+    fontWeight: typography.weight.medium,
+    textAlign: "center",
+  },
   retryBtn: {
     marginTop: 8,
     paddingVertical: 6,
@@ -473,20 +500,20 @@ const styles = StyleSheet.create({
     fontWeight: typography.weight.semibold,
   },
   headerBar: {
-    backgroundColor: colors.surface.elevated,
+    backgroundColor: "#ffffff",
     borderBottomWidth: 1,
-    borderBottomColor: colors.surface.cardBorder,
+    borderBottomColor: "#f7b500",
     paddingVertical: spacing.md,
     paddingHorizontal: spacing.lg,
   },
   headerTitle: {
     fontSize: typography.xl,
     fontWeight: typography.weight.bold,
-    color: colors.text.primary,
+    color: "#111827",
   },
   headerSubtitle: {
     fontSize: typography.sm,
-    color: colors.slate.text,
+    color: "#6b7280",
     marginTop: 2,
   },
   recenterFab: {
@@ -496,20 +523,21 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: colors.surface.card,
+    backgroundColor: "#ffbc0d",
     borderWidth: 1,
-    borderColor: colors.surface.cardBorder,
+    borderColor: "#e0a800",
     alignItems: "center",
     justifyContent: "center",
     ...shadows.md,
   },
   recenterFabIcon: {
     fontSize: 18,
-    color: colors.success.primary,
+    color: "#111827",
   },
   recenterFabLabel: {
     fontSize: 10,
-    color: colors.slate.text,
+    color: "#1f2937",
+    fontWeight: typography.weight.bold,
     marginTop: -2,
   },
   refreshFab: {
@@ -521,23 +549,23 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.base,
     paddingVertical: 6,
     borderRadius: 999,
-    backgroundColor: colors.surface.overlay,
+    backgroundColor: "rgba(255,188,13,0.95)",
     ...shadows.sm,
   },
   refreshFabIcon: {
-    color: colors.success.primary,
+    color: "#1f2937",
     marginRight: 4,
     fontSize: 14,
   },
   refreshFabLabel: {
-    color: colors.text.primary,
+    color: "#1f2937",
     fontSize: typography.xs,
     fontWeight: "600",
   },
   placeStripWrap: {
-    backgroundColor: colors.surface.elevated,
+    backgroundColor: "#fffaf0",
     borderTopWidth: 1,
-    borderTopColor: colors.surface.cardBorder,
+    borderTopColor: "#f7b500",
     maxHeight: 88,
   },
   placeStripContent: {
@@ -553,13 +581,13 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.base,
     borderRadius: radius.lg,
-    backgroundColor: colors.surface.card,
+    backgroundColor: "#ffffff",
     borderWidth: 1,
-    borderColor: colors.surface.cardBorder,
+    borderColor: "#f7b500",
   },
   placePillSelected: {
-    borderColor: colors.success.primary,
-    backgroundColor: colors.success.bg,
+    borderColor: "#f59e0b",
+    backgroundColor: "#fff3cd",
   },
   placePillRank: {
     position: "absolute",
@@ -568,7 +596,7 @@ const styles = StyleSheet.create({
     width: 16,
     height: 16,
     borderRadius: 8,
-    backgroundColor: colors.success.primary,
+    backgroundColor: "#f59e0b",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -580,19 +608,19 @@ const styles = StyleSheet.create({
   placePillName: {
     fontSize: typography.sm,
     fontWeight: typography.weight.semibold,
-    color: colors.text.primary,
+    color: "#111827",
     paddingRight: 20,
   },
   placePillNameSelected: {
-    color: colors.success.text,
+    color: "#92400e",
   },
   placePillDist: {
     fontSize: typography.xs,
-    color: colors.slate.text,
+    color: "#6b7280",
     marginTop: 2,
   },
   bottomCard: {
-    backgroundColor: "#fdfbf7",
+    backgroundColor: "#ffffff",
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
     paddingTop: 12,
@@ -621,12 +649,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   emptyTitle: {
-    color: colors.accent.primary,
+    color: "#111827",
     fontSize: typography.lg,
     fontWeight: typography.weight.semibold,
   },
   emptyHint: {
-    color: colors.slate.primary,
+    color: "#6b7280",
     fontSize: typography.sm,
     marginTop: spacing.xs,
   },
@@ -635,12 +663,12 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
     paddingHorizontal: spacing.lg,
     borderRadius: radius.lg,
-    backgroundColor: colors.surface.elevated,
+    backgroundColor: "#ffbc0d",
     borderWidth: 1,
-    borderColor: colors.surface.cardBorder,
+    borderColor: "#e0a800",
   },
   searchWiderBtnText: {
-    color: colors.accent.muted,
+    color: "#1f2937",
     fontSize: typography.base,
     fontWeight: typography.weight.semibold,
   },

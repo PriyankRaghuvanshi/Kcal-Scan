@@ -1,6 +1,6 @@
 import React, { useMemo } from "react";
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
-import { colors, spacing, typography } from "../designTokens";
+import { spacing, typography } from "../designTokens";
 import { premium } from "../ui/premiumSystem";
 
 const num = (v) => {
@@ -75,6 +75,7 @@ export function HomeTodayHero({
 
   return (
     <View style={[premium.cardHero, styles.wrap]}>
+      <View style={styles.topAccentBand} />
       <View style={styles.headerRow}>
         <View style={{ flex: 1 }}>
           <Text style={styles.kicker}>Today</Text>
@@ -132,36 +133,47 @@ export function HomeTodayHero({
 
 const styles = StyleSheet.create({
   // Local layout only; surface/padding/radius comes from premium.cardHero.
-  wrap: {},
+  wrap: {
+    backgroundColor: "#fffaf0",
+    borderColor: "#f6cf62",
+    borderWidth: 1.2,
+    paddingTop: spacing.lg,
+  },
+  topAccentBand: {
+    height: 8,
+    borderRadius: 999,
+    backgroundColor: "#f7b500",
+    marginBottom: spacing.base,
+  },
   headerRow: {
     flexDirection: "row",
     alignItems: "flex-start",
     justifyContent: "space-between",
   },
   kicker: {
-    color: colors.slate.text,
+    color: "#b45309",
     fontSize: typography.sm,
     fontWeight: typography.weight.semibold,
     letterSpacing: 0.2,
     marginBottom: spacing.xs,
   },
   title: {
-    color: colors.text.primary,
+    color: "#111827",
     fontSize: typography.hero,
     fontWeight: typography.weight.extrabold,
     lineHeight: Math.round(typography.hero * typography.lineHeight.tight),
   },
   titleStrong: {
-    color: colors.text.primary,
+    color: "#111827",
     fontWeight: typography.weight.extrabold,
   },
   titleMuted: {
-    color: colors.text.muted,
+    color: "#6b7280",
     fontWeight: typography.weight.semibold,
   },
   subline: {
     marginTop: spacing.sm,
-    color: colors.text.secondary,
+    color: "#374151",
     fontSize: typography.md,
     lineHeight: Math.round(typography.md * typography.lineHeight.relaxed),
   },
@@ -173,6 +185,8 @@ const styles = StyleSheet.create({
   chip: {
     marginRight: spacing.sm,
     maxWidth: "62%",
+    backgroundColor: "#fff3cd",
+    borderColor: "#f7b500",
   },
   ctaRow: {
     flexDirection: "row",
@@ -181,12 +195,18 @@ const styles = StyleSheet.create({
   },
   primaryCta: {
     flex: 1,
+    backgroundColor: "#ffbc0d",
+    borderWidth: 1,
+    borderColor: "#e0a800",
   },
   primaryCtaText: {
     fontSize: typography.lg,
+    color: "#1f2937",
   },
   secondaryCta: {
     marginLeft: spacing.md,
+    borderColor: "#f59e0b",
+    backgroundColor: "#fff7e0",
   },
 });
 

@@ -84,6 +84,7 @@ export function HealthyNearbyDiscoverLayout({
 }) {
   const mapRef = useRef(null);
   const [mapReady, setMapReady] = useState(false);
+  const useSafeAndroidPreview = Platform.OS === "android";
 
   const markersWithCoords = (Array.isArray(places) ? places : [])
     .map((place, idx) => ({ place, idx, coords: getPlaceCoords(place) }))
@@ -142,6 +143,14 @@ export function HealthyNearbyDiscoverLayout({
             initialRegion={region}
             showsUserLocation={!!userCoords}
             mapType="standard"
+            liteMode={useSafeAndroidPreview}
+            moveOnMarkerPress={false}
+            toolbarEnabled={false}
+            scrollEnabled={!useSafeAndroidPreview}
+            zoomEnabled={!useSafeAndroidPreview}
+            rotateEnabled={false}
+            pitchEnabled={false}
+            pointerEvents={useSafeAndroidPreview ? "none" : "auto"}
             customMapStyle={Platform.OS === "ios" ? MAP_CUSTOM_STYLE : undefined}
             onMapReady={() => setMapReady(true)}
           >
@@ -159,7 +168,7 @@ export function HealthyNearbyDiscoverLayout({
                     : tier === 3
                     ? "#eab308"
                     : "#64748b";
-                const useNumberedPin = tier >= 1 && tier <= 3;
+                const useNumberedPin = !useSafeAndroidPreview && tier >= 1 && tier <= 3;
                 return (
                   <Marker
                     key={stableId || `d-${idx}`}
@@ -197,6 +206,11 @@ export function HealthyNearbyDiscoverLayout({
               <Text style={styles.mapErrorText} numberOfLines={2}>
                 {error}
               </Text>
+            </View>
+          ) : null}
+          {useSafeAndroidPreview ? (
+            <View pointerEvents="none" style={styles.androidPreviewBadge}>
+              <Text style={styles.androidPreviewBadgeText}>Map preview on Android. Use Map or List below.</Text>
             </View>
           ) : null}
         </View>
@@ -304,7 +318,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.xl,
     overflow: "hidden",
     height: MAP_HEIGHT,
-    backgroundColor: "#0f172a",
+    backgroundColor: "#ffffff",
   },
   map: {
     ...StyleSheet.absoluteFillObject,
@@ -325,7 +339,7 @@ const styles = StyleSheet.create({
   },
   mapLoading: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(15,18,28,0.5)",
+    backgroundColor: "rgba(17,24,39,0.35)",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -343,6 +357,22 @@ const styles = StyleSheet.create({
     fontSize: typography.sm,
     textAlign: "center",
   },
+  androidPreviewBadge: {
+    position: "absolute",
+    left: spacing.sm,
+    right: spacing.sm,
+    bottom: spacing.sm,
+    borderRadius: radius.lg,
+    backgroundColor: "rgba(17, 24, 39, 0.72)",
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+  },
+  androidPreviewBadgeText: {
+    color: "#fff",
+    fontSize: typography.xs,
+    fontWeight: typography.weight.medium,
+    textAlign: "center",
+  },
   introCard: {
     flexDirection: "row",
     alignItems: "center",
@@ -351,7 +381,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     marginTop: spacing.md,
     borderWidth: 1,
-    borderColor: "rgba(168,85,247,0.35)",
+    borderColor: "rgba(245,158,11,0.42)",
     overflow: "hidden",
   },
   introAccentStrip: {
@@ -369,7 +399,7 @@ const styles = StyleSheet.create({
     paddingRight: spacing.sm,
   },
   introTitle: {
-    color: "#fafafa",
+    color: "#ffffff",
     fontSize: 19,
     fontWeight: "800",
     letterSpacing: -0.3,
@@ -404,7 +434,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     overflow: "hidden",
     borderWidth: 1,
-    borderColor: "rgba(74,222,128,0.35)",
+    borderColor: "rgba(245,158,11,0.42)",
   },
   smartRow: {
     flexDirection: "row",
@@ -414,7 +444,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   smartTitle: {
-    color: "#ecfdf5",
+    color: "#fff7ed",
     fontSize: 17,
     fontWeight: "800",
     letterSpacing: -0.2,
@@ -440,7 +470,7 @@ const styles = StyleSheet.create({
     gap: 0,
   },
   emptyGrid: {
-    color: ACCENT_PURPLE,
+    color: "#92400e",
     fontSize: typography.sm,
     textAlign: "center",
     marginTop: spacing.md,

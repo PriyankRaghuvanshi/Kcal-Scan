@@ -310,6 +310,9 @@ def get_personal_meal_memory(
       1) user+place+item
       2) user+place
       3) user+cuisine_group
+
+    When _feedback_events / _decision_events are provided (e.g. bulk /places/healthy),
+    disk reads are skipped — avoids N parallel rank workers each reloading JSON stores.
     """
     uid = _normalize_space(user_id)
     if not uid:
@@ -322,11 +325,10 @@ def get_personal_meal_memory(
     tod = _norm_lower(time_of_day)
     cuisine = _infer_cuisine_group(pname)
 
-    feedback = (
-        _feedback_events
-        if isinstance(_feedback_events, list)
-        else list_meal_feedback_events(user_id=uid, limit=2000)
-    )
+    if _feedback_events is not None:
+        feedback = list(_feedback_events)
+    else:
+        feedback = list_meal_feedback_events(user_id=uid, limit=2000)
 
     def match(e: Dict[str, Any], *, mode: str) -> bool:
         if not isinstance(e, dict):
@@ -355,11 +357,10 @@ def get_personal_meal_memory(
     agg = _aggregate_from_feedback(chosen)
 
     # swap accept rate can be supplemented by decision events (swap_accepted events)
-    decision = (
-        _decision_events
-        if isinstance(_decision_events, list)
-        else list_meal_decision_events(user_id=uid, limit=4000)
-    )
+    if _decision_events is not None:
+        decision = list(_decision_events)
+    else:
+        decision = list_meal_decision_events(user_id=uid, limit=4000)
     relevant_decision = [
         e for e in decision
         if isinstance(e, dict)

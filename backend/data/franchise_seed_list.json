@@ -2,176 +2,330 @@
   "chains": [
     {
       "canonical_name": "McDonald's",
-      "country_codes": ["AU", "US", "GB", "CA"],
-      "aliases": ["mcdonalds", "mcdonald's", "mccafe"],
+      "country_codes": [
+        "AU",
+        "US",
+        "GB",
+        "CA",
+        "IN"
+      ],
+      "aliases": [
+        "mcdonalds",
+        "mcdonald's",
+        "mccafe"
+      ],
       "brand_family": "mcdonalds",
       "priority_tier": 1,
       "notes": "Global fast food chain"
     },
     {
       "canonical_name": "Subway",
-      "country_codes": ["AU", "US", "GB", "CA", "IN"],
-      "aliases": ["subway"],
+      "country_codes": [
+        "AU",
+        "US",
+        "GB",
+        "CA",
+        "IN"
+      ],
+      "aliases": [
+        "subway"
+      ],
       "brand_family": "subway",
       "priority_tier": 1,
       "notes": "Strong healthy-option relevance"
     },
     {
       "canonical_name": "Hungry Jack's",
-      "country_codes": ["AU"],
-      "aliases": ["hungry jacks", "hungry jack's", "hj"],
+      "country_codes": [
+        "AU"
+      ],
+      "aliases": [
+        "hungry jacks",
+        "hungry jack's",
+        "hj"
+      ],
       "brand_family": "burger_king_family",
       "priority_tier": 1,
       "notes": "Australian Burger King equivalent"
     },
     {
       "canonical_name": "Burger King",
-      "country_codes": ["US", "GB", "CA", "IN", "SG"],
-      "aliases": ["burger king", "bk"],
+      "country_codes": [
+        "US",
+        "GB",
+        "CA",
+        "IN",
+        "SG"
+      ],
+      "aliases": [
+        "burger king",
+        "bk"
+      ],
       "brand_family": "burger_king_family",
       "priority_tier": 1,
       "notes": "Keep separate from Hungry Jack's by region"
     },
     {
       "canonical_name": "Nando's",
-      "country_codes": ["AU", "GB", "ZA", "SG"],
-      "aliases": ["nandos", "nando's"],
+      "country_codes": [
+        "AU",
+        "GB",
+        "ZA",
+        "SG"
+      ],
+      "aliases": [
+        "nandos",
+        "nando's"
+      ],
       "brand_family": "nandos",
       "priority_tier": 1,
       "notes": "High healthy-eating relevance"
     },
     {
       "canonical_name": "KFC",
-      "country_codes": ["AU", "US", "GB", "CA", "IN"],
-      "aliases": ["kfc", "kentucky fried chicken"],
+      "country_codes": [
+        "AU",
+        "US",
+        "GB",
+        "CA",
+        "IN"
+      ],
+      "aliases": [
+        "kfc",
+        "kentucky fried chicken"
+      ],
       "brand_family": "kfc",
       "priority_tier": 1,
       "notes": "Global fried chicken chain"
     },
     {
       "canonical_name": "Grill'd",
-      "country_codes": ["AU"],
-      "aliases": ["grill'd", "grilld"],
+      "country_codes": [
+        "AU"
+      ],
+      "aliases": [
+        "grill'd",
+        "grilld"
+      ],
       "brand_family": "grilld",
       "priority_tier": 1,
       "notes": "Australia burger chain"
     },
     {
       "canonical_name": "Guzman y Gomez",
-      "country_codes": ["AU", "SG", "JP"],
-      "aliases": ["guzman y gomez", "gyg"],
+      "country_codes": [
+        "AU",
+        "SG",
+        "JP"
+      ],
+      "aliases": [
+        "guzman y gomez",
+        "gyg"
+      ],
       "brand_family": "guzman_y_gomez",
       "priority_tier": 1,
       "notes": "Australia-relevant Mexican chain"
     },
     {
       "canonical_name": "Oporto",
-      "country_codes": ["AU"],
-      "aliases": ["oporto"],
+      "country_codes": [
+        "AU"
+      ],
+      "aliases": [
+        "oporto"
+      ],
       "brand_family": "oporto",
       "priority_tier": 1,
       "notes": "Australia chicken/burger chain"
     },
     {
       "canonical_name": "Red Rooster",
-      "country_codes": ["AU"],
-      "aliases": ["red rooster"],
+      "country_codes": [
+        "AU"
+      ],
+      "aliases": [
+        "red rooster"
+      ],
       "brand_family": "red_rooster",
       "priority_tier": 1,
       "notes": "Australia chicken chain"
     },
     {
       "canonical_name": "Zambrero",
-      "country_codes": ["AU"],
-      "aliases": ["zambrero"],
+      "country_codes": [
+        "AU"
+      ],
+      "aliases": [
+        "zambrero"
+      ],
       "brand_family": "zambrero",
       "priority_tier": 1,
       "notes": "Australia Mexican chain"
     },
     {
       "canonical_name": "Boost Juice",
-      "country_codes": ["AU", "SG", "IN"],
-      "aliases": ["boost juice", "boost"],
+      "country_codes": [
+        "AU",
+        "SG",
+        "IN"
+      ],
+      "aliases": [
+        "boost juice",
+        "boost"
+      ],
       "brand_family": "boost_juice",
       "priority_tier": 2,
       "notes": "Juice/smoothie chain"
     },
     {
       "canonical_name": "Domino's",
-      "country_codes": ["AU", "US", "GB", "IN"],
-      "aliases": ["dominos", "domino's"],
+      "country_codes": [
+        "AU",
+        "US",
+        "GB",
+        "IN"
+      ],
+      "aliases": [
+        "dominos",
+        "domino's"
+      ],
       "brand_family": "dominos",
       "priority_tier": 1,
       "notes": "Global pizza chain"
     },
     {
       "canonical_name": "Pizza Hut",
-      "country_codes": ["AU", "US", "GB", "IN"],
-      "aliases": ["pizza hut"],
+      "country_codes": [
+        "AU",
+        "US",
+        "GB",
+        "IN"
+      ],
+      "aliases": [
+        "pizza hut"
+      ],
       "brand_family": "pizza_hut",
       "priority_tier": 1,
       "notes": "Global pizza chain"
     },
     {
       "canonical_name": "Starbucks",
-      "country_codes": ["US", "GB", "CA", "AU", "IN", "SG"],
-      "aliases": ["starbucks", "starbucks coffee"],
+      "country_codes": [
+        "US",
+        "GB",
+        "CA",
+        "AU",
+        "IN",
+        "SG"
+      ],
+      "aliases": [
+        "starbucks",
+        "starbucks coffee"
+      ],
       "brand_family": "starbucks",
       "priority_tier": 1,
       "notes": "Global coffee chain"
     },
     {
       "canonical_name": "Chipotle",
-      "country_codes": ["US", "GB", "CA"],
-      "aliases": ["chipotle", "chipotle mexican grill"],
+      "country_codes": [
+        "US",
+        "GB",
+        "CA"
+      ],
+      "aliases": [
+        "chipotle",
+        "chipotle mexican grill"
+      ],
       "brand_family": "chipotle",
       "priority_tier": 2,
       "notes": "Global-ish Mexican chain"
     },
     {
       "canonical_name": "Taco Bell",
-      "country_codes": ["US", "GB", "IN"],
-      "aliases": ["taco bell"],
+      "country_codes": [
+        "US",
+        "GB",
+        "IN"
+      ],
+      "aliases": [
+        "taco bell"
+      ],
       "brand_family": "taco_bell",
       "priority_tier": 2,
       "notes": "Global taco chain"
     },
     {
       "canonical_name": "Five Guys",
-      "country_codes": ["US", "GB", "CA"],
-      "aliases": ["five guys", "five guys burgers"],
+      "country_codes": [
+        "US",
+        "GB",
+        "CA"
+      ],
+      "aliases": [
+        "five guys",
+        "five guys burgers"
+      ],
       "brand_family": "five_guys",
       "priority_tier": 2,
       "notes": "Global burger chain"
     },
     {
       "canonical_name": "Shake Shack",
-      "country_codes": ["US", "GB", "SG"],
-      "aliases": ["shake shack"],
+      "country_codes": [
+        "US",
+        "GB",
+        "SG"
+      ],
+      "aliases": [
+        "shake shack"
+      ],
       "brand_family": "shake_shack",
       "priority_tier": 2,
       "notes": "Premium burger chain"
     },
     {
       "canonical_name": "Popeyes",
-      "country_codes": ["US", "GB", "CA", "SG"],
-      "aliases": ["popeyes", "popeyes louisiana kitchen"],
+      "country_codes": [
+        "US",
+        "GB",
+        "CA",
+        "SG"
+      ],
+      "aliases": [
+        "popeyes",
+        "popeyes louisiana kitchen"
+      ],
       "brand_family": "popeyes",
       "priority_tier": 2,
       "notes": "Global fried chicken chain"
     },
     {
       "canonical_name": "Pret A Manger",
-      "country_codes": ["GB", "US", "FR"],
-      "aliases": ["pret", "pret a manger"],
+      "country_codes": [
+        "GB",
+        "US",
+        "FR"
+      ],
+      "aliases": [
+        "pret",
+        "pret a manger"
+      ],
       "brand_family": "pret",
       "priority_tier": 2,
       "notes": "Grab-and-go cafe chain"
     },
     {
       "canonical_name": "Dunkin'",
-      "country_codes": ["US", "GB"],
-      "aliases": ["dunkin", "dunkin'", "dunkin donuts"],
+      "country_codes": [
+        "US",
+        "GB"
+      ],
+      "aliases": [
+        "dunkin",
+        "dunkin'",
+        "dunkin donuts"
+      ],
       "brand_family": "dunkin",
       "priority_tier": 2,
       "notes": "Donut/coffee chain"

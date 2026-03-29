@@ -56,6 +56,8 @@ GENERIC_FALLBACK_TOKENS = (
     "lighter option", "healthy option", "balanced meal", "smart choice",
     "recommended item", "best menu item", "protein plate", "protein bowl",
     "grilled protein bowl", "lean wrap", "protein wrap", "needs menu check",
+    # Honest heuristic copy from recommendation_safety (no real menu)
+    "no menu on file",
 )
 
 # Recommendation labels by band/source

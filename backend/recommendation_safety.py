@@ -1,6 +1,13 @@
 from __future__ import annotations
 
-from typing import Any, Dict
+from typing import Any, Dict, Tuple
+
+_CHAIN_BACKED_MENU_SOURCES = frozenset(
+    {
+        "chain_registry",
+        "ingested_chain_item",
+    }
+)
 
 
 _GENERIC_BANNED_ITEM_TOKENS = (
@@ -180,3 +187,72 @@ def sanitize_recommended_item(
         "sanitized": True,
         "safety_reason": "cuisine_guardrail_generic_fallback_blocked",
     }
+
+
+def should_use_honest_no_menu_order_copy(
+    *,
+    strong_menu_evidence: bool,
+    menu_item_source: Any,
+    menu_item_confidence: Any,
+) -> bool:
+    """
+    When true, replace cuisine-rule dish names with honest pattern copy so we do not
+    imply a specific menu item exists (trust / AI perception).
+    """
+    if strong_menu_evidence:
+        return False
+    src = _norm_text(menu_item_source)
+    conf = _safe_float(menu_item_confidence, 0.0)
+    if src in _CHAIN_BACKED_MENU_SOURCES and conf >= 0.55:
+        return False
+    return True
+
+
+def honest_no_menu_order_copy(context_text: Any) -> Tuple[str, str]:
+    """
+    Short user-facing order line + label when we only have venue/cuisine heuristics.
+    Always includes 'no menu on file' so meal_ranking treats this as generic fallback.
+    """
+    ctx = _norm_text(context_text)
+    suffix = " (typical pattern — no menu on file)"
+    if any(token in ctx for token in _SOUTH_INDIAN_TOKENS):
+        return (f"Steamed idli or plain dosa if they offer it{suffix}", "No menu on file")
+    if any(token in ctx for token in _INDIAN_TOKENS):
+        return (
+            f"Grilled/tandoori protein + lentil sides; go easy on creamy curries{suffix}",
+            "No menu on file",
+        )
+    if any(token in ctx for token in _DESSERT_TOKENS):
+        return (f"Savory lighter plates over desserts/pastries{suffix}", "No menu on file")
+    if any(token in ctx for token in _CAFE_TOKENS):
+        return (f"Eggs, yogurt, or a simple sandwich — not a pastry drink combo{suffix}", "No menu on file")
+    if any(token in ctx for token in ("sushi", "japanese", "ramen", "sashimi", "teriyaki")):
+        return (f"Sashimi or grilled items; lighter on fried rolls and mayo{suffix}", "No menu on file")
+    if any(token in ctx for token in ("mexican", "burrito", "taco", "quesadilla", "chipotle")):
+        return (f"Protein bowl or soft tacos; skip loaded nachos/queso{suffix}", "No menu on file")
+    if any(token in ctx for token in ("thai", "chinese", "noodle", "wok", "stir fry")):
+        return (f"Lean protein stir-fry; lighter sauce and controlled rice/noodles{suffix}", "No menu on file")
+    if any(token in ctx for token in ("pizza", "pizzeria")):
+        return (f"Thin-crust + protein toppings; small portion + side salad{suffix}", "No menu on file")
+    if any(
+        token in ctx
+        for token in (
+            "burger",
+            "fast_food",
+            "fast food",
+            "fried chicken",
+            "wings",
+            "subway",
+            "sub sandwich",
+            "sandwich",
+        )
+    ):
+        return (
+            f"Single grilled chicken or turkey portion + salad; skip fries and sugary drinks{suffix}",
+            "No menu on file",
+        )
+    if any(token in ctx for token in ("grill", "bbq", "kebab", "rotisserie")):
+        return (f"Grilled meat/fish + vegetables or salad{suffix}", "No menu on file")
+    if any(token in ctx for token in ("salad", "bowl", "poke", "healthy")):
+        return (f"Protein-forward bowl or salad; dressing on the side{suffix}", "No menu on file")
+    return (f"Grilled or baked protein with vegetables or salad{suffix}", "No menu on file")

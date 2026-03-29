@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+import hashlib
+from typing import Any, Dict, Optional, Sequence
 
 from llm_coach_phrasing import maybe_rephrase_coach_message
 
 
-COACH_MESSAGE_VERSION = "v1"
+COACH_MESSAGE_VERSION = "v2"
 
 
 def _safe_float(value: Any, default: float = 0.0) -> float:
@@ -74,6 +75,21 @@ def _menu_source_token(top_menu_item: Dict[str, Any], place: Dict[str, Any]) -> 
     return "heuristic"
 
 
+def _variant_index(*parts: Any, modulo: int) -> int:
+    seed = "|".join(str(part or "").strip().lower() for part in parts)
+    digest = hashlib.sha256(seed.encode("utf-8")).hexdigest()
+    return int(digest[:8], 16) % max(1, int(modulo or 1))
+
+
+def _pick_variant(options: Sequence[Sequence[str]], *parts: Any) -> tuple[str, str]:
+    variants = [tuple(opt) for opt in options if isinstance(opt, (list, tuple)) and len(opt) >= 2]
+    if not variants:
+        return ("Better choice nearby for your goal.", "Pick lean protein and keep extras light.")
+    idx = _variant_index(*parts, modulo=len(variants))
+    chosen = variants[idx]
+    return str(chosen[0]), str(chosen[1])
+
+
 def build_place_coach_message(
     place: Dict[str, Any],
     top_menu_item: Optional[Dict[str, Any]] = None,
@@ -103,31 +119,78 @@ def build_place_coach_message(
         _safe_float(place_payload.get("remaining_protein_g"), 0.0),
     )
 
+    variant_parts = (
+        place_payload.get("place_id") or place_payload.get("name") or place_payload.get("place_name") or "unknown_place",
+        menu_payload.get("item_name") or place_payload.get("best_order") or "unknown_item",
+        decision,
+        goal,
+        str(cut_mode).lower(),
+    )
     headline = "Better choice nearby for your goal."
     supporting_text = "Pick lean protein and keep extras light."
     tone = "encouraging"
 
     if decision == "NO":
-        headline = "Harder to fit today unless you keep it light."
-        supporting_text = "Skip heavier extras and choose the leanest order if you still eat here."
+        headline, supporting_text = _pick_variant(
+            [
+                ("Harder to fit today unless you keep it light.", "Skip heavier extras and choose the leanest order if you still eat here."),
+                ("This one runs heavy today.", "If you still go for it, keep the order tight and cut the extras."),
+                ("Tougher fit for today’s target.", "Best move here is the leanest protein and no calorie-dense add-ons."),
+            ],
+            *variant_parts,
+        )
         tone = "warning"
     elif decision == "MAYBE":
-        headline = "Possible today if you keep the order light."
-        supporting_text = "Choose lean protein and skip high-calorie sides or sauces."
+        headline, supporting_text = _pick_variant(
+            [
+                ("Possible today if you keep the order light.", "Choose lean protein and skip high-calorie sides or sauces."),
+                ("Could work if you keep it simple.", "Go lighter on sauces, sides, and extras to keep this manageable."),
+                ("Borderline fit, but still workable.", "A cleaner order keeps this inside range much more easily."),
+            ],
+            *variant_parts,
+        )
         tone = "caution"
     else:
         if calories_saved >= 300:
-            headline = f"Smarter swap — you save {calories_saved} kcal here."
-            supporting_text = "Much easier to stay on target than the usual order."
+            headline, supporting_text = _pick_variant(
+                [
+                    (f"Smarter swap — you save {calories_saved} kcal here.", "Much easier to stay on target than the usual order."),
+                    (f"Big calorie win here — about {calories_saved} kcal saved.", "This swap gives you more room for the rest of the day."),
+                    (f"Cleaner order, roughly {calories_saved} kcal lighter.", "A strong trade-up if you want the easier fat-loss option."),
+                ],
+                *variant_parts,
+                calories_saved,
+            )
         elif (goal == "fat_loss" or cut_mode) and protein_g >= 35:
-            headline = "Strong protein choice for your cut."
-            supporting_text = "High protein and easier calorie control for today."
+            headline, supporting_text = _pick_variant(
+                [
+                    ("Strong protein choice for your cut.", "High protein and easier calorie control for today."),
+                    ("Cut-friendly pick with solid protein.", "This gives you better fullness without pushing calories too hard."),
+                    ("Lean enough to help your cut today.", "You get useful protein here without making the day harder to fit."),
+                ],
+                *variant_parts,
+                protein_g,
+            )
         elif remaining_protein_g >= 35 and protein_g >= 28:
-            headline = "You’re still short on protein today — this helps."
-            supporting_text = "A practical way to close your protein gap without overdoing calories."
+            headline, supporting_text = _pick_variant(
+                [
+                    ("You’re still short on protein today — this helps.", "A practical way to close your protein gap without overdoing calories."),
+                    ("Protein catch-up option right now.", "This moves the day forward without forcing a heavy meal."),
+                    ("Useful protein top-up for today.", "A smart way to chip away at the gap while keeping the order reasonable."),
+                ],
+                *variant_parts,
+                remaining_protein_g,
+            )
         else:
-            headline = "Best fit for your remaining calories."
-            supporting_text = "Balanced choice that stays macro-friendly right now."
+            headline, supporting_text = _pick_variant(
+                [
+                    ("Best fit for your remaining calories.", "Balanced choice that stays macro-friendly right now."),
+                    ("One of the easier nearby fits right now.", "A sensible option if you want decent macros without overthinking it."),
+                    ("Good fit for the rest of your day.", "Keeps the next meal practical and easier to absorb into your targets."),
+                ],
+                *variant_parts,
+                protein_g,
+            )
 
     # Blend in an existing precise decision reason when useful.
     decision_reason = str(fit_payload.get("decision_reason") or place_payload.get("decision_reason") or "").strip()

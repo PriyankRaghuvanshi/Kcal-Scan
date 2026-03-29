@@ -207,7 +207,10 @@ export function DailyCoachCard({
 
 const styles = StyleSheet.create({
   // Local overrides only; base card comes from premium.cardBase.
-  card: {},
+  card: {
+    backgroundColor: "#ffffff",
+    borderColor: "#f7b500",
+  },
   headerRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -241,14 +244,14 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.base,
     borderRadius: radius.md,
-    backgroundColor: "rgba(34, 197, 94, 0.10)",
+    backgroundColor: "rgba(255, 188, 13, 0.14)",
     borderWidth: 1,
-    borderColor: "rgba(34, 197, 94, 0.22)",
+    borderColor: "rgba(245, 158, 11, 0.40)",
     marginBottom: spacing.base,
   },
   winLineText: {
     fontSize: typography.sm,
-    color: colors.success.text,
+    color: "#92400e",
     fontWeight: typography.weight.semibold,
     lineHeight: typography.sm * typography.lineHeight.relaxed,
   },
@@ -271,30 +274,30 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: typography.xs,
-    color: colors.slate.muted,
+    color: "#6b7280",
     marginBottom: 2,
   },
   value: {
     fontSize: typography.sm,
-    color: colors.text.secondary,
+    color: "#111827",
     marginBottom: spacing.xs,
   },
   barBg: {
     height: 4,
-    backgroundColor: "rgba(26,38,66,0.8)",
+    backgroundColor: "rgba(245, 158, 11, 0.20)",
     borderRadius: 2,
     overflow: "hidden",
   },
   barFill: {
     height: "100%",
-    backgroundColor: colors.success.primary,
+    backgroundColor: "#f59e0b",
     borderRadius: 2,
   },
   actionBlock: {
     marginBottom: spacing.sm,
     paddingTop: spacing.sm,
     borderTopWidth: 1,
-    borderTopColor: colors.surface.cardBorder,
+    borderTopColor: "#f7b500",
   },
   oneThingHeader: {
     flexDirection: "row",
@@ -307,12 +310,12 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
     borderWidth: 1,
     borderColor: "rgba(34, 197, 94, 0.22)",
-    backgroundColor: "rgba(34, 197, 94, 0.10)",
+    backgroundColor: "rgba(255, 188, 13, 0.14)",
     marginLeft: spacing.base,
   },
   oneThingPillText: {
     fontSize: typography.xs,
-    color: colors.success.text,
+    color: "#92400e",
     fontWeight: typography.weight.semibold,
   },
   actionLabel: {
@@ -325,7 +328,7 @@ const styles = StyleSheet.create({
   },
   actionText: {
     fontSize: typography.md,
-    color: colors.text.secondary,
+    color: "#1f2937",
     lineHeight: typography.md * typography.lineHeight.relaxed,
     marginTop: 2,
   },
@@ -334,9 +337,9 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.base,
     paddingHorizontal: spacing.base,
     borderRadius: radius.md,
-    backgroundColor: "rgba(8, 16, 30, 0.70)",
+    backgroundColor: "#fff7e0",
     borderWidth: 1,
-    borderColor: "rgba(31, 46, 69, 0.90)",
+    borderColor: "#f7b500",
   },
   riskRow: {
     flexDirection: "row",
@@ -345,8 +348,8 @@ const styles = StyleSheet.create({
   },
   riskChip: {
     fontSize: typography.xs,
-    color: colors.amber.text,
-    backgroundColor: colors.amber.bg,
+    color: "#7c2d12",
+    backgroundColor: "#fff3cd",
     paddingVertical: 2,
     paddingHorizontal: spacing.sm,
     borderRadius: radius.xs,
@@ -357,7 +360,7 @@ const styles = StyleSheet.create({
     marginTop: spacing.base,
     paddingTop: spacing.sm,
     borderTopWidth: 1,
-    borderTopColor: colors.surface.cardBorder,
+    borderTopColor: "#f7b500",
   },
   // CTA styles now sourced from premium system.
 });
