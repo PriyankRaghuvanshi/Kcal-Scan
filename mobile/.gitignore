@@ -41,3 +41,7 @@ credentials/google-play-service-account.json
 # generated native folders
 /ios
 /android
+
+# local unreleased feature work
+components/FamilyHabitsScreen.js
+utils/familyHabitsApi.js
