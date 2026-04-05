@@ -256,10 +256,103 @@ def _meal_totals(meal: Dict[str, Any]) -> Tuple[float, float]:
     tot = meal.get("totals") if isinstance(meal.get("totals"), dict) else {}
     kcal = _safe_float(meal.get("total_kcal") or tot.get("kcal") or tot.get("total_kcal"), 0.0)
     p = _safe_float(tot.get("protein_g"), 0.0)
+    items = meal.get("items")
+    if isinstance(items, list) and items:
+        pk = 0.0
+        pp = 0.0
+        for it in items:
+            if not isinstance(it, dict):
+                continue
+            pp += _safe_float(it.get("protein_g"), 0.0)
+            pk += _safe_float(it.get("kcal"), 0.0)
+            if pk <= 0:
+                pk += _safe_float(it.get("calories"), 0.0)
+        if p <= 0 and pp > 0:
+            p = pp
+        if kcal <= 0 and pk > 0:
+            kcal = pk
     return kcal, p
 
 
+_KEYWORD_STOPWORDS = frozenset(
+    {
+        "and",
+        "the",
+        "with",
+        "without",
+        "some",
+        "slice",
+        "slices",
+        "cup",
+        "cups",
+        "tbsp",
+        "tsp",
+        "oz",
+        "g",
+        "ml",
+        "small",
+        "medium",
+        "large",
+        "side",
+        "fresh",
+        "hot",
+        "cold",
+        "grilled",
+        "baked",
+        "fried",
+        "style",
+        "homemade",
+        "plain",
+        "mixed",
+        "whole",
+        "half",
+        "one",
+        "two",
+    }
+)
+
+
+def _tokenize_food_words(text: str) -> List[str]:
+    raw = str(text or "").lower()
+    words = re.findall(r"[a-zA-Z]{3,}", raw)
+    out: List[str] = []
+    for w in words:
+        if w in _KEYWORD_STOPWORDS:
+            continue
+        if len(w) < 3:
+            continue
+        out.append(w)
+    return out
+
+
+def _keywords_from_meal(meal: Dict[str, Any]) -> List[str]:
+    """Ordered food tokens for query + title overlap (close match to scan)."""
+    keys: List[str] = []
+    for mc in (meal.get("meal_components") or [])[:10]:
+        if isinstance(mc, str) and mc.strip():
+            keys.extend(_tokenize_food_words(mc))
+    for it in (meal.get("items") or [])[:6]:
+        if isinstance(it, dict) and it.get("name"):
+            keys.extend(_tokenize_food_words(str(it.get("name") or "")))
+    for c in (meal.get("top_candidates") or [])[:2]:
+        if isinstance(c, dict) and c.get("label"):
+            keys.extend(_tokenize_food_words(str(c.get("label") or "")))
+    seen: set[str] = set()
+    out: List[str] = []
+    for k in keys:
+        if k in seen:
+            continue
+        seen.add(k)
+        out.append(k)
+    return out[:14]
+
+
 def _extract_search_query(meal: Dict[str, Any]) -> str:
+    kw = _keywords_from_meal(meal if isinstance(meal, dict) else {})
+    if kw:
+        q = " ".join(kw[:6])
+        if len(q) >= 3:
+            return q[:100]
     parts: List[str] = []
     for c in (meal.get("top_candidates") or [])[:2]:
         if isinstance(c, dict) and c.get("label"):
@@ -270,7 +363,7 @@ def _extract_search_query(meal: Dict[str, Any]) -> str:
     q = " ".join(parts).strip()
     q = re.sub(r"\s+", " ", q)[:140]
     if len(q) < 3:
-        return "high protein dinner"
+        return "high protein"
     return q
 
 
@@ -299,7 +392,14 @@ def _themealdb_meal_page_url(id_meal: str) -> str:
     return f"https://www.themealdb.com/meal/{mid}"
 
 
-def _themealdb_search(query: str) -> List[Dict[str, Any]]:
+def _themealdb_title_overlap_score(title: str, keywords: List[str]) -> float:
+    t = str(title or "").lower()
+    if not t or not keywords:
+        return 0.0
+    return float(sum(1 for k in keywords if k and k in t))
+
+
+def _themealdb_search(query: str, keywords: Optional[List[str]] = None) -> List[Dict[str, Any]]:
     """Free catalog: TheMealDB (no key). No per-serving macros in API — links + images only."""
     q = _themealdb_normalize_query(query)
     meals_raw: List[Dict[str, Any]] = []
@@ -348,6 +448,12 @@ def _themealdb_search(query: str) -> List[Dict[str, Any]]:
         area = str(rec.get("strArea") or "").strip()
         url = src or yt or _themealdb_meal_page_url(mid)
         cuisines = [area] if area else []
+        ov = _themealdb_title_overlap_score(title, keywords or [])
+        why = (
+            "Title overlap with your logged meal — open to compare ingredients."
+            if ov > 0
+            else "From TheMealDB’s free recipe index — similar search terms."
+        )
         out.append(
             {
                 "recipe_key": f"meal:{mid}",
@@ -357,10 +463,17 @@ def _themealdb_search(query: str) -> List[Dict[str, Any]]:
                 "est_protein_g_per_serving": None,
                 "est_kcal_per_serving": None,
                 "cuisines": cuisines,
-                "why_similar": "From TheMealDB’s free recipe index — similar ingredients or regional style.",
+                "why_similar": why,
                 "source": "themealdb",
+                "_overlap": ov,
             }
         )
+    kws = keywords or []
+    if kws:
+        out.sort(key=lambda r: float((r or {}).get("_overlap") or 0.0), reverse=True)
+    for r in out:
+        if isinstance(r, dict) and "_overlap" in r:
+            del r["_overlap"]
     return out
 
 
@@ -394,17 +507,55 @@ def _spoonacular_diet_param(diet_style: str) -> Optional[str]:
     return None
 
 
+# Tokens too vague for complexSearch includeIngredients (often AND-like → zero hits).
+_SPOONACULAR_INCLUDE_SKIP = frozenset(
+    {
+        "meal",
+        "food",
+        "dish",
+        "combo",
+        "plate",
+        "order",
+        "item",
+        "items",
+        "ingredient",
+        "ingredients",
+    }
+)
+
+
+def _spoonacular_include_ingredients_param(keywords: Optional[List[str]]) -> Optional[str]:
+    """Comma-separated ingredients for complexSearch; None if we should not constrain."""
+    if not keywords:
+        return None
+    picked: List[str] = []
+    for w in keywords:
+        t = str(w or "").strip().lower()
+        if len(t) < 3 or t in _SPOONACULAR_INCLUDE_SKIP:
+            continue
+        picked.append(t)
+        if len(picked) >= 2:
+            break
+    if not picked:
+        return None
+    return ",".join(picked)
+
+
 def _spoonacular_search(
     query: str,
     diet_style: str,
     meal_kcal: float,
     meal_protein: float,
     api_key: str,
+    goal_type: str = "",
+    keywords: Optional[List[str]] = None,
 ) -> List[Dict[str, Any]]:
+    gt = (goal_type or "").strip().lower()
+    cut_pref = gt in ("fat_loss", "cut", "recomposition", "high_protein", "lean_gain", "muscle_gain")
     params: Dict[str, Any] = {
         "apiKey": api_key,
-        "query": query or "high protein",
-        "number": 15,
+        "query": (query or "high protein").strip()[:200] or "high protein",
+        "number": 20,
         "addRecipeInformation": True,
         "sort": "protein",
         "sortDirection": "desc",
@@ -412,28 +563,52 @@ def _spoonacular_search(
     dp = _spoonacular_diet_param(diet_style)
     if dp:
         params["diet"] = dp
-    # Per-serving macro bands loosely aligned to the scanned meal (variety, not clones).
-    if meal_protein > 5:
-        params["minProtein"] = max(12.0, min(55.0, round(meal_protein * 0.45)))
+    include_ing = _spoonacular_include_ingredients_param(keywords)
+    if include_ing:
+        params["includeIngredients"] = include_ing
+    # Prefer at least as much protein as the scan (per serving heuristic); cap for API stability.
+    if meal_protein > 6:
+        params["minProtein"] = float(max(20.0, min(58.0, round(meal_protein * 0.92, 1))))
     else:
-        params["minProtein"] = 18.0
-    if meal_kcal > 120:
-        params["maxCalories"] = int(min(1200, max(380, round(meal_kcal * 1.35))))
+        params["minProtein"] = 22.0 if cut_pref else 18.0
+    # Tighter calories vs scan: lean / fat-loss caps near or below logged meal when possible.
+    if meal_kcal > 160:
+        if cut_pref:
+            params["maxCalories"] = int(min(880, max(300, round(meal_kcal * 1.05))))
+        else:
+            params["maxCalories"] = int(min(1050, max(360, round(meal_kcal * 1.15))))
+    elif meal_kcal > 90:
+        params["maxCalories"] = int(min(620 if cut_pref else 720, max(280, round(meal_kcal * 1.2))))
     else:
-        params["maxCalories"] = 750
+        params["maxCalories"] = 520 if cut_pref else 640
 
-    try:
-        r = requests.get(SPOONACULAR_BASE, params=params, timeout=14)
-        if not r.ok:
-            logger.warning("spoonacular complexSearch http %s", r.status_code)
+    def _fetch(p: Dict[str, Any]) -> List[Dict[str, Any]]:
+        try:
+            r = requests.get(SPOONACULAR_BASE, params=p, timeout=14)
+            if not r.ok:
+                logger.warning("spoonacular complexSearch http %s", r.status_code)
+                return []
+            data = r.json()
+        except Exception as e:
+            logger.warning("spoonacular request failed: %s", e)
             return []
-        data = r.json()
-    except Exception as e:
-        logger.warning("spoonacular request failed: %s", e)
-        return []
-    results = data.get("results")
-    if not isinstance(results, list):
-        return []
+        res = data.get("results")
+        return res if isinstance(res, list) else []
+
+    results = _fetch(params)
+    # Ingredient filter can over-constrain; retry without it before loosening macros.
+    if not results and params.get("includeIngredients"):
+        no_inc = {k: v for k, v in params.items() if k != "includeIngredients"}
+        results = _fetch(no_inc)
+        params = no_inc
+
+    # If filters were tight, one relaxed pass still prefers protein sort + scan query.
+    if not results and cut_pref and params.get("maxCalories"):
+        relaxed = dict(params)
+        relaxed["maxCalories"] = int(min(1100, round(float(relaxed["maxCalories"]) * 1.18)))
+        relaxed["minProtein"] = max(16.0, float(relaxed.get("minProtein") or 18) * 0.88)
+        results = _fetch(relaxed)
+
     out: List[Dict[str, Any]] = []
     for rec in results:
         if not isinstance(rec, dict):
@@ -449,6 +624,7 @@ def _spoonacular_search(
         p_g, kcal = _parse_spoonacular_nutrients(rec)
         cuisines = rec.get("cuisines")
         cuisine_list = [str(x).strip() for x in cuisines if str(x).strip()] if isinstance(cuisines, list) else []
+        why = "High protein, calories near or below your scan — check title for a close ingredient match."
         out.append(
             {
                 "recipe_key": _recipe_key_spoonacular(int(rid)),
@@ -458,11 +634,55 @@ def _spoonacular_search(
                 "est_protein_g_per_serving": round(p_g, 1) if p_g is not None else None,
                 "est_kcal_per_serving": int(round(kcal)) if kcal is not None else None,
                 "cuisines": cuisine_list[:4],
-                "why_similar": "Picked for high protein in a similar calorie band to your meal.",
+                "why_similar": why,
                 "source": "spoonacular",
             }
         )
     return out
+
+
+def _recipe_fit_score(
+    rec: Dict[str, Any],
+    *,
+    meal_kcal: float,
+    meal_protein: float,
+    keywords: List[str],
+    prefs: Dict[str, Any],
+) -> float:
+    """Higher = closer to scan + higher protein density + reasonable kcal vs logged meal."""
+    title = str(rec.get("title") or "").lower()
+    aff = prefs.get("cuisine_affinity") if isinstance(prefs.get("cuisine_affinity"), dict) else {}
+
+    overlap = 0.0
+    if keywords and title:
+        hits = sum(1 for k in keywords if k and k in title)
+        overlap = min(1.6, hits * 0.28)
+
+    k_est = rec.get("est_kcal_per_serving")
+    p_est = rec.get("est_protein_g_per_serving")
+    density = 0.0
+    kcal_fit = 0.0
+    if k_est is not None and p_est is not None:
+        kk = max(40.0, float(k_est))
+        pp = max(0.0, float(p_est))
+        density = min(1.2, (pp / kk) * 700.0)
+        if meal_kcal > 80:
+            if kk <= meal_kcal * 1.02:
+                kcal_fit = 0.35
+            elif kk <= meal_kcal * 1.12:
+                kcal_fit = 0.2
+            elif kk > meal_kcal * 1.35:
+                kcal_fit = -0.25
+        if meal_protein > 5 and pp >= meal_protein * 0.88:
+            kcal_fit += 0.12
+
+    c_boost = 0.0
+    for c in rec.get("cuisines") if isinstance(rec.get("cuisines"), list) else []:
+        cl = str(c).strip().lower()
+        c_boost += 0.1 * float(aff.get(cl, 0))
+
+    tie = random.random() * 0.05
+    return 2.4 * overlap + 1.15 * density + kcal_fit + c_boost + tie
 
 
 def _rank_recipes(
@@ -470,19 +690,34 @@ def _rank_recipes(
     prefs: Dict[str, Any],
     dismissed: set,
     limit: int = 5,
+    *,
+    meal_kcal: float = 0.0,
+    meal_protein: float = 0.0,
+    keywords: Optional[List[str]] = None,
 ) -> List[Dict[str, Any]]:
+    kws = list(keywords or [])
     aff = prefs.get("cuisine_affinity") if isinstance(prefs.get("cuisine_affinity"), dict) else {}
     scored: List[Tuple[float, Dict[str, Any]]] = []
     for rec in recipes:
         rk = str(rec.get("recipe_key") or "")
         if rk in dismissed:
             continue
-        c_list = rec.get("cuisines") if isinstance(rec.get("cuisines"), list) else []
-        boost = 0.0
-        for c in c_list:
-            cl = str(c).strip().lower()
-            boost += 0.12 * float(aff.get(cl, 0))
-        scored.append((boost + random.random() * 0.08, rec))
+        if meal_kcal > 0 or kws:
+            s = _recipe_fit_score(
+                rec,
+                meal_kcal=max(meal_kcal, 1.0),
+                meal_protein=meal_protein,
+                keywords=kws,
+                prefs=prefs,
+            )
+        else:
+            c_list = rec.get("cuisines") if isinstance(rec.get("cuisines"), list) else []
+            boost = 0.0
+            for c in c_list:
+                cl = str(c).strip().lower()
+                boost += 0.12 * float(aff.get(cl, 0))
+            s = boost + random.random() * 0.08
+        scored.append((s, rec))
     scored.sort(key=lambda x: -x[0])
     return [x[1] for x in scored[:limit]]
 
@@ -491,26 +726,40 @@ def _llm_recipe_suggestions(
     meal: Dict[str, Any],
     prefs: Dict[str, Any],
     model_name: str,
+    goal_type: str = "",
 ) -> Tuple[List[Dict[str, Any]], str]:
     import google.generativeai as genai
     import coach_daily_logic as coach_logic
 
     q = _extract_search_query(meal)
     kcal, prot = _meal_totals(meal)
+    kws = _keywords_from_meal(meal if isinstance(meal, dict) else {})
+    kw_s = ", ".join(kws[:10]) or q
+    gt = (goal_type or "").strip().lower()
+    cut_hint = gt in ("fat_loss", "cut", "recomposition", "high_protein")
     aff = prefs.get("cuisine_affinity") if isinstance(prefs.get("cuisine_affinity"), dict) else {}
     top_cuis = sorted(aff.items(), key=lambda x: -x[1])[:6]
     aff_s = ", ".join(f"{k} ({v})" for k, v in top_cuis) or "none yet"
 
-    prompt = f"""You are a nutrition coach. The user logged a meal (photo scan). Suggest 4 DISTINCT home-cooked recipe ideas that feel like a similar *style* but add variety (not the same dish).
+    macro_hint = (
+        f"Per serving, prefer protein at or above {max(18, round(prot * 0.9))}g when realistic, and calories at or below ~{max(280, int(kcal * 1.05))} kcal when the user is optimizing for leanness."
+        if cut_hint and kcal > 120
+        else "Per serving, aim for higher protein than typical takeout and calories similar to or a bit below their logged meal when possible."
+    )
 
-Meal search context: {q}
+    prompt = f"""You are a nutrition coach. The user logged a meal (photo scan). Suggest 4 DISTINCT home-cooked recipes that are a CLOSE match to what they ate (same core foods or cuisine), not random unrelated dishes.
+
+Ingredient / dish keywords from their log: {kw_s}
+Meal line used for search: {q}
 Approx meal totals: {round(kcal)} kcal, {round(prot, 1)}g protein.
 User cuisine affinity (from past saves/opens): {aff_s}
 
 Rules:
-- Respect common diet patterns if implied by ingredients (e.g. vegetarian if no meat in items); still be creative.
-- Each recipe must include realistic estimated per-serving protein and calories (rough estimates).
-- "why_similar" is one short sentence tying to their logged meal.
+- Each idea must clearly reuse at least one major ingredient or the same cuisine style as the keywords (say which in why_similar).
+- {macro_hint}
+- Respect diet pattern if obvious from items (e.g. vegetarian if no meat); still be practical.
+- Each recipe: realistic est_kcal_per_serving and est_protein_g_per_serving (rough estimates).
+- "why_similar" one short sentence: how it matches their log + protein/kcal angle.
 - No brand names. No medical claims.
 
 Return ONLY valid JSON:
@@ -585,29 +834,47 @@ def build_recipe_suggest_response(
 
     prefs = get_user_recipe_prefs(uid)
     dismissed = set(str(x) for x in (prefs.get("dismissed_keys") or []) if x)
-    meal_kcal, meal_p = _meal_totals(meal if isinstance(meal, dict) else {})
-    query = _extract_search_query(meal if isinstance(meal, dict) else {})
+    meal_d = meal if isinstance(meal, dict) else {}
+    meal_kcal, meal_p = _meal_totals(meal_d)
+    query = _extract_search_query(meal_d)
+    keywords = _keywords_from_meal(meal_d)
 
     recipes: List[Dict[str, Any]] = []
     source = "none"
     if spoonacular_key:
-        recipes = _spoonacular_search(query, diet_style, meal_kcal, meal_p, spoonacular_key)
+        recipes = _spoonacular_search(
+            query,
+            diet_style,
+            meal_kcal,
+            meal_p,
+            spoonacular_key,
+            goal_type=goal_type,
+            keywords=keywords,
+        )
         if recipes:
             source = "spoonacular"
     if not recipes and _themealdb_enabled():
-        recipes = _themealdb_search(query)
+        recipes = _themealdb_search(query, keywords)
         if recipes:
             source = "themealdb"
     if not recipes and gemini_api_key:
         try:
-            llm_list, _reason = _llm_recipe_suggestions(meal if isinstance(meal, dict) else {}, prefs, gemini_model)
+            llm_list, _reason = _llm_recipe_suggestions(meal_d, prefs, gemini_model, goal_type=goal_type)
             recipes = llm_list
             if recipes:
                 source = "llm"
         except Exception as e:
             logger.warning("recipe llm fallback failed: %s", e)
 
-    recipes = _rank_recipes(recipes, prefs, dismissed, limit=5)
+    recipes = _rank_recipes(
+        recipes,
+        prefs,
+        dismissed,
+        limit=5,
+        meal_kcal=meal_kcal,
+        meal_protein=meal_p,
+        keywords=keywords,
+    )
 
     if recipes and not _recipe_plan_unlimited(plan):
         _recipe_rate_limit_commit(uid)

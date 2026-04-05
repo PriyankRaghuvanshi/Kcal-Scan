@@ -33,6 +33,13 @@ def _today() -> dt.date:
     return dt.date.today()
 
 
+def _parse_day_iso(day_iso: str) -> Optional[dt.date]:
+    try:
+        return dt.date.fromisoformat((day_iso or "")[:10])
+    except Exception:
+        return None
+
+
 def _parse_date_ymd(raw: str) -> Optional[dt.date]:
     s = _safe_str(raw)
     if not s:
@@ -374,6 +381,150 @@ def build_daily_suggested_actions(
     if secondary:
         out["secondary_action"] = secondary
     return out
+
+
+def build_coach_connection_line(state: Dict[str, Any], wins_streaks: Dict[str, Any]) -> str:
+    """
+    Warm, deterministic check-in line for home / daily card (empathy + momentum, no LLM).
+    """
+    st = state if isinstance(state, dict) else {}
+    ws = wins_streaks if isinstance(wins_streaks, dict) else {}
+    protein_streak = _safe_int(ws.get("protein_streak_days"), 0)
+    logging_streak = _safe_int(ws.get("logging_streak_days"), 0)
+    wins = list(st.get("wins") or [])
+    risk = list(st.get("risk_flags") or [])
+
+    if protein_streak >= 5:
+        return (
+            f"You've put together {protein_streak} strong protein days in a row—that's not luck; "
+            "it's a habit forming."
+        )
+    if protein_streak >= 3:
+        return (
+            "You're stacking solid protein days. Keep riding what's working; your coach is paying attention."
+        )
+    if logging_streak >= 5:
+        return (
+            f"{logging_streak} days logging in a row shows real commitment. "
+            "Consistency is what moves the needle."
+        )
+    if logging_streak >= 3:
+        return "Showing up and logging matters—your pattern is getting clearer every day."
+    if wins:
+        return "Nice work on today's early wins. Small choices strung together are how change sticks."
+    if "protein_gap" in risk or "protein_behind_high_calories" in risk:
+        return (
+            "Today's a bit uneven—that happens to everyone. "
+            "One deliberate, protein-forward meal can reset how the day feels."
+        )
+    if "late_night_risk" in risk or "late_night_snacking_pattern" in risk:
+        return (
+            "Evenings are often the hardest window; you're not alone there. "
+            "Keep the next bite simple and lighter if you can."
+        )
+    if "weekend_overeating_pattern" in risk:
+        return "Weekends can throw anyone off. Monday is a fresh lane—one planned meal gets you back in rhythm."
+    return (
+        "Glad you're here. Steady beats perfect: focus on the next right meal, "
+        "and check in when you can—we're tracking the trend with you."
+    )
+
+
+def build_progress_reminder(
+    *,
+    day_iso: str,
+    week_start_iso: str,
+    journey_summary: Optional[Dict[str, Any]],
+) -> Optional[Dict[str, Any]]:
+    """
+    Nudge weight or progress photo when journey data suggests the user hasn't checked in on paper.
+    Deterministic; optional dict for mobile banner + scroll-to-progress.
+    """
+    js = journey_summary if isinstance(journey_summary, dict) else {}
+    today = _parse_day_iso(day_iso)
+    week_key = (week_start_iso or "")[:10]
+
+    latest_w = js.get("latest_weight")
+    wday_raw = (latest_w or {}).get("day") if isinstance(latest_w, dict) else None
+    days_since_weight: Optional[int] = None
+    if today and wday_raw:
+        wd = _parse_day_iso(str(wday_raw))
+        if wd:
+            days_since_weight = max(0, (today - wd).days)
+
+    latest_photo = js.get("latest_photo")
+    photo_week = (latest_photo or {}).get("week_start") if isinstance(latest_photo, dict) else None
+    has_photo_this_week = bool(photo_week and str(photo_week)[:10] == week_key)
+
+    check_ins = _safe_int(js.get("check_ins_count"), 0)
+    weight_count = _safe_int(js.get("weight_entries_count"), 0)
+
+    if weight_count == 0 and check_ins >= 4:
+        return {
+            "kind": "weight",
+            "priority": "normal",
+            "message": (
+                "When you're ready, add a starting weight on Home → Progress. "
+                "It gives your coach a baseline to compare over time."
+            ),
+            "cta_label": "Go to Progress",
+        }
+
+    if days_since_weight is not None and days_since_weight >= 10:
+        return {
+            "kind": "weight",
+            "priority": "high",
+            "message": (
+                f"It's been {days_since_weight} days since your last weigh-in. "
+                "A quick log keeps the trend honest—no judgment, just signal."
+            ),
+            "cta_label": "Log weight",
+        }
+    if days_since_weight is not None and days_since_weight >= 5:
+        return {
+            "kind": "weight",
+            "priority": "normal",
+            "message": (
+                "Quick nudge: update your weight when you can so progress stays grounded in real numbers."
+            ),
+            "cta_label": "Log weight",
+        }
+
+    if today and not has_photo_this_week and today.weekday() >= 2:
+        return {
+            "kind": "photo",
+            "priority": "normal",
+            "message": (
+                "Add a progress photo this week—same spot and lighting makes before/afters easier to trust."
+            ),
+            "cta_label": "Compare photos",
+        }
+
+    return None
+
+
+def build_meal_log_encouragement(state: Dict[str, Any], wins_streaks: Dict[str, Any]) -> str:
+    """Short line after a meal scan when Goal Coach is active (deterministic)."""
+    st = state if isinstance(state, dict) else {}
+    ws = wins_streaks if isinstance(wins_streaks, dict) else {}
+    daily_win = ws.get("daily_win") if isinstance(ws.get("daily_win"), dict) else {}
+    protein_hit = bool(daily_win.get("protein_hit"))
+    kcal_ok = bool(daily_win.get("kcal_in_range"))
+    ps = _safe_int(ws.get("protein_streak_days"), 0)
+    ls = _safe_int(ws.get("logging_streak_days"), 0)
+    risk = list(st.get("risk_flags") or [])
+
+    if protein_hit and kcal_ok:
+        return "That meal keeps calories and protein aligned with today—exactly the kind of day we're building."
+    if protein_hit:
+        return "Solid protein move—this scan helps protect muscle while you work the plan."
+    if ps >= 3:
+        return f"Logged—your {ps}-day protein streak is still in play. Keep stacking."
+    if ls >= 3:
+        return f"Another meal on the books. {ls} days logging in a row is real momentum."
+    if "protein_gap" in risk or "protein_behind_high_calories" in risk:
+        return "Thanks for logging—seeing the day clearly is how we tighten the next meal together."
+    return "Thanks for logging this one—each scan is a check-in with your coach, not just the numbers."
 
 
 def build_weekly_next_step_action(review: Dict[str, Any]) -> Optional[Dict[str, Any]]:

@@ -180,6 +180,7 @@ def _place_profile(
     remaining_protein_g: Any,
     current_hour: Optional[int] = None,
     use_llm_place_context: bool = True,
+    diet_preference: Optional[str] = None,
 ) -> Dict[str, Any]:
     goal_value = personalization_goal_value(personalization_goal)
     scoring = score_healthy_place(place, mode=mode, personalization_goal=personalization_goal)
@@ -193,6 +194,7 @@ def _place_profile(
         personalization_goal=personalization_goal,
         use_llm_copy=use_llm_place_context,
         allow_llm_macro=use_llm_place_context,
+        diet_preference=diet_preference,
     )
     menu = recommend_menu_items_for_place(
         place,
@@ -200,6 +202,7 @@ def _place_profile(
         mode=mode,
         personalization_goal=personalization_goal,
         use_llm_place_context=use_llm_place_context,
+        diet_preference=diet_preference,
     )
     top_item = dict(_menu_item(menu))
     menu_context_text = " ".join(
@@ -512,6 +515,7 @@ def _place_profile(
         "remaining_protein_g": remaining_protein_g,
         "cut_mode": mode == NutritionMode.CUT,
         "goal": goal_value,
+        "diet_preference": str(diet_preference or "").strip(),
     }
     ranking_fields = build_ranked_place_profile(place_for_ranking, user_context)
     if ranking_fields.get("best_item_is_generic_fallback") and recommended_order_label.lower() in ("best order", "estimated best fit"):
@@ -954,6 +958,7 @@ def _profile_from_snapshot_and_place(
     cut_mode: bool,
     resolved_mode: NutritionMode,
     use_llm_place_context: bool,
+    diet_preference: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Build a lunch-decision "profile" dict without re-scoring / re-enriching.
@@ -1014,6 +1019,7 @@ def _profile_from_snapshot_and_place(
         "remaining_protein_g": remaining_protein_g,
         "cut_mode": bool(cut_mode),
         "goal": str(goal_value or "").strip(),
+        "diet_preference": str(diet_preference or "").strip(),
     }
     try:
         ranking_fields = build_ranked_place_profile(place_for_ranking, user_context)
@@ -1142,6 +1148,7 @@ def build_lunch_decision_response_from_snapshot(
     consumed_protein_g: Any = None,
     current_hour: Any = None,
     use_llm_place_context: bool = True,
+    diet_preference: str = "",
 ) -> Dict[str, Any]:
     """
     Snapshot-based /places/lunch-decision builder.
@@ -1234,6 +1241,7 @@ def build_lunch_decision_response_from_snapshot(
                 cut_mode=bool(cut_mode),
                 resolved_mode=resolved_mode,
                 use_llm_place_context=use_llm_place_context,
+                diet_preference=diet_preference,
             )
         except Exception:
             return None
@@ -1313,6 +1321,7 @@ def build_lunch_decision_response(
     use_llm_place_context: bool = True,
     snapshot: Optional[Dict[str, Any]] = None,
     use_snapshot: bool = False,
+    diet_preference: str = "",
 ) -> Dict[str, Any]:
     if use_snapshot and isinstance(snapshot, dict):
         return build_lunch_decision_response_from_snapshot(
@@ -1330,6 +1339,7 @@ def build_lunch_decision_response(
             consumed_protein_g=consumed_protein_g,
             current_hour=current_hour,
             use_llm_place_context=use_llm_place_context,
+            diet_preference=str(diet_preference or "").strip(),
         )
 
     resolved_mode = NutritionMode.CUT if bool(cut_mode) else NutritionMode.DEFAULT
@@ -1340,6 +1350,7 @@ def build_lunch_decision_response(
     remaining_protein = _safe_optional_float(remaining_protein_g)
 
     resolved_hour = int(current_hour) if current_hour is not None and str(current_hour).strip().lstrip("-").isdigit() else None
+    diet_opt = str(diet_preference or "").strip() or None
     profiles = [
         _place_profile(
             place,
@@ -1351,6 +1362,7 @@ def build_lunch_decision_response(
             remaining_protein_g=remaining_protein,
             current_hour=resolved_hour,
             use_llm_place_context=use_llm_place_context,
+            diet_preference=diet_opt,
         )
         for place in (nearby_places or [])
         if isinstance(place, dict)

@@ -65,6 +65,7 @@ export function buildSmartAlertFetchParams(context = {}) {
     ignored_streak: ctx.ignoredStreak ?? ctx.ignored_streak ?? 0,
     recently_opened_app: Boolean(ctx.recentlyOpenedApp ?? ctx.recently_opened_app),
     recently_viewed_nearby: Boolean(ctx.recentlyViewedNearby ?? ctx.recently_viewed_nearby),
+    diet_preference: String(ctx.diet_preference || ctx.dietPreference || "").trim(),
   };
 }
 
@@ -97,6 +98,7 @@ export async function fetchSmartFoodAlertCandidates(params, eligibleOnly = false
   if (params.remaining_calories != null) parts.push(`remaining_calories=${encodeURIComponent(params.remaining_calories)}`);
   if (params.remaining_protein_g != null) parts.push(`remaining_protein_g=${encodeURIComponent(params.remaining_protein_g)}`);
   if (params.goal) parts.push(`goal=${encodeURIComponent(params.goal)}`);
+  if (params.diet_preference) parts.push(`diet_preference=${encodeURIComponent(params.diet_preference)}`);
   if (params.context_mode) parts.push(`context_mode=${encodeURIComponent(params.context_mode)}`);
   if (params.post_workout) parts.push("post_workout=true");
   if (params.late_night) parts.push("late_night=true");

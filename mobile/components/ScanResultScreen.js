@@ -296,6 +296,8 @@ export function ScanResultScreen({
   coaching,
   remainingToday,
   goalCoachDaily,
+  /** Extra coach line after a scan when Goal Coach is on (from /goal-coach/daily meal_log_encouragement). */
+  mealLogEncouragement,
   canCoaching,
   rerunBusy,
   clarificationSelections,
@@ -334,6 +336,7 @@ export function ScanResultScreen({
     : { style: [styles.container, styles.content] };
   const showPrimary = typeof onPrimaryCta === "function";
   const rewardLine = showRewardFeedback ? String(goalCoachDaily?.win_line || "").trim() : "";
+  const encouragementLine = String(mealLogEncouragement || goalCoachDaily?.meal_log_encouragement || "").trim();
   const rewardProteinStreak = showRewardFeedback ? num(goalCoachDaily?.protein_streak_days) : null;
   const rewardLoggingStreak = showRewardFeedback ? num(goalCoachDaily?.logging_streak_days) : null;
   const isScreenshot = Boolean(screenshotMode);
@@ -357,13 +360,18 @@ export function ScanResultScreen({
 
   useEffect(() => {
     if (!enableHaptics) return;
-    if (!rewardLine) return;
-    const key = String(result?.analysis_id || result?.meal_id || result?.id || "") + "::" + rewardLine;
+    if (!rewardLine && !encouragementLine) return;
+    const key =
+      String(result?.analysis_id || result?.meal_id || result?.id || "") +
+      "::" +
+      rewardLine +
+      "::" +
+      encouragementLine;
     if (!key.trim()) return;
     if (lastHapticKeyRef.current === key) return;
     lastHapticKeyRef.current = key;
     void hapticSuccess({ key: `scan:reward:${key}`, cooldownMs: 3000 });
-  }, [enableHaptics, rewardLine, result?.analysis_id, result?.meal_id, result?.id]);
+  }, [enableHaptics, rewardLine, encouragementLine, result?.analysis_id, result?.meal_id, result?.id]);
 
   return (
     <Root {...rootProps}>
@@ -385,6 +393,17 @@ export function ScanResultScreen({
           <TouchableOpacity style={styles.upgradeBannerCloseWrap} onPress={onDismissUpgradeBanner} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
             <Text style={styles.upgradeBannerClose}>✕</Text>
           </TouchableOpacity>
+        </View>
+      ) : null}
+
+      {result?.barcode || result?.barcode_source ? (
+        <View style={styles.section}>
+          <View style={styles.barcodeBanner}>
+            <Text style={styles.barcodeBannerTitle}>Packaged food (barcode)</Text>
+            <Text style={styles.barcodeBannerBody}>
+              Open Food Facts data. Logged as a {Math.round(num(result?.portion_grams) ?? 100)}g portion so today’s totals update; per‑100g values still match the label.
+            </Text>
+          </View>
         </View>
       ) : null}
 
@@ -410,21 +429,31 @@ export function ScanResultScreen({
         </View>
       ) : null}
 
-      {rewardLine ? (
+      {rewardLine || encouragementLine ? (
         <View style={styles.section}>
           <View style={styles.rewardBanner}>
             <View style={styles.rewardBannerTop}>
               <View style={styles.rewardDot} />
-              <Text style={styles.rewardKicker}>Nice</Text>
+              <Text style={styles.rewardKicker}>{rewardLine ? "Nice" : "Coach"}</Text>
               {justUpdated ? (
                 <View style={premium.pill}>
                   <Text style={premium.pillText}>Updated</Text>
                 </View>
               ) : null}
             </View>
-            <Text style={styles.rewardBannerText} numberOfLines={3}>
-              {rewardLine}
-            </Text>
+            {rewardLine ? (
+              <Text style={styles.rewardBannerText} numberOfLines={3}>
+                {rewardLine}
+              </Text>
+            ) : null}
+            {encouragementLine ? (
+              <Text
+                style={[styles.rewardBannerText, rewardLine ? { marginTop: 8, opacity: 0.95 } : null]}
+                numberOfLines={4}
+              >
+                {encouragementLine}
+              </Text>
+            ) : null}
             {(rewardProteinStreak != null && rewardProteinStreak >= 2) || (rewardLoggingStreak != null && rewardLoggingStreak >= 2) ? (
               <View style={styles.rewardMetaRow}>
                 {rewardProteinStreak != null && rewardProteinStreak >= 2 ? (
@@ -622,11 +651,11 @@ const styles = StyleSheet.create({
   macroValue: {
     fontSize: typography.xl,
     fontWeight: typography.weight.bold,
-    color: colors.text.primary,
+    color: colors.textLight.primary,
   },
   macroUnit: {
     fontSize: typography.sm,
-    color: colors.text.muted,
+    color: colors.textLight.muted,
     marginTop: spacing.xxs,
   },
   proteinDensityRow: {
@@ -723,6 +752,31 @@ const styles = StyleSheet.create({
     color: colors.text.muted,
     marginTop: spacing.xs,
   },
+  barcodeBanner: {
+    backgroundColor: "#fff7e6",
+    borderRadius: radius.xl,
+    borderWidth: 1.5,
+    borderColor: "#e7b008",
+    paddingVertical: spacing.base,
+    paddingHorizontal: spacing.lg,
+    shadowColor: "#0f172a",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 3,
+  },
+  barcodeBannerTitle: {
+    fontSize: typography.sm,
+    fontWeight: typography.weight.extrabold,
+    color: colors.textLight.primary,
+    letterSpacing: 0.2,
+    marginBottom: spacing.xs,
+  },
+  barcodeBannerBody: {
+    fontSize: typography.sm,
+    color: colors.textLight.secondary,
+    lineHeight: typography.sm * typography.lineHeight.relaxed,
+  },
   upgradeBanner: {
     flexDirection: "row",
     alignItems: "center",
@@ -775,7 +829,7 @@ const styles = StyleSheet.create({
   },
   disclaimerText: {
     fontSize: typography.xs,
-    color: colors.text.muted,
+    color: colors.textLight.muted,
     lineHeight: typography.xs * 1.4,
   },
   rewardBanner: {

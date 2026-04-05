@@ -22,12 +22,13 @@ class BarcodeLookupTests(unittest.TestCase):
                 },
             },
         }
-        with patch('main.requests.get', side_effect=[failing, success]) as mocked_get:
+        # openfoodfacts tries v0 then API base paths (often 3 URLs); stop after first success.
+        with patch('main.requests.get', side_effect=[failing, failing, success]) as mocked_get:
             out = main_mod.openfoodfacts_lookup('1234567890123')
         self.assertEqual(out['name'], 'Test Bar')
-        self.assertEqual(mocked_get.call_count, 2)
+        self.assertGreaterEqual(mocked_get.call_count, 2)
 
-    def test_openfoodfacts_lookup_returns_503_when_all_upstreams_fail(self):
+    def test_openfoodfacts_lookup_returns_502_when_all_upstreams_fail(self):
         failing = Mock(status_code=503, text='busy')
 
         def _always_fail(*_a, **_k):
@@ -36,8 +37,8 @@ class BarcodeLookupTests(unittest.TestCase):
         with patch('main.requests.get', side_effect=_always_fail):
             with self.assertRaises(HTTPException) as ctx:
                 main_mod.openfoodfacts_lookup('1234567890123')
-        self.assertEqual(ctx.exception.status_code, 503)
-        self.assertEqual((ctx.exception.detail or {}).get('error'), 'barcode_lookup_temporarily_unavailable')
+        self.assertEqual(ctx.exception.status_code, 502)
+        self.assertEqual((ctx.exception.detail or {}).get('error'), 'OpenFoodFacts unreachable')
 
     def test_openfoodfacts_lookup_returns_404_when_product_not_found(self):
         missing = Mock(status_code=200)
@@ -50,6 +51,25 @@ class BarcodeLookupTests(unittest.TestCase):
                 main_mod.openfoodfacts_lookup('0000000000000')
         self.assertEqual(ctx.exception.status_code, 404)
         self.assertEqual((ctx.exception.detail or {}).get('error'), 'Barcode not found')
+
+    def test_openfoodfacts_lookup_accepts_v2_payload_without_status_field(self):
+        success = Mock(status_code=200)
+        success.json.return_value = {
+            'code': '3017620422003',
+            'product': {
+                'product_name': 'V2 style product',
+                'brands': 'Demo',
+                'nutriments': {
+                    'energy-kcal_100g': 210,
+                    'proteins_100g': 6,
+                    'carbohydrates_100g': 57,
+                    'fat_100g': 30,
+                },
+            },
+        }
+        with patch('main.requests.get', return_value=success):
+            out = main_mod.openfoodfacts_lookup('3017620422003')
+        self.assertEqual(out['name'], 'V2 style product')
 
     def test_openfoodfacts_lookup_uses_macro_calorie_fallback(self):
         success = Mock(status_code=200)

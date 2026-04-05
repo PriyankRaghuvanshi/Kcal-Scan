@@ -1,7 +1,7 @@
 import hashlib
 import json
 import re
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 
 COACH_DISCLAIMER = "Informational only. This is general wellness guidance, not medical advice."
@@ -145,7 +145,9 @@ def normalize_daily_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
     date_raw = str(src.get("date") or "").strip()
     date_iso = date_raw[:10] if re.match(r"^\d{4}-\d{2}-\d{2}", date_raw) else ""
 
-    return {
+    meal_snapshot = str(src.get("meal_snapshot") or "").strip()
+
+    out = {
         "date": date_iso,
         "goals": goals,
         "consumed": consumed,
@@ -155,6 +157,9 @@ def normalize_daily_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
         "profile": profile,
         "health_context": health_context,
     }
+    if meal_snapshot:
+        out["meal_snapshot"] = meal_snapshot
+    return out
 
 
 def payload_hash(norm_payload: Dict[str, Any]) -> str:
@@ -606,12 +611,31 @@ def merge_risk_alerts(primary: List[Dict[str, str]], secondary: List[Dict[str, s
     return out
 
 
-def build_fallback_coach_response(norm_payload: Dict[str, Any], fat_loss_score: int, rule_alerts: List[Dict[str, str]]) -> Dict[str, Any]:
+def _recent_fiber_emphasis_count(recent_advice_keys: Optional[Sequence[str]]) -> int:
+    n = 0
+    for k in recent_advice_keys or []:
+        s = str(k or "").lower()
+        if "fiber" in s or "veg" in s:
+            n += 1
+    return n
+
+
+def build_fallback_coach_response(
+    norm_payload: Dict[str, Any],
+    fat_loss_score: int,
+    rule_alerts: List[Dict[str, str]],
+    recent_advice_keys: Optional[List[str]] = None,
+    client_memory: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
     goals = _obj(norm_payload.get("goals"))
     consumed = _obj(norm_payload.get("consumed"))
     signals = _obj(norm_payload.get("signals"))
     timing = _obj(norm_payload.get("meal_timing"))
     constraints = _obj(norm_payload.get("constraints"))
+    health = _obj(norm_payload.get("health_context"))
+    cm = client_memory if isinstance(client_memory, dict) else {}
+    food_prefs = [str(x).strip() for x in (cm.get("food_preferences") or []) if str(x).strip()][:6]
+    goal_hints = [str(x).strip() for x in (cm.get("goal_reminders") or []) if str(x).strip()][:4]
 
     p_goal = max(1.0, _safe_float(goals.get("protein_g"), _DEFAULT_GOALS["protein_g"]))
     p_used = _safe_float(consumed.get("protein_g"), 0.0)
@@ -633,10 +657,25 @@ def build_fallback_coach_response(norm_payload: Dict[str, Any], fat_loss_score: 
         f"Fat-loss score is {int(fat_loss_score)}/100 based on calories, protein, fiber, glycemic load, UPF, and meal timing.",
         f"Protein is {round1(p_used)}g vs target {round1(p_goal)}g, and fiber is {round1(f_used)}g vs target {round1(f_goal)}g.",
     ]
+    sleep_h = _safe_float(health.get("sleep_hours"), 0.0)
+    hyd_l = _safe_float(health.get("hydration_l"), 0.0)
+    steps_n = _safe_float(health.get("steps_count"), 0.0)
+    if bool(health.get("poor_sleep_flag")) or (sleep_h and sleep_h < 6.5):
+        diagnosis.append(
+            f"Recovery context: sleep near {round1(sleep_h)}h—earlier protein and calmer evenings usually help appetite the next day."
+        )
+    if bool(health.get("low_hydration_flag")) or (hyd_l and hyd_l < 1.8 and hyd_l > 0):
+        diagnosis.append(f"Hydration context: about {round1(hyd_l)}L logged—light fluids can stack with cravings later.")
+    if bool(health.get("low_steps_flag")) or (steps_n and steps_n < 4500 and steps_n > 0):
+        diagnosis.append(f"Movement context: ~{int(round(steps_n))} steps so far—short walks often blunt mindless snacking.")
     if gl >= 25:
         diagnosis.append(f"Average glycemic load is elevated at {round1(gl)}, which may increase hunger swings.")
     if upf >= 6.5:
         diagnosis.append(f"Ultra-processed intake is high (score {round1(upf)}/10), which can reduce satiety quality.")
+    if food_prefs:
+        diagnosis.append(f"You've noted these foods/preferences: {_human_join(food_prefs[:4])}.")
+    if goal_hints:
+        diagnosis.append(f"Goal reminders saved: {_human_join(goal_hints[:3])}.")
 
     tomorrow_focus = [
         f"Close the protein gap early: aim to recover {round1(p_left)}g over breakfast and lunch.",
@@ -651,6 +690,37 @@ def build_fallback_coach_response(norm_payload: Dict[str, Any], fat_loss_score: 
     diet = normalize_diet_style(constraints.get("diet") or "non-veg")
     protein_sources = allowed_protein_sources(diet)
     protein_example = " + ".join(protein_sources[:3]) if protein_sources else "protein-rich whole foods"
+
+    # Balance levers: do not let glycemic dominate when protein/fiber gaps are significant.
+    protein_gap_score = clamp(1.0 - p_ratio, 0.0, 1.0)
+    fiber_gap_score = clamp(1.0 - f_ratio, 0.0, 1.0)
+    fiber_repeat_fatigue = _recent_fiber_emphasis_count(recent_advice_keys)
+    if fiber_repeat_fatigue >= 2:
+        fiber_gap_score *= 0.42
+    glycemic_score = clamp((gl - 15.0) / 25.0, 0.0, 1.0)  # slightly reduced weight vs protein/fiber
+    upf_score = clamp((upf - 4.0) / 4.0, 0.0, 1.0)
+    timing_score = clamp((late_pct - 35.0) / 35.0, 0.0, 1.0)
+    # When protein or fiber gap is large (e.g. >20g), boost that lever so it competes with glycemic.
+    if p_left >= 20:
+        protein_gap_score = max(protein_gap_score, 0.75)
+    if f_left >= 15:
+        fiber_gap_score = max(fiber_gap_score, 0.7)
+    bottlenecks: List[Tuple[str, float]] = []
+    bottlenecks.append(("protein", protein_gap_score))
+    bottlenecks.append(("fiber", fiber_gap_score))
+    bottlenecks.append(("glycemic", glycemic_score))
+    bottlenecks.append(("upf", upf_score))
+    bottlenecks.append(("timing", timing_score))
+    bottlenecks.sort(key=lambda x: x[1], reverse=True)
+    top_key = bottlenecks[0][0] if bottlenecks else "protein"
+    second_key = bottlenecks[1][0] if len(bottlenecks) > 1 else ""
+
+    recovery_tune = bool(health.get("poor_sleep_flag")) or (sleep_h > 0 and sleep_h < 6.5)
+    if recovery_tune and top_key == "fiber" and second_key:
+        top_key, second_key = second_key, top_key
+    if (bool(health.get("low_hydration_flag")) or (hyd_l > 0 and hyd_l < 1.5)) and top_key == "fiber":
+        if protein_gap_score >= fiber_gap_score * 0.85:
+            top_key = "protein"
 
     actions = [
         {
@@ -669,28 +739,30 @@ def build_fallback_coach_response(norm_payload: Dict[str, Any], fat_loss_score: 
             "how": "Reduce refined carbs at dinner and pair carbs with protein + vegetables.",
         },
     ]
+    health_action = None
+    if bool(health.get("poor_sleep_flag")) or (sleep_h > 0 and sleep_h < 6.5):
+        health_action = {
+            "title": "Support recovery with earlier, calmer fuel tonight",
+            "why": f"Sleep is around {round1(sleep_h)}h—skimping on rest often raises appetite noise the next day.",
+            "how": "Shift dinner slightly earlier, keep protein steady, and dial back late heavy fat kcal when you can.",
+        }
+    elif bool(health.get("low_hydration_flag")) or (hyd_l > 0 and hyd_l < 1.8):
+        health_action = {
+            "title": "Catch up on fluids without overthinking it",
+            "why": f"You are near {round1(hyd_l)}L—low fluids can stack with fatigue-driven cravings.",
+            "how": "Pair one glass of water with each meal until you are in a comfortable range for you.",
+        }
+    elif bool(health.get("low_steps_flag")) or (steps_n > 0 and steps_n < 4500):
+        health_action = {
+            "title": "Add two short movement snacks",
+            "why": f"Steps are near {int(round(steps_n))}—light kcal movement can settle appetite between meals.",
+            "how": "After lunch and dinner, take an 8–12 minute easy walk before reaching for snacks.",
+        }
+    if health_action and fiber_repeat_fatigue >= 2:
+        actions[1] = health_action
+    elif health_action and (recovery_tune or top_key in {"protein", "glycemic", "timing"}):
+        actions.insert(1, health_action)
     actions = actions[:3]
-
-    # Balance levers: do not let glycemic dominate when protein/fiber gaps are significant.
-    protein_gap_score = clamp(1.0 - p_ratio, 0.0, 1.0)
-    fiber_gap_score = clamp(1.0 - f_ratio, 0.0, 1.0)
-    glycemic_score = clamp((gl - 15.0) / 25.0, 0.0, 1.0)  # slightly reduced weight vs protein/fiber
-    upf_score = clamp((upf - 4.0) / 4.0, 0.0, 1.0)
-    timing_score = clamp((late_pct - 35.0) / 35.0, 0.0, 1.0)
-    # When protein or fiber gap is large (e.g. >20g), boost that lever so it competes with glycemic.
-    if p_left >= 20:
-        protein_gap_score = max(protein_gap_score, 0.75)
-    if f_left >= 15:
-        fiber_gap_score = max(fiber_gap_score, 0.7)
-    bottlenecks: List[Tuple[str, float]] = []
-    bottlenecks.append(("protein", protein_gap_score))
-    bottlenecks.append(("fiber", fiber_gap_score))
-    bottlenecks.append(("glycemic", glycemic_score))
-    bottlenecks.append(("upf", upf_score))
-    bottlenecks.append(("timing", timing_score))
-    bottlenecks.sort(key=lambda x: x[1], reverse=True)
-    top_key = bottlenecks[0][0] if bottlenecks else "protein"
-    second_key = bottlenecks[1][0] if len(bottlenecks) > 1 else ""
 
     if top_key == "protein":
         risk_lever = {
@@ -763,7 +835,7 @@ def build_fallback_coach_response(norm_payload: Dict[str, Any], fat_loss_score: 
         "highest_roi_change": highest_roi_change,
         "if_you_do_one_thing": if_you_do_one_thing,
         "projection_7d": projection,
-        "diagnosis": diagnosis[:4],
+        "diagnosis": diagnosis[:6],
         "tomorrow_focus": tomorrow_focus[:3],
         "actions": actions,
         "risk_alerts": merge_risk_alerts(rule_alerts, []),

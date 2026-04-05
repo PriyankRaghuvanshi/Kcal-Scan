@@ -45,6 +45,28 @@ describe("healthyNearbyRequestState helpers", () => {
     expect(a).not.toBe(b);
   });
 
+  test("context key changes when diet preference changes", () => {
+    const base = buildHealthyNearbyContextKey({
+      lat: 12.971,
+      lng: 77.594,
+      radiusM: 3000,
+      goal: "fat_loss",
+      cutMode: true,
+      filterKey: "all",
+      dietPreference: "omnivore",
+    });
+    const vegan = buildHealthyNearbyContextKey({
+      lat: 12.971,
+      lng: 77.594,
+      radiusM: 3000,
+      goal: "fat_loss",
+      cutMode: true,
+      filterKey: "all",
+      dietPreference: "vegan",
+    });
+    expect(base).not.toBe(vegan);
+  });
+
   test("hasMaterialLocationChange ignores tiny movement", () => {
     const prev = { lat: 12.971, lng: 77.594 };
     const next = { lat: 12.9711, lng: 77.5941 };

@@ -35,6 +35,8 @@ export function DailyCoachCard({
   secondaryAction,
   onPrimaryAction,
   onSecondaryAction,
+  /** Scroll home to Progress (weight / photos) when user taps progress nudge. */
+  onProgressReminderPress,
   // Optional: screenshot mode (presentation-only).
   screenshotMode,
 }) {
@@ -80,6 +82,11 @@ export function DailyCoachCard({
   const proteinConsumed = num(consumed.protein_g) || 0;
   const bestAction = String(daily.best_action_today || "").trim();
   const coachSummary = String(daily.coach_summary || "").trim();
+  const coachConnection = String(daily.coach_connection || "").trim();
+  const progressReminder =
+    daily.progress_reminder && typeof daily.progress_reminder === "object" ? daily.progress_reminder : null;
+  const progressMsg = String(progressReminder?.message || "").trim();
+  const progressCta = String(progressReminder?.cta_label || "Update progress").trim();
   const winLine = String(daily.win_line || "").trim();
   const riskFlags = Array.isArray(daily.risk_flags) ? daily.risk_flags : [];
 
@@ -109,8 +116,8 @@ export function DailyCoachCard({
             <Text style={premium.aiOrbText}>AI</Text>
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={premium.kicker}>Goal Coach</Text>
-            <Text style={premium.title}>Today</Text>
+            <Text style={premium.kickerOnLight}>Goal Coach</Text>
+            <Text style={[premium.title, styles.onLightTitle]}>Today</Text>
           </View>
         </View>
         {streakChips.length ? (
@@ -138,6 +145,15 @@ export function DailyCoachCard({
           </View>
         ) : null}
       </View>
+
+      {coachConnection ? (
+        <View style={styles.connectionBox}>
+          <Text style={premium.kickerOnLight}>Checking in</Text>
+          <Text style={[premium.body, styles.onLightBody, { marginTop: 6 }]} numberOfLines={4}>
+            {coachConnection}
+          </Text>
+        </View>
+      ) : null}
 
       {winLine ? (
         <View style={styles.winLineBox}>
@@ -178,8 +194,19 @@ export function DailyCoachCard({
       ) : null}
       {coachSummary ? (
         <View style={styles.coachBubble}>
-          <Text style={premium.kicker}>Coach says</Text>
-          <Text style={[premium.body, { marginTop: 6 }]} numberOfLines={3}>{coachSummary}</Text>
+          <Text style={premium.kickerOnLight}>Today at a glance</Text>
+          <Text style={[premium.body, styles.onLightBody, { marginTop: 6 }]} numberOfLines={3}>{coachSummary}</Text>
+        </View>
+      ) : null}
+
+      {!isScreenshot && progressMsg && typeof onProgressReminderPress === "function" ? (
+        <View style={styles.progressNudge}>
+          <Text style={styles.progressNudgeText} numberOfLines={4}>
+            {progressMsg}
+          </Text>
+          <TouchableOpacity style={premium.ctaGhost} onPress={() => onProgressReminderPress(progressReminder)} activeOpacity={0.85}>
+            <Text style={premium.ctaGhostText}>{progressCta}</Text>
+          </TouchableOpacity>
         </View>
       ) : null}
       {!isScreenshot && riskFlags.length > 0 && (
@@ -209,7 +236,19 @@ const styles = StyleSheet.create({
   // Local overrides only; base card comes from premium.cardBase.
   card: {
     backgroundColor: "#ffffff",
-    borderColor: "#f7b500",
+    borderColor: "#e7b008",
+    borderWidth: 1.5,
+    shadowColor: "#0f172a",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.12,
+    shadowRadius: 20,
+    elevation: 6,
+  },
+  onLightTitle: {
+    color: colors.textLight.primary,
+  },
+  onLightBody: {
+    color: colors.textLight.secondary,
   },
   headerRow: {
     flexDirection: "row",
@@ -254,6 +293,29 @@ const styles = StyleSheet.create({
     color: "#92400e",
     fontWeight: typography.weight.semibold,
     lineHeight: typography.sm * typography.lineHeight.relaxed,
+  },
+  connectionBox: {
+    marginBottom: spacing.base,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.base,
+    borderRadius: radius.md,
+    backgroundColor: "rgba(34, 197, 94, 0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(34, 197, 94, 0.22)",
+  },
+  progressNudge: {
+    marginBottom: spacing.base,
+    padding: spacing.base,
+    borderRadius: radius.md,
+    backgroundColor: "rgba(59, 130, 246, 0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(59, 130, 246, 0.22)",
+  },
+  progressNudgeText: {
+    fontSize: typography.sm,
+    color: colors.textLight.secondary,
+    lineHeight: typography.sm * typography.lineHeight.relaxed,
+    marginBottom: spacing.sm,
   },
   gatedTitle: {
     fontSize: typography.lg,
@@ -321,7 +383,7 @@ const styles = StyleSheet.create({
   actionLabel: {
     fontSize: typography.xs,
     fontWeight: typography.weight.extrabold,
-    color: colors.slate.muted,
+    color: "#92400e",
     marginBottom: 2,
     textTransform: "uppercase",
     letterSpacing: 0.5,

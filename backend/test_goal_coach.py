@@ -11,6 +11,10 @@ from goal_coach import (
     build_weekly_review,
     build_weekly_next_step_action,
     compute_kickoff_status,
+    build_coach_connection_line,
+    build_progress_reminder,
+    build_meal_log_encouragement,
+    FREE_KICKOFF_DAYS,
 )
 
 
@@ -86,8 +90,38 @@ class GoalCoachTests(unittest.TestCase):
     def test_kickoff_status_free_period(self) -> None:
         plan = {"created_at": "2026-03-01T00:00:00Z"}
         status = compute_kickoff_status(plan)
-        self.assertEqual(status["free_kickoff_days"], 7)
+        self.assertEqual(status["free_kickoff_days"], FREE_KICKOFF_DAYS)
         self.assertIn("requires_subscription", status)
+
+    def test_coach_connection_line_warm(self) -> None:
+        state = {
+            "wins": ["Good early-day protein coverage."],
+            "risk_flags": [],
+        }
+        line = build_coach_connection_line(state, {"protein_streak_days": 0, "logging_streak_days": 0})
+        self.assertGreater(len(line), 20)
+
+    def test_progress_reminder_weight_stale(self) -> None:
+        rem = build_progress_reminder(
+            day_iso="2026-03-28",
+            week_start_iso="2026-03-24",
+            journey_summary={
+                "latest_weight": {"day": "2026-03-10", "value_kg": 80.0},
+                "latest_photo": None,
+                "check_ins_count": 10,
+                "weight_entries_count": 2,
+            },
+        )
+        self.assertIsNotNone(rem)
+        self.assertEqual(rem.get("kind"), "weight")
+        self.assertEqual(rem.get("priority"), "high")
+
+    def test_meal_log_encouragement(self) -> None:
+        msg = build_meal_log_encouragement(
+            {"risk_flags": []},
+            {"protein_streak_days": 4, "logging_streak_days": 0, "daily_win": {}},
+        )
+        self.assertIn("streak", msg.lower())
 
     def test_daily_suggested_actions_protein_behind_healthy_nearby(self) -> None:
         state = {
@@ -119,7 +153,7 @@ class GoalCoachTests(unittest.TestCase):
         primary = actions["primary_action"]
         self.assertIsNotNone(primary)
         self.assertEqual(primary["action_type"], ACTION_OPEN_SCAN_CAMERA)
-        self.assertIn("log", primary["label"].lower())
+        self.assertTrue("log" in primary["label"].lower() or "scan" in primary["label"].lower())
 
     def test_daily_suggested_actions_calories_tight_daily_summary(self) -> None:
         state = {

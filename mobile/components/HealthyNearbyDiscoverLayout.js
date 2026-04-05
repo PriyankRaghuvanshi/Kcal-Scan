@@ -48,7 +48,7 @@ const markerStyles = StyleSheet.create({
   },
 });
 
-const MAP_HEIGHT = 212;
+const MAP_HEIGHT = Platform.OS === "android" ? 188 : 212;
 
 /** iOS map with slightly warmer / clearer feel */
 const MAP_CUSTOM_STYLE = [
@@ -400,15 +400,15 @@ const styles = StyleSheet.create({
   },
   introTitle: {
     color: "#ffffff",
-    fontSize: 19,
+    fontSize: Platform.OS === "android" ? 17 : 19,
     fontWeight: "800",
     letterSpacing: -0.3,
   },
   introBody: {
     color: "#c4b5fd",
-    fontSize: 14,
+    fontSize: Platform.OS === "android" ? 13 : 14,
     marginTop: 6,
-    lineHeight: 21,
+    lineHeight: Platform.OS === "android" ? 18 : 21,
     fontWeight: "500",
   },
   introIconBtnWrap: {
@@ -429,7 +429,7 @@ const styles = StyleSheet.create({
     fontSize: 22,
   },
   smartRowOuter: {
-    marginTop: spacing.lg,
+    marginTop: Platform.OS === "android" ? spacing.md : spacing.lg,
     marginBottom: spacing.sm,
     borderRadius: 16,
     overflow: "hidden",
@@ -440,12 +440,12 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingVertical: 12,
-    paddingHorizontal: 16,
+    paddingVertical: Platform.OS === "android" ? 10 : 12,
+    paddingHorizontal: Platform.OS === "android" ? 14 : 16,
   },
   smartTitle: {
     color: "#fff7ed",
-    fontSize: 17,
+    fontSize: Platform.OS === "android" ? 15 : 17,
     fontWeight: "800",
     letterSpacing: -0.2,
   },

@@ -32,6 +32,8 @@ const GRADIENT_PAIRS = [
   ["#38bdf8", "#7c3aed"], // sky → purple
 ];
 
+const COMPACT_ANDROID = Platform.OS === "android";
+
 export function HealthyNearbyGridTile({ place, index, onPress, formatDistance, selected, getStableId }) {
   const name = String(place?.place_name ?? place?.name ?? "Restaurant").trim() || "Restaurant";
   const subtitle = String(place?.best_item_name ?? place?.best_order ?? place?.primary_type ?? "")
@@ -119,8 +121,8 @@ export function HealthyNearbyGridTile({ place, index, onPress, formatDistance, s
 const styles = StyleSheet.create({
   wrap: {
     flex: 1,
-    marginHorizontal: 5,
-    marginBottom: spacing.md + 2,
+    marginHorizontal: COMPACT_ANDROID ? 4 : 5,
+    marginBottom: COMPACT_ANDROID ? spacing.sm + 2 : spacing.md + 2,
     minWidth: 0,
     borderRadius: radius.xl,
     ...Platform.select({
@@ -142,7 +144,7 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: radius.xl,
     borderTopRightRadius: radius.xl,
     overflow: "hidden",
-    height: 128,
+    height: COMPACT_ANDROID ? 112 : 128,
     backgroundColor: "#1e1b4b",
   },
   image: {
@@ -161,7 +163,7 @@ const styles = StyleSheet.create({
     transform: [{ translateX: -40 }, { rotate: "18deg" }, { scale: 1.4 }],
   },
   placeholderEmoji: {
-    fontSize: 42,
+    fontSize: COMPACT_ANDROID ? 34 : 42,
     textShadowColor: "rgba(0,0,0,0.35)",
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 6,
@@ -213,10 +215,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderTopWidth: 0,
     borderColor: "rgba(124,58,237,0.45)",
-    paddingHorizontal: spacing.sm + 2,
-    paddingTop: spacing.sm + 4,
-    paddingBottom: spacing.sm + 2,
-    minHeight: 82,
+    paddingHorizontal: COMPACT_ANDROID ? spacing.sm : spacing.sm + 2,
+    paddingTop: COMPACT_ANDROID ? spacing.sm : spacing.sm + 4,
+    paddingBottom: COMPACT_ANDROID ? spacing.xs + 2 : spacing.sm + 2,
+    minHeight: COMPACT_ANDROID ? 72 : 82,
     overflow: "hidden",
   },
   textAccentLine: {
@@ -231,21 +233,21 @@ const styles = StyleSheet.create({
   },
   title: {
     color: "#fafafa",
-    fontSize: 16,
+    fontSize: COMPACT_ANDROID ? 14 : 16,
     fontWeight: "800",
     letterSpacing: -0.2,
   },
   subtitle: {
     color: "#c4b5fd",
-    fontSize: 13,
-    marginTop: 4,
-    lineHeight: 18,
+    fontSize: COMPACT_ANDROID ? 12 : 13,
+    marginTop: COMPACT_ANDROID ? 3 : 4,
+    lineHeight: COMPACT_ANDROID ? 16 : 18,
     fontWeight: "500",
   },
   footer: {
     color: "#86efac",
-    fontSize: 12,
-    marginTop: 8,
+    fontSize: COMPACT_ANDROID ? 11 : 12,
+    marginTop: COMPACT_ANDROID ? 6 : 8,
     fontWeight: "700",
   },
 });

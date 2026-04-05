@@ -44,7 +44,9 @@ export function RecipeSuggestionsRow({ busy, payload, onOpenUrl, onFeedback, mea
   return (
     <View style={styles.wrap}>
       <Text style={styles.title}>Variety ideas</Text>
-      <Text style={styles.sub}>High-protein recipes in a similar style — picks improve as you save or dismiss.</Text>
+      <Text style={styles.sub}>
+        Recipes matched to your scan (ingredients + cuisine), ranked for higher protein and sensible calories — saves tune future picks.
+      </Text>
       {busy && recipes.length === 0 ? (
         <ActivityIndicator color={colors.accent?.primary || "#60a5fa"} style={{ marginTop: 10 }} />
       ) : null}

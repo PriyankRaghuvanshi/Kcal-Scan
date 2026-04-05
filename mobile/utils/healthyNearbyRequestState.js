@@ -12,6 +12,7 @@ export function buildHealthyNearbyContextKey({
   goal,
   cutMode,
   filterKey,
+  dietPreference = "",
 }) {
   const latNum = Number(lat);
   const lngNum = Number(lng);
@@ -22,7 +23,8 @@ export function buildHealthyNearbyContextKey({
   const g = String(goal || "").trim().toLowerCase();
   const cut = cutMode ? "1" : "0";
   const f = String(filterKey || "all").trim().toLowerCase();
-  return `lat=${rLat}:lng=${rLng}:radius=${rRadius}:goal=${g}:cut=${cut}:filter=${f}`;
+  const d = String(dietPreference || "").trim().toLowerCase() || "omnivore";
+  return `lat=${rLat}:lng=${rLng}:radius=${rRadius}:goal=${g}:cut=${cut}:filter=${f}:diet=${d}`;
 }
 
 export function hasMaterialLocationChange(prev, next, thresholdMeters = 200) {

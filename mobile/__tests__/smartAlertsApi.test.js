@@ -62,6 +62,15 @@ describe("buildSmartAlertFetchParams", () => {
     expect(out.late_night).toBe(true);
   });
 
+  test("passes diet_preference through", () => {
+    const out = buildSmartAlertFetchParams({
+      lat: 1,
+      lng: 2,
+      diet_preference: "vegetarian",
+    });
+    expect(out.diet_preference).toBe("vegetarian");
+  });
+
   test("invalid context returns safe defaults", () => {
     const out = buildSmartAlertFetchParams(null);
     expect(typeof out).toBe("object");
@@ -96,10 +105,15 @@ describe("fetchSmartFoodAlertCandidates", () => {
       }),
     });
 
-    const out = await fetchSmartFoodAlertCandidates({ lat: 37.7, lng: -122.4 });
+    const out = await fetchSmartFoodAlertCandidates({
+      lat: 37.7,
+      lng: -122.4,
+      diet_preference: "vegan",
+    });
     expect(out.candidates).toHaveLength(2);
     expect(out.candidates[0].place_id).toBe("p1");
     expect(out.placesConsidered).toBe(12);
+    expect(mockFetch.mock.calls[0][0]).toContain("diet_preference=vegan");
   });
 
   test("uses eligible_only=true when requested", async () => {

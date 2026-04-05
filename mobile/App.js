@@ -136,6 +136,7 @@ import {
 import { parseSmartAlertDeepLink, resolveSmartAlertNavigationTarget } from "./deepLinkRouter";
 import {
   initAppleHealth,
+  getDailyHealthContext,
   writeNutritionToHealth,
   writeWeightToHealth,
   isAppleHealthAvailable,
@@ -274,6 +275,30 @@ const ENTITLEMENTS = (process.env.EXPO_PUBLIC_RC_ENTITLEMENTS || "elite,advanced
   .map((x) => x.trim())
   .filter(Boolean);
 
+function packageMatchesEntitlement(pkg, entitlement) {
+  const key = String(entitlement || "").trim().toLowerCase();
+  const identifiers = [
+    pkg?.identifier,
+    pkg?.product?.identifier,
+    pkg?.product?.productIdentifier,
+  ]
+    .map((value) => String(value || "").trim().toLowerCase())
+    .filter(Boolean);
+  const aliases = key === "advanced" ? ["advanced", "advance"] : [key];
+  return identifiers.some((identifier) => aliases.some((alias) => identifier.includes(alias)));
+}
+
+function getActiveOffering(offeringsObj) {
+  if (!offeringsObj || typeof offeringsObj !== "object") return null;
+  const current = offeringsObj.current;
+  if (current && Array.isArray(current.availablePackages)) return current;
+  const all = offeringsObj.all && typeof offeringsObj.all === "object" ? offeringsObj.all : {};
+  const byConfiguredId = all[OFFERING_ID];
+  if (byConfiguredId && Array.isArray(byConfiguredId.availablePackages)) return byConfiguredId;
+  const first = Object.values(all).find((o) => o && Array.isArray(o.availablePackages));
+  return first || null;
+}
+
 // OPTIONAL: If you have a custom deep link redirect (recommended for Google OAuth),
 // set EXPO_PUBLIC_OAUTH_REDIRECT_TO to your app scheme URL.
 // Example: "calorieclickai://auth-callback"
@@ -294,6 +319,8 @@ const DEFAULT_COACH_PROFILE = {
   training_days_per_week: 3,
   training_time: "evening",
   tone_preference: "supportive",
+  food_preferences: [],
+  goal_reminders: [],
 };
 const SUPPLEMENT_TOTAL_STEPS = 4;
 const SUPPLEMENT_PROCESSING_CHECKS = [
@@ -398,6 +425,30 @@ function normalizeCoachProfile(raw) {
     neutral: "supportive",
   };
   const tonePreference = toneAlias[rawTone] || rawTone;
+  const rawFoods = Array.isArray(src.food_preferences) ? src.food_preferences : [];
+  const rawGoals = Array.isArray(src.goal_reminders) ? src.goal_reminders : [];
+  const food_preferences = [];
+  const seenF = new Set();
+  for (const x of rawFoods) {
+    const s = String(x || "").trim();
+    if (!s || s.length > 80) continue;
+    const k = s.toLowerCase();
+    if (seenF.has(k)) continue;
+    seenF.add(k);
+    food_preferences.push(s);
+    if (food_preferences.length >= 12) break;
+  }
+  const goal_reminders = [];
+  const seenG = new Set();
+  for (const x of rawGoals) {
+    const s = String(x || "").trim();
+    if (!s || s.length > 120) continue;
+    const k = s.toLowerCase();
+    if (seenG.has(k)) continue;
+    seenG.add(k);
+    goal_reminders.push(s);
+    if (goal_reminders.length >= 8) break;
+  }
   const out = {
     goal_type: ["fat_loss", "recomposition", "lean_gain"].includes(goalType) ? goalType : DEFAULT_COACH_PROFILE.goal_type,
     diet_style: ["veg", "non-veg", "vegan"].includes(dietStyle) ? dietStyle : DEFAULT_COACH_PROFILE.diet_style,
@@ -408,6 +459,8 @@ function normalizeCoachProfile(raw) {
     tone_preference: ["supportive", "strict", "funny", "indian_coach"].includes(tonePreference)
       ? tonePreference
       : DEFAULT_COACH_PROFILE.tone_preference,
+    food_preferences,
+    goal_reminders,
   };
   return out;
 }
@@ -1143,11 +1196,19 @@ function normalizeAnalyzeResult(data) {
           }
         : null,
     clarification_questions: Array.isArray(src.clarification_questions)
-      ? src.clarification_questions.filter((q) => q && (q.key || q.label)).map((q) => ({
-          key: String(q.key || "").trim(),
-          label: String(q.label || q.key || "").trim(),
-          options: Array.isArray(q.options) ? q.options.map((o) => String(o || "").trim()).filter(Boolean) : [],
-        }))
+      ? src.clarification_questions.filter((q) => q && (q.key || q.label)).map((q) => {
+          const row = {
+            key: String(q.key || "").trim(),
+            label: String(q.label || q.key || "").trim(),
+            options: Array.isArray(q.options) ? q.options.map((o) => String(o || "").trim()).filter(Boolean) : [],
+          };
+          const ic = String(q.ingredient_context || "").trim();
+          if (ic) row.ingredient_context = ic;
+          return row;
+        })
+      : [],
+    meal_components: Array.isArray(src.meal_components)
+      ? src.meal_components.map((x) => String(x || "").trim()).filter(Boolean).slice(0, 12)
       : [],
     editable_context: { items: normalizeEditableItems(src.editable_context) },
     meal_qa: normalizeMealQA(src.meal_qa),
@@ -1162,6 +1223,17 @@ function normalizeAnalyzeResult(data) {
             asked_clarifying_question_reason: String(src.personalization_used?.asked_clarifying_question_reason || "").trim(),
           }
         : null,
+    usual_meal_hint: (() => {
+      const h = src?.usual_meal_hint;
+      if (!h || typeof h !== "object") return null;
+      const line = String(h.line || "").trim();
+      if (!line) return null;
+      return {
+        label: String(h.label || "").trim(),
+        line,
+        matched_food_key: String(h.matched_food_key || "").trim() || undefined,
+      };
+    })(),
   };
 }
 function normalizeCoachDaily(raw, dayFallback = localDayISO()) {
@@ -1283,6 +1355,14 @@ function normalizeDietStyle(raw) {
   if (["eggitarian", "eggetarian", "egg_veg"].includes(v)) return "eggitarian";
   if (["pescatarian", "pesc"].includes(v)) return "pescatarian";
   return "non_veg";
+}
+
+/** For GET /places/healthy and related APIs (matches backend diet_filters.normalize_diet_preference). */
+function dietPreferenceQueryFromCoachStyle(raw) {
+  const v = String(raw || "").trim().toLowerCase();
+  if (v === "vegan") return "vegan";
+  if (v === "veg" || v === "vegetarian") return "vegetarian";
+  return "";
 }
 
 function disallowedFoodTokensForDiet(dietStyle) {
@@ -1822,6 +1902,8 @@ export default function App() {
   const [coachProfileDraft, setCoachProfileDraft] = useState(DEFAULT_COACH_PROFILE);
   const [coachProfileReady, setCoachProfileReady] = useState(false);
   const [coachProfileModal, setCoachProfileModal] = useState(false);
+  const [coachMemoryFoodInput, setCoachMemoryFoodInput] = useState("");
+  const [coachMemoryGoalInput, setCoachMemoryGoalInput] = useState("");
   const coachReqRef = useRef(false);
   const coachRefreshTimerRef = useRef(null);
   const coachQueuedRefreshRef = useRef(null);
@@ -2722,6 +2804,39 @@ export default function App() {
     setHistory([]);
   }
 
+  function reopenHistoryEntry(entry) {
+    if (!entry || typeof entry !== "object") return;
+    if ((entry.kind || "") === "barcode") {
+      const normalized = normalizeAnalyzeResult({
+        analysis_id: entry.analysis_id,
+        total_kcal: entry.total_kcal,
+        totals: entry.totals,
+        items: Array.isArray(entry.items) ? entry.items : [],
+        vision_confidence: 1,
+        barcode: entry.barcode,
+        barcode_source: true,
+      });
+      setPhotoUri(null);
+      setResult(normalized);
+      setClarificationSelections({});
+      return;
+    }
+    if ((entry.kind || "") !== "photo") return;
+    const normalized = normalizeAnalyzeResult({
+      analysis_id: entry.analysis_id,
+      total_kcal: entry.total_kcal,
+      totals: entry.totals,
+      items: Array.isArray(entry.items) ? entry.items : [],
+      micros: entry.micros,
+      vision_confidence: entry.vision_confidence ?? null,
+      coaching: entry.coaching ?? null,
+      locked: entry.locked ?? null,
+    });
+    setPhotoUri(entry.photo_uri ? entry.photo_uri : null);
+    setResult(normalized);
+    setClarificationSelections({});
+  }
+
   async function loadLocalGoals(uid) {
     if (!uid) return null;
     try {
@@ -3384,7 +3499,27 @@ export default function App() {
       return;
     }
 
-    const payload = buildDailyCoachPayload();
+    const baseCoachPayload = buildDailyCoachPayload();
+    let payload = baseCoachPayload;
+    if (Platform.OS === "ios" && isAppleHealthAvailable()) {
+      try {
+        const hc = await getDailyHealthContext(baseCoachPayload.date);
+        if (hc && typeof hc === "object") {
+          payload = { ...baseCoachPayload, health_context: hc };
+        }
+      } catch (_) {}
+    }
+    const fp = Array.isArray(coachProfile?.food_preferences) ? coachProfile.food_preferences : [];
+    const gr = Array.isArray(coachProfile?.goal_reminders) ? coachProfile.goal_reminders : [];
+    if (fp.length || gr.length) {
+      payload = {
+        ...payload,
+        coach_client_memory: {
+          food_preferences: fp.map((x) => String(x || "").trim()).filter(Boolean).slice(0, 12),
+          goal_reminders: gr.map((x) => String(x || "").trim()).filter(Boolean).slice(0, 8),
+        },
+      };
+    }
     setCoachLastPayload(payload || null);
     const day = String(payload?.date || localDayISO());
     const requestedLatestScanId = String(opts?.latestScanId || opts?.analysisId || opts?.mealId || latestScanMeta?.id || "").trim();
@@ -3681,8 +3816,54 @@ export default function App() {
     const uid = userId || session?.user?.id;
     const normalized = normalizeCoachProfile(coachProfileDraft);
     await saveCoachProfile(uid, normalized);
+    setCoachMemoryFoodInput("");
+    setCoachMemoryGoalInput("");
     closeBooleanStateSafely(setCoachProfileModal);
     await ensureDailyCoach(true, { refreshServer: true, fastMode: true, trigger: "profile_update" });
+  }
+
+  function addCoachFoodPreference() {
+    const t = String(coachMemoryFoodInput || "").trim().slice(0, 80);
+    if (!t) return;
+    setCoachProfileDraft((p) => {
+      const cur = Array.isArray(p.food_preferences) ? [...p.food_preferences] : [];
+      if (cur.some((x) => String(x).toLowerCase() === t.toLowerCase())) return p;
+      if (cur.length >= 12) return p;
+      return { ...p, food_preferences: [...cur, t] };
+    });
+    setCoachMemoryFoodInput("");
+  }
+
+  function addCoachGoalReminder() {
+    const t = String(coachMemoryGoalInput || "").trim().slice(0, 120);
+    if (!t) return;
+    setCoachProfileDraft((p) => {
+      const cur = Array.isArray(p.goal_reminders) ? [...p.goal_reminders] : [];
+      if (cur.some((x) => String(x).toLowerCase() === t.toLowerCase())) return p;
+      if (cur.length >= 8) return p;
+      return { ...p, goal_reminders: [...cur, t] };
+    });
+    setCoachMemoryGoalInput("");
+  }
+
+  function removeCoachFoodPreference(idx) {
+    setCoachProfileDraft((p) => ({
+      ...p,
+      food_preferences: (Array.isArray(p.food_preferences) ? p.food_preferences : []).filter((_, i) => i !== idx),
+    }));
+  }
+
+  function removeCoachGoalReminder(idx) {
+    setCoachProfileDraft((p) => ({
+      ...p,
+      goal_reminders: (Array.isArray(p.goal_reminders) ? p.goal_reminders : []).filter((_, i) => i !== idx),
+    }));
+  }
+
+  function clearCoachMemoryLists() {
+    setCoachProfileDraft((p) => ({ ...p, food_preferences: [], goal_reminders: [] }));
+    setCoachMemoryFoodInput("");
+    setCoachMemoryGoalInput("");
   }
 
   function clearCurrentScan() {
@@ -3710,7 +3891,10 @@ export default function App() {
     (async () => {
       try {
         const apiKey = Platform.OS === "ios" ? RC_IOS_KEY : RC_ANDROID_KEY;
-        if (!apiKey) return;
+        if (!apiKey) {
+          console.log("RC init skipped: missing API key for", Platform.OS);
+          return;
+        }
         Purchases.configure({ apiKey });
         setRcReady(true);
 
@@ -3719,6 +3903,14 @@ export default function App() {
 
         const offs = await Purchases.getOfferings();
         setOfferings(offs);
+        const activeOffering = getActiveOffering(offs);
+        if (!activeOffering) {
+          const allIds = Object.keys((offs && offs.all) || {});
+          console.log("RC offerings loaded but no active offering", {
+            offeringIdConfigured: OFFERING_ID,
+            availableOfferingIds: allIds,
+          });
+        }
       } catch (e) {
         console.log("RC init error", e);
       }
@@ -3732,9 +3924,9 @@ export default function App() {
 
   const priceByEntitlement = useMemo(() => {
     const map = {};
-    const pkgs = offerings?.current?.availablePackages || [];
+    const activeOffering = getActiveOffering(offerings);
+    const pkgs = activeOffering?.availablePackages || [];
     for (const p of pkgs) {
-      const id = String(p?.identifier || "").toLowerCase();
       const prod = p?.product;
       const price =
         prod?.priceString ||
@@ -3744,7 +3936,7 @@ export default function App() {
       if (!price) continue;
 
       for (const ent of ["elite", "advanced", "pro", "infinite"]) {
-        if (id.includes(ent) && !map[ent]) map[ent] = price;
+        if (packageMatchesEntitlement(p, ent) && !map[ent]) map[ent] = price;
       }
     }
     return map;
@@ -3780,16 +3972,15 @@ export default function App() {
 
   async function purchaseEntitlement(entitlement) {
     try {
-      if (!offerings?.current) {
-        Alert.alert("Not ready", "Offerings not loaded yet.");
+      const activeOffering = getActiveOffering(offerings);
+      if (!activeOffering) {
+        Alert.alert("Not ready", "Plans are still loading. Please wait a moment and try again.");
         return;
       }
       setRcBusy(true);
 
-      const packages = offerings.current.availablePackages || [];
-      const target = packages.find((p) =>
-        String(p?.identifier || "").toLowerCase().includes(entitlement.toLowerCase())
-      );
+      const packages = activeOffering.availablePackages || [];
+      const target = packages.find((p) => packageMatchesEntitlement(p, entitlement));
 
       if (!target) {
         Alert.alert("Not available", `Purchase option for ${entitlement} isn't available right now.`);
@@ -4563,6 +4754,18 @@ async function openCamera(mode = "meal") {
     trackGoalCoachDestinationOpened(API_BASE, uid, meta);
   }
 
+  function scrollToGoalProgressSection() {
+    setActiveScreen("home");
+    const y = 1980;
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        try {
+          mainScrollRef.current?.scrollTo({ y, animated: true });
+        } catch (_) {}
+      }, 200);
+    });
+  }
+
   async function maybeSendScanUpgradeNudge(photoScansAfterThisAnalyze) {
     const uid = userId || session?.user?.id;
     if (!uid) return;
@@ -4828,13 +5031,17 @@ async function openCamera(mode = "meal") {
         fastMode: true,
         trigger: "analyze",
       });
+      if (goalPlan) void fetchGoalCoachDaily();
       const uid = userId || session?.user?.id;
       if (uid && goalPlan && (latestScanId || normalized?.analysis_id)) {
         submitGoalCoachCheckIn(API_BASE, uid, {
           day: localDayISO(),
           analysis_id: latestScanId || String(normalized?.analysis_id || "").trim(),
         })
-          .then(() => { void fetchGoalCoachJourney(); })
+          .then(() => {
+            void fetchGoalCoachJourney();
+            void fetchGoalCoachDaily();
+          })
           .catch((e) => {
             if (e?.status === 402) openPaywall("advanced");
           });
@@ -5061,6 +5268,7 @@ async function openCamera(mode = "meal") {
       const goal = String(opts?.goal || resolveLunchGoal()).trim();
       const cutMode = typeof opts?.cut_mode === "boolean" ? opts.cut_mode : goal === "fat_loss";
 
+      const dietQ = dietPreferenceQueryFromCoachStyle(coachProfile?.diet_style);
       const contextKey = buildHealthyNearbyContextKey({
         lat,
         lng,
@@ -5068,6 +5276,7 @@ async function openCamera(mode = "meal") {
         goal,
         cutMode,
         filterKey: healthyMapFilter,
+        dietPreference: dietQ || "omnivore",
       });
 
       const prevCoords = healthyPlaceCoords;
@@ -5115,6 +5324,9 @@ async function openCamera(mode = "meal") {
       const uid = userId || (session?.user?.id ?? null);
       if (uid) {
         params.push("user_id=" + encodeURIComponent(String(uid)));
+      }
+      if (dietQ) {
+        params.push("diet_preference=" + encodeURIComponent(dietQ));
       }
 
       const url = withTimezoneQuery(`${API_BASE}/places/healthy?${params.join("&")}`);
@@ -5245,6 +5457,7 @@ async function openCamera(mode = "meal") {
         remainingProteinG: Number.isFinite(num(remainingToday?.protein_g)) ? num(remainingToday.protein_g) : null,
         goal: resolveLunchGoal(),
         ignoredStreak: state?.ignored_streak_local ?? 0,
+        diet_preference: dietPreferenceQueryFromCoachStyle(coachProfile?.diet_style),
       });
       const { candidates } = await fetchSmartFoodAlertCandidates(params, false, withTimezoneQuery);
       const filtered = state ? filterCandidatesForDisplay(candidates, state) : candidates;
@@ -5486,6 +5699,8 @@ async function openCamera(mode = "meal") {
       if (Number.isFinite(currentHour)) params.push("current_hour=" + encodeURIComponent(Math.max(0, Math.min(23, currentHour))));
       if (goal) params.push("goal=" + encodeURIComponent(goal));
       if (cutMode) params.push("cut_mode=true");
+      const lunchDietQ = dietPreferenceQueryFromCoachStyle(coachProfile?.diet_style);
+      if (lunchDietQ) params.push("diet_preference=" + encodeURIComponent(lunchDietQ));
 
       const url = withTimezoneQuery(API_BASE + "/places/lunch-decision?" + params.join("&"));
       // Run decision API and map (healthy places) in parallel for faster perceived load.
@@ -6323,7 +6538,15 @@ async function openCamera(mode = "meal") {
   async function applyClarificationAnswers() {
     const qs = result?.clarification_questions || [];
     if (!qs.length) return;
-    const answers = Object.entries(clarificationSelections).filter(([, v]) => v).map(([key, value]) => ({ key, value }));
+    const answers = Object.entries(clarificationSelections)
+      .filter(([, v]) => v)
+      .map(([key, value]) => {
+        const q = qs.find((x) => String(x?.key || "") === key);
+        const row = { key, value };
+        const ic = String(q?.ingredient_context || "").trim();
+        if (ic) row.ingredient_context = ic;
+        return row;
+      });
     if (!answers.length) return;
     setFliPending(true);
     await rerunAnalyzeWithPatch({ clarifying_answers: answers });
@@ -6432,14 +6655,41 @@ async function openCamera(mode = "meal") {
       const res = await fetch(barcodeUrl, { headers: { accept: "application/json" } });
       const data = await safeJson(res);
 
-      const p100 = data?.per_100g || {};
-      const kcal = round1(p100.kcal);
-      const p = round1(p100.protein_g);
-      const c = round1(p100.carbs_g);
-      const f = round1(p100.fat_g);
-      const macroLine = [kcal, p, c, f].every((x) => x !== undefined && x !== "") ? `${kcal} kcal • P ${p}g • C ${c}g • F ${f}g (per 100g)` : `${round1(p100.kcal)} kcal / 100g`;
-      Alert.alert("Barcode result", `${data?.name || "Product"}\n${macroLine}`);
+      const logged = data?.logged_totals && typeof data.logged_totals === "object" ? data.logged_totals : {};
+      const lt = num(logged.kcal ?? logged.total_kcal);
+      const rawBc = String(data?.barcode || code || "").replace(/\W/g, "");
+      const analysisId = `barcode_${rawBc || "x"}_${Date.now()}`;
+      const items = Array.isArray(data?.logged_items) ? data.logged_items : [];
+      const normalized = normalizeAnalyzeResult({
+        analysis_id: analysisId,
+        total_kcal: Number.isFinite(lt) ? lt : null,
+        totals: {
+          kcal: Number.isFinite(lt) ? lt : null,
+          total_kcal: Number.isFinite(lt) ? lt : null,
+          protein_g: num(logged.protein_g),
+          carbs_g: num(logged.carbs_g),
+          fat_g: num(logged.fat_g),
+        },
+        items,
+        barcode: data?.barcode,
+        barcode_source: true,
+        portion_grams: num(data?.portion_grams) ?? 100,
+        per_100g: data?.per_100g,
+        vision_confidence: 1,
+      });
+      setPhotoUri(null);
+      setResult(normalized);
       await refreshUsage();
+      if (data?.daily && typeof data.daily === "object") {
+        const dailyGoals = normalizeGoals(data?.daily?.goals, goals || DEFAULT_GOALS);
+        setDailySummary({
+          ...data.daily,
+          goals: dailyGoals,
+          micros: normalizeMicros(data?.daily?.micros || data?.daily?.totals?.micros),
+        });
+      } else {
+        await fetchDailySummary(userId);
+      }
       await pushHistory({
         ts: nowISO(),
         kind: "barcode",
@@ -6447,6 +6697,10 @@ async function openCamera(mode = "meal") {
         name: data?.name,
         brand: data?.brand,
         per_100g: data?.per_100g,
+        total_kcal: normalized?.total_kcal,
+        totals: normalized?.totals,
+        items: normalized?.items,
+        analysis_id: analysisId,
       });
     } catch (e) {
       Alert.alert("Barcode failed", String(e).slice(0, 220));
@@ -6742,6 +6996,9 @@ async function openCamera(mode = "meal") {
     const bestPlace = String(bestCard?.place_name || "").trim();
     if (bestPlace) return `Best next meal near you: ${bestPlace}`;
 
+    const gcConn = goalPlan && String(goalCoachDaily?.coach_connection || "").trim();
+    if (gcConn) return gcConn.length > 160 ? `${gcConn.slice(0, 157)}…` : gcConn;
+
     const remainingProtein = num(remainingToday?.protein_g);
     if (Number.isFinite(remainingProtein) && remainingProtein > 0) {
       return `You still need ${Math.round(Math.max(0, remainingProtein))}g protein today.`;
@@ -6929,7 +7186,7 @@ async function openCamera(mode = "meal") {
             </TouchableOpacity>
           </View>
 
-          <Text style={styles.launcherCoachLine} numberOfLines={2}>{homeCoachLine}</Text>
+          <Text style={styles.launcherCoachLine} numberOfLines={3}>{homeCoachLine}</Text>
           {!planAtLeast(plan, "pro") ? (
             <View style={styles.launcherValueRow}>
               <Text style={styles.launcherValueText}>Track meals in seconds. Upgrade for more scans and a personal coach.</Text>
@@ -6988,6 +7245,7 @@ async function openCamera(mode = "meal") {
               secondaryAction={getDailyActions(goalCoachDaily).secondaryAction}
               onPrimaryAction={(a) => handleGoalCoachAction({ ...a, source_surface: "daily_coach" })}
               onSecondaryAction={(a) => handleGoalCoachAction({ ...a, source_surface: "daily_coach" })}
+              onProgressReminderPress={scrollToGoalProgressSection}
             />
           </View>
         ) : null}
@@ -7138,7 +7396,9 @@ async function openCamera(mode = "meal") {
             <View style={styles.homeSection}>
               <View style={styles.card}>
                 <Text style={styles.label}>Progress</Text>
-                <Text style={styles.tiny}>Log weight and weekly photos to track your journey.</Text>
+                <Text style={styles.tiny}>
+                  Your coach uses weight + weekly photos to see the trend—not to judge a single day. Same spot and lighting helps.
+                </Text>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 8 }}>
                   <TextInput
                     style={[styles.input, { flex: 1, minWidth: 80 }]}
@@ -7375,7 +7635,9 @@ async function openCamera(mode = "meal") {
               <TouchableOpacity
                 style={styles.smallBtn}
                 onPress={() => {
-                  setCoachProfileDraft(coachProfile || DEFAULT_COACH_PROFILE);
+                  setCoachProfileDraft(normalizeCoachProfile(coachProfile || DEFAULT_COACH_PROFILE));
+                  setCoachMemoryFoodInput("");
+                  setCoachMemoryGoalInput("");
                   setCoachProfileModal(true);
                 }}
               >
@@ -7458,7 +7720,7 @@ async function openCamera(mode = "meal") {
                       <Text style={premium.aiOrbText}>AI</Text>
                     </View>
                     <View style={{ flex: 1 }}>
-                      <Text style={premium.kicker}>Coach says</Text>
+                      <Text style={premium.kickerOnDarkInset}>Coach says</Text>
                       <Text style={premium.title} numberOfLines={1}>One takeaway</Text>
                     </View>
                   </View>
@@ -7468,7 +7730,7 @@ async function openCamera(mode = "meal") {
                     <Text style={premium.body} numberOfLines={3}>{String(coachVoice?.empathy_line || "")}</Text>
                   ) : null}
                   {String(coachDaily?.one_sentence_summary || "").trim() ? (
-                    <Text style={[premium.muted, { marginTop: 8 }]} numberOfLines={2}>
+                    <Text style={[premium.mutedOnDarkInset, { marginTop: 8 }]} numberOfLines={2}>
                       {String(coachDaily?.one_sentence_summary || "")}
                     </Text>
                   ) : null}
@@ -7482,7 +7744,7 @@ async function openCamera(mode = "meal") {
                       <Text style={premium.aiOrbText}>AI</Text>
                     </View>
                     <View style={{ flex: 1 }}>
-                      <Text style={premium.kicker}>
+                      <Text style={premium.kickerOnDarkInset}>
                         Coach voice • {coachVoiceTonePrimary.replace(/_/g, " ")}
                         {coachVoiceModeTag && coachVoiceModeTag !== coachVoiceTonePrimary ? ` • mode ${coachVoiceModeTag}` : ""}
                       </Text>
@@ -7896,6 +8158,38 @@ async function openCamera(mode = "meal") {
                 Protein {round1(result?.totals?.protein_g)}g • Carbs {round1(result?.totals?.carbs_g)}g • Fat{" "}
                 {round1(result?.totals?.fat_g)}g
               </Text>
+              {goalPlan && String(goalCoachDaily?.meal_log_encouragement || "").trim() ? (
+                <View
+                  style={{
+                    marginTop: 10,
+                    padding: 12,
+                    borderRadius: 10,
+                    backgroundColor: "rgba(245, 158, 11, 0.12)",
+                    borderWidth: 1,
+                    borderColor: "rgba(245, 158, 11, 0.35)",
+                  }}
+                >
+                  <Text style={[styles.tiny, { fontWeight: "700", color: "#92400e" }]}>Goal Coach</Text>
+                  <Text style={[styles.p, { marginTop: 4, color: "#78350f" }]}>
+                    {String(goalCoachDaily.meal_log_encouragement).trim()}
+                  </Text>
+                </View>
+              ) : null}
+              {result?.usual_meal_hint?.line ? (
+                <View
+                  style={{
+                    marginTop: 10,
+                    padding: 10,
+                    borderRadius: 10,
+                    backgroundColor: "#ecfdf5",
+                    borderWidth: 1,
+                    borderColor: "#6ee7b7",
+                  }}
+                >
+                  <Text style={[styles.tiny, { color: "#065f46", fontWeight: "600" }]}>Your usual meal</Text>
+                  <Text style={[styles.p, { marginTop: 4, color: "#064e3b" }]}>{String(result.usual_meal_hint.line)}</Text>
+                </View>
+              ) : null}
               {rerunBusy ? <Text style={[styles.tiny, { marginTop: 6 }]}>Applying edit and rerunning analysis…</Text> : null}
 
               {result?.vision_confidence != null ? (
@@ -7951,6 +8245,21 @@ async function openCamera(mode = "meal") {
                   <Text style={styles.tiny}>
                     Quick fixes + confirmations help tighten kcal/macros. You can do these in any order.
                   </Text>
+                  {(result?.meal_components || []).length > 0 ? (
+                    <View style={{ marginTop: 8 }}>
+                      <Text style={[styles.tiny, { fontWeight: "600", marginBottom: 4 }]}>Parts we detected</Text>
+                      <View style={styles.rowWrap}>
+                        {(result.meal_components || []).map((part, pi) => (
+                          <View key={`mc-${pi}-${part}`} style={[styles.chip, { opacity: 0.95 }]}>
+                            <Text style={styles.chipText}>{part}</Text>
+                          </View>
+                        ))}
+                      </View>
+                      <Text style={[styles.tiny, { marginTop: 4, opacity: 0.85 }]}>
+                        Confirm details below — we remember your answers for this meal and each part.
+                      </Text>
+                    </View>
+                  ) : null}
                   <View style={{ marginTop: 10 }}>
                     <TouchableOpacity style={styles.secondaryBtn} onPress={openEditMacrosModal} disabled={rerunBusy}>
                       <Text style={styles.btnText}>Fix result / Edit macros</Text>
@@ -8002,6 +8311,11 @@ async function openCamera(mode = "meal") {
                       <Text style={[styles.p, { fontWeight: "700" }]}>Confirm details (we'll remember)</Text>
                       {(result.clarification_questions || []).map((q, qIdx) => (
                         <View key={q.key || qIdx} style={{ marginTop: 8 }}>
+                          {q.ingredient_context ? (
+                            <Text style={[styles.tiny, { marginBottom: 4, color: "#b45309" }]}>
+                              About: {q.ingredient_context}
+                            </Text>
+                          ) : null}
                           <Text style={styles.p}>{q.label}</Text>
                           <View style={styles.rowWrap}>
                             {(q.options || []).map((opt, idx) => (
@@ -9435,71 +9749,119 @@ async function openCamera(mode = "meal") {
           ) : null}
 
           {healthyViewMode === "map" ? (
-            <HealthyNearbyMapScreen
-              places={healthyVisiblePlaces}
-              filterKey={healthyMapFilter}
-              onFilterChange={setHealthyMapFilter}
-              selectedPlace={healthySelectedPlace}
-              goalCoachContext={goalCoachContext}
-              onSelectPlace={(place, idx) => {
-                setSelectedHealthyPlaceId(place ? healthyPlaceStableId(place, idx) : "");
-                if (place && Number.isFinite(num(place?.lat)) && Number.isFinite(num(place?.lng))) {
-                  setHealthyMapFocusCoords({ lat: num(place.lat), lng: num(place.lng) });
+            Platform.OS === "android" ? (
+              <View>
+                <Text style={[styles.nearbySectionSubtle, { marginBottom: 8 }]}>
+                  Android uses a lighter map preview here for stability. Use List for the most reliable browsing.
+                </Text>
+                <HealthyNearbyDiscoverLayout
+                  places={healthyVisiblePlaces}
+                  filterKey={healthyMapFilter}
+                  onFilterChange={setHealthyMapFilter}
+                  selectedPlaceStableId={String(selectedHealthyPlaceId || "").trim()}
+                  onSelectPlace={(place, idx) => {
+                    setSelectedHealthyPlaceId(place ? healthyPlaceStableId(place, idx) : "");
+                    if (place && Number.isFinite(num(place?.lat)) && Number.isFinite(num(place?.lng))) {
+                      setHealthyMapFocusCoords({ lat: num(place.lat), lng: num(place.lng) });
+                    }
+                    const uid = userId || session?.user?.id;
+                    if (uid && goalCoachContext?.action_type === ACTION_OPEN_HEALTHY_NEARBY) {
+                      trackGoalCoachActionCompleted(API_BASE, uid, {
+                        source_surface: goalCoachContext.source_surface,
+                        action_type: ACTION_OPEN_HEALTHY_NEARBY,
+                        completion_type: "place_selected",
+                        place_id: place?.place_id,
+                        place_name: place?.place_name || place?.name,
+                        goal_type: goalCoachContext.goal,
+                        remaining_protein_g: goalCoachContext.remaining_protein_g,
+                        remaining_calories: goalCoachContext.remaining_calories,
+                      });
+                    }
+                  }}
+                  userCoords={healthyPlaceCoords}
+                  focusCoords={healthyMapCenter}
+                  onLoadPlaces={() => void loadHealthyPlacesNearby()}
+                  onRefreshAroundMe={async () => {
+                    try {
+                      const fresh = await getCurrentCoords();
+                      await loadHealthyPlacesNearby({ coords: fresh, preserveFilter: true });
+                    } catch (e) {
+                      Alert.alert("Location needed", errorToMessage(e?.message || e || "", 0));
+                    }
+                  }}
+                  busy={healthyPlacesBusy && !hasFreshNearbySnapshot}
+                  error={healthyPlacesError}
+                  formatDistanceFromMeters={formatDistanceFromMeters}
+                  getPlaceStableId={healthyPlaceStableId}
+                />
+              </View>
+            ) : (
+              <HealthyNearbyMapScreen
+                places={healthyVisiblePlaces}
+                filterKey={healthyMapFilter}
+                onFilterChange={setHealthyMapFilter}
+                selectedPlace={healthySelectedPlace}
+                goalCoachContext={goalCoachContext}
+                onSelectPlace={(place, idx) => {
+                  setSelectedHealthyPlaceId(place ? healthyPlaceStableId(place, idx) : "");
+                  if (place && Number.isFinite(num(place?.lat)) && Number.isFinite(num(place?.lng))) {
+                    setHealthyMapFocusCoords({ lat: num(place.lat), lng: num(place.lng) });
+                  }
+                  const uid = userId || session?.user?.id;
+                  if (uid && goalCoachContext?.action_type === ACTION_OPEN_HEALTHY_NEARBY) {
+                    trackGoalCoachActionCompleted(API_BASE, uid, {
+                      source_surface: goalCoachContext.source_surface,
+                      action_type: ACTION_OPEN_HEALTHY_NEARBY,
+                      completion_type: "place_selected",
+                      place_id: place?.place_id,
+                      place_name: place?.place_name || place?.name,
+                      goal_type: goalCoachContext.goal,
+                      remaining_protein_g: goalCoachContext.remaining_protein_g,
+                      remaining_calories: goalCoachContext.remaining_calories,
+                    });
+                  }
+                }}
+                userCoords={healthyPlaceCoords}
+                focusCoords={healthyMapCenter}
+                onLoadPlaces={() => void loadHealthyPlacesNearby()}
+                onRefreshAroundMe={async () => {
+                  try {
+                    const fresh = await getCurrentCoords();
+                    await loadHealthyPlacesNearby({ coords: fresh, preserveFilter: true });
+                  } catch (e) {
+                    Alert.alert("Location needed", errorToMessage(e?.message || e || "", 0));
+                  }
+                }}
+                onSearchWider={
+                  healthyMapFilter === "all"
+                    ? () => void loadHealthyPlacesNearby({ radius_m: WIDER_SEARCH_RADIUS_M })
+                    : null
                 }
-                const uid = userId || session?.user?.id;
-                if (uid && goalCoachContext?.action_type === ACTION_OPEN_HEALTHY_NEARBY) {
-                  trackGoalCoachActionCompleted(API_BASE, uid, {
-                    source_surface: goalCoachContext.source_surface,
-                    action_type: ACTION_OPEN_HEALTHY_NEARBY,
-                    completion_type: "place_selected",
-                    place_id: place?.place_id,
-                    place_name: place?.place_name || place?.name,
-                    goal_type: goalCoachContext.goal,
-                    remaining_protein_g: goalCoachContext.remaining_protein_g,
-                    remaining_calories: goalCoachContext.remaining_calories,
-                  });
-                }
-              }}
-              userCoords={healthyPlaceCoords}
-              focusCoords={healthyMapCenter}
-              onLoadPlaces={() => void loadHealthyPlacesNearby()}
-              onRefreshAroundMe={async () => {
-                try {
-                  const fresh = await getCurrentCoords();
-                  await loadHealthyPlacesNearby({ coords: fresh, preserveFilter: true });
-                } catch (e) {
-                  Alert.alert("Location needed", errorToMessage(e?.message || e || "", 0));
-                }
-              }}
-              onSearchWider={
-                healthyMapFilter === "all"
-                  ? () => void loadHealthyPlacesNearby({ radius_m: WIDER_SEARCH_RADIUS_M })
-                  : null
-              }
-              busy={healthyPlacesBusy && !hasFreshNearbySnapshot}
-              error={healthyPlacesError}
-              formatDistanceFromMeters={formatDistanceFromMeters}
-              getPlaceStableId={healthyPlaceStableId}
-              onScanMenu={(place) => {
-                void openCamera("menu_scan");
-              }}
-              onOpenDirections={(place) => {
-                openPlaceInMaps(place);
-                const uid = userId || session?.user?.id;
-                if (uid && goalCoachContext?.action_type === ACTION_OPEN_HEALTHY_NEARBY) {
-                  trackGoalCoachActionCompleted(API_BASE, uid, {
-                    source_surface: goalCoachContext.source_surface,
-                    action_type: ACTION_OPEN_HEALTHY_NEARBY,
-                    completion_type: "directions_opened",
-                    place_id: place?.place_id,
-                    place_name: place?.place_name || place?.name,
-                    goal_type: goalCoachContext.goal,
-                    remaining_protein_g: goalCoachContext.remaining_protein_g,
-                    remaining_calories: goalCoachContext.remaining_calories,
-                  });
-                }
-              }}
-            />
+                busy={healthyPlacesBusy && !hasFreshNearbySnapshot}
+                error={healthyPlacesError}
+                formatDistanceFromMeters={formatDistanceFromMeters}
+                getPlaceStableId={healthyPlaceStableId}
+                onScanMenu={(place) => {
+                  void openCamera("menu_scan");
+                }}
+                onOpenDirections={(place) => {
+                  openPlaceInMaps(place);
+                  const uid = userId || session?.user?.id;
+                  if (uid && goalCoachContext?.action_type === ACTION_OPEN_HEALTHY_NEARBY) {
+                    trackGoalCoachActionCompleted(API_BASE, uid, {
+                      source_surface: goalCoachContext.source_surface,
+                      action_type: ACTION_OPEN_HEALTHY_NEARBY,
+                      completion_type: "directions_opened",
+                      place_id: place?.place_id,
+                      place_name: place?.place_name || place?.name,
+                      goal_type: goalCoachContext.goal,
+                      remaining_protein_g: goalCoachContext.remaining_protein_g,
+                      remaining_calories: goalCoachContext.remaining_calories,
+                    });
+                  }
+                }}
+              />
+            )
           ) : null}
 
           {healthyViewMode === "browse" ? (
@@ -9788,14 +10150,19 @@ async function openCamera(mode = "meal") {
               data={history}
               keyExtractor={(it, idx) => String(it.ts || idx)}
               renderItem={({ item }) => (
-                <View style={styles.histRow}>
+                <TouchableOpacity
+                  style={styles.histRow}
+                  activeOpacity={0.75}
+                  onPress={() => reopenHistoryEntry(item)}
+                >
                   <Text style={styles.histTitle}>
                     {item.kind === "barcode"
                       ? `Barcode: ${item.name || item.barcode}`
                       : `Meal: ${round1(item.total_kcal)} kcal`}
                   </Text>
                   <Text style={styles.tiny}>{item.ts}</Text>
-                </View>
+                  <Text style={[styles.tiny, { marginTop: 4, color: "#64748b" }]}>Tap to reopen</Text>
+                </TouchableOpacity>
               )}
             />
           ) : (
@@ -10136,11 +10503,18 @@ async function openCamera(mode = "meal") {
           onRequestClose={() => closeBooleanStateSafely(setCoachProfileModal)}
         >
           <View style={styles.modalBackdrop}>
-            <View style={styles.modalCard}>
+            <View style={[styles.modalCard, { maxHeight: "88%" }]}>
               <Text style={styles.cardTitle}>Coach profile</Text>
-              <Text style={styles.tiny}>Used for daily personalization (stored locally on this device).</Text>
+              <Text style={styles.tiny}>
+                Goals and style stay on this device. Foods and reminders below are also sent to your coach on the server when you save or refresh daily
+                coaching.
+              </Text>
 
-              <View style={{ marginTop: 12 }}>
+              <ScrollView
+                style={{ marginTop: 10, maxHeight: 440 }}
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
+              >
                 <Text style={styles.label}>Primary goal</Text>
                 <View style={styles.rowWrap}>
                   {["fat_loss", "recomposition", "lean_gain"].map((gk) => (
@@ -10202,9 +10576,80 @@ async function openCamera(mode = "meal") {
                     </TouchableOpacity>
                   ))}
                 </View>
-              </View>
 
-              <View style={{ flexDirection: "row", gap: 10, marginTop: 14 }}>
+                <Text style={[styles.label, { marginTop: 6 }]}>Coach memory</Text>
+                <Text style={styles.tiny}>
+                  Short notes your coach can reuse (favorite meals, dislikes, weekly focus). Up to 12 foods and 8 reminders; duplicates ignored.
+                </Text>
+
+                <Text style={[styles.label, { marginTop: 8 }]}>Foods you want remembered</Text>
+                <View style={styles.rowWrap}>
+                  {(coachProfileDraft?.food_preferences || []).map((item, idx) => (
+                    <View
+                      key={`food-${idx}-${String(item).slice(0, 24)}`}
+                      style={[styles.chip, { flexDirection: "row", alignItems: "center", paddingRight: 6 }]}
+                    >
+                      <Text style={[styles.chipText, { maxWidth: 220 }]} numberOfLines={2}>
+                        {item}
+                      </Text>
+                      <TouchableOpacity onPress={() => removeCoachFoodPreference(idx)} hitSlop={{ top: 10, bottom: 10, left: 8, right: 8 }}>
+                        <Text style={{ color: "#94a3b8", fontSize: 16, fontWeight: "700" }}>×</Text>
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                </View>
+                <View style={{ flexDirection: "row", gap: 8, alignItems: "center", marginTop: 8 }}>
+                  <TextInput
+                    style={[styles.input, { flex: 1, marginBottom: 0 }]}
+                    value={coachMemoryFoodInput}
+                    onChangeText={setCoachMemoryFoodInput}
+                    placeholder="e.g., oatmeal most mornings"
+                    placeholderTextColor="#666"
+                    onSubmitEditing={addCoachFoodPreference}
+                    returnKeyType="done"
+                  />
+                  <TouchableOpacity style={styles.smallBtn} onPress={addCoachFoodPreference}>
+                    <Text style={styles.smallBtnText}>Add</Text>
+                  </TouchableOpacity>
+                </View>
+
+                <Text style={[styles.label, { marginTop: 12 }]}>Goal-based reminders</Text>
+                <View style={styles.rowWrap}>
+                  {(coachProfileDraft?.goal_reminders || []).map((item, idx) => (
+                    <View
+                      key={`goal-${idx}-${String(item).slice(0, 24)}`}
+                      style={[styles.chip, { flexDirection: "row", alignItems: "center", paddingRight: 6 }]}
+                    >
+                      <Text style={[styles.chipText, { maxWidth: 220 }]} numberOfLines={2}>
+                        {item}
+                      </Text>
+                      <TouchableOpacity onPress={() => removeCoachGoalReminder(idx)} hitSlop={{ top: 10, bottom: 10, left: 8, right: 8 }}>
+                        <Text style={{ color: "#94a3b8", fontSize: 16, fontWeight: "700" }}>×</Text>
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                </View>
+                <View style={{ flexDirection: "row", gap: 8, alignItems: "center", marginTop: 8, marginBottom: 6 }}>
+                  <TextInput
+                    style={[styles.input, { flex: 1, marginBottom: 0 }]}
+                    value={coachMemoryGoalInput}
+                    onChangeText={setCoachMemoryGoalInput}
+                    placeholder="e.g., prioritize sleep this week"
+                    placeholderTextColor="#666"
+                    onSubmitEditing={addCoachGoalReminder}
+                    returnKeyType="done"
+                  />
+                  <TouchableOpacity style={styles.smallBtn} onPress={addCoachGoalReminder}>
+                    <Text style={styles.smallBtnText}>Add</Text>
+                  </TouchableOpacity>
+                </View>
+
+                <TouchableOpacity style={[styles.smallBtn, { alignSelf: "flex-start", marginBottom: 4 }]} onPress={clearCoachMemoryLists}>
+                  <Text style={styles.smallBtnText}>Clear memory lists</Text>
+                </TouchableOpacity>
+              </ScrollView>
+
+              <View style={{ flexDirection: "row", gap: 10, marginTop: 12 }}>
                 <TouchableOpacity
                   style={[styles.btn, { flex: 1, backgroundColor: "#2c2c2c" }]}
                   onPress={() => closeBooleanStateSafely(setCoachProfileModal)}

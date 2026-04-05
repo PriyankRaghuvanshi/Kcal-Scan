@@ -24,6 +24,9 @@ function bestStatusLine({ daily, remainingToday }) {
   const winLine = String(daily?.win_line || "").trim();
   if (winLine) return winLine;
 
+  const connection = String(daily?.coach_connection || "").trim();
+  if (connection) return connection.length > 150 ? `${connection.slice(0, 147)}…` : connection;
+
   const remainingKcal = num(remainingToday?.kcal);
   if (remainingKcal != null && remainingKcal <= 0) return "Nice — you’re in range for today.";
 
@@ -86,7 +89,7 @@ export function HomeTodayHero({
             <Text style={styles.titleStrong}>{remainingProtein}</Text>
             <Text style={styles.titleMuted}> protein</Text>
           </Text>
-          <Text style={styles.subline} numberOfLines={2}>
+          <Text style={styles.subline} numberOfLines={3}>
             {statusLine}
           </Text>
         </View>

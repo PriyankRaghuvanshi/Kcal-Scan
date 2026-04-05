@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import math
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from healthy_order_recommender import suggest_best_order_for_place
 from healthy_place_scoring import score_healthy_place
@@ -52,14 +52,14 @@ def estimate_drive_time_minutes(distance_meters: int, avg_speed_kmh: float = 22.
     return int(max(1, round(mins)))
 
 
-def _build_place_profile(place: Dict[str, Any]) -> Dict[str, Any]:
+def _build_place_profile(place: Dict[str, Any], diet_preference: Optional[str] = None) -> Dict[str, Any]:
     payload = place if isinstance(place, dict) else {}
 
     scoring = score_healthy_place(payload)
     health_score_10pt = float(_safe_float(scoring.get("health_score"), 5.0) or 5.0)
 
-    order = suggest_best_order_for_place(payload, health_score=health_score_10pt)
-    menu = recommend_menu_items_for_place(payload, health_score=health_score_10pt)
+    order = suggest_best_order_for_place(payload, health_score=health_score_10pt, diet_preference=diet_preference)
+    menu = recommend_menu_items_for_place(payload, health_score=health_score_10pt, diet_preference=diet_preference)
     top_menu_item = menu.get("top_menu_item") if isinstance(menu.get("top_menu_item"), dict) else None
 
     menu_source = str((top_menu_item or {}).get("menu_item_source") or menu.get("menu_source") or "heuristic").strip().lower()

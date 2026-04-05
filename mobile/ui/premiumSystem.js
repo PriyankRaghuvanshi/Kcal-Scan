@@ -55,6 +55,22 @@ export const premium = StyleSheet.create({
     textTransform: "uppercase",
     letterSpacing: 0.6,
   },
+  /** Kicker on dark panels (e.g. cardInset) — higher contrast than slate.muted */
+  kickerOnDarkInset: {
+    fontSize: typography.xs,
+    color: "#cbd5e1",
+    fontWeight: typography.weight.semibold,
+    textTransform: "uppercase",
+    letterSpacing: 0.6,
+  },
+  /** Kicker / label on light or warm surfaces (white, cream) */
+  kickerOnLight: {
+    fontSize: typography.xs,
+    color: "#92400e",
+    fontWeight: typography.weight.semibold,
+    textTransform: "uppercase",
+    letterSpacing: 0.6,
+  },
   title: {
     fontSize: typography.lg,
     color: colors.text.primary,
@@ -69,6 +85,12 @@ export const premium = StyleSheet.create({
   muted: {
     fontSize: typography.sm,
     color: colors.text.muted,
+    lineHeight: Math.round(typography.sm * typography.lineHeight.relaxed),
+  },
+  /** Secondary line on dark inset cards (readable vs muted grey on navy) */
+  mutedOnDarkInset: {
+    fontSize: typography.sm,
+    color: "#e2e8f0",
     lineHeight: Math.round(typography.sm * typography.lineHeight.relaxed),
   },
 

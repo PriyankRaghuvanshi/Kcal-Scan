@@ -3,8 +3,8 @@
  * this week's photo status, next check-in milestone.
  */
 
-import React from "react";
-import { View, Text, StyleSheet } from "react-native";
+import React, { useMemo } from "react";
+import { View, Text, StyleSheet, Image } from "react-native";
 import { colors, spacing, radius, typography, shadows } from "../designTokens";
 
 function num(v) {
@@ -30,6 +30,24 @@ export function JourneyCard({
     Array.isArray(photoEntries) &&
     photoEntries.some((p) => (p?.week_start || "").slice(0, 10) === weekStartISO.slice(0, 10));
   const nextMilestone = summary?.next_check_in_milestone || "Log your next meal to check in";
+
+  const comparePhotos = useMemo(() => {
+    if (!Array.isArray(photoEntries) || photoEntries.length < 2) return null;
+    const sorted = [...photoEntries].sort((a, b) =>
+      String(b?.week_start || "").localeCompare(String(a?.week_start || "")),
+    );
+    const a = sorted[0];
+    const b = sorted[1];
+    const ua = String(a?.uri_or_ref || "").trim();
+    const ub = String(b?.uri_or_ref || "").trim();
+    if (!ua || !ub) return null;
+    return {
+      newerUri: ua,
+      olderUri: ub,
+      newerWeek: String(a?.week_start || "").slice(0, 10),
+      olderWeek: String(b?.week_start || "").slice(0, 10),
+    };
+  }, [photoEntries]);
 
   return (
     <View style={styles.card}>
@@ -68,6 +86,25 @@ export function JourneyCard({
           {hasPhotoThisWeek ? "Done" : "Not yet"}
         </Text>
       </View>
+
+      {comparePhotos ? (
+        <View style={styles.compareBlock}>
+          <Text style={styles.compareTitle}>Last two progress photos</Text>
+          <Text style={styles.compareHint} numberOfLines={2}>
+            Same lighting and clothes each week makes this easier to read—not a verdict, just a visual check-in.
+          </Text>
+          <View style={styles.compareRow}>
+            <View style={styles.compareCell}>
+              <Text style={styles.compareWeek}>{comparePhotos.olderWeek}</Text>
+              <Image source={{ uri: comparePhotos.olderUri }} style={styles.compareImg} resizeMode="cover" />
+            </View>
+            <View style={styles.compareCell}>
+              <Text style={styles.compareWeek}>{comparePhotos.newerWeek}</Text>
+              <Image source={{ uri: comparePhotos.newerUri }} style={styles.compareImg} resizeMode="cover" />
+            </View>
+          </View>
+        </View>
+      ) : null}
 
       <View style={styles.milestone}>
         <Text style={styles.milestoneLabel}>Next</Text>
@@ -153,5 +190,44 @@ const styles = StyleSheet.create({
     fontSize: typography.sm,
     color: colors.text.secondary,
     lineHeight: typography.sm * typography.lineHeight.relaxed,
+  },
+  compareBlock: {
+    marginTop: spacing.sm,
+    marginBottom: spacing.sm,
+    paddingTop: spacing.base,
+    borderTopWidth: 1,
+    borderTopColor: colors.surface.cardBorder,
+  },
+  compareTitle: {
+    fontSize: typography.sm,
+    fontWeight: typography.weight.semibold,
+    color: colors.text.primary,
+    marginBottom: 4,
+  },
+  compareHint: {
+    fontSize: typography.xs,
+    color: colors.slate.text,
+    marginBottom: spacing.sm,
+    lineHeight: typography.xs * typography.lineHeight.relaxed,
+  },
+  compareRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: spacing.sm,
+  },
+  compareCell: {
+    flex: 1,
+    minWidth: 0,
+  },
+  compareWeek: {
+    fontSize: typography.xs,
+    color: colors.slate.muted,
+    marginBottom: 4,
+  },
+  compareImg: {
+    width: "100%",
+    aspectRatio: 3 / 4,
+    borderRadius: radius.md,
+    backgroundColor: colors.surface.elevated,
   },
 });

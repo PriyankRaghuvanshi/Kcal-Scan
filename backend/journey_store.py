@@ -189,14 +189,14 @@ def _streak_days(check_ins: List[Dict[str, Any]], today_iso: str) -> int:
 def _next_check_in_milestone(check_ins_today: int, streak_days: int) -> str:
     """Human-readable next check-in milestone."""
     if check_ins_today == 0 and streak_days == 0:
-        return "Log your first meal to start today's check-ins"
+        return "Log your first meal today—your coach is ready when you are."
     if check_ins_today == 0:
-        return "Log a meal today to keep your streak"
+        return "One meal log today keeps your streak alive—we're counting on you."
     if check_ins_today == 1:
-        return "Log another meal to build today's check-ins"
+        return "Nice start—another log today tightens the picture for your coach."
     if check_ins_today == 2:
-        return "One more check-in today — you're on fire"
-    return "Great — keep logging meals to stay on track"
+        return "One more check-in today and you've nailed it."
+    return "You're in a good rhythm—keep logging so progress stays visible."
 
 
 def get_journey_summary(user_id: str, today_iso: Optional[str] = None) -> Dict[str, Any]:

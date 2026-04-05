@@ -47,6 +47,7 @@ def _build_ranked_profiles(
   *,
   origin_lat: float,
   origin_lng: float,
+  diet_preference: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
   """
   Build a normalized + ranked profile list from raw nearby places.
@@ -60,7 +61,7 @@ def _build_ranked_profiles(
     if not isinstance(place, dict):
       continue
     try:
-      profile = _build_place_profile(place)
+      profile = _build_place_profile(place, diet_preference=diet_preference)
     except Exception:
       # Fallback: skip pathological rows instead of breaking the pipeline.
       continue
@@ -216,6 +217,7 @@ def build_nearby_snapshot(
   user_id: Optional[str],
   selected_place_id: str = "",
   selected_place_name: str = "",
+  diet_preference: str = "",
 ) -> Dict[str, Any]:
   """
   Build a canonical nearby snapshot:
@@ -234,6 +236,7 @@ def build_nearby_snapshot(
     nearby_places or [],
     origin_lat=float(_safe_float(origin_lat, 0.0) or 0.0),
     origin_lng=float(_safe_float(origin_lng, 0.0) or 0.0),
+    diet_preference=(diet_preference or "").strip() or None,
   )
 
   current_venue = _detect_current_venue(
@@ -259,6 +262,7 @@ def build_nearby_snapshot(
       "remaining_protein_g": float(_safe_float(remaining_protein_g, 0.0)) if remaining_protein_g is not None else None,
       "current_hour": int(_safe_float(current_hour, -1.0)) if current_hour is not None else None,
       "user_id": str(user_id or "").strip() or None,
+      "diet_preference": str(diet_preference or "").strip() or None,
     },
     "current_venue": current_venue,
     "best_here": best_summary["best_here"],
