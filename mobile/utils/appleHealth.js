@@ -29,6 +29,14 @@ try {
   // Module not installed or not linked
 }
 
+function healthPermissions() {
+  return AppleHealthKit?.Constants?.Permissions || null;
+}
+
+function healthUnits() {
+  return AppleHealthKit?.Constants?.Units || null;
+}
+
 function num(v) {
   if (v == null || v === "") return null;
   const n = Number(v);
@@ -37,21 +45,26 @@ function num(v) {
 
 function getPermissions() {
   if (!AppleHealthKit) return null;
+  const perms = healthPermissions();
+  if (!perms || typeof perms !== "object") return null;
+  const read = [
+    perms.Steps,
+    perms.SleepAnalysis,
+    perms.DietaryWater,
+  ].filter(Boolean);
+  const write = [
+    perms.EnergyConsumed,
+    perms.Protein,
+    perms.Carbohydrates,
+    perms.FatTotal,
+    perms.Fiber,
+    perms.Weight,
+  ].filter(Boolean);
+  if (!read.length && !write.length) return null;
   return {
     permissions: {
-      read: [
-        AppleHealthKit.Constants.Permissions.Steps,
-        AppleHealthKit.Constants.Permissions.SleepAnalysis,
-        AppleHealthKit.Constants.Permissions.DietaryWater,
-      ],
-      write: [
-        AppleHealthKit.Constants.Permissions.EnergyConsumed,
-        AppleHealthKit.Constants.Permissions.Protein,
-        AppleHealthKit.Constants.Permissions.Carbohydrates,
-        AppleHealthKit.Constants.Permissions.FatTotal,
-        AppleHealthKit.Constants.Permissions.Fiber,
-        AppleHealthKit.Constants.Permissions.Weight,
-      ],
+      read,
+      write,
     },
   };
 }
@@ -114,7 +127,7 @@ function sleepHoursFromSamples(rows) {
  * @param {function(err?: string)} callback - Called when init completes; err if user denied or unavailable.
  */
 export function initAppleHealth(callback) {
-  if (!isIOS || !AppleHealthKit) {
+  if (!isIOS || !AppleHealthKit || typeof AppleHealthKit?.initHealthKit !== "function") {
     if (callback) callback(null);
     return;
   }
@@ -122,15 +135,19 @@ export function initAppleHealth(callback) {
     if (callback) callback(null);
     return;
   }
-  const perms = getPermissions();
-  if (!perms) {
-    if (callback) callback(null);
-    return;
-  }
-  AppleHealthKit.initHealthKit(perms, (err) => {
-    if (!err) healthKitReady = true;
+  try {
+    const perms = getPermissions();
+    if (!perms) {
+      if (callback) callback(null);
+      return;
+    }
+    AppleHealthKit.initHealthKit(perms, (err) => {
+      if (!err) healthKitReady = true;
+      if (callback) callback(err || null);
+    });
+  } catch (err) {
     if (callback) callback(err || null);
-  });
+  }
 }
 
 export async function getDailyHealthContext(dateIso) {
@@ -175,32 +192,36 @@ export async function getDailyHealthContext(dateIso) {
  * @param {object} opts - { dateIso, energyKcal, proteinG, carbsG, fatG, fiberG?, foodName? }
  */
 export function writeNutritionToHealth(opts, callback) {
-  if (!isIOS || !AppleHealthKit) {
+  if (!isIOS || !AppleHealthKit || typeof AppleHealthKit?.saveFood !== "function") {
     if (callback) callback(null);
     return;
   }
-  const date = opts?.dateIso ? new Date(opts.dateIso) : new Date();
-  const foodName = opts?.foodName && String(opts.foodName).trim() ? String(opts.foodName).trim() : "Meal";
-  const energy = num(opts?.energyKcal);
-  const protein = num(opts?.proteinG);
-  const carbs = num(opts?.carbsG);
-  const fat = num(opts?.fatG);
-  const fiber = num(opts?.fiberG);
+  try {
+    const date = opts?.dateIso ? new Date(opts.dateIso) : new Date();
+    const foodName = opts?.foodName && String(opts.foodName).trim() ? String(opts.foodName).trim() : "Meal";
+    const energy = num(opts?.energyKcal);
+    const protein = num(opts?.proteinG);
+    const carbs = num(opts?.carbsG);
+    const fat = num(opts?.fatG);
+    const fiber = num(opts?.fiberG);
 
-  const options = {
-    foodName: foodName.slice(0, 100),
-    mealType: "Lunch",
-    date: date.toISOString(),
-  };
-  if (energy != null && energy >= 0) options.energy = energy;
-  if (protein != null && protein >= 0) options.protein = protein;
-  if (carbs != null && carbs >= 0) options.carbohydrates = carbs;
-  if (fat != null && fat >= 0) options.fatTotal = fat;
-  if (fiber != null && fiber >= 0) options.fiber = fiber;
+    const options = {
+      foodName: foodName.slice(0, 100),
+      mealType: "Lunch",
+      date: date.toISOString(),
+    };
+    if (energy != null && energy >= 0) options.energy = energy;
+    if (protein != null && protein >= 0) options.protein = protein;
+    if (carbs != null && carbs >= 0) options.carbohydrates = carbs;
+    if (fat != null && fat >= 0) options.fatTotal = fat;
+    if (fiber != null && fiber >= 0) options.fiber = fiber;
 
-  AppleHealthKit.saveFood(options, (err) => {
+    AppleHealthKit.saveFood(options, (err) => {
+      if (callback) callback(err || null);
+    });
+  } catch (err) {
     if (callback) callback(err || null);
-  });
+  }
 }
 
 /**
@@ -208,24 +229,30 @@ export function writeNutritionToHealth(opts, callback) {
  * @param {object} opts - { dateIso?, valueKg }
  */
 export function writeWeightToHealth(opts, callback) {
-  if (!isIOS || !AppleHealthKit) {
+  if (!isIOS || !AppleHealthKit || typeof AppleHealthKit?.saveWeight !== "function") {
     if (callback) callback(null);
     return;
   }
-  const valueKg = num(opts?.valueKg);
-  if (valueKg == null || valueKg <= 0) {
-    if (callback) callback(new Error("Invalid weight"));
-    return;
-  }
-  const startDate = opts?.dateIso ? new Date(opts.dateIso) : new Date();
-  const options = {
-    value: valueKg * 1000,
-    unit: AppleHealthKit.Constants.Units.gram,
-    startDate: startDate.toISOString(),
-  };
-  AppleHealthKit.saveWeight(options, (err) => {
+  try {
+    const valueKg = num(opts?.valueKg);
+    if (valueKg == null || valueKg <= 0) {
+      if (callback) callback(new Error("Invalid weight"));
+      return;
+    }
+    const units = healthUnits();
+    const unit = units?.gram || "gram";
+    const startDate = opts?.dateIso ? new Date(opts.dateIso) : new Date();
+    const options = {
+      value: valueKg * 1000,
+      unit,
+      startDate: startDate.toISOString(),
+    };
+    AppleHealthKit.saveWeight(options, (err) => {
+      if (callback) callback(err || null);
+    });
+  } catch (err) {
     if (callback) callback(err || null);
-  });
+  }
 }
 
 /** True if HealthKit is available (iOS and module loaded). */
