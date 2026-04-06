@@ -16,6 +16,7 @@
 import { Platform } from "react-native";
 
 const isIOS = Platform.OS === "ios";
+const APPLE_HEALTH_ENABLED = false;
 
 let AppleHealthKit = null;
 let healthKitReady = false;
@@ -127,7 +128,7 @@ function sleepHoursFromSamples(rows) {
  * @param {function(err?: string)} callback - Called when init completes; err if user denied or unavailable.
  */
 export function initAppleHealth(callback) {
-  if (!isIOS || !AppleHealthKit || typeof AppleHealthKit?.initHealthKit !== "function") {
+  if (!APPLE_HEALTH_ENABLED || !isIOS || !AppleHealthKit || typeof AppleHealthKit?.initHealthKit !== "function") {
     if (callback) callback(null);
     return;
   }
@@ -151,7 +152,7 @@ export function initAppleHealth(callback) {
 }
 
 export async function getDailyHealthContext(dateIso) {
-  if (!isIOS || !AppleHealthKit) return null;
+  if (!APPLE_HEALTH_ENABLED || !isIOS || !AppleHealthKit) return null;
 
   const anchorDate = dateIso ? new Date(dateIso) : new Date();
   if (!Number.isFinite(anchorDate.getTime())) return null;
@@ -192,7 +193,7 @@ export async function getDailyHealthContext(dateIso) {
  * @param {object} opts - { dateIso, energyKcal, proteinG, carbsG, fatG, fiberG?, foodName? }
  */
 export function writeNutritionToHealth(opts, callback) {
-  if (!isIOS || !AppleHealthKit || typeof AppleHealthKit?.saveFood !== "function") {
+  if (!APPLE_HEALTH_ENABLED || !isIOS || !AppleHealthKit || typeof AppleHealthKit?.saveFood !== "function") {
     if (callback) callback(null);
     return;
   }
@@ -229,7 +230,7 @@ export function writeNutritionToHealth(opts, callback) {
  * @param {object} opts - { dateIso?, valueKg }
  */
 export function writeWeightToHealth(opts, callback) {
-  if (!isIOS || !AppleHealthKit || typeof AppleHealthKit?.saveWeight !== "function") {
+  if (!APPLE_HEALTH_ENABLED || !isIOS || !AppleHealthKit || typeof AppleHealthKit?.saveWeight !== "function") {
     if (callback) callback(null);
     return;
   }
@@ -257,5 +258,5 @@ export function writeWeightToHealth(opts, callback) {
 
 /** True if HealthKit is available (iOS and module loaded). */
 export function isAppleHealthAvailable() {
-  return isIOS && !!AppleHealthKit;
+  return APPLE_HEALTH_ENABLED && isIOS && !!AppleHealthKit;
 }
