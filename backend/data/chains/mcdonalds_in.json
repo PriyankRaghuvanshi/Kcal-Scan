@@ -1,0 +1,81 @@
+{
+  "brand_name": "McDonald's",
+  "source_type": "official_website_menu",
+  "source_url": "https://www.mcdonaldsindia.com/our-menu.html",
+  "store_name_variants": [
+    "mcdonald's",
+    "mcdonalds",
+    "mccafe",
+    "mc cafe",
+    "mcdonalds india",
+    "mcdonald's india"
+  ],
+  "items": [
+    {
+      "item_name": "McAloo Tikki Burger",
+      "category": "burger",
+      "estimated_calories": 340,
+      "estimated_protein_g": 7,
+      "estimated_carbs_g": 47,
+      "estimated_fat_g": 14,
+      "confidence": 0.9,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "McVeggie Burger",
+      "category": "burger",
+      "estimated_calories": 410,
+      "estimated_protein_g": 11,
+      "estimated_carbs_g": 51,
+      "estimated_fat_g": 18,
+      "confidence": 0.86,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "McChicken Burger",
+      "category": "burger",
+      "estimated_calories": 400,
+      "estimated_protein_g": 14,
+      "estimated_carbs_g": 41,
+      "estimated_fat_g": 19,
+      "confidence": 0.88,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "McSpicy Chicken Burger",
+      "category": "burger",
+      "estimated_calories": 530,
+      "estimated_protein_g": 25,
+      "estimated_carbs_g": 49,
+      "estimated_fat_g": 26,
+      "confidence": 0.84,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "McEgg Burger",
+      "category": "burger",
+      "estimated_calories": 300,
+      "estimated_protein_g": 11,
+      "estimated_carbs_g": 33,
+      "estimated_fat_g": 13,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Paneer Wrap",
+      "category": "wrap",
+      "estimated_calories": 420,
+      "estimated_protein_g": 14,
+      "estimated_carbs_g": 45,
+      "estimated_fat_g": 20,
+      "confidence": 0.8,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    }
+  ]
+}
