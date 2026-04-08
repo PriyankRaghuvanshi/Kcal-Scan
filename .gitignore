@@ -36,4 +36,5 @@ backend/data/chains/*
 !backend/data/chains/taco_bell_us.json
 !backend/data/chains/faasos_in.json
 !backend/data/chains/chipotle_us.json
+!backend/data/chains/wow_momo_in.json
 !backend/data/chain_rollout_registry.json
