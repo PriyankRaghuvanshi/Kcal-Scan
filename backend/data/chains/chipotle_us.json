@@ -1,0 +1,35 @@
+{
+  "brand_name": "Chipotle Mexican Grill",
+  "source_type": "seed_template",
+  "source_url": "",
+  "store_name_variants": ["chipotle", "chipotle mexican grill"],
+  "items": [
+    {
+      "item_name": "High Protein Bowl",
+      "category": "entree",
+      "estimated_calories": 820,
+      "estimated_protein_g": 60,
+      "estimated_carbs_g": 55,
+      "estimated_fat_g": 35,
+      "confidence": 0.82
+    },
+    {
+      "item_name": "Green Goddess Cobb Salad with Chicken",
+      "category": "entree",
+      "estimated_calories": 520,
+      "estimated_protein_g": 40,
+      "estimated_carbs_g": 25,
+      "estimated_fat_g": 30,
+      "confidence": 0.86
+    },
+    {
+      "item_name": "Large Burrito with Queso",
+      "category": "entree",
+      "estimated_calories": 950,
+      "estimated_protein_g": 38,
+      "estimated_carbs_g": 85,
+      "estimated_fat_g": 42,
+      "confidence": 0.78
+    }
+  ]
+}
