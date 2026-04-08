@@ -1,0 +1,63 @@
+{
+  "brand_name": "Haldiram's",
+  "source_type": "official_website_menu",
+  "source_url": "https://www.haldiram.com/",
+  "store_name_variants": ["haldirams", "haldiram's", "haldiram"],
+  "items": [
+    {
+      "item_name": "Tandoori Chicken",
+      "category": "starter",
+      "estimated_calories": 420,
+      "estimated_protein_g": 46,
+      "estimated_carbs_g": 18,
+      "estimated_fat_g": 20,
+      "confidence": 0.88,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Paneer Tikka",
+      "category": "starter",
+      "estimated_calories": 480,
+      "estimated_protein_g": 40,
+      "estimated_carbs_g": 22,
+      "estimated_fat_g": 24,
+      "confidence": 0.84,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Haldiram's Mixed Veg Platter",
+      "category": "platter",
+      "estimated_calories": 520,
+      "estimated_protein_g": 20,
+      "estimated_carbs_g": 60,
+      "estimated_fat_g": 18,
+      "confidence": 0.76,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Tandoori Chicken Bowl",
+      "category": "bowl",
+      "estimated_calories": 560,
+      "estimated_protein_g": 38,
+      "estimated_carbs_g": 55,
+      "estimated_fat_g": 22,
+      "confidence": 0.8,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Paneer Tikka Wrap",
+      "category": "wrap",
+      "estimated_calories": 600,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 52,
+      "estimated_fat_g": 26,
+      "confidence": 0.74,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    }
+  ]
+}
