@@ -38,4 +38,5 @@ backend/data/chains/*
 !backend/data/chains/chipotle_us.json
 !backend/data/chains/wow_momo_in.json
 !backend/data/chains/haldirams_in.json
+!backend/data/chains/barbeque_nation_in.json
 !backend/data/chain_rollout_registry.json
