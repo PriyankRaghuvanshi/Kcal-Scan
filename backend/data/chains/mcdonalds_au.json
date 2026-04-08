@@ -1,0 +1,51 @@
+{
+  "brand_name": "McDonald's",
+  "source_type": "official_website_menu",
+  "source_url": "https://mcdonalds.com.au/menu",
+  "store_name_variants": [
+    "mcdonald's",
+    "mcdonalds",
+    "macca's",
+    "maccas",
+    "mccafe",
+    "mc cafe",
+    "mcdonalds au",
+    "mcdonald's au",
+    "macca"
+  ],
+  "items": [
+    {
+      "item_name": "Hamburger",
+      "category": "burger",
+      "estimated_calories": 250,
+      "estimated_protein_g": 12,
+      "estimated_carbs_g": 30,
+      "estimated_fat_g": 8,
+      "confidence": 0.9,
+      "vegetarian_possible": true,
+      "vegan_possible": true
+    },
+    {
+      "item_name": "McChicken, no mayo",
+      "category": "burger",
+      "estimated_calories": 390,
+      "estimated_protein_g": 17,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 16,
+      "confidence": 0.84,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Filet-O-Fish",
+      "category": "burger",
+      "estimated_calories": 390,
+      "estimated_protein_g": 16,
+      "estimated_carbs_g": 39,
+      "estimated_fat_g": 17,
+      "confidence": 0.84,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    }
+  ]
+}
