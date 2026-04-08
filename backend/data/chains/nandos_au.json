@@ -1,0 +1,52 @@
+{
+  "brand_name": "Nando's",
+  "source_type": "seed_template",
+  "source_url": "",
+  "store_name_variants": ["nandos", "nando's"],
+  "items": [
+    {
+      "item_name": "Quarter Chicken with Salad",
+      "category": "entree",
+      "estimated_calories": 380,
+      "estimated_protein_g": 42,
+      "estimated_carbs_g": 8,
+      "estimated_fat_g": 20,
+      "confidence": 0.88,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Half Chicken with Broccolini",
+      "category": "entree",
+      "estimated_calories": 480,
+      "estimated_protein_g": 52,
+      "estimated_carbs_g": 12,
+      "estimated_fat_g": 24,
+      "confidence": 0.84,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Butterfly Burger with Salad",
+      "category": "entree",
+      "estimated_calories": 520,
+      "estimated_protein_g": 44,
+      "estimated_carbs_g": 28,
+      "estimated_fat_g": 26,
+      "confidence": 0.80,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Chicken Wrap with Peri-Peri",
+      "category": "entree",
+      "estimated_calories": 450,
+      "estimated_protein_g": 36,
+      "estimated_carbs_g": 32,
+      "estimated_fat_g": 20,
+      "confidence": 0.78,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    }
+  ]
+}

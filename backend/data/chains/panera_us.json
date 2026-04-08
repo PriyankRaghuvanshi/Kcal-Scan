@@ -1,0 +1,48 @@
+{
+  "brand_name": "Panera Bread",
+  "source_type": "official_website_menu",
+  "source_url": "https://www.panerabread.com/en-us/menu.html",
+  "store_name_variants": [
+    "panera",
+    "panera bread",
+    "panera bread bakery cafe"
+  ],
+  "items": [
+    {
+      "item_name": "Green Goddess Salad with Chicken",
+      "category": "salad",
+      "estimated_calories": 400,
+      "estimated_protein_g": 42,
+      "estimated_carbs_g": 22,
+      "estimated_fat_g": 20,
+      "confidence": 0.84
+    },
+    {
+      "item_name": "Mediterranean Bowl with Chicken",
+      "category": "bowl",
+      "estimated_calories": 510,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 48,
+      "estimated_fat_g": 22,
+      "confidence": 0.8
+    },
+    {
+      "item_name": "Frontega Chicken Panini",
+      "category": "sandwich",
+      "estimated_calories": 790,
+      "estimated_protein_g": 38,
+      "estimated_carbs_g": 72,
+      "estimated_fat_g": 34,
+      "confidence": 0.77
+    },
+    {
+      "item_name": "Caesar Salad with Grilled Chicken",
+      "category": "salad",
+      "estimated_calories": 460,
+      "estimated_protein_g": 36,
+      "estimated_carbs_g": 28,
+      "estimated_fat_g": 24,
+      "confidence": 0.82
+    }
+  ]
+}

@@ -1,0 +1,53 @@
+{
+  "brand_name": "Taco Bell",
+  "source_type": "seed_template",
+  "source_url": "",
+  "store_name_variants": ["taco bell"],
+  "items": [
+    {
+      "item_name": "Power Menu Bowl with Chicken",
+      "category": "entree",
+      "estimated_calories": 470,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 18,
+      "confidence": 0.82
+    },
+    {
+      "item_name": "Power Menu Bowl with Steak",
+      "category": "entree",
+      "estimated_calories": 480,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 20,
+      "confidence": 0.80
+    },
+    {
+      "item_name": "Fresco Soft Taco with Chicken",
+      "category": "entree",
+      "estimated_calories": 150,
+      "estimated_protein_g": 10,
+      "estimated_carbs_g": 16,
+      "estimated_fat_g": 5,
+      "confidence": 0.78
+    },
+    {
+      "item_name": "Crunchy Taco",
+      "category": "entree",
+      "estimated_calories": 170,
+      "estimated_protein_g": 8,
+      "estimated_carbs_g": 13,
+      "estimated_fat_g": 9,
+      "confidence": 0.85
+    },
+    {
+      "item_name": "Beefy 5-Layer Burrito",
+      "category": "entree",
+      "estimated_calories": 500,
+      "estimated_protein_g": 22,
+      "estimated_carbs_g": 52,
+      "estimated_fat_g": 22,
+      "confidence": 0.78
+    }
+  ]
+}
