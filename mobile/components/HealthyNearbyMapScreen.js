@@ -14,7 +14,20 @@ import {
   Platform,
   ScrollView,
 } from "react-native";
-import MapView, { Marker } from "react-native-maps";
+import Constants from "expo-constants";
+
+let MapView = null;
+let Marker = null;
+try {
+  const Maps = require("react-native-maps");
+  MapView = Maps.default;
+  Marker = Maps.Marker;
+} catch (_) {}
+
+const hasGoogleMapsKey = Boolean(
+  Constants.expoConfig?.android?.config?.googleMaps?.apiKey ||
+  Constants.expoConfig?.extra?.GOOGLE_MAPS_API_KEY
+);
 import { HealthyMapFilters } from "./HealthyMapFilters";
 import { HealthyPlaceBottomCard } from "./HealthyPlaceBottomCard";
 import { getPlaceCoords } from "../mapUtils";
@@ -175,6 +188,8 @@ export function HealthyNearbyMapScreen({
 
   const placeCount = markersWithCoords.length;
 
+  const canRenderMap = MapView && Marker && (Platform.OS === "ios" || hasGoogleMapsKey);
+
   return (
     <View style={styles.container}>
       {bannerText ? (
@@ -198,6 +213,7 @@ export function HealthyNearbyMapScreen({
       </View>
 
       <View style={styles.mapWrap}>
+        {canRenderMap ? (
         <MapView
           ref={mapRef}
           style={styles.map}
@@ -246,6 +262,16 @@ export function HealthyNearbyMapScreen({
             );
           })}
         </MapView>
+        ) : (
+        <View style={styles.mapFallback}>
+          <Text style={styles.mapFallbackTitle}>Map unavailable</Text>
+          <Text style={styles.mapFallbackBody}>
+            {Platform.OS === "android"
+              ? "Google Maps API key is not configured for this build. Places are listed below."
+              : "Map component could not load. Places are listed below."}
+          </Text>
+        </View>
+        )}
 
         {/* Filter chips – horizontal scroll */}
         <View style={styles.filtersOverlay}>
@@ -671,5 +697,24 @@ const styles = StyleSheet.create({
     color: "#1f2937",
     fontSize: typography.base,
     fontWeight: typography.weight.semibold,
+  },
+  mapFallback: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#f3f4f6",
+    padding: spacing.xl,
+  },
+  mapFallbackTitle: {
+    fontSize: typography.xl,
+    fontWeight: typography.weight.bold,
+    color: "#111827",
+    marginBottom: spacing.sm,
+  },
+  mapFallbackBody: {
+    fontSize: typography.base,
+    color: "#6b7280",
+    textAlign: "center",
+    lineHeight: 22,
   },
 });

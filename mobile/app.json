@@ -34,6 +34,11 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyDLta_em4OgP5E7h59rOtqQw_344j1vnFQ"
+        }
+      },
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.ACCESS_COARSE_LOCATION",
@@ -53,7 +58,8 @@
       "ENTITLEMENT_URL": "https://kcal-scan-production.up.railway.app/entitlement/upsert",
       "USAGE_URL": "https://kcal-scan-production.up.railway.app/usage",
       "REVENUECAT_OFFERING": "main",
-      "REVENUECAT_IOS_API_KEY": "appl_SoteCFCeVzvTTQWIpwbClzFnBdq"
+      "REVENUECAT_IOS_API_KEY": "appl_SoteCFCeVzvTTQWIpwbClzFnBdq",
+      "REVENUECAT_ANDROID_API_KEY": "goog_prIetTCSFiELCySmPqvheMMqbqi"
     },
     "plugins": [
       [

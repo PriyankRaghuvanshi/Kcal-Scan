@@ -4,12 +4,25 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Platform } from "react-native";
-import MapView, { Marker } from "react-native-maps";
+import Constants from "expo-constants";
 import { LinearGradient } from "expo-linear-gradient";
 import { HealthyMapFilters } from "./HealthyMapFilters";
 import { HealthyNearbyGridTile } from "./HealthyNearbyGridTile";
 import { getPlaceCoords } from "../mapUtils";
 import { spacing, radius, typography, shadows } from "../designTokens";
+
+let MapView = null;
+let Marker = null;
+try {
+  const Maps = require("react-native-maps");
+  MapView = Maps.default;
+  Marker = Maps.Marker;
+} catch (_) {}
+
+const hasGoogleMapsKey = Boolean(
+  Constants.expoConfig?.android?.config?.googleMaps?.apiKey ||
+  Constants.expoConfig?.extra?.GOOGLE_MAPS_API_KEY
+);
 
 const ACCENT_PURPLE = "#a855f7";
 const ACCENT_PINK = "#ec4899";
@@ -85,6 +98,7 @@ export function HealthyNearbyDiscoverLayout({
   const mapRef = useRef(null);
   const [mapReady, setMapReady] = useState(false);
   const useSafeAndroidPreview = Platform.OS === "android";
+  const canRenderMap = MapView && Marker && (Platform.OS === "ios" || hasGoogleMapsKey);
 
   const markersWithCoords = (Array.isArray(places) ? places : [])
     .map((place, idx) => ({ place, idx, coords: getPlaceCoords(place) }))
@@ -137,6 +151,7 @@ export function HealthyNearbyDiscoverLayout({
         style={styles.mapFrame}
       >
         <View style={styles.mapCard}>
+          {canRenderMap ? (
           <MapView
             ref={mapRef}
             style={styles.map}
@@ -159,7 +174,6 @@ export function HealthyNearbyDiscoverLayout({
                 const stableId = getPlaceStableId ? getPlaceStableId(place, idx) : null;
                 const isSelected = Boolean(selectedStableId && stableId === selectedStableId);
                 const tier = idx === 0 ? 1 : idx === 1 ? 2 : idx === 2 ? 3 : 0;
-                // #1 = promo-style red pin, others warm accent stack
                 const tierColor =
                   tier === 1
                     ? "#ef4444"
@@ -188,6 +202,16 @@ export function HealthyNearbyDiscoverLayout({
                 );
               })}
           </MapView>
+          ) : (
+          <View style={styles.mapFallback}>
+            <Text style={styles.mapFallbackTitle}>Map unavailable</Text>
+            <Text style={styles.mapFallbackBody}>
+              {Platform.OS === "android"
+                ? "Google Maps API key is not configured. Places are listed below."
+                : "Map could not load."}
+            </Text>
+          </View>
+          )}
           <LinearGradient
             colors={["transparent", "rgba(15,18,28,0.35)"]}
             style={styles.mapBottomFade}
@@ -476,5 +500,25 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
     marginBottom: spacing.lg,
     fontWeight: "600",
+  },
+  mapFallback: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#1e1b2e",
+    padding: spacing.xl,
+    borderRadius: radius.xl,
+  },
+  mapFallbackTitle: {
+    fontSize: typography.lg,
+    fontWeight: "800",
+    color: "#e2e8f0",
+    marginBottom: spacing.sm,
+  },
+  mapFallbackBody: {
+    fontSize: typography.sm,
+    color: "#94a3b8",
+    textAlign: "center",
+    lineHeight: 20,
   },
 });
