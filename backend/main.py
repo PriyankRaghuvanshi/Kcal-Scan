@@ -114,6 +114,7 @@ from recipe_suggestions import build_recipe_suggest_response, record_recipe_feed
 from push_send_flow import send_smart_alert_for_user as _send_smart_alert_for_user
 from personal_response_summary import get_personal_meal_memory
 from nutrition_mode import NutritionMode
+from upf_quick_logic import parse_upf_quick_model_output
 from better_choice_nearby import build_better_choice_nearby_response
 from daily_fatloss_coach import build_daily_fatloss_coach_response
 from daily_food_decision import build_daily_decision_response
@@ -566,6 +567,11 @@ def scan_performance_recent(limit: Optional[int] = 50):
 
 @app.options("/analyze")
 def analyze_options():
+    return PlainTextResponse("ok", status_code=200)
+
+
+@app.options("/analyze/upf")
+def analyze_upf_options():
     return PlainTextResponse("ok", status_code=200)
 
 
@@ -2961,7 +2967,12 @@ def _attach_temporal_coach_greeting(
     if greeting:
         out["coach_summary"] = _prefix_once(out.get("coach_summary"), greeting, 260)
         out["one_sentence_summary"] = _prefix_once(out.get("one_sentence_summary"), greeting, 220)
-        out["empathy_line"] = _prefix_once(out.get("empathy_line"), greeting, 160)
+        # Coach voice card prefers insight_line when set; prefix it so time-of-day greetings are visible there too.
+        ins = str(out.get("insight_line") or "").strip()
+        if ins:
+            out["insight_line"] = _prefix_once(out.get("insight_line"), greeting, 420)
+        else:
+            out["empathy_line"] = _prefix_once(out.get("empathy_line"), greeting, 220)
     return out
 
 
@@ -9974,7 +9985,7 @@ def _apply_user_priors_to_items(
         return out, used
 
     explicit_portion = edits is not None and edits.portion_multiplier is not None
-    explicit_oil = edits is not None and edits.set_oil_added_tsp is not None
+    explicit_oil = edits is not None and _rerun_user_locked_oil_prior(edits)
 
     for it in out:
         if not _food_token(it.get("name")):
@@ -11717,6 +11728,15 @@ def _voice_fallback_response(
     timeout_mode: bool = False,
 ) -> Dict[str, Any]:
     metrics = _voice_metrics_from_request(req)
+    meals_count = int(_safe_float(metrics.get("meals_count"), 0) or 0)
+    last_meal_p = 0.0
+    ml = list(req.meals or [])
+    if ml:
+        last = ml[-1]
+        if isinstance(last, dict):
+            last_meal_p = float(_safe_float(last.get("protein_g"), 0.0) or 0.0)
+        else:
+            last_meal_p = float(_safe_float(getattr(last, "protein_g", 0.0), 0.0) or 0.0)
     v_stance = _voice_relationship_stance(metrics)
     candidate = _pick_non_repeating_advice_key(_voice_action_templates(metrics), recent_keys)
     tone_pref = _voice_requested_tone(req)
@@ -11740,6 +11760,9 @@ def _voice_fallback_response(
     elif tone_pref == "indian_coach":
         empathy = "Boss, meal logged. Chalo ek strong next step set karte hain." if v_stance == "steady" else empathy
 
+    if meals_count <= 1 and v_stance == "steady" and tone_pref != "strict":
+        empathy = "Great job logging your first meal today—small wins stack fast."
+
     protein_gap = float(_safe_float(metrics.get("protein_gap"), 0.0) or 0.0)
     fiber_gap = float(_safe_float(metrics.get("fiber_gap"), 0.0) or 0.0)
     late_pct = float(_safe_float(metrics.get("late_calories_pct"), 0.0) or 0.0)
@@ -11749,6 +11772,17 @@ def _voice_fallback_response(
         insight = "I’m still refining details. Use one practical step now while your full coaching updates."
     elif avg_conf < 0.55:
         insight = "This scan likely needs one quick confirmation before precision coaching."
+    elif (
+        not timeout_mode
+        and avg_conf >= 0.55
+        and v_stance == "steady"
+        and meals_count <= 1
+        and tone_pref != "strict"
+    ):
+        insight = (
+            f"Nice job logging this meal—about {round(last_meal_p, 1)}g protein here. "
+            "You still have the rest of the day to add fiber-rich sides and balance things out."
+        )
     elif v_stance == "warm_reset" and kcal_delta > 50:
         insight = (
             f"You're roughly {int(round(max(0, kcal_delta)))} kcal over target—bias your next meal to protein + veg and trim refined carbs a bit."
@@ -11769,8 +11803,8 @@ def _voice_fallback_response(
     out = {
         "coach_generated_ts": _now_utc_naive().isoformat(),
         "tone_tag": tone_tag,
-        "empathy_line": _limit_text(empathy, 120),
-        "insight_line": _limit_text(insight, 200),
+        "empathy_line": _limit_text(empathy, 220),
+        "insight_line": _limit_text(insight, 420),
         "one_action": {
             "title": _limit_text(str(candidate.get("title") or "One next step"), 64),
             "steps": [str(x)[:120] for x in (candidate.get("steps") or []) if str(x).strip()][:3] or ["Log your next meal."],
@@ -11798,8 +11832,45 @@ def _coerce_voice_output(
         "indian_coach": "supportive",
     }.get(tone_pref, "neutral")
     tone_tag = _normalize_tone_tag(raw.get("tone_tag"), fallback=default_tone)
-    empathy_line = _limit_text(raw.get("empathy_line"), 120) or fallback["empathy_line"]
-    insight_line = _limit_text(raw.get("insight_line"), 200) or fallback["insight_line"]
+    empathy_line = _limit_text(raw.get("empathy_line"), 220) or fallback["empathy_line"]
+    insight_line = _limit_text(raw.get("insight_line"), 420) or fallback["insight_line"]
+    recent_summaries = _normalize_short_text_list([m.summary for m in (req.recent_messages or [])], limit=4, max_chars=220)
+    opener_bank = {
+        "supportive": [
+            "Quick read:",
+            "From what I can see:",
+            "Here is the honest snapshot:",
+            "What stands out to me:",
+        ],
+        "strict": [
+            "Straight read:",
+            "No fluff:",
+            "Directly:",
+            "Here is the hard truth:",
+        ],
+        "funny": [
+            "Mini plot twist:",
+            "Coach update:",
+            "Quick reality check:",
+            "Today in nutrition:",
+        ],
+        "indian_coach": [
+            "Seedhi baat:",
+            "Dekho, simple hai:",
+            "Quick check:",
+            "Asli snapshot:",
+        ],
+    }
+    tone_openers = opener_bank.get(tone_pref, opener_bank["supportive"])
+    seed = hashlib.sha256(
+        f"{_safe_day_iso(req.day)}|{tone_pref}|{metrics.get('meals_count')}|{metrics.get('kcal_delta')}".encode("utf-8")
+    ).hexdigest()
+    opener = tone_openers[int(seed[:8], 16) % len(tone_openers)]
+    if recent_summaries and _is_repetitive_line(insight_line, recent_summaries, threshold=0.84):
+        if not insight_line.lower().startswith(opener.lower()):
+            insight_line = _limit_text(f"{opener} {insight_line}", 420)
+    if recent_summaries and _is_repetitive_line(empathy_line, recent_summaries, threshold=0.86):
+        empathy_line = fallback["empathy_line"]
 
     action_obj = raw.get("one_action") if isinstance(raw.get("one_action"), dict) else {}
     title = _limit_text(action_obj.get("title"), 64) or fallback["one_action"]["title"]
@@ -11818,14 +11889,19 @@ def _coerce_voice_output(
         steps = list(fallback["one_action"]["steps"])
         why = fallback["why_this_action"]
 
+    meals_count = int(_safe_float(metrics.get("meals_count"), 0) or 0)
     grounded_words = ("protein", "fiber", "calorie", "upf", "glycemic", "late")
-    if not any(w in insight_line.lower() for w in grounded_words):
+    if meals_count > 2 and not any(w in insight_line.lower() for w in grounded_words):
         protein_gap = float(_safe_float(metrics.get("protein_gap"), 0.0) or 0.0)
         fiber_gap = float(_safe_float(metrics.get("fiber_gap"), 0.0) or 0.0)
         if protein_gap > 0:
-            insight_line = _limit_text(f"{insight_line} Protein shortfall remains around {round(protein_gap, 1)}g.", 200)
+            insight_line = _limit_text(
+                f"{insight_line} Protein shortfall remains around {round(protein_gap, 1)}g.", 420
+            )
         elif fiber_gap > 0:
-            insight_line = _limit_text(f"{insight_line} Fiber shortfall remains around {round(fiber_gap, 1)}g.", 200)
+            insight_line = _limit_text(
+                f"{insight_line} Fiber shortfall remains around {round(fiber_gap, 1)}g.", 420
+            )
 
     disclaimer = _limit_text(raw.get("safety_disclaimer"), 140) or "Informational only. Not medical advice."
     return {
@@ -11865,8 +11941,8 @@ def _generate_human_coach_voice_llm(
     schema = {
         "coach_generated_ts": "ISO",
         "tone_tag": "supportive|firm|celebratory|neutral",
-        "empathy_line": "string <=120 chars",
-        "insight_line": "string <=200 chars",
+        "empathy_line": "string <=220 chars",
+        "insight_line": "string <=420 chars",
         "one_action": {"title": "string", "steps": ["string", "string", "string"]},
         "why_this_action": "string",
         "advice_key": "string",
@@ -11886,6 +11962,8 @@ def _generate_human_coach_voice_llm(
         "Return strict JSON only, no markdown, no extra keys.\n"
         "No medical claims or diagnosis.\n"
         "Keep empathy_line short and human.\n"
+        "Write like a person speaking to one user right now, not like an app template.\n"
+        "Use natural phrasing and occasional contractions. Avoid robotic transitions.\n"
         "insight_line must reference measurable context.\n"
         "Choose exactly one action from allowed_actions and use its advice_key.\n"
         "Avoid advice keys that appear in recent_advice_keys unless no other option exists.\n"
@@ -14299,6 +14377,68 @@ def _fallback_vision_scan_from_items(items: List[Dict[str, Any]], vision_thresho
     )
 
 
+def _normalize_food_text_for_match(s: Any) -> str:
+    t = str(s or "").strip().lower()
+    if not t:
+        return ""
+    t = re.sub(r"[^a-z0-9\s]+", " ", t)
+    return " ".join(t.split())
+
+
+def _names_look_like_alternatives(a: Any, b: Any) -> bool:
+    aa = _normalize_food_text_for_match(a)
+    bb = _normalize_food_text_for_match(b)
+    if not aa or not bb:
+        return False
+    if aa == bb or aa in bb or bb in aa:
+        return True
+    wa = set(aa.split())
+    wb = set(bb.split())
+    if not wa or not wb:
+        return False
+    overlap = len(wa.intersection(wb)) / max(1, min(len(wa), len(wb)))
+    return overlap >= 0.7
+
+
+def _collapse_ambiguous_alternative_items(
+    items: List[Dict[str, Any]],
+    *,
+    vision_confidence: float,
+    vision_threshold: float,
+) -> List[Dict[str, Any]]:
+    """On low-confidence scans, avoid counting clear alternatives as separate items."""
+    if not isinstance(items, list) or len(items) < 2:
+        return items
+    if float(_safe_float(vision_confidence, 0.0) or 0.0) >= float(_safe_float(vision_threshold, 0.72) or 0.72):
+        return items
+    keep = [True] * len(items)
+    for i in range(len(items)):
+        a = items[i] if isinstance(items[i], dict) else {}
+        if not a:
+            continue
+        a_name = str(a.get("name") or "").strip()
+        a_conf = float(_safe_float(a.get("confidence"), 0.0) or 0.0)
+        a_alts = [str(x).strip() for x in (a.get("candidate_alternatives") or []) if str(x).strip()]
+        for j in range(i + 1, len(items)):
+            b = items[j] if isinstance(items[j], dict) else {}
+            if not b:
+                continue
+            b_name = str(b.get("name") or "").strip()
+            b_conf = float(_safe_float(b.get("confidence"), 0.0) or 0.0)
+            b_alts = [str(x).strip() for x in (b.get("candidate_alternatives") or []) if str(x).strip()]
+            linked = any(_names_look_like_alternatives(alt, b_name) for alt in a_alts) or any(
+                _names_look_like_alternatives(alt, a_name) for alt in b_alts
+            )
+            if not linked:
+                continue
+            if a_conf >= b_conf:
+                keep[j] = False
+            else:
+                keep[i] = False
+    out = [it for idx, it in enumerate(items) if keep[idx]]
+    return out or items
+
+
 def gemini_vision_scan_v1(
     image_bytes: bytes,
     personalization_context: Optional[Dict[str, Any]] = None,
@@ -14365,6 +14505,8 @@ If you cannot tell from the image, use empty object {} or omit ingredient_hints.
 Rules:
 - Use simple USDA-friendly item names.
 - items must not be empty.
+- top_candidates are alternatives for the same scan, not additive foods.
+- Do NOT include uncertain alternatives as separate items. Put alternatives in candidate_alternatives.
 - grams > 0 for each item.
 - confidence fields must be 0..1.
 - Use personalization context only as soft defaults, never as guaranteed truth.
@@ -14404,6 +14546,83 @@ def gemini_detect_foods(image_bytes: bytes) -> List[Dict[str, Any]]:
         }
         for it in (scan.items or [])
     ]
+
+
+def gemini_upf_packaging_quick_v1(
+    image_bytes: bytes,
+    *,
+    request_id: str = "",
+) -> float:
+    """
+    Single-call packaging / product UPF estimate (0–10). No USDA, no meal QA, no job queue.
+    """
+    _require_gemini_key()
+    allow, reason = _scan_circuit_allow()
+    if not allow:
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "error": "scan_llm_circuit_open",
+                "message": "Scan model is temporarily throttled. Please retry shortly.",
+                "raw": str(reason or "")[:220],
+            },
+        )
+    prompt = """
+You estimate how ultra-processed a food is from this photo (packaged product, label, front-of-pack, bar, drink, or a plated meal).
+
+Score 0–10 (NOVA-style tendency):
+- 0–2: unprocessed / minimally processed whole foods
+- 3–5: processed culinary ingredients / basic processed foods
+- 6–8: ultra-processed (industrial snacks, sodas, sweet cereals, most protein bars, instant noodles, etc.)
+- 9–10: formulations with many additives / hyper-palatable industrial products
+
+Use visible cues (ingredient lists, brand category, product type). If text is unreadable, infer from the strongest visual cue.
+
+Calibration rules (important):
+- If the product appears to have a short ingredient list with mostly kitchen ingredients and no obvious additives/emulsifiers/sweeteners, prefer 1–3.
+- Single-ingredient foods (e.g., plain oats, plain nuts, plain milk, plain rice, plain lentils) should usually be 0–2.
+- Do NOT assign >=6 unless there is clear evidence of ultra-processing (industrial snack/drink class, long additive-heavy list, or strongly synthetic formulation cues).
+- If uncertain due to blurry label, stay conservative (2–4) instead of over-penalizing.
+
+Return ONLY valid JSON (no markdown): {"ultra_processed_score": <number>}
+The number must be between 0 and 10.
+""".strip()
+    img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+    try:
+        # retries=-1 → one attempt only (see _call_llm_with_timeout attempts formula).
+        text, _, _ = _call_llm_with_timeout(
+            [prompt, img],
+            model_name=SCAN_LLM_MODEL,
+            timeout_sec=float(_UPF_QUICK_LLM_TIMEOUT_SEC),
+            retries=-1,
+            purpose="scan:upf_packaging",
+            request_id=request_id,
+        )
+        _scan_circuit_record_success()
+    except Exception as e:
+        err_raw = _http_exc_raw(e)
+        _scan_circuit_record_failure(err_raw)
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(
+            status_code=502,
+            detail={
+                "error": "upf_quick_failed",
+                "message": "Could not score this photo right now.",
+                "raw": str(err_raw or "")[:320],
+            },
+        ) from e
+    try:
+        return parse_upf_quick_model_output(text)
+    except Exception as e:
+        raise HTTPException(
+            status_code=502,
+            detail={
+                "error": "upf_quick_parse_failed",
+                "message": "Model returned an unexpected format.",
+                "raw": str(e)[:120],
+            },
+        ) from e
 
 
 def _menu_scan_ocr_from_image(
@@ -18400,6 +18619,10 @@ _LOW_CONF_CLARIFY_QUESTION = {
     "ask": "Is there visible added oil, sauce, or dressing?",
     "options": ["No", "Yes - light", "Yes - normal", "Yes - heavy"],
 }
+_HIGH_KCAL_PORTION_CLARIFY_QUESTION = {
+    "ask": "This looks calorie-dense. Is the portion size right?",
+    "options": ["Looks right", "Portion is smaller", "Portion is larger"],
+}
 
 # Dimension registry (Phase 1 MVP): canonical clarification dimensions.
 DIMENSION_REGISTRY: Dict[str, Dict[str, Any]] = {
@@ -19089,7 +19312,11 @@ def _get_llm_clarification_questions_safe(items: List[Dict[str, Any]]) -> List[D
 def _apply_stored_ingredient_choices_to_items(user_id: str, items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Enrich item names from stored + inferred-from-name choices for better nutrition lookup."""
     try:
-        from user_ingredient_choices import get_user_ingredient_choices, get_food_token_from_item
+        from user_ingredient_choices import (
+            get_user_ingredient_choices,
+            get_food_token_from_item,
+            component_memory_keys_for_item_name,
+        )
     except ImportError:
         return items
     if not items or not user_id:
@@ -19100,8 +19327,16 @@ def _apply_stored_ingredient_choices_to_items(user_id: str, items: List[Dict[str
     token = get_food_token_from_item(first)
     if not token:
         return items
-    stored = get_user_ingredient_choices(user_id, token)
     name = str(first.get("name") or "").strip()
+    stored = get_user_ingredient_choices(user_id, token)
+    component_stored: Dict[str, str] = {}
+    for ck in component_memory_keys_for_item_name(name):
+        comp = get_user_ingredient_choices(user_id, ck)
+        if not isinstance(comp, dict):
+            continue
+        for k, v in comp.items():
+            if v is not None and str(v).strip():
+                component_stored[str(k)] = str(v).strip()
     vision_hints = (first or {}).get("ingredient_hints") or {}
     if not isinstance(vision_hints, dict):
         vision_hints = {}
@@ -19113,6 +19348,8 @@ def _apply_stored_ingredient_choices_to_items(user_id: str, items: List[Dict[str
             inferred = _infer_ingredient_choices_from_name(name, rule["questions"])
             break
     merged = dict(inferred)
+    for k, v in component_stored.items():
+        merged[k] = v
     for k, v in (vision_hints or {}).items():
         if v is not None and str(v).strip():
             merged[k] = str(v).strip()
@@ -19194,6 +19431,31 @@ def _build_scan_data_quality(vision: VisionScanV1Model, vision_threshold: float 
     }
 
 
+def _needs_high_kcal_portion_sanity_check(
+    items: List[Dict[str, Any]],
+    totals: Dict[str, Any],
+    *,
+    vision_confidence: float,
+    vision_threshold: float,
+) -> bool:
+    """
+    Safety prompt for likely over-estimation cases:
+    low-confidence + effectively single meal interpretation + very high kcal.
+    """
+    if not isinstance(items, list) or not items:
+        return False
+    conf = float(_safe_float(vision_confidence, 0.0) or 0.0)
+    threshold = float(_safe_float(vision_threshold, 0.72) or 0.72)
+    if conf >= threshold:
+        return False
+    kcal = float(_safe_float((totals or {}).get("kcal"), 0.0) or 0.0)
+    if kcal < 700:
+        return False
+    distinct_names = {str((it or {}).get("name") or "").strip().lower() for it in items if isinstance(it, dict)}
+    distinct_names = {n for n in distinct_names if n}
+    return len(distinct_names) <= 2
+
+
 def _portion_multiplier_value(raw: Any) -> Optional[float]:
     if raw is None:
         return None
@@ -19205,6 +19467,119 @@ def _portion_multiplier_value(raw: Any) -> Optional[float]:
     if val is None:
         return None
     return max(0.3, min(3.0, float(val)))
+
+
+_ADDED_FAT_NONE_VALUES = frozenset(
+    {
+        "none",
+        "no",
+        "n/a",
+        "na",
+        "0",
+        "not fried / no added oil",
+        "no added oil",
+        "not fried",
+        "looks right",
+    }
+)
+
+
+def _clarifying_answers_selection_dict(edits: AnalyzeRerunEditsModel) -> Dict[str, str]:
+    selected: Dict[str, str] = {}
+    for a in edits.clarifying_answers or []:
+        if not isinstance(a, dict):
+            continue
+        k = _normalize_dim_id(str(a.get("key") or "").strip())
+        v = str(a.get("value") or "").strip()
+        if k and v:
+            selected[k] = v
+    return selected
+
+
+def _added_fat_answer_to_explicit_oil_tsp(value: str) -> Optional[float]:
+    v = str(value or "").strip().lower()
+    if v in _ADDED_FAT_NONE_VALUES:
+        return 0.0
+    if v in {"light", "yes - light"}:
+        return 0.5
+    if v in {"normal", "yes - normal"}:
+        return 1.0
+    if v in {"heavy", "yes - heavy", "deep fried (~2+ tsp oil)"}:
+        return 2.5
+    return None
+
+
+def _clarifying_answer_string_to_fry_oil_tsp(answer_raw: str) -> Optional[float]:
+    """Map legacy single-string clarifying_answer (fried / low-conf prompts) to explicit fry-oil tsp."""
+    answer = str(answer_raw or "").strip().lower()
+    if not answer:
+        return None
+    if answer in {"no", "none", "no oil", "no added oil", "not fried / no added oil", "looks right"}:
+        return 0.0
+    if "not fried" in answer:
+        return 0.0
+    if "deep" in answer:
+        return 2.5
+    if "air" in answer and "fried" in answer:
+        return 0.5
+    if "pan" in answer or "shallow" in answer:
+        return 1.0
+    if "heavy" in answer:
+        return 2.0
+    if "normal" in answer:
+        return 1.0
+    if "light" in answer:
+        return 0.5
+    return None
+
+
+def _rerun_user_locked_oil_prior(edits: Optional[AnalyzeRerunEditsModel]) -> bool:
+    """True when the user explicitly answered oil / added-fat clarification — skip prior-based oil bumps."""
+    if not edits:
+        return False
+    if edits.set_oil_added_tsp is not None:
+        return True
+    if str(edits.clarifying_answer or "").strip():
+        return True
+    for a in edits.clarifying_answers or []:
+        if not isinstance(a, dict):
+            continue
+        k = _normalize_dim_id(str(a.get("key") or "").strip())
+        v = str(a.get("value") or "").strip()
+        if not k or not v:
+            continue
+        if k in ("added_fat", "dressing"):
+            return True
+    return False
+
+
+def _apply_clarifying_dimensions_to_item_dicts(
+    items: List[Dict[str, Any]],
+    edits: Optional[AnalyzeRerunEditsModel],
+) -> None:
+    """Apply structured clarification dimensions to vision items before nutrition compute (mutates items)."""
+    if not items or not edits:
+        return
+    selected = _clarifying_answers_selection_dict(edits)
+    cm = str(selected.get("cooking_method") or "").strip()
+    if cm and cm.lower() not in ("other", "not sure", ""):
+        nm = _method_norm(cm.replace("-", " "))
+        if nm:
+            for it in items:
+                if isinstance(it, dict):
+                    it["cooking_method"] = nm
+    fat_val = str(selected.get("added_fat") or selected.get("dressing") or "").strip()
+    if fat_val:
+        tsp = _added_fat_answer_to_explicit_oil_tsp(fat_val)
+        if tsp is not None:
+            if tsp <= 0.0:
+                for it in items:
+                    if isinstance(it, dict):
+                        it["oil_added_tsp"] = 0.0
+            else:
+                for it in items:
+                    if isinstance(it, dict) and _cooking_method_implies_fry_oil_prior(it.get("cooking_method")):
+                        it["oil_added_tsp"] = round(float(tsp), 2)
 
 
 def _apply_rerun_edits(base_items: List[Dict[str, Any]], edits: AnalyzeRerunEditsModel) -> List[Dict[str, Any]]:
@@ -19253,22 +19628,21 @@ def _apply_rerun_edits(base_items: List[Dict[str, Any]], edits: AnalyzeRerunEdit
                     it["grams"] = round(grams, 1)
                     break
 
-    answer = str(edits.clarifying_answer or "").strip().lower()
-    if answer:
-        if "deep" in answer:
-            out[0]["oil_added_tsp"] = 2.5
-        elif "pan" in answer or "shallow" in answer:
-            out[0]["oil_added_tsp"] = 1.0
-        elif "air" in answer and "fried" in answer:
-            out[0]["oil_added_tsp"] = 0.5
-        elif "heavy" in answer:
-            out[0]["oil_added_tsp"] = 2.0
-        elif "normal" in answer:
-            out[0]["oil_added_tsp"] = 1.0
-        elif "light" in answer:
-            out[0]["oil_added_tsp"] = 0.5
-        elif answer in {"no", "none", "no oil", "no added oil", "not fried / no added oil", "looks right"}:
-            out[0]["oil_added_tsp"] = 0.0
+    ans_raw = str(edits.clarifying_answer or "").strip()
+    if ans_raw:
+        tsp = _clarifying_answer_string_to_fry_oil_tsp(ans_raw)
+        if tsp is not None:
+            if tsp <= 0.0:
+                for it in out:
+                    if isinstance(it, dict):
+                        it["oil_added_tsp"] = 0.0
+            else:
+                fried_items = [it for it in out if isinstance(it, dict) and _cooking_method_implies_fry_oil_prior(it.get("cooking_method"))]
+                targets = fried_items if fried_items else ([out[0]] if out else [])
+                for it in targets:
+                    if isinstance(it, dict):
+                        it["oil_added_tsp"] = round(float(tsp), 2)
+    _apply_clarifying_dimensions_to_item_dicts(out, edits)
     return out
 
 
@@ -19392,6 +19766,10 @@ def _usual_meal_hint_for_response(
 _SCAN_MAX_IMAGE_PIXELS = int(os.getenv("SCAN_MAX_IMAGE_PIXELS", str(1024 * 1024)))
 _SCAN_MAX_EDGE_PX = int(os.getenv("SCAN_MAX_EDGE_PX", "1024"))
 _SCAN_JPEG_QUALITY = max(60, min(95, int(os.getenv("SCAN_JPEG_QUALITY", "85"))))
+# UPF quick-scan: smaller payload for a single fast vision classification (target ~1s server-side).
+_UPF_QUICK_MAX_EDGE_PX = int(os.getenv("UPF_QUICK_MAX_EDGE_PX", "512"))
+_UPF_QUICK_JPEG_QUALITY = max(55, min(90, int(os.getenv("UPF_QUICK_JPEG_QUALITY", "78"))))
+_UPF_QUICK_LLM_TIMEOUT_SEC = max(2.5, min(8.0, float(os.getenv("UPF_QUICK_LLM_TIMEOUT_SEC", "4") or "4")))
 
 
 def _resize_image_for_scan(image_bytes: bytes) -> Tuple[bytes, Optional[Dict[str, int]]]:
@@ -19410,6 +19788,28 @@ def _resize_image_for_scan(image_bytes: bytes) -> Tuple[bytes, Optional[Dict[str
     except Exception as e:
         logger.warning("scan image resize skipped: %s", str(e)[:120])
         return image_bytes, None
+
+
+def _resize_image_for_upf_quick(image_bytes: bytes) -> bytes:
+    """Aggressively downscale packaged-product photos for low-latency UPF scoring."""
+    try:
+        img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+        w, h = img.size
+        max_edge = max(w, h)
+        cap = max(256, min(768, int(_UPF_QUICK_MAX_EDGE_PX)))
+        if max_edge <= cap:
+            buf = io.BytesIO()
+            img.save(buf, format="JPEG", quality=int(_UPF_QUICK_JPEG_QUALITY), optimize=True)
+            return buf.getvalue()
+        scale = cap / float(max_edge)
+        nw, nh = max(1, int(w * scale)), max(1, int(h * scale))
+        resized = img.resize((nw, nh), Image.Resampling.BILINEAR)
+        buf = io.BytesIO()
+        resized.save(buf, format="JPEG", quality=int(_UPF_QUICK_JPEG_QUALITY), optimize=True)
+        return buf.getvalue()
+    except Exception as e:
+        logger.warning("upf quick resize skipped: %s", str(e)[:120])
+        return image_bytes
 
 
 def _run_analyze_pipeline(
@@ -19517,6 +19917,11 @@ def _run_analyze_pipeline(
     ).strip():
         if float(_safe_float(vision_scan.vision_confidence, 0.65) or 0.65) < vision_threshold:
             personalization_used["asked_clarifying_question_reason"] = "low_confidence"
+    detected_items = _collapse_ambiguous_alternative_items(
+        detected_items,
+        vision_confidence=float(_safe_float(vision_scan.vision_confidence, 0.65) or 0.65),
+        vision_threshold=vision_threshold,
+    )
     ingredient_clarification_questions = _get_ingredient_clarification_questions(uid, detected_items)
     detected_items = _apply_stored_ingredient_choices_to_items(uid, detected_items)
     logger.info("Detected items: %s job_id=%s request_id=%s", detected_items, job_id, request_id)
@@ -19530,6 +19935,20 @@ def _run_analyze_pipeline(
     total_p = float(_safe_float(totals.get("protein_g"), 0.0) or 0.0)
     total_c = float(_safe_float(totals.get("carbs_g"), 0.0) or 0.0)
     total_f = float(_safe_float(totals.get("fat_g"), 0.0) or 0.0)
+    if _needs_high_kcal_portion_sanity_check(
+        detected_items,
+        totals,
+        vision_confidence=float(_safe_float(vision_scan.vision_confidence, 0.65) or 0.65),
+        vision_threshold=vision_threshold,
+    ):
+        try:
+            vision_payload = _model_dump(vision_scan)
+            vision_payload["clarifying_question"] = dict(_HIGH_KCAL_PORTION_CLARIFY_QUESTION)
+            vision_scan = _coerce_vision_scan_payload(vision_payload, vision_threshold=vision_threshold)
+            personalization_used["asked_clarifying_question"] = True
+            personalization_used["asked_clarifying_question_reason"] = "high_kcal_portion_sanity"
+        except Exception:
+            pass
 
     scan_coaching = build_coaching_payload(
         total_kcal=total_kcal,
@@ -19898,6 +20317,59 @@ async def analyze(
     return JSONResponse(status_code=202, content=out)
 
 
+@app.post("/analyze/upf")
+async def analyze_upf(
+    file: UploadFile = File(...),
+    user_id: Optional[str] = None,
+    tz: Optional[str] = None,
+    tz_offset_min: Optional[int] = None,
+    x_user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
+):
+    """
+    Fast ultra-processed estimate (~1 LLM call, no meal pipeline / job queue).
+    Returns the same coaching.ultra_processed_score shape the mobile UPF card expects.
+    """
+    uid = require_user_id(x_user_id, user_id)
+    require_ai_consent(uid)
+    request_id = _new_request_id()
+    contents = await file.read()
+    if not contents:
+        raise HTTPException(status_code=400, detail="Empty file")
+    try:
+        _ = Image.open(io.BytesIO(contents)).convert("RGB")
+    except Exception:
+        raise HTTPException(status_code=400, detail="Uploaded file is not a valid image")
+
+    today_local = _today_date(tz=tz, tz_offset_min=tz_offset_min)
+    usage_row = consume_one_scan(uid, today=today_local)
+
+    small = _resize_image_for_upf_quick(contents)
+    started = time.time()
+    score = gemini_upf_packaging_quick_v1(small, request_id=request_id)
+    score_r = round1(float(score))
+    latency_ms = int(max(0, round((time.time() - started) * 1000)))
+    coaching = {
+        "ultra_processed_score": float(score_r),
+        "messages": [],
+        "layman_terms": {
+            "ultra_processed": "How processed the food is (higher = more ultra-processed).",
+        },
+    }
+    out = {
+        "coaching": coaching,
+        "signals": {"ultra_processed_avg": float(score_r)},
+        "source": "upf_quick",
+        "request_id": request_id,
+        "latency_ms": latency_ms,
+        "usage": {
+            "plan": usage_row.get("plan"),
+            "remaining_day": int(usage_row.get("remaining_day") or 0),
+            "remaining_month": int(usage_row.get("remaining_month") or 0),
+        },
+    }
+    return JSONResponse(status_code=200, content=out)
+
+
 @app.get("/jobs/{job_id}")
 def get_analysis_job(
     job_id: str,
@@ -20057,6 +20529,10 @@ def analyze_rerun(
         base_conf = min(1.0, base_conf + 0.07)
         clarifying_q = None
         prior_clarifying_q = None
+    if getattr(req.edits, "clarifying_answers", None) and isinstance(req.edits.clarifying_answers, list) and req.edits.clarifying_answers:
+        base_conf = min(1.0, base_conf + 0.07)
+        clarifying_q = None
+        prior_clarifying_q = None
 
     vision_scan = _coerce_vision_scan_payload(
         {
@@ -20069,7 +20545,12 @@ def analyze_rerun(
     )
     # Preserve previously asked clarifying_question until explicitly answered.
     # Quick edits should not hide the confirmation block unless the underlying trigger is resolved.
-    if prior_clarifying_q and not str(req.edits.clarifying_answer or "").strip():
+    answered_structured = bool(
+        getattr(req.edits, "clarifying_answers", None)
+        and isinstance(req.edits.clarifying_answers, list)
+        and len(req.edits.clarifying_answers) > 0
+    )
+    if prior_clarifying_q and not str(req.edits.clarifying_answer or "").strip() and not answered_structured:
         try:
             is_fried_prior = str(prior_clarifying_q.get("ask") or "").strip() == str(_FRIED_CLARIFY_QUESTION.get("ask") or "").strip()
         except Exception:
@@ -20101,6 +20582,7 @@ def analyze_rerun(
                 save_user_ingredient_choices,
                 get_food_token_from_item,
                 component_memory_key,
+                component_memory_keys_for_item_name,
             )
         except ImportError:
             pass
@@ -20123,6 +20605,12 @@ def analyze_rerun(
                                         save_user_ingredient_choices(uid, ck, {k: v})
                     if choices_to_save:
                         save_user_ingredient_choices(uid, token, choices_to_save)
+                        # Data moat: also persist to decomposed component keys so
+                        # repeat scans with wording variations still reuse answers.
+                        first_name = str(first_item.get("name") or "").strip()
+                        if first_name:
+                            for ck in component_memory_keys_for_item_name(first_name):
+                                save_user_ingredient_choices(uid, ck, choices_to_save)
                         # Backward-compatible alias mapping: canonical dimension ids -> legacy keys
                         # used by existing name-enrichment logic.
                         if choices_to_save.get("dairy_type") and not choices_to_save.get("milk_type"):
@@ -20198,6 +20686,8 @@ def analyze_rerun(
                             g = max(0.0, float(_safe_float(it.get("grams"), 0.0) or 0.0))
                             if g > 0:
                                 it["grams"] = round(g * starch_mul, 1)
+
+    _apply_clarifying_dimensions_to_item_dicts(items_for_nutrition, req.edits)
 
     results, totals, total_micros, item_warnings, _ = _compute_scan_nutrition(items_for_nutrition)
     default_iid = _default_item_id_from_analysis_row(existing)

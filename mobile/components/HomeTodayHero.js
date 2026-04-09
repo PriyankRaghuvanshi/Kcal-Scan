@@ -1,5 +1,6 @@
 import React, { useMemo } from "react";
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
 import { spacing, typography } from "../designTokens";
 import { premium } from "../ui/premiumSystem";
 
@@ -141,12 +142,13 @@ const styles = StyleSheet.create({
     borderColor: "#f6cf62",
     borderWidth: 1.2,
     paddingTop: spacing.lg,
+    overflow: "hidden",
   },
-  topAccentBand: {
-    height: 8,
+  topAccentBandClip: {
+    height: 7,
     borderRadius: 999,
-    backgroundColor: "#f7b500",
     marginBottom: spacing.base,
+    overflow: "hidden",
   },
   headerRow: {
     flexDirection: "row",
@@ -200,7 +202,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#ffbc0d",
     borderWidth: 1,
-    borderColor: "#e0a800",
+    borderColor: "#ca8a04",
   },
   primaryCtaText: {
     fontSize: typography.lg,

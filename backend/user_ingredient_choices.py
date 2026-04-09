@@ -17,7 +17,7 @@ import os
 import threading
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, Optional, cast
+from typing import Any, Dict, List, Optional, cast
 
 try:
     import requests
@@ -51,6 +51,31 @@ def component_memory_key(phrase: str) -> str:
     if not tok:
         return ""
     return f"cmp::{tok[:80]}"
+
+
+def component_memory_keys_for_item_name(name: str, *, max_keys: int = 8) -> List[str]:
+    """
+    Build component memory keys for a meal label using deterministic decomposition.
+    Used to generalize learned clarifications across wording variants.
+    """
+    raw = str(name or "").strip()
+    if not raw:
+        return []
+    try:
+        from meal_accuracy_decompose import clarification_phrases_for_item_name
+    except ImportError:
+        return []
+    keys: List[str] = []
+    seen: set[str] = set()
+    for phrase in clarification_phrases_for_item_name(raw):
+        ck = component_memory_key(phrase)
+        if not ck or ck in seen:
+            continue
+        seen.add(ck)
+        keys.append(ck)
+        if len(keys) >= max(1, int(max_keys)):
+            break
+    return keys
 
 
 def _user_key(user_id: str, food_token: str) -> str:

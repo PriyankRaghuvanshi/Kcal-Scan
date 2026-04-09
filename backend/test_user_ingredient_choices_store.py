@@ -39,6 +39,11 @@ class UserIngredientChoicesFileStoreTests(unittest.TestCase):
         keys = list((data.get("choices") or {}).keys())
         self.assertTrue(any("u2::" in k for k in keys))
 
+    def test_component_memory_keys_for_item_name(self):
+        keys = uic.component_memory_keys_for_item_name("Oatmeal with berries and honey")
+        self.assertTrue(any(str(k).startswith("cmp::") for k in keys))
+        self.assertTrue(len(keys) >= 2)
+
 
 if __name__ == "__main__":
     unittest.main()

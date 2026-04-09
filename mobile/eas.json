@@ -21,7 +21,7 @@
       "autoIncrement": true,
       "cache": {
         "disabled": false,
-        "key": "production-v6-20260329-audio-live"
+        "key": "production-v7-20260409-rc-key-fix"
       },
       "env": {
         "EXPO_PUBLIC_SUPABASE_URL": "https://mgrwrthvhjpmbrvmvkeo.supabase.co",
