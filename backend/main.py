@@ -12356,6 +12356,104 @@ def coach_voice(
     return _attach_debug_schema(output, bool(debug))
 
 
+_COACH_CHAT_SYSTEM_PROMPT = (
+    "You are a real nutrition coach chatting live with one user right now. "
+    "You have full access to their daily targets, what they've eaten today, and their gaps. "
+    "Respond naturally and conversationally—this is a real-time text chat, not a report. "
+    "Be specific: use their actual numbers (protein gap, fiber gap, calorie surplus/deficit). "
+    "When they ask for food suggestions, give concrete options (e.g. '2 boiled eggs + a handful of almonds' or 'grilled chicken salad with chickpeas'). "
+    "When they say something vague like 'yes' or 'ok', acknowledge it and move the conversation forward with a useful follow-up. "
+    "Never give medical advice, diagnose conditions, or guarantee weight outcomes. "
+    "Keep each field concise: coach_reply <=280 chars, next_question <=120 chars, action_hint <=120 chars. "
+    "Output strict JSON only with keys: coach_reply, next_question, action_hint. No markdown, no extra keys."
+)
+
+
+def _build_coach_chat_llm_prompt(
+    user_text: str,
+    tone: str,
+    goals: Dict[str, Any],
+    consumed: Dict[str, Any],
+    protein_gap: float,
+    fiber_gap: float,
+    kcal_delta: float,
+    history: List[Dict[str, str]],
+    health_context: Dict[str, Any],
+) -> str:
+    tone_guidance = _daily_tone_prompt_text(tone)
+    history_block = ""
+    if history:
+        lines = []
+        for msg in history[-8:]:
+            role = str(msg.get("role") or "user").upper()
+            lines.append(f"  {role}: {str(msg.get('text') or '').strip()}")
+        history_block = "CHAT_HISTORY (recent):\n" + "\n".join(lines)
+
+    health_lines = ""
+    if health_context and isinstance(health_context, dict):
+        sigs = health_context.get("signals") if isinstance(health_context.get("signals"), dict) else {}
+        parts = []
+        for k, v in sigs.items():
+            if v is not None:
+                parts.append(f"{k}: {v}")
+        stress = health_context.get("stress_level")
+        if stress:
+            parts.append(f"stress_level: {stress}")
+        if parts:
+            health_lines = "HEALTH_SIGNALS: " + ", ".join(parts)
+
+    return (
+        f"COACH_TONE_ID: {tone}\n"
+        f"COACH_TONE_RULES: {tone_guidance}\n\n"
+        f"TODAY'S GOALS: kcal={goals.get('kcal', '?')}, protein={goals.get('protein_g', '?')}g, fiber={goals.get('fiber_g', '?')}g\n"
+        f"CONSUMED SO FAR: kcal={consumed.get('kcal', 0)}, protein={consumed.get('protein_g', 0)}g, fiber={consumed.get('fiber_g', 0)}g\n"
+        f"GAPS: protein_gap={round(protein_gap, 1)}g, fiber_gap={round(fiber_gap, 1)}g, kcal_delta={round(kcal_delta, 1)} (positive=over target)\n"
+        f"{health_lines}\n\n"
+        f"{history_block}\n\n"
+        f"USER (latest message): {user_text}\n\n"
+        "Respond as a live coach. Return strict JSON: {{\"coach_reply\": \"...\", \"next_question\": \"...\", \"action_hint\": \"...\"}}"
+    )
+
+
+def _coach_chat_llm_reply(
+    user_text: str,
+    tone: str,
+    goals: Dict[str, Any],
+    consumed: Dict[str, Any],
+    protein_gap: float,
+    fiber_gap: float,
+    kcal_delta: float,
+    history: List[Dict[str, str]],
+    health_context: Dict[str, Any],
+) -> Optional[Dict[str, str]]:
+    if not GEMINI_API_KEY and not OPENAI_API_KEY:
+        return None
+    prompt = _build_coach_chat_llm_prompt(
+        user_text, tone, goals, consumed,
+        protein_gap, fiber_gap, kcal_delta,
+        history, health_context,
+    )
+    try:
+        _require_coach_llm_provider_key()
+        text, model_name, tried = _call_coach_llm_with_timeout(
+            [_COACH_CHAT_SYSTEM_PROMPT, prompt],
+            model_name=COACH_VOICE_LLM_MODEL,
+            timeout_sec=10.0,
+            retries=1,
+            purpose="coach_chat_turn",
+        )
+        parsed = coach_logic.extract_json_object(str(text or "").strip())
+        if isinstance(parsed, dict) and parsed.get("coach_reply"):
+            return {
+                "coach_reply": _limit_text(parsed.get("coach_reply"), 280),
+                "next_question": _limit_text(parsed.get("next_question"), 120),
+                "action_hint": _limit_text(parsed.get("action_hint"), 120),
+            }
+    except Exception as e:
+        logger.warning(f"coach chat LLM failed, falling back to templates: {e}")
+    return None
+
+
 @app.post("/coach/audio/turn")
 def coach_audio_turn(
     payload: Dict[str, Any] = Body(...),
@@ -12391,7 +12489,20 @@ def coach_audio_turn(
     kcal_delta = float(_safe_float(metrics.get("kcal_delta"), 0.0) or 0.0)
     history = _audio_history_normalize(req.history, limit=10)
     user_text = str(req.user_text or "").strip()
-    reply = _audio_turn_reply_text(
+    health_ctx = req.health_context if isinstance(req.health_context, dict) else {}
+
+    llm_reply = _coach_chat_llm_reply(
+        user_text=user_text,
+        tone=tone_pref,
+        goals=req.goals or {},
+        consumed=req.consumed or {},
+        protein_gap=protein_gap,
+        fiber_gap=fiber_gap,
+        kcal_delta=kcal_delta,
+        history=history,
+        health_context=health_ctx,
+    )
+    reply = llm_reply or _audio_turn_reply_text(
         user_text=user_text,
         tone=tone_pref,
         protein_gap=protein_gap,
@@ -12399,8 +12510,10 @@ def coach_audio_turn(
         kcal_delta=kcal_delta,
         history=history,
     )
-    health_boost = _audio_health_guidance_lines(req.health_context if isinstance(req.health_context, dict) else {})
-    if health_boost:
+    source = "llm" if llm_reply else "rules"
+
+    health_boost = _audio_health_guidance_lines(health_ctx)
+    if health_boost and source == "rules":
         reply["coach_reply"] = _limit_text(
             f"{str(reply.get('coach_reply') or '').strip()} {str(health_boost.get('coach_boost') or '').strip()}".strip(), 280
         )
@@ -12422,6 +12535,7 @@ def coach_audio_turn(
         "ok": True,
         "day": day_iso,
         "tone_used": tone_pref,
+        "source": source,
         "coach_reply": coach_line,
         "next_question": str(reply.get("next_question") or ""),
         "action_hint": str(reply.get("action_hint") or ""),

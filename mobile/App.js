@@ -3680,70 +3680,109 @@ export default function App() {
     const proteinGap = Math.max(0, num(g.protein_g) - num(c.protein_g));
     const fiberGap = Math.max(0, num(g.fiber_g) - num(c.fiber_g));
     const kcalDelta = num(c.kcal) - num(g.kcal);
+    const kcalLeft = Math.max(0, num(g.kcal) - num(c.kcal));
+
+    const proteinFoods = proteinGap > 40
+      ? "Try grilled chicken breast (31g protein), 3 boiled eggs (18g), paneer tikka (25g), or a whey shake (24g)."
+      : proteinGap > 20
+      ? "A portion of dal + curd (18g), 2 eggs with toast (16g), or a chicken wrap (22g) would cover most of it."
+      : "A handful of almonds (6g), a cup of Greek yogurt (10g), or some cottage cheese (14g) would close the gap.";
+
+    const fiberFoods = "A bowl of salad with beans (8g fiber), an apple (4g), or a serving of oats with berries (6g) would help.";
 
     let coachReply = "";
-    let nextQ = "What meal are you about to eat next?";
+    let nextQ = "What meal are you planning next?";
+    let actionHint = "";
 
-    if (/(hungry|craving|snack|sweet|sugar|chocolate|chip)/.test(txt)) {
-      coachReply = "Cravings usually hit harder when protein or fiber is low. Let\u2019s protect your next meal.";
-      nextQ = "Are you eating in the next 60 minutes, or do you need a bridge snack first?";
-    } else if (/(walk|steps|hydration|water|sleep|tired|rest|exercise|gym|run)/.test(txt)) {
-      coachReply = "Good call checking recovery signals. They can shift appetite and choices fast.";
-      nextQ = "What is one thing you can do now: 10-minute walk, 500ml water, or both?";
-    } else if (/(dinner|lunch|breakfast|meal|eat|food|cook|order|recipe)/.test(txt)) {
-      coachReply = "Let\u2019s make this meal do real work for your targets.";
-      nextQ = "Do you want a quick protein-first plate suggestion or a lighter calorie option?";
-    } else if (/(help|advice|suggest|recommend|what should|plan|idea)/.test(txt)) {
+    if (/(suggest|recommend|what should i|give me|option|idea|tell me what|good food|rich food|high protein|protein.*(food|meal|option|snack|rich)|food.*(suggest|idea|option))/.test(txt)) {
       if (proteinGap > 10) {
-        coachReply = `You still have about ${round1(proteinGap)}g protein to recover today. Focus your next meal on a protein-rich option.`;
+        coachReply = `You need about ${round1(proteinGap)}g more protein today. ${proteinFoods}`;
+        actionHint = `Pick one protein source above and log it after eating.`;
       } else if (fiberGap > 5) {
-        coachReply = `You still have about ${round1(fiberGap)}g fiber to go. Add some vegetables, lentils, or whole grains to your next plate.`;
+        coachReply = `You\u2019re ${round1(fiberGap)}g short on fiber. ${fiberFoods}`;
+        actionHint = `Add a fiber-rich side to your next meal.`;
+      } else if (kcalLeft > 300) {
+        coachReply = `You have ${round1(kcalLeft)} kcal left. A balanced meal like grilled fish with veggies and rice (~450 kcal) or a chicken salad bowl (~350 kcal) would work well.`;
+        actionHint = `Go for a balanced plate: protein + veggies + small carb portion.`;
       } else {
-        coachReply = "You\u2019re in a decent range. One structured meal now can keep momentum going.";
+        coachReply = "You\u2019re close to your targets! If you\u2019re still hungry, keep it light \u2014 Greek yogurt, a handful of nuts, or a small fruit.";
+        actionHint = "Keep it light and clean for the rest of today.";
       }
-      nextQ = "What are you planning to eat next?";
+      nextQ = "Want me to narrow it down based on what\u2019s available to you?";
+    } else if (/(hungry|craving|snack|sweet|sugar|chocolate|chip|tempt)/.test(txt)) {
+      if (proteinGap > 15) {
+        coachReply = `Cravings often spike when protein is low \u2014 you\u2019re ${round1(proteinGap)}g short. Try 2 boiled eggs or a handful of roasted chana instead of something sweet.`;
+      } else {
+        coachReply = "If you need a quick fix, go for Greek yogurt with a few almonds \u2014 it\u2019s filling and won\u2019t derail your day.";
+      }
+      nextQ = "Are you eating in the next 30 minutes?";
+      actionHint = "Bridge the craving with protein, not sugar.";
+    } else if (/(dinner|lunch|breakfast|meal|eat|cook|order|recipe)/.test(txt)) {
+      if (proteinGap > 20) {
+        coachReply = `Make this meal count \u2014 you need ${round1(proteinGap)}g protein still. ${proteinFoods}`;
+      } else if (kcalLeft > 400) {
+        coachReply = `You have ${round1(kcalLeft)} kcal room. A proper meal with protein + veggies + some carbs works perfectly here.`;
+      } else if (kcalLeft < 150) {
+        coachReply = "You\u2019re almost at your calorie limit. If you need to eat, keep it very light \u2014 a salad or some soup.";
+      } else {
+        coachReply = "Let\u2019s make this meal do real work. Prioritize protein and vegetables, keep carbs moderate.";
+      }
+      nextQ = "What do you have available to cook or order?";
+      actionHint = "Protein first, then fill with vegetables.";
+    } else if (/(walk|steps|hydration|water|sleep|tired|rest|exercise|gym|run|workout)/.test(txt)) {
+      coachReply = "Recovery matters as much as eating right. Even a 10-minute walk or an extra glass of water shifts how your body handles the next meal.";
+      nextQ = "What\u2019s one thing you can do in the next 15 minutes?";
+      actionHint = "Move for 10 min or drink 500ml water now.";
+    } else if (/(yes|ok|sure|yeah|yep|go ahead|do it|sounds good|alright)/.test(txt)) {
+      if (proteinGap > 15) {
+        coachReply = `Great \u2014 let\u2019s focus on closing your ${round1(proteinGap)}g protein gap. ${proteinFoods}`;
+      } else if (kcalLeft > 300) {
+        coachReply = `You\u2019ve got ${round1(kcalLeft)} kcal to work with. A solid option: grilled chicken or fish with a side of veggies and a small portion of rice.`;
+      } else {
+        coachReply = "Alright, let\u2019s keep it simple. What are you about to eat? I\u2019ll tell you if it fits your remaining targets.";
+      }
+      nextQ = "What are you about to eat?";
+      actionHint = "Log your next meal after eating.";
     } else if (/(protein|fibre|fiber)/.test(txt)) {
       if (proteinGap > 5) {
-        coachReply = `Main lever right now is protein \u2014 you still have about ${round1(proteinGap)}g to recover. Chicken, eggs, paneer, or dal are your best options.`;
+        coachReply = `You\u2019re ${round1(proteinGap)}g short on protein. ${proteinFoods}`;
       } else if (fiberGap > 3) {
-        coachReply = `You\u2019re short on fiber by about ${round1(fiberGap)}g. Add a salad, fruit, or some whole grains to close the gap.`;
+        coachReply = `You need about ${round1(fiberGap)}g more fiber. ${fiberFoods}`;
       } else {
-        coachReply = "Your protein and fiber are looking solid so far. Keep the same pattern for your next meal.";
+        coachReply = "Your protein and fiber are looking solid. Keep the same pattern for the rest of the day.";
       }
-      nextQ = "Want me to suggest a specific meal?";
-    } else if (/(calorie|kcal|over|too much|cheat|binge|guilt)/.test(txt)) {
+      nextQ = "Want me to plan your next meal around this?";
+      actionHint = "Pick the highest-protein option available to you.";
+    } else if (/(calorie|kcal|over|too much|cheat|binge|guilt|bad day)/.test(txt)) {
       if (kcalDelta > 200) {
-        coachReply = `Calories are running about ${round1(kcalDelta)} over target. No stress \u2014 keep the next choice lighter and protein-focused.`;
+        coachReply = `You\u2019re about ${round1(kcalDelta)} kcal over \u2014 not the end of the world. Skip the next snack, have a protein-heavy dinner, and tomorrow is a clean reset.`;
       } else if (kcalDelta > 0) {
-        coachReply = "You\u2019re slightly over on calories, but nothing dramatic. A lighter, cleaner next meal keeps you on track.";
+        coachReply = "Slightly over, but nothing dramatic. A light, protein-focused meal for the rest of the day keeps you on track.";
       } else {
-        coachReply = `You still have about ${round1(Math.abs(kcalDelta))} kcal left today. Let\u2019s use them wisely.`;
+        coachReply = `You still have ${round1(kcalLeft)} kcal left today. You\u2019re doing fine \u2014 use them on a balanced meal.`;
       }
-      nextQ = "Do you want a suggestion for your next meal?";
+      nextQ = "Want me to suggest something light for your next meal?";
+      actionHint = "Next meal: protein + vegetables, keep carbs minimal.";
     } else {
-      if (proteinGap >= fiberGap && proteinGap > 5) {
-        coachReply = `Main lever is protein right now. You still have about ${round1(proteinGap)}g to recover.`;
-      } else if (fiberGap > 3) {
-        coachReply = `Main lever is fiber right now. You still have about ${round1(fiberGap)}g to recover.`;
+      if (proteinGap > 20) {
+        coachReply = `Right now your biggest gap is protein \u2014 ${round1(proteinGap)}g to go. ${proteinFoods}`;
+        actionHint = "Prioritize protein in your next meal.";
+      } else if (fiberGap > 5) {
+        coachReply = `Your fiber is ${round1(fiberGap)}g short. ${fiberFoods}`;
+        actionHint = "Add vegetables or fruit to your next meal.";
       } else if (kcalDelta > 150) {
-        coachReply = "Calories are running a bit high, so the next choice should be lighter and cleaner.";
+        coachReply = `Calories are ${round1(kcalDelta)} over target. Keep the rest of today very light \u2014 salads, soups, or just water until tomorrow.`;
+        actionHint = "No more snacking today. Reset tomorrow.";
+      } else if (kcalLeft > 400) {
+        coachReply = `You\u2019ve got ${round1(kcalLeft)} kcal and ${round1(proteinGap)}g protein left. A solid meal now would be perfect \u2014 what do you have available?`;
+        actionHint = "Use your remaining budget on a balanced meal.";
       } else {
-        coachReply = "You\u2019re in a decent range. One structured meal now can keep momentum.";
+        coachReply = "You\u2019re tracking well today. Keep listening to your body and log your next meal when you eat.";
+        actionHint = "Stay consistent and log your next meal.";
       }
     }
 
-    const toneKey = String(tone || "supportive").toLowerCase();
-    const prefixSets = {
-      supportive: ["Quick read: ", "From your check-in: ", "Here\u2019s what I\u2019d do: "],
-      strict: ["Direct check: ", "No fluff: ", "Straight answer: "],
-      funny: ["Quick coach plot twist: ", "Today\u2019s coach update: ", "Friendly reality check: "],
-      indian_coach: ["Chalo seedhi baat: ", "Dekho simple hai: ", "Suno, quick plan: "],
-    };
-    const prefixes = prefixSets[toneKey] || prefixSets.supportive;
-    const pick = (txt.length + Math.floor(proteinGap + fiberGap)) % prefixes.length;
-    coachReply = prefixes[pick] + coachReply;
-
-    const actionHint = "Next action: keep protein + fiber in the next meal, then log it.";
+    if (!actionHint) actionHint = "Log your next meal after eating to stay on track.";
     return { coach_reply: coachReply, next_question: nextQ, action_hint: actionHint };
   }
 
