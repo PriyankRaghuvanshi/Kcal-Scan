@@ -275,6 +275,12 @@ const RC_IOS_KEY = process.env.EXPO_PUBLIC_RC_IOS_KEY || "";
 const RC_ANDROID_KEY = process.env.EXPO_PUBLIC_RC_ANDROID_KEY || "";
 const OFFERING_ID = process.env.EXPO_PUBLIC_RC_OFFERING || "main";
 
+function sanitizeHistoryEntries(rows) {
+  return safeArray(rows)
+    .filter((row) => row && typeof row === "object")
+    .slice(0, MAX_HISTORY);
+}
+
 function resolvedOfferingId() {
   const fromExtra = Constants.expoConfig?.extra?.REVENUECAT_OFFERING;
   return String(fromExtra || OFFERING_ID || "main").trim() || "main";
@@ -2846,7 +2852,7 @@ export default function App() {
     try {
       const raw = await AsyncStorage.getItem(historyKey(userId));
       const parsed = safeParseJson(raw, [], "history");
-      setHistory(safeArray(parsed));
+      setHistory(sanitizeHistoryEntries(parsed));
     } catch {
       setHistory([]);
     }
@@ -2918,7 +2924,7 @@ export default function App() {
       const key = historyKey(userId);
       const raw = await AsyncStorage.getItem(key);
       const existing = safeParseJson(raw, [], "history_push");
-      const arr = safeArray(existing);
+      const arr = sanitizeHistoryEntries(existing);
       const incomingAnalysisId = String(entry?.analysis_id || "").trim();
       if (incomingAnalysisId) {
         const idx = arr.findIndex((it) => String(it?.analysis_id || "").trim() === incomingAnalysisId);
@@ -2927,7 +2933,7 @@ export default function App() {
           const next = [...arr];
           next[idx] = merged;
           setHistory(next);
-          await AsyncStorage.setItem(key, JSON.stringify(next.slice(0, MAX_HISTORY)));
+          await AsyncStorage.setItem(key, JSON.stringify(sanitizeHistoryEntries(next)));
           return;
         }
       }
@@ -2944,7 +2950,7 @@ export default function App() {
         setHistory(arr);
         return;
       }
-      const next = [entry, ...arr].slice(0, MAX_HISTORY);
+      const next = sanitizeHistoryEntries([entry, ...arr]);
       setHistory(next);
       await AsyncStorage.setItem(key, JSON.stringify(next));
     } catch {}
@@ -8656,7 +8662,7 @@ async function openCamera(mode = "meal") {
                   </TouchableOpacity>
                 </View>
               ) : null}
-              <Text style={styles.big}>Total: {round1(result.total_kcal)} kcal</Text>
+              <Text style={styles.big}>Total: {round1(result?.total_kcal)} kcal</Text>
               <Text style={styles.p}>
                 Protein {round1(result?.totals?.protein_g)}g • Carbs {round1(result?.totals?.carbs_g)}g • Fat{" "}
                 {round1(result?.totals?.fat_g)}g
@@ -10652,22 +10658,24 @@ async function openCamera(mode = "meal") {
             <FlatList
               scrollEnabled={false}
               data={history}
-              keyExtractor={(it, idx) => String(it.ts || idx)}
-              renderItem={({ item }) => (
+              keyExtractor={(it, idx) => String(it?.ts || it?.analysis_id || idx)}
+              renderItem={({ item }) => {
+                const row = item && typeof item === "object" ? item : {};
+                return (
                 <TouchableOpacity
                   style={styles.histRow}
                   activeOpacity={0.75}
-                  onPress={() => reopenHistoryEntry(item)}
+                  onPress={() => reopenHistoryEntry(row)}
                 >
                   <Text style={styles.histTitle}>
-                    {item.kind === "barcode"
-                      ? `Barcode: ${item.name || item.barcode}`
-                      : `Meal: ${round1(item.total_kcal)} kcal`}
+                    {row.kind === "barcode"
+                      ? `Barcode: ${row.name || row.barcode || "Unknown item"}`
+                      : `Meal: ${round1(row?.total_kcal)} kcal`}
                   </Text>
-                  <Text style={styles.tiny}>{item.ts}</Text>
+                  <Text style={styles.tiny}>{row?.ts || "Saved scan"}</Text>
                   <Text style={[styles.tiny, { marginTop: 4, color: "#64748b" }]}>Tap to reopen</Text>
                 </TouchableOpacity>
-              )}
+              )}}
             />
           ) : (
             <Text style={styles.tiny}>No history yet.</Text>
