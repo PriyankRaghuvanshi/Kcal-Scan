@@ -3230,7 +3230,7 @@ export default function App() {
             fit_for_today:
               typeof row?.fit_for_today === "boolean" ? row.fit_for_today : null,
             health_score:
-              Number.isFinite(num(row?.health_score)) ? round1(num(row.health_score)) : null,
+              (row?.health_score != null) ? round1(num(row?.health_score)) : null,
             why_it_helped: String(row?.why_it_helped || "").trim(),
           };
         })
@@ -5627,8 +5627,8 @@ async function openCamera(mode = "meal") {
         userId: userId || session?.user?.id,
         lat: num(coords.lat),
         lng: num(coords.lng),
-        remainingCalories: Number.isFinite(num(remainingToday?.kcal)) ? num(remainingToday.kcal) : null,
-        remainingProteinG: Number.isFinite(num(remainingToday?.protein_g)) ? num(remainingToday.protein_g) : null,
+        remainingCalories: (remainingToday?.kcal != null) ? num(remainingToday?.kcal) : null,
+        remainingProteinG: (remainingToday?.protein_g != null) ? num(remainingToday?.protein_g) : null,
         goal: resolveLunchGoal(),
         ignoredStreak: state?.ignored_streak_local ?? 0,
         diet_preference: dietPreferenceQueryFromCoachStyle(coachProfile?.diet_style),
@@ -7173,15 +7173,15 @@ async function openCamera(mode = "meal") {
         num(usage?.remaining_day) === 0 ||
         num(usage?.remaining_month) === 0)
   );
-  const todayStripLoggedKcal = Number.isFinite(num(dailySummary?.total_kcal))
-    ? round1(num(dailySummary.total_kcal))
-    : Number.isFinite(num(goals?.kcal)) && Number.isFinite(num(remainingToday?.kcal))
-    ? round1(Math.max(0, num(goals?.kcal || 0) - num(remainingToday.kcal)))
+  const todayStripLoggedKcal = (dailySummary?.total_kcal != null)
+    ? round1(num(dailySummary?.total_kcal))
+    : (goals?.kcal != null && remainingToday?.kcal != null)
+    ? round1(Math.max(0, num(goals?.kcal || 0) - num(remainingToday?.kcal)))
     : null;
-  const todayStripProteinLeft = Number.isFinite(num(remainingToday?.protein_g))
-    ? round1(num(remainingToday.protein_g))
+  const todayStripProteinLeft = (remainingToday?.protein_g != null)
+    ? round1(num(remainingToday?.protein_g))
     : null;
-  const todayStripGoalKcal = Number.isFinite(num(goals?.kcal)) ? Math.round(num(goals.kcal)) : null;
+  const todayStripGoalKcal = (goals?.kcal != null) ? Math.round(num(goals?.kcal)) : null;
   const todaySummaryStripLine = (() => {
     let line = "";
     if (todayStripLoggedKcal != null) {
@@ -7812,10 +7812,10 @@ async function openCamera(mode = "meal") {
                 </TouchableOpacity>
               </View>
               <View style={{ marginTop: 8 }}>
-                <Text style={styles.p}>Protein left today: {round1(remainingToday.protein_g)}g</Text>
+                <Text style={styles.p}>Protein left today: {round1(remainingToday?.protein_g)}g</Text>
                 <Text style={styles.tiny}>
-                  Remaining: {round1(remainingToday.kcal)} kcal • C {round1(remainingToday.carbs_g)}g • F {round1(remainingToday.fat_g)}g • Fiber{" "}
-                  {round1(remainingToday.fiber_g)}g
+                  Remaining: {round1(remainingToday?.kcal)} kcal • C {round1(remainingToday?.carbs_g)}g • F {round1(remainingToday?.fat_g)}g • Fiber{" "}
+                  {round1(remainingToday?.fiber_g)}g
                 </Text>
               </View>
             </View>
@@ -9686,19 +9686,19 @@ async function openCamera(mode = "meal") {
                   ? Math.max(0, Math.round(caloriesSavedRaw))
                   : null;
                 const typicalOrderName = String(realityCheck?.typical_order?.name || "").trim();
-                const orderCal = Number.isFinite(num(card?.estimated_calories)) ? num(card.estimated_calories) : null;
-                const orderProtein = Number.isFinite(num(card?.estimated_protein_g)) ? num(card.estimated_protein_g) : null;
+                const orderCal = (card?.estimated_calories != null) ? num(card?.estimated_calories) : null;
+                const orderProtein = (card?.estimated_protein_g != null) ? num(card?.estimated_protein_g) : null;
                 const decisionCtx = effectiveLunchDecision?.decision_context;
                 const dayProgress = effectiveLunchDecision?.day_coach?.day_summary?.progress;
                 const pageRemainingCal =
-                  Number.isFinite(num(remainingToday?.kcal)) ? num(remainingToday.kcal) :
-                  Number.isFinite(num(decisionCtx?.remaining_calories)) ? num(decisionCtx.remaining_calories) :
-                  Number.isFinite(num(dayProgress?.remaining_calories)) ? num(dayProgress.remaining_calories) : null;
+                  (remainingToday?.kcal != null) ? num(remainingToday?.kcal) :
+                  (decisionCtx?.remaining_calories != null) ? num(decisionCtx?.remaining_calories) :
+                  (dayProgress?.remaining_calories != null) ? num(dayProgress?.remaining_calories) : null;
                 const pageRemainingProtein =
-                  Number.isFinite(num(remainingToday?.protein_g)) ? num(remainingToday.protein_g) :
-                  Number.isFinite(num(decisionCtx?.remaining_protein_g)) ? num(decisionCtx.remaining_protein_g) :
-                  Number.isFinite(num(dayProgress?.remaining_protein_g)) ? num(dayProgress.remaining_protein_g) : null;
-                const cardRemaining = Number.isFinite(num(card?.remaining_calories)) ? num(card.remaining_calories) : null;
+                  (remainingToday?.protein_g != null) ? num(remainingToday?.protein_g) :
+                  (decisionCtx?.remaining_protein_g != null) ? num(decisionCtx?.remaining_protein_g) :
+                  (dayProgress?.remaining_protein_g != null) ? num(dayProgress?.remaining_protein_g) : null;
+                const cardRemaining = (card?.remaining_calories != null) ? num(card?.remaining_calories) : null;
                 const remainingLine = buildRemainingLine({
                   pageRemainingCal: pageRemainingCal,
                   pageRemainingProtein: pageRemainingProtein,
