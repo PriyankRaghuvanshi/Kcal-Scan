@@ -242,6 +242,7 @@ const API_BASE =
 
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL || "";
 const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || "";
+const GEMINI_KEY = process.env.EXPO_PUBLIC_GEMINI_KEY || "";
 const HAS_SUPABASE = Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
 const supabase = HAS_SUPABASE ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
 
@@ -3786,6 +3787,51 @@ export default function App() {
     return { coach_reply: coachReply, next_question: nextQ, action_hint: actionHint };
   }
 
+  async function _geminiCoachChat(userText, goalsObj, consumedObj, tone, history) {
+    if (!GEMINI_KEY) return null;
+    const g = goalsObj || {};
+    const c = consumedObj || {};
+    const proteinGap = Math.max(0, num(g.protein_g) - num(c.protein_g));
+    const fiberGap = Math.max(0, num(g.fiber_g) - num(c.fiber_g));
+    const kcalLeft = Math.max(0, num(g.kcal) - num(c.kcal));
+    const histLines = (history || []).slice(-6).map(
+      (m) => `${String(m?.role || "user").toUpperCase()}: ${String(m?.text || "").trim()}`
+    ).join("\n");
+    const prompt = [
+      "You are a real nutrition coach having a live text chat with one person.",
+      `Their tone preference is: ${tone || "supportive"}.`,
+      `TODAY'S GOALS: ${num(g.kcal)} kcal, ${num(g.protein_g)}g protein, ${num(g.fiber_g)}g fiber.`,
+      `EATEN SO FAR: ${num(c.kcal)} kcal, ${num(c.protein_g)}g protein, ${num(c.fiber_g)}g fiber.`,
+      `REMAINING: ${round1(kcalLeft)} kcal, ${round1(proteinGap)}g protein, ${round1(fiberGap)}g fiber.`,
+      histLines ? `RECENT CHAT:\n${histLines}` : "",
+      `USER (now): ${userText}`,
+      "",
+      "Respond naturally like a coach texting. Be specific — name real foods with portion sizes and gram amounts when relevant.",
+      "If they ask for suggestions, give 3-4 concrete options. If they say something vague like 'yes' or 'ok', move the conversation forward.",
+      "Keep it concise. No medical claims.",
+      "Reply ONLY with JSON, no markdown fences: {\"coach_reply\":\"<max 280 chars>\",\"next_question\":\"<max 120 chars>\",\"action_hint\":\"<max 120 chars>\"}",
+    ].filter(Boolean).join("\n");
+    try {
+      const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: { temperature: 0.7, maxOutputTokens: 400 },
+          }),
+        }
+      );
+      const data = await res.json();
+      const raw = String(data?.candidates?.[0]?.content?.parts?.[0]?.text || "").trim();
+      const cleaned = raw.replace(/^```json\s*/i, "").replace(/```\s*$/, "").trim();
+      const parsed = JSON.parse(cleaned);
+      if (parsed?.coach_reply) return parsed;
+    } catch (_) {}
+    return null;
+  }
+
   async function sendCoachChatTurn() {
     const uid = userId || session?.user?.id;
     const text = String(coachChatInput || "").trim();
@@ -3814,18 +3860,19 @@ export default function App() {
       });
     };
 
+    const history = nextMessages
+      .map((m) => ({
+        role: String(m?.role || "").trim().toLowerCase() === "coach" ? "coach" : "user",
+        text: String(m?.text || "").trim(),
+      }))
+      .filter((m) => m.text)
+      .slice(-10);
+
     try {
       let healthContext = {};
       try {
         healthContext = (await getDailyHealthContext(String(base?.date || localDayISO()))) || {};
       } catch (_) {}
-      const history = nextMessages
-        .map((m) => ({
-          role: String(m?.role || "").trim().toLowerCase() === "coach" ? "coach" : "user",
-          text: String(m?.text || "").trim(),
-        }))
-        .filter((m) => m.text)
-        .slice(-10);
       const body = {
         user_id: uid,
         day: String(base?.date || localDayISO()),
@@ -3845,7 +3892,11 @@ export default function App() {
       const data = await safeJson(res);
       if (!res.ok) throw new Error("api_fail");
       _applyReply(data);
-    } catch (_) {
+    } catch (_backendErr) {
+      try {
+        const geminiReply = await _geminiCoachChat(text, base?.goals, base?.consumed, tone, history);
+        if (geminiReply) { _applyReply(geminiReply); return; }
+      } catch (_) {}
       _applyReply(_localCoachTurnReply(text, base?.goals, base?.consumed, tone));
     } finally {
       setCoachChatBusy(false);
