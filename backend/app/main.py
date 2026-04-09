@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.v1.api import api_router
+from app.api.tripdeal_mvp import router as tripdeal_mvp_router
 
 
 app = FastAPI(
@@ -30,3 +31,5 @@ def health() -> dict[str, str]:
 
 
 app.include_router(api_router, prefix="/api/v1")
+# Local-dev stubs for TripDeal Next.js MVP (search + save); not the full product API.
+app.include_router(tripdeal_mvp_router, prefix="/v1")
