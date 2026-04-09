@@ -1,0 +1,51 @@
+{
+  "brand_name": "KFC",
+  "source_type": "seed_ingestion",
+  "source_url": "",
+  "store_name_variants": ["kfc", "kentucky fried chicken"],
+  "items": [
+    {
+      "item_name": "Original Tenders (3) + Side Salad",
+      "category": "chicken",
+      "estimated_calories": 470,
+      "estimated_protein_g": 35,
+      "estimated_carbs_g": 24,
+      "estimated_fat_g": 22,
+      "confidence": 0.80,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Original Fillet Burger, no mayo",
+      "category": "burger",
+      "estimated_calories": 460,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 36,
+      "estimated_fat_g": 18,
+      "confidence": 0.76,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Zinger Burger, no mayo",
+      "category": "burger",
+      "estimated_calories": 500,
+      "estimated_protein_g": 29,
+      "estimated_carbs_g": 40,
+      "estimated_fat_g": 22,
+      "confidence": 0.74,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Twister Wrap (Grilled)",
+      "estimated_calories": 420,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 38,
+      "estimated_fat_g": 18,
+      "confidence": 0.72,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    }
+  ]
+}
