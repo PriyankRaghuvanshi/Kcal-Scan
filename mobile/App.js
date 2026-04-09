@@ -3672,6 +3672,80 @@ export default function App() {
     }
   }
 
+  function _localCoachTurnReply(userText, goalsObj, consumedObj, tone) {
+    const txt = String(userText || "").trim().toLowerCase();
+    const g = goalsObj || {};
+    const c = consumedObj || {};
+    const proteinGap = Math.max(0, num(g.protein_g) - num(c.protein_g));
+    const fiberGap = Math.max(0, num(g.fiber_g) - num(c.fiber_g));
+    const kcalDelta = num(c.kcal) - num(g.kcal);
+
+    let coachReply = "";
+    let nextQ = "What meal are you about to eat next?";
+
+    if (/(hungry|craving|snack|sweet|sugar|chocolate|chip)/.test(txt)) {
+      coachReply = "Cravings usually hit harder when protein or fiber is low. Let\u2019s protect your next meal.";
+      nextQ = "Are you eating in the next 60 minutes, or do you need a bridge snack first?";
+    } else if (/(walk|steps|hydration|water|sleep|tired|rest|exercise|gym|run)/.test(txt)) {
+      coachReply = "Good call checking recovery signals. They can shift appetite and choices fast.";
+      nextQ = "What is one thing you can do now: 10-minute walk, 500ml water, or both?";
+    } else if (/(dinner|lunch|breakfast|meal|eat|food|cook|order|recipe)/.test(txt)) {
+      coachReply = "Let\u2019s make this meal do real work for your targets.";
+      nextQ = "Do you want a quick protein-first plate suggestion or a lighter calorie option?";
+    } else if (/(help|advice|suggest|recommend|what should|plan|idea)/.test(txt)) {
+      if (proteinGap > 10) {
+        coachReply = `You still have about ${round1(proteinGap)}g protein to recover today. Focus your next meal on a protein-rich option.`;
+      } else if (fiberGap > 5) {
+        coachReply = `You still have about ${round1(fiberGap)}g fiber to go. Add some vegetables, lentils, or whole grains to your next plate.`;
+      } else {
+        coachReply = "You\u2019re in a decent range. One structured meal now can keep momentum going.";
+      }
+      nextQ = "What are you planning to eat next?";
+    } else if (/(protein|fibre|fiber)/.test(txt)) {
+      if (proteinGap > 5) {
+        coachReply = `Main lever right now is protein \u2014 you still have about ${round1(proteinGap)}g to recover. Chicken, eggs, paneer, or dal are your best options.`;
+      } else if (fiberGap > 3) {
+        coachReply = `You\u2019re short on fiber by about ${round1(fiberGap)}g. Add a salad, fruit, or some whole grains to close the gap.`;
+      } else {
+        coachReply = "Your protein and fiber are looking solid so far. Keep the same pattern for your next meal.";
+      }
+      nextQ = "Want me to suggest a specific meal?";
+    } else if (/(calorie|kcal|over|too much|cheat|binge|guilt)/.test(txt)) {
+      if (kcalDelta > 200) {
+        coachReply = `Calories are running about ${round1(kcalDelta)} over target. No stress \u2014 keep the next choice lighter and protein-focused.`;
+      } else if (kcalDelta > 0) {
+        coachReply = "You\u2019re slightly over on calories, but nothing dramatic. A lighter, cleaner next meal keeps you on track.";
+      } else {
+        coachReply = `You still have about ${round1(Math.abs(kcalDelta))} kcal left today. Let\u2019s use them wisely.`;
+      }
+      nextQ = "Do you want a suggestion for your next meal?";
+    } else {
+      if (proteinGap >= fiberGap && proteinGap > 5) {
+        coachReply = `Main lever is protein right now. You still have about ${round1(proteinGap)}g to recover.`;
+      } else if (fiberGap > 3) {
+        coachReply = `Main lever is fiber right now. You still have about ${round1(fiberGap)}g to recover.`;
+      } else if (kcalDelta > 150) {
+        coachReply = "Calories are running a bit high, so the next choice should be lighter and cleaner.";
+      } else {
+        coachReply = "You\u2019re in a decent range. One structured meal now can keep momentum.";
+      }
+    }
+
+    const toneKey = String(tone || "supportive").toLowerCase();
+    const prefixSets = {
+      supportive: ["Quick read: ", "From your check-in: ", "Here\u2019s what I\u2019d do: "],
+      strict: ["Direct check: ", "No fluff: ", "Straight answer: "],
+      funny: ["Quick coach plot twist: ", "Today\u2019s coach update: ", "Friendly reality check: "],
+      indian_coach: ["Chalo seedhi baat: ", "Dekho simple hai: ", "Suno, quick plan: "],
+    };
+    const prefixes = prefixSets[toneKey] || prefixSets.supportive;
+    const pick = (txt.length + Math.floor(proteinGap + fiberGap)) % prefixes.length;
+    coachReply = prefixes[pick] + coachReply;
+
+    const actionHint = "Next action: keep protein + fiber in the next meal, then log it.";
+    return { coach_reply: coachReply, next_question: nextQ, action_hint: actionHint };
+  }
+
   async function sendCoachChatTurn() {
     const uid = userId || session?.user?.id;
     const text = String(coachChatInput || "").trim();
@@ -3683,8 +3757,24 @@ export default function App() {
     setCoachChatMessages(nextMessages);
     void saveCoachChatHistory(uid, day, nextMessages);
     setCoachChatInput("");
+    const base = buildDailyCoachPayload();
+    const tone = coachProfile?.tone_preference || "supportive";
+
+    const _applyReply = (data) => {
+      const replyParts = [
+        String(data?.coach_reply || "").trim(),
+        String(data?.next_question || "").trim(),
+        String(data?.action_hint || "").trim(),
+      ].filter(Boolean);
+      const coachText = replyParts.join("\n\n").trim() || "Got it. Tell me what meal you are planning next.";
+      setCoachChatMessages((prev) => {
+        const merged = [...prev, { role: "coach", text: coachText, ts: nowISO() }].slice(-14);
+        void saveCoachChatHistory(uid, day, merged);
+        return merged;
+      });
+    };
+
     try {
-      const base = buildDailyCoachPayload();
       let healthContext = {};
       try {
         healthContext = (await getDailyHealthContext(String(base?.date || localDayISO()))) || {};
@@ -3704,8 +3794,8 @@ export default function App() {
         consumed: base?.consumed || {},
         health_context: healthContext,
         history,
-        tone_preference: coachProfile?.tone_preference || "supportive",
-        tone_id: coachProfile?.tone_preference || "supportive",
+        tone_preference: tone,
+        tone_id: tone,
       };
       const res = await fetch(withTimezoneQuery(`${API_BASE}/coach/audio/turn`), {
         method: "POST",
@@ -3713,29 +3803,10 @@ export default function App() {
         body: JSON.stringify(body),
       });
       const data = await safeJson(res);
-      if (!res.ok) {
-        throw new Error(errorToMessage(data?.detail || data?.message || `HTTP ${res.status}`, 0) || "Coach chat failed.");
-      }
-      const replyParts = [
-        String(data?.coach_reply || "").trim(),
-        String(data?.next_question || "").trim(),
-        String(data?.action_hint || "").trim(),
-      ].filter(Boolean);
-      const coachText = replyParts.join("\n\n").trim() || "Got it. Tell me what meal you are planning next.";
-      setCoachChatMessages((prev) => {
-        const merged = [...prev, { role: "coach", text: coachText, ts: nowISO() }].slice(-14);
-        void saveCoachChatHistory(uid, day, merged);
-        return merged;
-      });
-    } catch (e) {
-      setCoachChatMessages((prev) => {
-        const merged = [
-          ...prev,
-          { role: "coach", text: errorToMessage(e?.message || e, 0) || "Coach chat is unavailable right now.", ts: nowISO() },
-        ].slice(-14);
-        void saveCoachChatHistory(uid, day, merged);
-        return merged;
-      });
+      if (!res.ok) throw new Error("api_fail");
+      _applyReply(data);
+    } catch (_) {
+      _applyReply(_localCoachTurnReply(text, base?.goals, base?.consumed, tone));
     } finally {
       setCoachChatBusy(false);
     }
