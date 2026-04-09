@@ -930,11 +930,11 @@ function computeRecoveryModeBadge(rawHealthContext) {
   const src = rawHealthContext && typeof rawHealthContext === "object" ? rawHealthContext : {};
   const signals = src.signals && typeof src.signals === "object" ? src.signals : {};
   const stress = String(src.stress_level || "").trim().toLowerCase();
-  const sleepLast = num(signals.sleep_last_night_hours);
-  const sleepAvg = num(signals.sleep_hours_avg_7d);
-  const sleep = (sleepLast != null && sleepLast > 0) ? sleepLast : sleepAvg;
-  const rhr = num(signals.resting_hr_avg_7d);
-  const hrv = num(signals.hrv_ms_avg_7d);
+  const sleepLast = num(signals.sleep_last_night_hours) || null;
+  const sleepAvg = num(signals.sleep_hours_avg_7d) || null;
+  const sleep = (sleepLast != null && sleepLast > 0) ? sleepLast : (sleepAvg != null && sleepAvg > 0) ? sleepAvg : null;
+  const rhr = num(signals.resting_hr_avg_7d) || null;
+  const hrv = num(signals.hrv_ms_avg_7d) || null;
   const taxed =
     (sleep != null && sleep < 6.8) ||
     (rhr != null && rhr >= 76) ||
@@ -2010,6 +2010,7 @@ export default function App() {
   const coachRefreshTimerRef = useRef(null);
   const coachQueuedRefreshRef = useRef(null);
   const coachTitleTapRef = useRef({ count: 0, lastTs: 0 });
+  const coachChatScrollRef = useRef(null);
   const healthyPlacesReqSeqRef = useRef(0);
   const lunchDecisionReqSeqRef = useRef(0);
   const lunchDecisionInFlightRef = useRef(false);
@@ -7805,7 +7806,13 @@ async function openCamera(mode = "meal") {
               </View>
             ) : null}
             <Text style={premium.muted}>Ask anything about your next meal, cravings, or plan for today.</Text>
-            <View style={styles.coachChatFeed}>
+            <ScrollView
+              style={styles.coachChatFeed}
+              contentContainerStyle={styles.coachChatFeedContent}
+              showsVerticalScrollIndicator={false}
+              onContentSizeChange={(_, h) => { coachChatScrollRef.current?.scrollToEnd?.({ animated: true }); }}
+              ref={coachChatScrollRef}
+            >
               {(coachChatMessages.length ? coachChatMessages : [{ role: "coach", text: "I am here. Tell me what you are about to eat and I will guide your next best move." }]).slice(-8).map((m, idx) => {
                 const isCoach = String(m?.role || "").toLowerCase() === "coach";
                 return (
@@ -7816,7 +7823,7 @@ async function openCamera(mode = "meal") {
                   </View>
                 );
               })}
-            </View>
+            </ScrollView>
             <View style={styles.coachQuickRow}>
               {["Suggest dinner now", "I am craving sweet", "I might snack soon"].map((q) => (
                 <TouchableOpacity
@@ -11620,12 +11627,16 @@ const styles = StyleSheet.create({
   coachRecoveryPanelText: { color: "#cbd5e1", fontSize: 12, lineHeight: 18 },
   coachChatFeed: {
     marginTop: 10,
-    maxHeight: 260,
+    maxHeight: 300,
     borderWidth: 1,
     borderColor: "rgba(148, 163, 184, 0.22)",
     borderRadius: 12,
-    padding: 10,
     backgroundColor: "rgba(2, 6, 23, 0.35)",
+  },
+  coachChatFeedContent: {
+    padding: 10,
+    flexGrow: 1,
+    justifyContent: "flex-end",
   },
   coachChatBubble: {
     paddingVertical: 8,
