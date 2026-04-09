@@ -26,8 +26,7 @@
       "env": {
         "EXPO_PUBLIC_SUPABASE_URL": "https://mgrwrthvhjpmbrvmvkeo.supabase.co",
         "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1ncndydGh2aGpwbWJydm12a2VvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjgwOTcyNzEsImV4cCI6MjA4MzY3MzI3MX0.Zvzgq3zZv00_3flUniLIk2ZLckylO-SphsKFwZbkTPA",
-        "EXPO_PUBLIC_RC_ANDROID_KEY": "goog_prIetTCSFiELCySmPqvheMMqbqi",
-        "EXPO_PUBLIC_GEMINI_KEY": "AIzaSyBKD-VRFABP3kR9gf23QO9hh8FnLCnSURY"
+        "EXPO_PUBLIC_RC_ANDROID_KEY": "goog_prIetTCSFiELCySmPqvheMMqbqi"
       }
     },
     "production_auto_submit": {
