@@ -43,6 +43,28 @@ class ScanCorrectionRerunTests(unittest.TestCase):
         self.assertIn("egg_count", keys)
         self.assertNotIn("protein_add_on", keys)
 
+    def test_clarifying_added_fat_none_sets_explicit_zero_oil(self):
+        edits = appmod.AnalyzeRerunEditsModel(
+            clarifying_answers=[{"key": "added_fat", "value": "None"}],
+        )
+        items = [
+            {
+                "item_id": "i1",
+                "name": "fried rice",
+                "grams": 200.0,
+                "cooking_method": "pan fried",
+                "oil_added_tsp": 0.0,
+            }
+        ]
+        out = appmod._apply_rerun_edits(items, edits)
+        self.assertEqual(float(out[0].get("oil_added_tsp") or 0.0), 0.0)
+
+    def test_user_prior_does_not_bump_oil_after_added_fat_answer(self):
+        edits = appmod.AnalyzeRerunEditsModel(
+            clarifying_answers=[{"key": "added_fat", "value": "None"}],
+        )
+        self.assertTrue(appmod._rerun_user_locked_oil_prior(edits))
+
 
 if __name__ == "__main__":
     unittest.main()

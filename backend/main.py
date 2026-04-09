@@ -3,6 +3,7 @@ import io
 import os
 import json
 import time
+import hmac
 import re
 import math
 import hashlib
@@ -27,7 +28,7 @@ from PIL import Image
 
 from fastapi import FastAPI, File, UploadFile, Request, HTTPException, Header, Body, Form
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import PlainTextResponse, JSONResponse
+from fastapi.responses import PlainTextResponse, JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
 import google.generativeai as genai
@@ -112,8 +113,10 @@ from push_rollout import (
 from user_last_location_store import upsert_user_location, get_user_location
 from recipe_suggestions import build_recipe_suggest_response, record_recipe_feedback, list_saved_recipes
 from push_send_flow import send_smart_alert_for_user as _send_smart_alert_for_user
+from nudge_job_store import create_job_run, update_job_run, list_recent_job_runs, summarize_job_health
 from personal_response_summary import get_personal_meal_memory
 from nutrition_mode import NutritionMode
+from upf_quick_logic import parse_upf_quick_model_output
 from better_choice_nearby import build_better_choice_nearby_response
 from daily_fatloss_coach import build_daily_fatloss_coach_response
 from daily_food_decision import build_daily_decision_response
@@ -264,6 +267,8 @@ USDA_BASE = "https://api.nal.usda.gov/fdc/v1"
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "").strip()
 if GEMINI_API_KEY:
     genai.configure(api_key=GEMINI_API_KEY)
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "").strip()
+COACH_LLM_PROVIDER = str(os.getenv("COACH_LLM_PROVIDER", "gemini") or "gemini").strip().lower()
 
 OPENFOODFACTS_BASE = os.getenv("OPENFOODFACTS_BASE", "https://world.openfoodfacts.org/api/v2").strip()
 OPENFOODFACTS_USER_AGENT = os.getenv(
@@ -569,6 +574,11 @@ def analyze_options():
     return PlainTextResponse("ok", status_code=200)
 
 
+@app.options("/analyze/upf")
+def analyze_upf_options():
+    return PlainTextResponse("ok", status_code=200)
+
+
 @app.on_event("startup")
 def _startup_analysis_worker():
     _ensure_analysis_worker_started()
@@ -582,6 +592,19 @@ def _require_usda_key():
 def _require_gemini_key():
     if not GEMINI_API_KEY:
         raise HTTPException(status_code=500, detail="GEMINI_API_KEY is not set on the server (Railway Variables).")
+
+
+def _coach_llm_provider() -> str:
+    p = str(COACH_LLM_PROVIDER or "gemini").strip().lower()
+    return p if p in {"gemini", "openai"} else "gemini"
+
+
+def _require_coach_llm_provider_key():
+    if _coach_llm_provider() == "openai":
+        if not OPENAI_API_KEY:
+            raise HTTPException(status_code=500, detail="OPENAI_API_KEY is not set on the server (Railway Variables).")
+        return
+    _require_gemini_key()
 
 def _require_supabase():
     if not SUPABASE_URL or not SUPABASE_SERVICE_ROLE_KEY:
@@ -731,6 +754,125 @@ def _call_llm_with_timeout(
                 "tried_models": tried_models,
             }
         ),
+    )
+
+
+def _normalize_prompt_to_openai_messages(prompt: List[Any]) -> List[Dict[str, str]]:
+    if not isinstance(prompt, list):
+        prompt = [prompt]
+    parts: List[str] = []
+    for p in prompt:
+        if isinstance(p, str):
+            t = p.strip()
+            if t:
+                parts.append(t)
+        elif isinstance(p, dict):
+            try:
+                parts.append(json.dumps(p, ensure_ascii=True))
+            except Exception:
+                parts.append(str(p))
+        elif p is not None:
+            parts.append(str(p))
+    if not parts:
+        return [{"role": "user", "content": "Return a concise response."}]
+    if len(parts) == 1:
+        return [{"role": "user", "content": parts[0]}]
+    return [{"role": "system", "content": parts[0]}, {"role": "user", "content": "\n\n".join(parts[1:])}]
+
+
+def _call_openai_text_with_timeout(
+    prompt: List[Any],
+    *,
+    model_name: Optional[str] = None,
+    timeout_sec: float = 8.0,
+    retries: int = 1,
+    purpose: str = "llm",
+    request_id: str = "",
+) -> Tuple[str, str, List[str]]:
+    selected_model = str(model_name or os.getenv("OPENAI_COACH_MODEL", "gpt-4o-mini")).strip() or "gpt-4o-mini"
+    caller_timeout = float(timeout_sec if timeout_sec is not None else 8.0)
+    effective_timeout = max(3.0, min(120.0, caller_timeout))
+    attempts = max(1, min(2, int(retries or 1) + 1))
+    tried_models: List[str] = []
+    last_err = ""
+    messages = _normalize_prompt_to_openai_messages(prompt)
+    for attempt in range(1, attempts + 1):
+        _append_tried_model_once(tried_models, selected_model)
+        started = time.time()
+        try:
+            r = requests.post(
+                "https://api.openai.com/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {OPENAI_API_KEY}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": selected_model,
+                    "messages": messages,
+                    "temperature": 0.2,
+                },
+                timeout=float(effective_timeout),
+            )
+            if r.status_code >= 400:
+                raise ValueError(f"openai_http_{r.status_code}:{(r.text or '')[:180]}")
+            body = r.json()
+            choices = body.get("choices") if isinstance(body, dict) else None
+            first = choices[0] if isinstance(choices, list) and choices else {}
+            msg = first.get("message") if isinstance(first, dict) else {}
+            text = str((msg or {}).get("content") or "").strip()
+            if not text:
+                raise ValueError("empty response text")
+            logger.info(
+                "llm_call success provider=openai purpose=%s request_id=%s model=%s attempt=%s latency_ms=%s",
+                purpose,
+                request_id,
+                selected_model,
+                attempt,
+                int(max(0, round((time.time() - started) * 1000))),
+            )
+            return text, selected_model, tried_models
+        except Exception as e:
+            last_err = str(e)
+            logger.warning(
+                "llm_call failed provider=openai purpose=%s request_id=%s model=%s attempt=%s/%s err=%s",
+                purpose,
+                request_id,
+                selected_model,
+                attempt,
+                attempts,
+                last_err[:220],
+            )
+            if attempt >= attempts or (not _is_retryable_llm_error(last_err)):
+                break
+            time.sleep(0.35 * attempt)
+    raise HTTPException(status_code=502, detail={"error": "coach_llm_failed", "raw": str(last_err or "")[:320], "tried_models": tried_models})
+
+
+def _call_coach_llm_with_timeout(
+    prompt: List[Any],
+    *,
+    model_name: Optional[str] = None,
+    timeout_sec: float = 8.0,
+    retries: int = 1,
+    purpose: str = "llm",
+    request_id: str = "",
+) -> Tuple[str, str, List[str]]:
+    if _coach_llm_provider() == "openai":
+        return _call_openai_text_with_timeout(
+            prompt,
+            model_name=model_name,
+            timeout_sec=timeout_sec,
+            retries=retries,
+            purpose=purpose,
+            request_id=request_id,
+        )
+    return _call_llm_with_timeout(
+        prompt,
+        model_name=model_name,
+        timeout_sec=timeout_sec,
+        retries=retries,
+        purpose=purpose,
+        request_id=request_id,
     )
 
 
@@ -1490,6 +1632,7 @@ class CoachAudioTurnRequestModel(BaseModel):
     consumed: Dict[str, Any] = Field(default_factory=dict)
     tone_preference: str = "supportive"
     tone_id: str = ""
+    health_context: Dict[str, Any] = Field(default_factory=dict)
     tz: str = ""
     tz_offset_min: Optional[int] = None
 
@@ -2961,7 +3104,12 @@ def _attach_temporal_coach_greeting(
     if greeting:
         out["coach_summary"] = _prefix_once(out.get("coach_summary"), greeting, 260)
         out["one_sentence_summary"] = _prefix_once(out.get("one_sentence_summary"), greeting, 220)
-        out["empathy_line"] = _prefix_once(out.get("empathy_line"), greeting, 160)
+        # Coach voice card prefers insight_line when set; prefix it so time-of-day greetings are visible there too.
+        ins = str(out.get("insight_line") or "").strip()
+        if ins:
+            out["insight_line"] = _prefix_once(out.get("insight_line"), greeting, 420)
+        else:
+            out["empathy_line"] = _prefix_once(out.get("empathy_line"), greeting, 220)
     return out
 
 
@@ -7944,9 +8092,9 @@ def _generate_coach_voice_llm(
     recent_advice_keys: List[str],
     last_messages: List[str],
 ) -> Dict[str, Any]:
-    _require_gemini_key()
+    _require_coach_llm_provider_key()
     prompt = _build_coach_voice_prompt(mode, compact_context, recent_advice_keys, last_messages)
-    txt, _, tried_models = _call_llm_with_timeout(
+    txt, _, tried_models = _call_coach_llm_with_timeout(
         [_COACH_VOICE_SYSTEM_PROMPT, prompt],
         model_name=COACH_VOICE_LLM_MODEL,
         timeout_sec=float(COACH_VOICE_TIMEOUT_SEC),
@@ -8642,7 +8790,7 @@ def rewrite_coach_tone(
         "Rewrite content into requested tone. Return ONLY JSON."
     )
     try:
-        txt, model_name, tried_models = _call_llm_with_timeout(
+        txt, model_name, tried_models = _call_coach_llm_with_timeout(
             [_COACH_TONE_REWRITE_SYSTEM_PROMPT, user_prompt],
             model_name=COACH_LLM_MODEL,
             timeout_sec=min(_llm_timeout(limit=10.0), 8.0),
@@ -9974,7 +10122,7 @@ def _apply_user_priors_to_items(
         return out, used
 
     explicit_portion = edits is not None and edits.portion_multiplier is not None
-    explicit_oil = edits is not None and edits.set_oil_added_tsp is not None
+    explicit_oil = edits is not None and _rerun_user_locked_oil_prior(edits)
 
     for it in out:
         if not _food_token(it.get("name")):
@@ -11094,7 +11242,7 @@ def _generate_daily_coach_llm(
     fast_mode: bool = False,
     tone_preference: str = "supportive",
 ) -> Dict[str, Any]:
-    _require_gemini_key()
+    _require_coach_llm_provider_key()
     user_prompt = _coach_user_prompt(
         norm_payload,
         fat_loss_score,
@@ -11105,7 +11253,7 @@ def _generate_daily_coach_llm(
         tone_preference=tone_preference,
     )
     timeout_sec = min(_llm_timeout(limit=10.0), 8.0) if fast_mode else _llm_timeout(limit=10.0)
-    text, model_name, tried_models = _call_llm_with_timeout(
+    text, model_name, tried_models = _call_coach_llm_with_timeout(
         [_COACH_SYSTEM_PROMPT, user_prompt],
         model_name=COACH_LLM_MODEL,
         timeout_sec=timeout_sec,
@@ -11717,6 +11865,15 @@ def _voice_fallback_response(
     timeout_mode: bool = False,
 ) -> Dict[str, Any]:
     metrics = _voice_metrics_from_request(req)
+    meals_count = int(_safe_float(metrics.get("meals_count"), 0) or 0)
+    last_meal_p = 0.0
+    ml = list(req.meals or [])
+    if ml:
+        last = ml[-1]
+        if isinstance(last, dict):
+            last_meal_p = float(_safe_float(last.get("protein_g"), 0.0) or 0.0)
+        else:
+            last_meal_p = float(_safe_float(getattr(last, "protein_g", 0.0), 0.0) or 0.0)
     v_stance = _voice_relationship_stance(metrics)
     candidate = _pick_non_repeating_advice_key(_voice_action_templates(metrics), recent_keys)
     tone_pref = _voice_requested_tone(req)
@@ -11740,6 +11897,9 @@ def _voice_fallback_response(
     elif tone_pref == "indian_coach":
         empathy = "Boss, meal logged. Chalo ek strong next step set karte hain." if v_stance == "steady" else empathy
 
+    if meals_count <= 1 and v_stance == "steady" and tone_pref != "strict":
+        empathy = "Great job logging your first meal today—small wins stack fast."
+
     protein_gap = float(_safe_float(metrics.get("protein_gap"), 0.0) or 0.0)
     fiber_gap = float(_safe_float(metrics.get("fiber_gap"), 0.0) or 0.0)
     late_pct = float(_safe_float(metrics.get("late_calories_pct"), 0.0) or 0.0)
@@ -11749,6 +11909,17 @@ def _voice_fallback_response(
         insight = "I’m still refining details. Use one practical step now while your full coaching updates."
     elif avg_conf < 0.55:
         insight = "This scan likely needs one quick confirmation before precision coaching."
+    elif (
+        not timeout_mode
+        and avg_conf >= 0.55
+        and v_stance == "steady"
+        and meals_count <= 1
+        and tone_pref != "strict"
+    ):
+        insight = (
+            f"Nice job logging this meal—about {round(last_meal_p, 1)}g protein here. "
+            "You still have the rest of the day to add fiber-rich sides and balance things out."
+        )
     elif v_stance == "warm_reset" and kcal_delta > 50:
         insight = (
             f"You're roughly {int(round(max(0, kcal_delta)))} kcal over target—bias your next meal to protein + veg and trim refined carbs a bit."
@@ -11769,8 +11940,8 @@ def _voice_fallback_response(
     out = {
         "coach_generated_ts": _now_utc_naive().isoformat(),
         "tone_tag": tone_tag,
-        "empathy_line": _limit_text(empathy, 120),
-        "insight_line": _limit_text(insight, 200),
+        "empathy_line": _limit_text(empathy, 220),
+        "insight_line": _limit_text(insight, 420),
         "one_action": {
             "title": _limit_text(str(candidate.get("title") or "One next step"), 64),
             "steps": [str(x)[:120] for x in (candidate.get("steps") or []) if str(x).strip()][:3] or ["Log your next meal."],
@@ -11798,8 +11969,45 @@ def _coerce_voice_output(
         "indian_coach": "supportive",
     }.get(tone_pref, "neutral")
     tone_tag = _normalize_tone_tag(raw.get("tone_tag"), fallback=default_tone)
-    empathy_line = _limit_text(raw.get("empathy_line"), 120) or fallback["empathy_line"]
-    insight_line = _limit_text(raw.get("insight_line"), 200) or fallback["insight_line"]
+    empathy_line = _limit_text(raw.get("empathy_line"), 220) or fallback["empathy_line"]
+    insight_line = _limit_text(raw.get("insight_line"), 420) or fallback["insight_line"]
+    recent_summaries = _normalize_short_text_list([m.summary for m in (req.recent_messages or [])], limit=4, max_chars=220)
+    opener_bank = {
+        "supportive": [
+            "Quick read:",
+            "From what I can see:",
+            "Here is the honest snapshot:",
+            "What stands out to me:",
+        ],
+        "strict": [
+            "Straight read:",
+            "No fluff:",
+            "Directly:",
+            "Here is the hard truth:",
+        ],
+        "funny": [
+            "Mini plot twist:",
+            "Coach update:",
+            "Quick reality check:",
+            "Today in nutrition:",
+        ],
+        "indian_coach": [
+            "Seedhi baat:",
+            "Dekho, simple hai:",
+            "Quick check:",
+            "Asli snapshot:",
+        ],
+    }
+    tone_openers = opener_bank.get(tone_pref, opener_bank["supportive"])
+    seed = hashlib.sha256(
+        f"{_safe_day_iso(req.day)}|{tone_pref}|{metrics.get('meals_count')}|{metrics.get('kcal_delta')}".encode("utf-8")
+    ).hexdigest()
+    opener = tone_openers[int(seed[:8], 16) % len(tone_openers)]
+    if recent_summaries and _is_repetitive_line(insight_line, recent_summaries, threshold=0.84):
+        if not insight_line.lower().startswith(opener.lower()):
+            insight_line = _limit_text(f"{opener} {insight_line}", 420)
+    if recent_summaries and _is_repetitive_line(empathy_line, recent_summaries, threshold=0.86):
+        empathy_line = fallback["empathy_line"]
 
     action_obj = raw.get("one_action") if isinstance(raw.get("one_action"), dict) else {}
     title = _limit_text(action_obj.get("title"), 64) or fallback["one_action"]["title"]
@@ -11818,14 +12026,19 @@ def _coerce_voice_output(
         steps = list(fallback["one_action"]["steps"])
         why = fallback["why_this_action"]
 
+    meals_count = int(_safe_float(metrics.get("meals_count"), 0) or 0)
     grounded_words = ("protein", "fiber", "calorie", "upf", "glycemic", "late")
-    if not any(w in insight_line.lower() for w in grounded_words):
+    if meals_count > 2 and not any(w in insight_line.lower() for w in grounded_words):
         protein_gap = float(_safe_float(metrics.get("protein_gap"), 0.0) or 0.0)
         fiber_gap = float(_safe_float(metrics.get("fiber_gap"), 0.0) or 0.0)
         if protein_gap > 0:
-            insight_line = _limit_text(f"{insight_line} Protein shortfall remains around {round(protein_gap, 1)}g.", 200)
+            insight_line = _limit_text(
+                f"{insight_line} Protein shortfall remains around {round(protein_gap, 1)}g.", 420
+            )
         elif fiber_gap > 0:
-            insight_line = _limit_text(f"{insight_line} Fiber shortfall remains around {round(fiber_gap, 1)}g.", 200)
+            insight_line = _limit_text(
+                f"{insight_line} Fiber shortfall remains around {round(fiber_gap, 1)}g.", 420
+            )
 
     disclaimer = _limit_text(raw.get("safety_disclaimer"), 140) or "Informational only. Not medical advice."
     return {
@@ -11844,7 +12057,7 @@ def _generate_human_coach_voice_llm(
     req: CoachVoiceRequestModel,
     recent_keys: List[str],
 ) -> Dict[str, Any]:
-    _require_gemini_key()
+    _require_coach_llm_provider_key()
     metrics = _voice_metrics_from_request(req)
     tone_pref = _voice_requested_tone(req)
     v_stance = _voice_relationship_stance(metrics)
@@ -11865,8 +12078,8 @@ def _generate_human_coach_voice_llm(
     schema = {
         "coach_generated_ts": "ISO",
         "tone_tag": "supportive|firm|celebratory|neutral",
-        "empathy_line": "string <=120 chars",
-        "insight_line": "string <=200 chars",
+        "empathy_line": "string <=220 chars",
+        "insight_line": "string <=420 chars",
         "one_action": {"title": "string", "steps": ["string", "string", "string"]},
         "why_this_action": "string",
         "advice_key": "string",
@@ -11886,13 +12099,15 @@ def _generate_human_coach_voice_llm(
         "Return strict JSON only, no markdown, no extra keys.\n"
         "No medical claims or diagnosis.\n"
         "Keep empathy_line short and human.\n"
+        "Write like a person speaking to one user right now, not like an app template.\n"
+        "Use natural phrasing and occasional contractions. Avoid robotic transitions.\n"
         "insight_line must reference measurable context.\n"
         "Choose exactly one action from allowed_actions and use its advice_key.\n"
         "Avoid advice keys that appear in recent_advice_keys unless no other option exists.\n"
         f"Input:\n{json.dumps(payload, ensure_ascii=True)}\n"
         f"Output schema:\n{json.dumps(schema, ensure_ascii=True)}"
     )
-    text, model_name, tried_models = _call_llm_with_timeout(
+    text, model_name, tried_models = _call_coach_llm_with_timeout(
         [_COACH_VOICE_SYSTEM_PROMPT, prompt],
         model_name=COACH_VOICE_LLM_MODEL,
         timeout_sec=float(COACH_VOICE_TIMEOUT_SEC),
@@ -11916,35 +12131,52 @@ def _audio_turn_reply_text(
     protein_gap: float,
     fiber_gap: float,
     kcal_delta: float,
+    history: Optional[List[Dict[str, str]]] = None,
 ) -> Dict[str, str]:
     txt = str(user_text or "").strip()
     txt_l = txt.lower()
+    hist = history if isinstance(history, list) else []
+    last_user = ""
+    for row in reversed(hist):
+        if str(row.get("role") or "").strip().lower() == "user" and str(row.get("text") or "").strip():
+            last_user = str(row.get("text") or "").strip()
+            break
+    continuity_prefix = ""
+    if last_user and txt and _is_repetitive_line(txt, [last_user], threshold=0.92):
+        continuity_prefix = "Picking up from your last message, "
     if any(w in txt_l for w in ("hungry", "craving", "snack")):
-        coach_reply = "Cravings usually hit harder when protein or fiber is low. Let’s protect your next meal."
+        coach_reply = f"{continuity_prefix}cravings usually hit harder when protein or fiber is low. Let’s protect your next meal."
         next_q = "Are you eating in the next 60 minutes, or do you need a bridge snack first?"
     elif any(w in txt_l for w in ("walk", "steps", "hydration", "water", "sleep")):
-        coach_reply = "Great that you’re checking recovery signals. Those can shift appetite and choices fast."
+        coach_reply = f"{continuity_prefix}good call checking recovery signals. They can shift appetite and choices fast."
         next_q = "What is one thing you can do now: 10-minute walk, 500ml water, or both?"
     elif any(w in txt_l for w in ("dinner", "lunch", "breakfast", "meal")):
-        coach_reply = "Let’s make this meal do real work for your targets."
+        coach_reply = f"{continuity_prefix}let’s make this meal do real work for your targets."
         next_q = "Do you want a quick protein-first plate suggestion or a lighter calorie option?"
     else:
         if protein_gap >= fiber_gap and protein_gap > 0:
-            coach_reply = f"Main lever is protein right now. You still have about {round(protein_gap, 1)}g to recover."
+            coach_reply = f"{continuity_prefix}main lever is protein right now. You still have about {round(protein_gap, 1)}g to recover."
         elif fiber_gap > 0:
-            coach_reply = f"Main lever is fiber right now. You still have about {round(fiber_gap, 1)}g to recover."
+            coach_reply = f"{continuity_prefix}main lever is fiber right now. You still have about {round(fiber_gap, 1)}g to recover."
         elif kcal_delta > 150:
-            coach_reply = "Calories are running a bit high, so the next choice should be lighter and cleaner."
+            coach_reply = f"{continuity_prefix}calories are running a bit high, so the next choice should be lighter and cleaner."
         else:
-            coach_reply = "You’re in a decent range. One structured meal now can keep momentum."
+            coach_reply = f"{continuity_prefix}you’re in a decent range. One structured meal now can keep momentum."
         next_q = "What meal are you about to eat next?"
 
+    style_seed = hashlib.sha256(f"{tone}|{txt_l}|{round(protein_gap,1)}|{round(fiber_gap,1)}|{round(kcal_delta,1)}".encode("utf-8")).hexdigest()
+    if tone == "supportive":
+        prefixes = ["Quick read: ", "From your check-in: ", "Here’s what I’d do: "]
+        coach_reply = prefixes[int(style_seed[:4], 16) % len(prefixes)] + coach_reply
     if tone == "strict":
-        coach_reply = f"Direct check: {coach_reply}"
+        prefixes = ["Direct check: ", "No fluff: ", "Straight answer: "]
+        coach_reply = prefixes[int(style_seed[4:8], 16) % len(prefixes)] + coach_reply
     elif tone == "funny":
-        coach_reply = f"Quick coach plot twist: {coach_reply}"
+        prefixes = ["Quick coach plot twist: ", "Today’s coach update: ", "Friendly reality check: "]
+        coach_reply = prefixes[int(style_seed[8:12], 16) % len(prefixes)] + coach_reply
     elif tone == "indian_coach":
-        coach_reply = f"Chalo seedha bolte hain: {coach_reply}"
+        prefixes = ["Chalo seedhi baat: ", "Dekho simple hai: ", "Suno, quick plan: "]
+        coach_reply = prefixes[int(style_seed[12:16], 16) % len(prefixes)] + coach_reply
 
     action_hint = "Next action: keep protein + fiber in the next meal, then log it."
     return {
@@ -11952,6 +12184,36 @@ def _audio_turn_reply_text(
         "next_question": _limit_text(next_q, 200),
         "action_hint": _limit_text(action_hint, 180),
     }
+
+
+def _audio_health_guidance_lines(health_context: Dict[str, Any]) -> Dict[str, str]:
+    """
+    Build short, human guidance lines from recovery signals (sleep/HRV/RHR/stress).
+    """
+    hc = _normalize_health_context(health_context)
+    signals = hc.get("signals") if isinstance(hc.get("signals"), dict) else {}
+    stress = str(hc.get("stress_level") or "").strip().lower()
+    sleep_last = float(_safe_float(signals.get("sleep_last_night_hours"), 0.0) or 0.0)
+    sleep_avg = float(_safe_float(signals.get("sleep_hours_avg_7d"), 0.0) or 0.0)
+    sleep_h = sleep_last if sleep_last > 0 else sleep_avg
+    rhr = float(_safe_float(signals.get("resting_hr_avg_7d"), 0.0) or 0.0)
+    hrv = float(_safe_float(signals.get("hrv_ms_avg_7d"), 0.0) or 0.0)
+
+    readiness_low = (sleep_h > 0 and sleep_h < 6.8) or (rhr > 0 and rhr >= 76) or (hrv > 0 and hrv < 32) or (stress in {"high", "very_high"})
+    if readiness_low:
+        coach = "Recovery looks taxed today. Keep training low-impact and make meals simpler: protein + fiber + hydration."
+        action = "Workout: Zone-2 walk or light lift. Nutrition: protein-first plate, add fruit/veg, reduce late heavy food."
+        next_q = "Do you want a low-stress meal plan for the next 6 hours or a light training option first?"
+        return {"coach_boost": coach, "action_boost": action, "next_q_boost": next_q}
+
+    readiness_good = (sleep_h >= 7.0 if sleep_h > 0 else False) and ((hrv >= 40) if hrv > 0 else True) and ((rhr <= 72) if rhr > 0 else True)
+    if readiness_good:
+        coach = "Recovery signals look solid today. Great day for quality training and structured nutrition."
+        action = "Workout: strength or intervals as planned. Nutrition: anchor each meal with protein, then carbs around training."
+        next_q = "Want a pre- and post-workout meal suggestion based on today’s gaps?"
+        return {"coach_boost": coach, "action_boost": action, "next_q_boost": next_q}
+
+    return {}
 
 
 def _audio_history_normalize(history: Any, limit: int = 8) -> List[Dict[str, str]]:
@@ -12135,7 +12397,17 @@ def coach_audio_turn(
         protein_gap=protein_gap,
         fiber_gap=fiber_gap,
         kcal_delta=kcal_delta,
+        history=history,
     )
+    health_boost = _audio_health_guidance_lines(req.health_context if isinstance(req.health_context, dict) else {})
+    if health_boost:
+        reply["coach_reply"] = _limit_text(
+            f"{str(reply.get('coach_reply') or '').strip()} {str(health_boost.get('coach_boost') or '').strip()}".strip(), 280
+        )
+        reply["action_hint"] = _limit_text(
+            f"{str(reply.get('action_hint') or '').strip()} {str(health_boost.get('action_boost') or '').strip()}".strip(), 180
+        )
+        reply["next_question"] = _limit_text(str(health_boost.get("next_q_boost") or reply.get("next_question") or "").strip(), 200)
     greeting_meta = _coach_temporal_greeting(
         tz=req.tz or "",
         tz_offset_min=req.tz_offset_min,
@@ -12159,6 +12431,7 @@ def coach_audio_turn(
             "fiber_gap": fiber_gap,
             "kcal_delta": kcal_delta,
         },
+        "health_context_used": bool(health_boost),
         **greeting_meta,
         "disclaimer": "Informational only. Not medical advice.",
     }
@@ -12261,8 +12534,8 @@ def coach_live_token(
     x_user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
 ):
     """
-    Mint a short-lived credential for a realtime coach session (stub).
-    Enforces AI consent, server feature flag, Pro+ (or beta allowlist), then 501 until wired.
+    Mint a short-lived credential for a live chat stream session.
+    Enforces AI consent, server feature flag, and plan eligibility.
     """
     uid = require_user_id(x_user_id, user_id)
     require_ai_consent(uid)
@@ -12288,14 +12561,113 @@ def coach_live_token(
                 "reason": reason,
             },
         )
-    raise HTTPException(
-        status_code=501,
-        detail={
-            "error": "not_implemented",
-            "feature": "coach_live_call",
-            "message": "Realtime session token is not wired yet. Eligibility check passed.",
-        },
+    token = str(uuid.uuid4())
+    expires_at = (_now_utc_naive() + dt.timedelta(minutes=15)).isoformat()
+    return {
+        "ok": True,
+        "token": token,
+        "expires_at": expires_at,
+        "stream_path": "/coach/live/chat/stream",
+        "protocol": "sse",
+        "note": "Use token in payload for live chat stream.",
+    }
+
+
+@app.post("/coach/live/chat/stream")
+def coach_live_chat_stream(
+    payload: Dict[str, Any] = Body(...),
+    user_id: Optional[str] = None,
+    x_user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
+):
+    """
+    SSE streaming chat response for live coach text.
+    Emits:
+      - start event (meta)
+      - delta events (text chunks)
+      - done event (full response + guidance)
+    """
+    uid = require_user_id(x_user_id, user_id or payload.get("user_id"))
+    require_ai_consent(uid)
+    if not coach_live_server_enabled():
+        raise HTTPException(status_code=403, detail={"error": "feature_disabled", "feature": "coach_live_call"})
+    plan_name = get_user_plan(uid)
+    eligible, plan, reason, _beta = coach_live_eligible(uid, plan_name)
+    if not eligible:
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "error": "upgrade_required",
+                "feature": "coach_live_call",
+                "required_plan": COACH_LIVE_REQUIRED_PLAN,
+                "current_plan": plan,
+                "reason": reason,
+            },
+        )
+
+    day_iso = _safe_day_iso(payload.get("day") or _today_date().isoformat())
+    tone = _normalize_tone_preference(payload.get("tone_preference") or payload.get("tone_id") or "supportive")
+    user_text = str(payload.get("user_text") or "").strip()
+    if not user_text:
+        raise HTTPException(status_code=400, detail={"error": "missing_user_text"})
+    history = _audio_history_normalize(payload.get("history"), limit=10)
+
+    voice_like = CoachVoiceRequestModel(
+        user_id=uid,
+        day=day_iso,
+        payload_hash="",
+        goals=payload.get("goals") if isinstance(payload.get("goals"), dict) else {},
+        consumed=payload.get("consumed") if isinstance(payload.get("consumed"), dict) else {},
+        meals=[],
+        recent_messages=[],
+        user_profile=CoachVoiceProfileModel(),
+        tone_preference=tone,
+        tone_id=tone,
     )
+    metrics = _voice_metrics_from_request(voice_like)
+    reply = _audio_turn_reply_text(
+        user_text=user_text,
+        tone=tone,
+        protein_gap=float(_safe_float(metrics.get("protein_gap"), 0.0) or 0.0),
+        fiber_gap=float(_safe_float(metrics.get("fiber_gap"), 0.0) or 0.0),
+        kcal_delta=float(_safe_float(metrics.get("kcal_delta"), 0.0) or 0.0),
+        history=history,
+    )
+    full_text = " ".join(
+        [
+            str(reply.get("coach_reply") or "").strip(),
+            str(reply.get("next_question") or "").strip(),
+            str(reply.get("action_hint") or "").strip(),
+        ]
+    ).strip()
+    if not full_text:
+        full_text = "I am here with you. Tell me what you are planning to eat next."
+
+    def _event(name: str, data_obj: Dict[str, Any]) -> str:
+        return f"event: {name}\ndata: {json.dumps(data_obj, ensure_ascii=True)}\n\n"
+
+    def _iter():
+        stream_id = str(uuid.uuid4())
+        yield _event("start", {"ok": True, "stream_id": stream_id, "tone_used": tone, "day": day_iso})
+        chunk_size = 38
+        idx = 0
+        for i in range(0, len(full_text), chunk_size):
+            piece = full_text[i : i + chunk_size]
+            idx += 1
+            yield _event("delta", {"index": idx, "text": piece})
+        yield _event(
+            "done",
+            {
+                "ok": True,
+                "stream_id": stream_id,
+                "full_text": full_text,
+                "coach_reply": str(reply.get("coach_reply") or ""),
+                "next_question": str(reply.get("next_question") or ""),
+                "action_hint": str(reply.get("action_hint") or ""),
+                "disclaimer": "Informational only. Not medical advice.",
+            },
+        )
+
+    return StreamingResponse(_iter(), media_type="text/event-stream")
 
 
 @app.post("/recipes/suggest")
@@ -12663,7 +13035,7 @@ def _coerce_weekly_report_shape(raw: Dict[str, Any], fallback: Dict[str, Any]) -
 
 
 def _generate_weekly_report_llm(base_payload: Dict[str, Any], tone_preference: str) -> Dict[str, Any]:
-    _require_gemini_key()
+    _require_coach_llm_provider_key()
     schema = {
         "week_start": "YYYY-MM-DD",
         "week_end": "YYYY-MM-DD",
@@ -12684,7 +13056,7 @@ def _generate_weekly_report_llm(base_payload: Dict[str, Any], tone_preference: s
         f"Input:\n{json.dumps(base_payload, ensure_ascii=True)}\n"
         f"Output schema:\n{json.dumps(schema, ensure_ascii=True)}"
     )
-    text, model_name, tried_models = _call_llm_with_timeout(
+    text, model_name, tried_models = _call_coach_llm_with_timeout(
         [_COACH_SYSTEM_PROMPT, prompt],
         model_name=COACH_LLM_MODEL,
         timeout_sec=_llm_timeout(limit=10.0),
@@ -14299,6 +14671,68 @@ def _fallback_vision_scan_from_items(items: List[Dict[str, Any]], vision_thresho
     )
 
 
+def _normalize_food_text_for_match(s: Any) -> str:
+    t = str(s or "").strip().lower()
+    if not t:
+        return ""
+    t = re.sub(r"[^a-z0-9\s]+", " ", t)
+    return " ".join(t.split())
+
+
+def _names_look_like_alternatives(a: Any, b: Any) -> bool:
+    aa = _normalize_food_text_for_match(a)
+    bb = _normalize_food_text_for_match(b)
+    if not aa or not bb:
+        return False
+    if aa == bb or aa in bb or bb in aa:
+        return True
+    wa = set(aa.split())
+    wb = set(bb.split())
+    if not wa or not wb:
+        return False
+    overlap = len(wa.intersection(wb)) / max(1, min(len(wa), len(wb)))
+    return overlap >= 0.7
+
+
+def _collapse_ambiguous_alternative_items(
+    items: List[Dict[str, Any]],
+    *,
+    vision_confidence: float,
+    vision_threshold: float,
+) -> List[Dict[str, Any]]:
+    """On low-confidence scans, avoid counting clear alternatives as separate items."""
+    if not isinstance(items, list) or len(items) < 2:
+        return items
+    if float(_safe_float(vision_confidence, 0.0) or 0.0) >= float(_safe_float(vision_threshold, 0.72) or 0.72):
+        return items
+    keep = [True] * len(items)
+    for i in range(len(items)):
+        a = items[i] if isinstance(items[i], dict) else {}
+        if not a:
+            continue
+        a_name = str(a.get("name") or "").strip()
+        a_conf = float(_safe_float(a.get("confidence"), 0.0) or 0.0)
+        a_alts = [str(x).strip() for x in (a.get("candidate_alternatives") or []) if str(x).strip()]
+        for j in range(i + 1, len(items)):
+            b = items[j] if isinstance(items[j], dict) else {}
+            if not b:
+                continue
+            b_name = str(b.get("name") or "").strip()
+            b_conf = float(_safe_float(b.get("confidence"), 0.0) or 0.0)
+            b_alts = [str(x).strip() for x in (b.get("candidate_alternatives") or []) if str(x).strip()]
+            linked = any(_names_look_like_alternatives(alt, b_name) for alt in a_alts) or any(
+                _names_look_like_alternatives(alt, a_name) for alt in b_alts
+            )
+            if not linked:
+                continue
+            if a_conf >= b_conf:
+                keep[j] = False
+            else:
+                keep[i] = False
+    out = [it for idx, it in enumerate(items) if keep[idx]]
+    return out or items
+
+
 def gemini_vision_scan_v1(
     image_bytes: bytes,
     personalization_context: Optional[Dict[str, Any]] = None,
@@ -14365,6 +14799,8 @@ If you cannot tell from the image, use empty object {} or omit ingredient_hints.
 Rules:
 - Use simple USDA-friendly item names.
 - items must not be empty.
+- top_candidates are alternatives for the same scan, not additive foods.
+- Do NOT include uncertain alternatives as separate items. Put alternatives in candidate_alternatives.
 - grams > 0 for each item.
 - confidence fields must be 0..1.
 - Use personalization context only as soft defaults, never as guaranteed truth.
@@ -14404,6 +14840,83 @@ def gemini_detect_foods(image_bytes: bytes) -> List[Dict[str, Any]]:
         }
         for it in (scan.items or [])
     ]
+
+
+def gemini_upf_packaging_quick_v1(
+    image_bytes: bytes,
+    *,
+    request_id: str = "",
+) -> float:
+    """
+    Single-call packaging / product UPF estimate (0–10). No USDA, no meal QA, no job queue.
+    """
+    _require_gemini_key()
+    allow, reason = _scan_circuit_allow()
+    if not allow:
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "error": "scan_llm_circuit_open",
+                "message": "Scan model is temporarily throttled. Please retry shortly.",
+                "raw": str(reason or "")[:220],
+            },
+        )
+    prompt = """
+You estimate how ultra-processed a food is from this photo (packaged product, label, front-of-pack, bar, drink, or a plated meal).
+
+Score 0–10 (NOVA-style tendency):
+- 0–2: unprocessed / minimally processed whole foods
+- 3–5: processed culinary ingredients / basic processed foods
+- 6–8: ultra-processed (industrial snacks, sodas, sweet cereals, most protein bars, instant noodles, etc.)
+- 9–10: formulations with many additives / hyper-palatable industrial products
+
+Use visible cues (ingredient lists, brand category, product type). If text is unreadable, infer from the strongest visual cue.
+
+Calibration rules (important):
+- If the product appears to have a short ingredient list with mostly kitchen ingredients and no obvious additives/emulsifiers/sweeteners, prefer 1–3.
+- Single-ingredient foods (e.g., plain oats, plain nuts, plain milk, plain rice, plain lentils) should usually be 0–2.
+- Do NOT assign >=6 unless there is clear evidence of ultra-processing (industrial snack/drink class, long additive-heavy list, or strongly synthetic formulation cues).
+- If uncertain due to blurry label, stay conservative (2–4) instead of over-penalizing.
+
+Return ONLY valid JSON (no markdown): {"ultra_processed_score": <number>}
+The number must be between 0 and 10.
+""".strip()
+    img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+    try:
+        # retries=-1 → one attempt only (see _call_llm_with_timeout attempts formula).
+        text, _, _ = _call_llm_with_timeout(
+            [prompt, img],
+            model_name=SCAN_LLM_MODEL,
+            timeout_sec=float(_UPF_QUICK_LLM_TIMEOUT_SEC),
+            retries=-1,
+            purpose="scan:upf_packaging",
+            request_id=request_id,
+        )
+        _scan_circuit_record_success()
+    except Exception as e:
+        err_raw = _http_exc_raw(e)
+        _scan_circuit_record_failure(err_raw)
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(
+            status_code=502,
+            detail={
+                "error": "upf_quick_failed",
+                "message": "Could not score this photo right now.",
+                "raw": str(err_raw or "")[:320],
+            },
+        ) from e
+    try:
+        return parse_upf_quick_model_output(text)
+    except Exception as e:
+        raise HTTPException(
+            status_code=502,
+            detail={
+                "error": "upf_quick_parse_failed",
+                "message": "Model returned an unexpected format.",
+                "raw": str(e)[:120],
+            },
+        ) from e
 
 
 def _menu_scan_ocr_from_image(
@@ -16704,17 +17217,211 @@ async def launch_readiness_apply_enrichment_targets(payload: Dict[str, Any] = Bo
     return apply_enrichment_targets(targets, limit=limit)
 
 
+def _admin_auth_username() -> str:
+    return str(os.getenv("ADMIN_LOGIN_USERNAME", "admin")).strip()
+
+
+def _admin_auth_password() -> str:
+    return str(os.getenv("ADMIN_LOGIN_PASSWORD", "")).strip()
+
+
+def _admin_auth_secret() -> str:
+    raw = str(os.getenv("ADMIN_AUTH_SECRET", "")).strip()
+    if raw:
+        return raw
+    return str(os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")).strip()
+
+
+def _admin_auth_ttl_sec() -> int:
+    try:
+        v = int(os.getenv("ADMIN_AUTH_TTL_SEC", "43200"))
+        return max(900, min(7 * 24 * 3600, v))
+    except Exception:
+        return 43200
+
+
+def _admin_auth_enabled() -> bool:
+    return bool(_admin_auth_password() and _admin_auth_secret())
+
+
+_ADMIN_LOGIN_RATE_LOCK = threading.Lock()
+_ADMIN_LOGIN_RATE_STATE: Dict[str, List[float]] = {}
+_ADMIN_LOGIN_RATE_BLOCK_UNTIL: Dict[str, float] = {}
+
+
+def _admin_login_rate_limit_max_attempts() -> int:
+    try:
+        v = int(os.getenv("ADMIN_LOGIN_RATE_LIMIT_MAX_ATTEMPTS", "6"))
+        return max(1, min(50, v))
+    except Exception:
+        return 6
+
+
+def _admin_login_rate_limit_window_sec() -> int:
+    try:
+        v = int(os.getenv("ADMIN_LOGIN_RATE_LIMIT_WINDOW_SEC", "300"))
+        return max(30, min(3600, v))
+    except Exception:
+        return 300
+
+
+def _admin_login_rate_limit_lockout_sec() -> int:
+    try:
+        v = int(os.getenv("ADMIN_LOGIN_RATE_LIMIT_LOCKOUT_SEC", "900"))
+        return max(30, min(24 * 3600, v))
+    except Exception:
+        return 900
+
+
+def _admin_client_ip(request: Optional[Request]) -> str:
+    if request is None:
+        return "unknown"
+    try:
+        xff = str(request.headers.get("X-Forwarded-For") or "").strip()
+        if xff:
+            return str(xff.split(",")[0] or "").strip() or "unknown"
+    except Exception:
+        pass
+    try:
+        host = request.client.host if request.client else ""
+        return str(host or "").strip() or "unknown"
+    except Exception:
+        return "unknown"
+
+
+def _admin_login_rate_keys(username: str, ip: str) -> List[str]:
+    u = str(username or "").strip().lower() or "unknown_user"
+    p = str(ip or "").strip() or "unknown_ip"
+    return [f"ip:{p}", f"user:{u}", f"user_ip:{u}|{p}"]
+
+
+def _admin_login_rate_check(keys: List[str]) -> Optional[int]:
+    now = time.time()
+    with _ADMIN_LOGIN_RATE_LOCK:
+        for k in keys:
+            until = float(_ADMIN_LOGIN_RATE_BLOCK_UNTIL.get(k, 0.0) or 0.0)
+            if until > now:
+                return int(max(1, round(until - now)))
+            if until > 0 and until <= now:
+                _ADMIN_LOGIN_RATE_BLOCK_UNTIL.pop(k, None)
+    return None
+
+
+def _admin_login_rate_record_failure(keys: List[str]) -> None:
+    now = time.time()
+    window = float(_admin_login_rate_limit_window_sec())
+    max_attempts = int(_admin_login_rate_limit_max_attempts())
+    lockout = float(_admin_login_rate_limit_lockout_sec())
+    cutoff = now - window
+    with _ADMIN_LOGIN_RATE_LOCK:
+        for k in keys:
+            arr = [ts for ts in (_ADMIN_LOGIN_RATE_STATE.get(k) or []) if float(ts) >= cutoff]
+            arr.append(now)
+            _ADMIN_LOGIN_RATE_STATE[k] = arr
+            if len(arr) >= max_attempts:
+                _ADMIN_LOGIN_RATE_BLOCK_UNTIL[k] = now + lockout
+
+
+def _admin_login_rate_record_success(keys: List[str]) -> None:
+    with _ADMIN_LOGIN_RATE_LOCK:
+        for k in keys:
+            _ADMIN_LOGIN_RATE_STATE.pop(k, None)
+            _ADMIN_LOGIN_RATE_BLOCK_UNTIL.pop(k, None)
+
+
+def _admin_auth_issue_token(username: str) -> str:
+    exp = int(time.time()) + _admin_auth_ttl_sec()
+    payload = f"{username}|{exp}"
+    sig = hmac.new(_admin_auth_secret().encode("utf-8"), payload.encode("utf-8"), hashlib.sha256).hexdigest()
+    raw = f"{payload}|{sig}".encode("utf-8")
+    return base64.urlsafe_b64encode(raw).decode("utf-8").rstrip("=")
+
+
+def _admin_auth_decode_token(token: str) -> Optional[Dict[str, Any]]:
+    tok = str(token or "").strip()
+    if not tok:
+        return None
+    try:
+        pad = "=" * ((4 - (len(tok) % 4)) % 4)
+        decoded = base64.urlsafe_b64decode((tok + pad).encode("utf-8")).decode("utf-8")
+        parts = decoded.split("|")
+        if len(parts) != 3:
+            return None
+        username, exp_raw, sig = parts
+        exp = int(exp_raw)
+        payload = f"{username}|{exp}"
+        expected = hmac.new(_admin_auth_secret().encode("utf-8"), payload.encode("utf-8"), hashlib.sha256).hexdigest()
+        if not hmac.compare_digest(expected, sig):
+            return None
+        if exp <= int(time.time()):
+            return None
+        return {"username": username, "exp": exp}
+    except Exception:
+        return None
+
+
+def _admin_auth_token_from_header(authorization: Optional[str]) -> str:
+    raw = str(authorization or "").strip()
+    if raw.lower().startswith("bearer "):
+        return raw.split(" ", 1)[1].strip()
+    return ""
+
+
+def _require_admin_auth(authorization: Optional[str]) -> Dict[str, Any]:
+    if not _admin_auth_enabled():
+        raise HTTPException(status_code=503, detail={"error": "admin_auth_not_configured"})
+    token = _admin_auth_token_from_header(authorization)
+    decoded = _admin_auth_decode_token(token)
+    if not decoded:
+        raise HTTPException(status_code=401, detail={"error": "admin_unauthorized"})
+    return decoded
+
+
+@app.post("/admin/auth/login")
+async def admin_auth_login(payload: Dict[str, Any] = Body(...), request: Request = None):
+    p = payload if isinstance(payload, dict) else {}
+    username = str(p.get("username") or "").strip()
+    password = str(p.get("password") or "").strip()
+    ip = _admin_client_ip(request)
+    rate_keys = _admin_login_rate_keys(username=username, ip=ip)
+    blocked_for_sec = _admin_login_rate_check(rate_keys)
+    if blocked_for_sec is not None:
+        raise HTTPException(
+            status_code=429,
+            detail={
+                "error": "too_many_attempts",
+                "retry_after_sec": blocked_for_sec,
+            },
+        )
+    if not _admin_auth_enabled():
+        raise HTTPException(status_code=503, detail={"error": "admin_auth_not_configured"})
+    if username != _admin_auth_username() or password != _admin_auth_password():
+        _admin_login_rate_record_failure(rate_keys)
+        raise HTTPException(status_code=401, detail={"error": "invalid_credentials"})
+    _admin_login_rate_record_success(rate_keys)
+    token = _admin_auth_issue_token(username)
+    return {"ok": True, "token": token, "expires_in_sec": _admin_auth_ttl_sec(), "username": username}
+
+
+@app.get("/admin/auth/me")
+async def admin_auth_me(authorization: Optional[str] = Header(default=None)):
+    decoded = _require_admin_auth(authorization)
+    return {"ok": True, "username": decoded.get("username"), "exp": decoded.get("exp")}
+
+
 @app.get("/admin/ops-dashboard")
 async def admin_ops_dashboard(
     limit_targets: int = 20,
     limit_areas: int = 5,
     scan_window_days: int = 7,
     goal_coach_window_days: int = 7,
+    authorization: Optional[str] = Header(default=None),
 ):
     """
     Compact internal ops dashboard summary.
     GET /admin/ops-dashboard?limit_targets=20&limit_areas=5&scan_window_days=7&goal_coach_window_days=7
     """
+    _require_admin_auth(authorization)
     async def fetcher(lat: float, lng: float):
         return await healthy_places(
             lat=lat, lng=lng, radius=3000, cut_mode=True,
@@ -16730,11 +17437,12 @@ async def admin_ops_dashboard(
 
 
 @app.post("/admin/ops-dashboard/apply-next-targets")
-async def admin_ops_dashboard_apply_next_targets(payload: Dict[str, Any] = Body(default=None)):
+async def admin_ops_dashboard_apply_next_targets(payload: Dict[str, Any] = Body(default=None), authorization: Optional[str] = Header(default=None)):
     """
     Explicit internal operator action: bulk apply next targets into canonical store.
     Body: { "limit": 20, "area_keys": ["wentworthville", "parramatta"] }
     """
+    _require_admin_auth(authorization)
     p = payload if isinstance(payload, dict) else {}
     limit = max(1, min(50, int(p.get("limit") or 20)))
     area_keys = p.get("area_keys")
@@ -16752,33 +17460,36 @@ async def admin_ops_dashboard_apply_next_targets(payload: Dict[str, Any] = Body(
 
 
 @app.post("/admin/ops-dashboard/run-batch-dry-run")
-async def admin_ops_dashboard_run_batch_dry_run(payload: Dict[str, Any] = Body(default=None)):
+async def admin_ops_dashboard_run_batch_dry_run(payload: Dict[str, Any] = Body(default=None), authorization: Optional[str] = Header(default=None)):
     """
     Explicit internal operator action: run batch push dry-run.
     Body: { "limit_users": 100 }
     """
+    _require_admin_auth(authorization)
     p = payload if isinstance(payload, dict) else {}
     limit_users = max(1, min(2000, int(p.get("limit_users") or 100)))
     return await run_push_batch_dry_run(limit_users=limit_users)
 
 
 @app.post("/admin/ops-dashboard/check-receipts")
-async def admin_ops_dashboard_check_receipts(payload: Dict[str, Any] = Body(default=None)):
+async def admin_ops_dashboard_check_receipts(payload: Dict[str, Any] = Body(default=None), authorization: Optional[str] = Header(default=None)):
     """
     Explicit internal operator action: check pending receipts (safe maintenance).
     Body: { "limit": 100 }
     """
+    _require_admin_auth(authorization)
     p = payload if isinstance(payload, dict) else {}
     limit = max(1, min(500, int(p.get("limit") or 100)))
     return await run_check_receipts(limit=limit)
 
 
 @app.post("/admin/ops-dashboard/run-auto-promote")
-async def admin_ops_dashboard_run_auto_promote(payload: Dict[str, Any] = Body(default=None)):
+async def admin_ops_dashboard_run_auto_promote(payload: Dict[str, Any] = Body(default=None), authorization: Optional[str] = Header(default=None)):
     """
     Explicit internal operator action: run contribution auto-promotion (evidence-based).
     Body: { "limit": 100, "area_key": "parramatta" }
     """
+    _require_admin_auth(authorization)
     p = payload if isinstance(payload, dict) else {}
     limit = max(1, min(500, int(p.get("limit") or 100)))
     area_key = str(p.get("area_key") or "").strip() or None
@@ -17309,6 +18020,620 @@ async def push_unregister(payload: Dict[str, Any] = Body(...)):
     except ValueError as e:
         raise HTTPException(status_code=422, detail={"error": str(e)})
     return {"ok": True, **result}
+
+
+def _coach_nudge_candidates_from_summary(summary: Dict[str, Any], local_hour: int) -> List[Dict[str, Any]]:
+    totals = (summary or {}).get("totals") if isinstance((summary or {}).get("totals"), dict) else {}
+    goals = (summary or {}).get("goals") if isinstance((summary or {}).get("goals"), dict) else {}
+    consumed_protein = float(_safe_float(totals.get("protein_g"), 0.0) or 0.0)
+    goal_protein = float(_safe_float(goals.get("protein_g"), DEFAULT_DAILY_GOALS.get("protein_g", 150)) or 0.0)
+    consumed_fiber = float(_safe_float(totals.get("fiber_g"), 0.0) or 0.0)
+    goal_fiber = float(_safe_float(goals.get("fiber_g"), DEFAULT_DAILY_GOALS.get("fiber_g", 30)) or 0.0)
+    protein_left = max(0.0, goal_protein - consumed_protein)
+    fiber_left = max(0.0, goal_fiber - consumed_fiber)
+
+    out: List[Dict[str, Any]] = []
+    if protein_left >= 15:
+        out.append(
+            {
+                "nudge_type": "protein_completion",
+                "priority": 100,
+                "title": "Coach ping: protein check",
+                "body": f"About {int(round(protein_left))}g protein left today. Add one protein anchor in your next meal.",
+            }
+        )
+    if fiber_left >= 7:
+        out.append(
+            {
+                "nudge_type": "fiber_completion",
+                "priority": 90,
+                "title": "Coach ping: fiber check",
+                "body": f"You still have ~{int(round(fiber_left))}g fiber left. Add fruit, veg, or beans in your next plate.",
+            }
+        )
+    if 10 <= int(local_hour) <= 21:
+        out.append(
+            {
+                "nudge_type": "water_intake",
+                "priority": 60,
+                "title": "Coach ping: hydration check",
+                "body": "Quick water break now helps appetite control before your next meal.",
+            }
+        )
+    out.sort(key=lambda x: float(x.get("priority") or 0), reverse=True)
+    return out
+
+
+def _pick_coach_nudge_for_user(user_id: str, day_iso: str, candidates: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    if not candidates:
+        return None
+    seed = hashlib.sha256(f"{user_id}|{day_iso}|coach_nudge".encode("utf-8")).hexdigest()
+    top = candidates[: min(3, len(candidates))]
+    idx = int(seed[:8], 16) % len(top)
+    return dict(top[idx])
+
+
+def _coach_nudge_env_bool(name: str, default: bool) -> bool:
+    raw = os.getenv(name)
+    if raw is None:
+        return bool(default)
+    return str(raw).strip().lower() in ("1", "true", "yes", "on")
+
+
+def _coach_nudge_env_int(name: str, default: int, lo: int, hi: int) -> int:
+    try:
+        v = int(os.getenv(name, str(default)))
+        return max(lo, min(hi, v))
+    except Exception:
+        return int(default)
+
+
+def _coach_local_hour_from_tz_offset_min(tz_offset_min: Optional[Any]) -> int:
+    off = _parse_tz_offset_min(tz_offset_min)
+    now_utc = dt.datetime.now(dt.timezone.utc)
+    if off is None:
+        return int(now_utc.hour)
+    local_dt = now_utc + dt.timedelta(minutes=int(off))
+    return int(local_dt.hour)
+
+
+def _is_in_quiet_hours(local_hour: int) -> bool:
+    # Defaults: 10pm -> 8am local. Supports overnight windows.
+    start = _coach_nudge_env_int("COACH_NUDGE_QUIET_HOUR_START", 22, 0, 23)
+    end = _coach_nudge_env_int("COACH_NUDGE_QUIET_HOUR_END", 8, 0, 23)
+    h = max(0, min(23, int(local_hour)))
+    if start == end:
+        return False
+    if start < end:
+        return start <= h < end
+    return h >= start or h < end
+
+
+def _count_sent_coach_nudges_today(user_id: str, day_iso: str) -> int:
+    start_iso = f"{_safe_day_iso(day_iso)}T00:00:00"
+    rows = list_recent_deliveries(
+        limit=300,
+        user_id=user_id,
+        alert_type="coach_completion_nudge",
+        dry_run=False,
+    )
+    sent_like = {"sent", "receipt_ok", "receipt_error"}
+    return sum(
+        1
+        for r in rows
+        if (r.get("status") in sent_like) and str(r.get("created_at") or "") >= start_iso
+    )
+
+
+@app.post("/push/send-coach-nudges")
+async def push_send_coach_nudges(payload: Dict[str, Any] = Body(...), authorization: Optional[str] = Header(default=None)):
+    """
+    Send one coach completion nudge (protein/fiber/water) for a user.
+    Payload: user_id, day?, local_hour?, dry_run?
+    """
+    from push_rollout import can_send_real_push, get_push_rollout_mode, get_user_push_eligibility
+    _require_admin_auth(authorization)
+    return await _send_coach_nudge_for_user_internal(payload)
+
+
+async def _send_coach_nudge_for_user_internal(payload: Dict[str, Any]) -> Dict[str, Any]:
+    from push_rollout import can_send_real_push, get_push_rollout_mode, get_user_push_eligibility
+
+    p = payload if isinstance(payload, dict) else {}
+    user_id = str(p.get("user_id") or "").strip()
+    if not user_id:
+        raise HTTPException(status_code=422, detail={"error": "user_id required"})
+    dry_run = bool(p.get("dry_run", True))
+    nudge_enabled = _coach_nudge_env_bool("COACH_NUDGE_BATCH_ENABLED", True)
+    if not nudge_enabled:
+        return {
+            "ok": True,
+            "dry_run": dry_run,
+            "notifications_attempted": 0,
+            "tickets_received": 0,
+            "final_suppressed_reason": "coach_nudge_disabled",
+            "rollout_mode": get_push_rollout_mode(),
+        }
+    day_iso = _safe_day_iso(p.get("day") or _today_date().isoformat())
+    local_hour_raw = p.get("local_hour")
+    if local_hour_raw is None:
+        token_rows = list_tokens_for_user(user_id, active_only=True)
+        token_rows.sort(key=lambda t: str(t.get("last_seen_at") or t.get("updated_at") or ""), reverse=True)
+        tz_offset_min = token_rows[0].get("tz_offset_min") if token_rows else None
+        local_hour = _coach_local_hour_from_tz_offset_min(tz_offset_min)
+    else:
+        local_hour = int(_safe_float(local_hour_raw, dt.datetime.utcnow().hour) or 12)
+
+    if _is_in_quiet_hours(local_hour):
+        return {
+            "ok": True,
+            "dry_run": dry_run,
+            "notifications_attempted": 0,
+            "tickets_received": 0,
+            "final_suppressed_reason": "quiet_hours",
+            "rollout_mode": get_push_rollout_mode(),
+        }
+
+    max_per_day = _coach_nudge_env_int("COACH_NUDGE_MAX_PER_DAY", 1, 0, 5)
+    if max_per_day <= 0:
+        return {
+            "ok": True,
+            "dry_run": dry_run,
+            "notifications_attempted": 0,
+            "tickets_received": 0,
+            "final_suppressed_reason": "daily_cap_zero",
+            "rollout_mode": get_push_rollout_mode(),
+        }
+    if not dry_run and _count_sent_coach_nudges_today(user_id, day_iso) >= max_per_day:
+        return {
+            "ok": True,
+            "dry_run": dry_run,
+            "notifications_attempted": 0,
+            "tickets_received": 0,
+            "final_suppressed_reason": "daily_cap_reached",
+            "rollout_mode": get_push_rollout_mode(),
+        }
+
+    summary = build_daily_summary(user_id, day_iso)
+    candidates = _coach_nudge_candidates_from_summary(summary, local_hour=local_hour)
+    chosen = _pick_coach_nudge_for_user(user_id, day_iso, candidates)
+    if not chosen:
+        return {
+            "ok": True,
+            "dry_run": dry_run,
+            "notifications_attempted": 0,
+            "tickets_received": 0,
+            "final_suppressed_reason": "no_gap_detected",
+            "rollout_mode": get_push_rollout_mode(),
+        }
+
+    elig = get_user_push_eligibility(user_id)
+    allowed, reason = can_send_real_push(user_id, dry_run=dry_run, user_activity=elig)
+    effective_dry_run = dry_run or not allowed
+    tokens = list_tokens_for_user(user_id, active_only=True)
+    active_tokens = [t for t in tokens if (t.get("expo_push_token") or "").startswith("ExponentPushToken[")]
+    if not active_tokens:
+        return {
+            "ok": True,
+            "dry_run": dry_run,
+            "notifications_attempted": 0,
+            "tickets_received": 0,
+            "final_suppressed_reason": "no_tokens",
+            "rollout_mode": get_push_rollout_mode(),
+            "real_send_reason": reason,
+        }
+
+    alert_id = f"coach_nudge::{chosen.get('nudge_type')}::{day_iso}"
+    messages: List[Dict[str, Any]] = []
+    delivery_records: List[Dict[str, Any]] = []
+    for t in active_tokens:
+        token = str(t.get("expo_push_token") or "").strip()
+        if not token:
+            continue
+        if was_recently_sent(user_id, token, alert_id, within_hours=20.0):
+            continue
+        msg = {
+            "to": token,
+            "title": str(chosen.get("title") or "Coach ping"),
+            "body": str(chosen.get("body") or "Quick check-in."),
+            "sound": "default",
+            "data": {
+                "alert_id": alert_id,
+                "alert_type": "coach_completion_nudge",
+                "nudge_type": str(chosen.get("nudge_type") or ""),
+                "day": day_iso,
+                "deep_link": "calorieclick://home?tab=coach",
+                "route_target": "coach_tab",
+            },
+        }
+        messages.append(msg)
+        rec = create_delivery_record(
+            user_id=user_id,
+            expo_push_token=token,
+            alert_id=alert_id,
+            alert_type="coach_completion_nudge",
+            place_id="",
+            place_name="",
+            best_item_name=str(chosen.get("nudge_type") or ""),
+            title=str(chosen.get("title") or ""),
+            body=str(chosen.get("body") or ""),
+            payload_data=msg.get("data"),
+            dry_run=effective_dry_run,
+        )
+        delivery_records.append(rec)
+
+    if not messages:
+        return {
+            "ok": True,
+            "dry_run": dry_run,
+            "notifications_attempted": 0,
+            "tickets_received": 0,
+            "final_suppressed_reason": "duplicate_recently_sent",
+            "rollout_mode": get_push_rollout_mode(),
+            "real_send_reason": reason,
+        }
+
+    result = send_expo_push_messages(messages, dry_run=effective_dry_run)
+    tickets = result.get("tickets") or []
+    if not effective_dry_run:
+        for i, ticket in enumerate(tickets):
+            if i >= len(delivery_records):
+                break
+            rec = delivery_records[i]
+            if ticket.get("status") == "ok":
+                update_delivery_status(rec["delivery_id"], status="sent", expo_ticket_id=ticket.get("id"))
+            else:
+                err_msg = str(ticket.get("message") or "unknown")
+                err_details = ticket.get("details") or {}
+                err_code = err_details.get("error") if isinstance(err_details, dict) else None
+                update_delivery_status(
+                    rec["delivery_id"],
+                    status="ticket_error",
+                    error_code=str(err_code) if err_code else None,
+                    error_message=err_msg[:500],
+                )
+
+    return {
+        "ok": result.get("ok", True),
+        "dry_run": dry_run,
+        "real_send_reason": reason,
+        "rollout_mode": get_push_rollout_mode(),
+        "notifications_attempted": len(messages),
+        "tickets_received": result.get("sent_count", 0),
+        "ticket_errors": result.get("error_count", 0),
+        "nudge_type": str(chosen.get("nudge_type") or ""),
+        "title": str(chosen.get("title") or ""),
+    }
+
+
+@app.post("/push/send-coach-nudges/batch")
+async def push_send_coach_nudges_batch(payload: Optional[Dict[str, Any]] = Body(default=None), authorization: Optional[str] = Header(default=None)):
+    """
+    Batch send coach completion nudges for users with active push tokens.
+    Payload: { "limit_users": 500, "dry_run": true }
+    """
+    from push_batch_sender import list_users_with_active_push_tokens, _batch_user_limit
+    _require_admin_auth(authorization)
+
+    p = payload if isinstance(payload, dict) else {}
+    limit_users = max(1, min(2000, int(p.get("limit_users") or _batch_user_limit())))
+    dry_run = bool(p.get("dry_run", True))
+    return await _run_coach_nudges_batch(limit_users=limit_users, dry_run=dry_run)
+
+
+async def _run_coach_nudges_batch(limit_users: int, dry_run: bool) -> Dict[str, Any]:
+    from push_batch_sender import list_users_with_active_push_tokens
+    nudge_enabled = _coach_nudge_env_bool("COACH_NUDGE_BATCH_ENABLED", True)
+    if not nudge_enabled:
+        return {
+            "ok": True,
+            "dry_run": dry_run,
+            "users_considered": 0,
+            "nudges_sent_users": 0,
+            "nudges_suppressed_users": 0,
+            "sample_results": [],
+            "suppressed_reason": "coach_nudge_disabled",
+        }
+    users = list_users_with_active_push_tokens(limit=limit_users)
+    sample: List[Dict[str, Any]] = []
+    sent = 0
+    suppressed = 0
+    for u in users:
+        uid = str((u or {}).get("user_id") or "").strip()
+        if not uid:
+            continue
+        local_hour = _coach_local_hour_from_tz_offset_min((u or {}).get("tz_offset_min"))
+        out = await _send_coach_nudge_for_user_internal(
+            {
+                "user_id": uid,
+                "day": _today_date().isoformat(),
+                "local_hour": local_hour,
+                "dry_run": dry_run,
+            }
+        )
+        attempted = int(_safe_float(out.get("notifications_attempted"), 0) or 0)
+        if attempted > 0:
+            sent += 1
+        else:
+            suppressed += 1
+        if len(sample) < 25:
+            sample.append(
+                {
+                    "user_id": uid,
+                    "sent": attempted > 0,
+                    "nudge_type": out.get("nudge_type"),
+                    "suppressed_reason": out.get("final_suppressed_reason"),
+                }
+            )
+    return {
+        "ok": True,
+        "dry_run": dry_run,
+        "users_considered": len(users),
+        "nudges_sent_users": sent,
+        "nudges_suppressed_users": suppressed,
+        "sample_results": sample,
+    }
+
+
+@app.get("/push/send-coach-nudges/status")
+async def push_send_coach_nudges_status(authorization: Optional[str] = Header(default=None)):
+    """
+    Effective config and lightweight recent coach nudge delivery counters.
+    """
+    _require_admin_auth(authorization)
+    enabled = _coach_nudge_env_bool("COACH_NUDGE_BATCH_ENABLED", True)
+    quiet_start = _coach_nudge_env_int("COACH_NUDGE_QUIET_HOUR_START", 22, 0, 23)
+    quiet_end = _coach_nudge_env_int("COACH_NUDGE_QUIET_HOUR_END", 8, 0, 23)
+    max_per_day = _coach_nudge_env_int("COACH_NUDGE_MAX_PER_DAY", 1, 0, 5)
+
+    recent = list_recent_deliveries(limit=500, alert_type="coach_completion_nudge")
+    recent_24h_cut = (dt.datetime.now(dt.timezone.utc) - dt.timedelta(hours=24)).isoformat()
+    status_counts = {
+        "sent_like_24h": 0,
+        "queued_24h": 0,
+        "ticket_error_24h": 0,
+        "dry_run_24h": 0,
+    }
+    for d in recent:
+        created = str(d.get("created_at") or "")
+        if created < recent_24h_cut:
+            continue
+        st = str(d.get("status") or "")
+        if st in ("sent", "receipt_ok", "receipt_error"):
+            status_counts["sent_like_24h"] += 1
+        elif st == "queued":
+            status_counts["queued_24h"] += 1
+        elif st == "ticket_error":
+            status_counts["ticket_error_24h"] += 1
+        elif st == "dry_run":
+            status_counts["dry_run_24h"] += 1
+
+    return {
+        "ok": True,
+        "enabled": enabled,
+        "quiet_hours": {"start_hour_local": quiet_start, "end_hour_local": quiet_end},
+        "max_per_day": max_per_day,
+        "rollout_mode": get_push_rollout_mode(),
+        "push_enabled": bool(os.getenv("EXPO_PUSH_SENDING_ENABLED", "").strip().lower() in ("1", "true", "yes", "on")),
+        "recent_counts": status_counts,
+    }
+
+
+@app.get("/push/send-coach-nudges/debug-user")
+async def push_send_coach_nudges_debug_user(
+    user_id: str,
+    day: Optional[str] = None,
+    authorization: Optional[str] = Header(default=None),
+):
+    """
+    Per-user debug snapshot for coach nudge eligibility/suppression.
+    """
+    _require_admin_auth(authorization)
+    uid = str(user_id or "").strip()
+    if not uid:
+        raise HTTPException(status_code=422, detail={"error": "user_id required"})
+
+    day_iso = _safe_day_iso(day or _today_date().isoformat())
+    enabled = _coach_nudge_env_bool("COACH_NUDGE_BATCH_ENABLED", True)
+    quiet_start = _coach_nudge_env_int("COACH_NUDGE_QUIET_HOUR_START", 22, 0, 23)
+    quiet_end = _coach_nudge_env_int("COACH_NUDGE_QUIET_HOUR_END", 8, 0, 23)
+    max_per_day = _coach_nudge_env_int("COACH_NUDGE_MAX_PER_DAY", 1, 0, 5)
+
+    tokens = list_tokens_for_user(uid, active_only=True)
+    expo_tokens = [t for t in tokens if str(t.get("expo_push_token") or "").startswith("ExponentPushToken[")]
+    token_rows = list(expo_tokens)
+    token_rows.sort(key=lambda t: str(t.get("last_seen_at") or t.get("updated_at") or ""), reverse=True)
+    latest = token_rows[0] if token_rows else {}
+    tz_offset_min = latest.get("tz_offset_min")
+    local_hour = _coach_local_hour_from_tz_offset_min(tz_offset_min)
+    in_quiet_hours = _is_in_quiet_hours(local_hour)
+
+    summary = build_daily_summary(uid, day_iso)
+    candidates = _coach_nudge_candidates_from_summary(summary, local_hour=local_hour)
+    chosen = _pick_coach_nudge_for_user(uid, day_iso, candidates)
+    sent_today = _count_sent_coach_nudges_today(uid, day_iso)
+    daily_cap_reached = max_per_day > 0 and sent_today >= max_per_day
+    if max_per_day <= 0:
+        daily_cap_reached = True
+
+    push_enabled = bool(os.getenv("EXPO_PUSH_SENDING_ENABLED", "").strip().lower() in ("1", "true", "yes", "on"))
+    elig = get_user_push_eligibility(uid)
+    allowed_real_send, real_send_reason = can_send_real_push(uid, dry_run=False, user_activity=elig)
+
+    final_reason = None
+    if not enabled:
+        final_reason = "coach_nudge_disabled"
+    elif not expo_tokens:
+        final_reason = "no_tokens"
+    elif in_quiet_hours:
+        final_reason = "quiet_hours"
+    elif max_per_day <= 0:
+        final_reason = "daily_cap_zero"
+    elif daily_cap_reached:
+        final_reason = "daily_cap_reached"
+    elif not chosen:
+        final_reason = "no_gap_detected"
+    elif not allowed_real_send:
+        final_reason = real_send_reason
+    else:
+        final_reason = "eligible_now"
+
+    return {
+        "ok": True,
+        "user_id": uid,
+        "day": day_iso,
+        "final_reason": final_reason,
+        "enabled": enabled,
+        "push_enabled": push_enabled,
+        "rollout_mode": get_push_rollout_mode(),
+        "real_send_allowed": allowed_real_send,
+        "real_send_reason": real_send_reason,
+        "eligibility": elig,
+        "tokens": {
+            "active_expo_tokens_count": len(expo_tokens),
+            "latest_tz": str(latest.get("tz") or ""),
+            "latest_tz_offset_min": tz_offset_min,
+        },
+        "local_time": {
+            "local_hour": local_hour,
+            "quiet_hours": {"start_hour_local": quiet_start, "end_hour_local": quiet_end},
+            "in_quiet_hours": in_quiet_hours,
+        },
+        "daily_cap": {
+            "max_per_day": max_per_day,
+            "sent_today": sent_today,
+            "reached": daily_cap_reached,
+        },
+        "nudge_candidates": {
+            "count": len(candidates),
+            "types": [str(c.get("nudge_type") or "") for c in candidates],
+            "chosen_type": str((chosen or {}).get("nudge_type") or ""),
+        },
+    }
+
+
+def _nudge_job_scheduler_secret() -> str:
+    return str(os.getenv("NUDGE_JOB_SCHEDULER_SECRET", "")).strip()
+
+
+def _nudge_job_require_scheduler_secret(x_scheduler_secret: Optional[str]) -> None:
+    expected = _nudge_job_scheduler_secret()
+    if not expected:
+        raise HTTPException(status_code=503, detail={"error": "nudge_job_scheduler_secret_not_configured"})
+    provided = str(x_scheduler_secret or "").strip()
+    if not provided or not hmac.compare_digest(provided, expected):
+        raise HTTPException(status_code=401, detail={"error": "unauthorized_scheduler"})
+
+
+def _nudge_job_alert_webhook_url() -> str:
+    return str(os.getenv("NUDGE_JOB_ALERT_WEBHOOK_URL", "")).strip()
+
+
+def _nudge_job_alert_on_failure(run: Dict[str, Any], result: Dict[str, Any], error: str = "") -> None:
+    url = _nudge_job_alert_webhook_url()
+    if not url:
+        return
+    try:
+        payload = {
+            "text": "Coach nudge batch job failed",
+            "job_name": str(run.get("job_name") or "coach_nudges_batch"),
+            "run_id": str(run.get("run_id") or ""),
+            "started_at": str(run.get("started_at") or ""),
+            "finished_at": str(run.get("finished_at") or ""),
+            "error": str(error or result.get("error") or "")[:500],
+            "result": {
+                "users_considered": result.get("users_considered"),
+                "nudges_sent_users": result.get("nudges_sent_users"),
+                "nudges_suppressed_users": result.get("nudges_suppressed_users"),
+                "sample_results": (result.get("sample_results") or [])[:3],
+            },
+        }
+        requests.post(url, json=payload, timeout=8)
+    except Exception as e:
+        logger.warning("nudge_job_alert_webhook_failed err=%s", str(e)[:220])
+
+
+@app.post("/internal/jobs/coach-nudges/run")
+async def internal_job_run_coach_nudges(
+    payload: Optional[Dict[str, Any]] = Body(default=None),
+    x_scheduler_secret: Optional[str] = Header(default=None, alias="X-Scheduler-Secret"),
+):
+    """
+    Scheduler entrypoint for production coach nudge batch job.
+    Secured via X-Scheduler-Secret header.
+    Body: { limit_users?: 500, dry_run?: false, trigger?: "railway_cron" }
+    """
+    _nudge_job_require_scheduler_secret(x_scheduler_secret)
+    p = payload if isinstance(payload, dict) else {}
+    limit_users = max(1, min(2000, int(_safe_float(p.get("limit_users"), 500) or 500)))
+    dry_run = bool(p.get("dry_run", False))
+    trigger = str(p.get("trigger") or "railway_cron").strip() or "railway_cron"
+    run = create_job_run(
+        "coach_nudges_batch",
+        trigger=trigger,
+        payload={"limit_users": limit_users, "dry_run": dry_run},
+    )
+    try:
+        result = await _run_coach_nudges_batch(limit_users=limit_users, dry_run=dry_run)
+        updated = update_job_run(run["run_id"], status="done", result=result, error="")
+        return {"ok": True, "run": updated or run, "result": result}
+    except Exception as e:
+        err_txt = str(e)[:500]
+        fail_payload = {
+            "ok": False,
+            "error": "coach_nudges_batch_failed",
+            "raw": err_txt,
+            "users_considered": 0,
+            "nudges_sent_users": 0,
+            "nudges_suppressed_users": 0,
+        }
+        updated = update_job_run(run["run_id"], status="error", result=fail_payload, error=err_txt)
+        _nudge_job_alert_on_failure(updated or run, fail_payload, err_txt)
+        raise HTTPException(status_code=500, detail={"error": "coach_nudges_batch_failed", "raw": err_txt})
+
+
+@app.get("/internal/jobs/coach-nudges/health")
+async def internal_job_coach_nudges_health(
+    x_scheduler_secret: Optional[str] = Header(default=None, alias="X-Scheduler-Secret"),
+):
+    """
+    Monitoring endpoint for scheduler health.
+    """
+    _nudge_job_require_scheduler_secret(x_scheduler_secret)
+    summary = summarize_job_health("coach_nudges_batch", within_hours=24.0)
+    recent = list_recent_job_runs("coach_nudges_batch", limit=10)
+    status = "ok"
+    if int(_safe_float(summary.get("failed_in_window"), 0) or 0) >= 2:
+        status = "degraded"
+    if not summary.get("last_success_at"):
+        status = "degraded"
+    return {
+        "ok": True,
+        "status": status,
+        "summary": summary,
+        "recent_runs": recent,
+    }
+
+
+@app.get("/admin/jobs/coach-nudges/health")
+async def admin_job_coach_nudges_health(authorization: Optional[str] = Header(default=None)):
+    """
+    Admin-facing coach nudge scheduler health (same payload as internal health).
+    """
+    _require_admin_auth(authorization)
+    summary = summarize_job_health("coach_nudges_batch", within_hours=24.0)
+    recent = list_recent_job_runs("coach_nudges_batch", limit=10)
+    status = "ok"
+    if int(_safe_float(summary.get("failed_in_window"), 0) or 0) >= 2:
+        status = "degraded"
+    if not summary.get("last_success_at"):
+        status = "degraded"
+    return {
+        "ok": True,
+        "status": status,
+        "summary": summary,
+        "recent_runs": recent,
+    }
 
 
 @app.post("/push/send-smart-alerts")
@@ -18400,6 +19725,10 @@ _LOW_CONF_CLARIFY_QUESTION = {
     "ask": "Is there visible added oil, sauce, or dressing?",
     "options": ["No", "Yes - light", "Yes - normal", "Yes - heavy"],
 }
+_HIGH_KCAL_PORTION_CLARIFY_QUESTION = {
+    "ask": "This looks calorie-dense. Is the portion size right?",
+    "options": ["Looks right", "Portion is smaller", "Portion is larger"],
+}
 
 # Dimension registry (Phase 1 MVP): canonical clarification dimensions.
 DIMENSION_REGISTRY: Dict[str, Dict[str, Any]] = {
@@ -19089,7 +20418,11 @@ def _get_llm_clarification_questions_safe(items: List[Dict[str, Any]]) -> List[D
 def _apply_stored_ingredient_choices_to_items(user_id: str, items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Enrich item names from stored + inferred-from-name choices for better nutrition lookup."""
     try:
-        from user_ingredient_choices import get_user_ingredient_choices, get_food_token_from_item
+        from user_ingredient_choices import (
+            get_user_ingredient_choices,
+            get_food_token_from_item,
+            component_memory_keys_for_item_name,
+        )
     except ImportError:
         return items
     if not items or not user_id:
@@ -19100,8 +20433,16 @@ def _apply_stored_ingredient_choices_to_items(user_id: str, items: List[Dict[str
     token = get_food_token_from_item(first)
     if not token:
         return items
-    stored = get_user_ingredient_choices(user_id, token)
     name = str(first.get("name") or "").strip()
+    stored = get_user_ingredient_choices(user_id, token)
+    component_stored: Dict[str, str] = {}
+    for ck in component_memory_keys_for_item_name(name):
+        comp = get_user_ingredient_choices(user_id, ck)
+        if not isinstance(comp, dict):
+            continue
+        for k, v in comp.items():
+            if v is not None and str(v).strip():
+                component_stored[str(k)] = str(v).strip()
     vision_hints = (first or {}).get("ingredient_hints") or {}
     if not isinstance(vision_hints, dict):
         vision_hints = {}
@@ -19113,6 +20454,8 @@ def _apply_stored_ingredient_choices_to_items(user_id: str, items: List[Dict[str
             inferred = _infer_ingredient_choices_from_name(name, rule["questions"])
             break
     merged = dict(inferred)
+    for k, v in component_stored.items():
+        merged[k] = v
     for k, v in (vision_hints or {}).items():
         if v is not None and str(v).strip():
             merged[k] = str(v).strip()
@@ -19194,6 +20537,31 @@ def _build_scan_data_quality(vision: VisionScanV1Model, vision_threshold: float 
     }
 
 
+def _needs_high_kcal_portion_sanity_check(
+    items: List[Dict[str, Any]],
+    totals: Dict[str, Any],
+    *,
+    vision_confidence: float,
+    vision_threshold: float,
+) -> bool:
+    """
+    Safety prompt for likely over-estimation cases:
+    low-confidence + effectively single meal interpretation + very high kcal.
+    """
+    if not isinstance(items, list) or not items:
+        return False
+    conf = float(_safe_float(vision_confidence, 0.0) or 0.0)
+    threshold = float(_safe_float(vision_threshold, 0.72) or 0.72)
+    if conf >= threshold:
+        return False
+    kcal = float(_safe_float((totals or {}).get("kcal"), 0.0) or 0.0)
+    if kcal < 700:
+        return False
+    distinct_names = {str((it or {}).get("name") or "").strip().lower() for it in items if isinstance(it, dict)}
+    distinct_names = {n for n in distinct_names if n}
+    return len(distinct_names) <= 2
+
+
 def _portion_multiplier_value(raw: Any) -> Optional[float]:
     if raw is None:
         return None
@@ -19205,6 +20573,119 @@ def _portion_multiplier_value(raw: Any) -> Optional[float]:
     if val is None:
         return None
     return max(0.3, min(3.0, float(val)))
+
+
+_ADDED_FAT_NONE_VALUES = frozenset(
+    {
+        "none",
+        "no",
+        "n/a",
+        "na",
+        "0",
+        "not fried / no added oil",
+        "no added oil",
+        "not fried",
+        "looks right",
+    }
+)
+
+
+def _clarifying_answers_selection_dict(edits: AnalyzeRerunEditsModel) -> Dict[str, str]:
+    selected: Dict[str, str] = {}
+    for a in edits.clarifying_answers or []:
+        if not isinstance(a, dict):
+            continue
+        k = _normalize_dim_id(str(a.get("key") or "").strip())
+        v = str(a.get("value") or "").strip()
+        if k and v:
+            selected[k] = v
+    return selected
+
+
+def _added_fat_answer_to_explicit_oil_tsp(value: str) -> Optional[float]:
+    v = str(value or "").strip().lower()
+    if v in _ADDED_FAT_NONE_VALUES:
+        return 0.0
+    if v in {"light", "yes - light"}:
+        return 0.5
+    if v in {"normal", "yes - normal"}:
+        return 1.0
+    if v in {"heavy", "yes - heavy", "deep fried (~2+ tsp oil)"}:
+        return 2.5
+    return None
+
+
+def _clarifying_answer_string_to_fry_oil_tsp(answer_raw: str) -> Optional[float]:
+    """Map legacy single-string clarifying_answer (fried / low-conf prompts) to explicit fry-oil tsp."""
+    answer = str(answer_raw or "").strip().lower()
+    if not answer:
+        return None
+    if answer in {"no", "none", "no oil", "no added oil", "not fried / no added oil", "looks right"}:
+        return 0.0
+    if "not fried" in answer:
+        return 0.0
+    if "deep" in answer:
+        return 2.5
+    if "air" in answer and "fried" in answer:
+        return 0.5
+    if "pan" in answer or "shallow" in answer:
+        return 1.0
+    if "heavy" in answer:
+        return 2.0
+    if "normal" in answer:
+        return 1.0
+    if "light" in answer:
+        return 0.5
+    return None
+
+
+def _rerun_user_locked_oil_prior(edits: Optional[AnalyzeRerunEditsModel]) -> bool:
+    """True when the user explicitly answered oil / added-fat clarification — skip prior-based oil bumps."""
+    if not edits:
+        return False
+    if edits.set_oil_added_tsp is not None:
+        return True
+    if str(edits.clarifying_answer or "").strip():
+        return True
+    for a in edits.clarifying_answers or []:
+        if not isinstance(a, dict):
+            continue
+        k = _normalize_dim_id(str(a.get("key") or "").strip())
+        v = str(a.get("value") or "").strip()
+        if not k or not v:
+            continue
+        if k in ("added_fat", "dressing"):
+            return True
+    return False
+
+
+def _apply_clarifying_dimensions_to_item_dicts(
+    items: List[Dict[str, Any]],
+    edits: Optional[AnalyzeRerunEditsModel],
+) -> None:
+    """Apply structured clarification dimensions to vision items before nutrition compute (mutates items)."""
+    if not items or not edits:
+        return
+    selected = _clarifying_answers_selection_dict(edits)
+    cm = str(selected.get("cooking_method") or "").strip()
+    if cm and cm.lower() not in ("other", "not sure", ""):
+        nm = _method_norm(cm.replace("-", " "))
+        if nm:
+            for it in items:
+                if isinstance(it, dict):
+                    it["cooking_method"] = nm
+    fat_val = str(selected.get("added_fat") or selected.get("dressing") or "").strip()
+    if fat_val:
+        tsp = _added_fat_answer_to_explicit_oil_tsp(fat_val)
+        if tsp is not None:
+            if tsp <= 0.0:
+                for it in items:
+                    if isinstance(it, dict):
+                        it["oil_added_tsp"] = 0.0
+            else:
+                for it in items:
+                    if isinstance(it, dict) and _cooking_method_implies_fry_oil_prior(it.get("cooking_method")):
+                        it["oil_added_tsp"] = round(float(tsp), 2)
 
 
 def _apply_rerun_edits(base_items: List[Dict[str, Any]], edits: AnalyzeRerunEditsModel) -> List[Dict[str, Any]]:
@@ -19253,22 +20734,21 @@ def _apply_rerun_edits(base_items: List[Dict[str, Any]], edits: AnalyzeRerunEdit
                     it["grams"] = round(grams, 1)
                     break
 
-    answer = str(edits.clarifying_answer or "").strip().lower()
-    if answer:
-        if "deep" in answer:
-            out[0]["oil_added_tsp"] = 2.5
-        elif "pan" in answer or "shallow" in answer:
-            out[0]["oil_added_tsp"] = 1.0
-        elif "air" in answer and "fried" in answer:
-            out[0]["oil_added_tsp"] = 0.5
-        elif "heavy" in answer:
-            out[0]["oil_added_tsp"] = 2.0
-        elif "normal" in answer:
-            out[0]["oil_added_tsp"] = 1.0
-        elif "light" in answer:
-            out[0]["oil_added_tsp"] = 0.5
-        elif answer in {"no", "none", "no oil", "no added oil", "not fried / no added oil", "looks right"}:
-            out[0]["oil_added_tsp"] = 0.0
+    ans_raw = str(edits.clarifying_answer or "").strip()
+    if ans_raw:
+        tsp = _clarifying_answer_string_to_fry_oil_tsp(ans_raw)
+        if tsp is not None:
+            if tsp <= 0.0:
+                for it in out:
+                    if isinstance(it, dict):
+                        it["oil_added_tsp"] = 0.0
+            else:
+                fried_items = [it for it in out if isinstance(it, dict) and _cooking_method_implies_fry_oil_prior(it.get("cooking_method"))]
+                targets = fried_items if fried_items else ([out[0]] if out else [])
+                for it in targets:
+                    if isinstance(it, dict):
+                        it["oil_added_tsp"] = round(float(tsp), 2)
+    _apply_clarifying_dimensions_to_item_dicts(out, edits)
     return out
 
 
@@ -19392,6 +20872,10 @@ def _usual_meal_hint_for_response(
 _SCAN_MAX_IMAGE_PIXELS = int(os.getenv("SCAN_MAX_IMAGE_PIXELS", str(1024 * 1024)))
 _SCAN_MAX_EDGE_PX = int(os.getenv("SCAN_MAX_EDGE_PX", "1024"))
 _SCAN_JPEG_QUALITY = max(60, min(95, int(os.getenv("SCAN_JPEG_QUALITY", "85"))))
+# UPF quick-scan: smaller payload for a single fast vision classification (target ~1s server-side).
+_UPF_QUICK_MAX_EDGE_PX = int(os.getenv("UPF_QUICK_MAX_EDGE_PX", "512"))
+_UPF_QUICK_JPEG_QUALITY = max(55, min(90, int(os.getenv("UPF_QUICK_JPEG_QUALITY", "78"))))
+_UPF_QUICK_LLM_TIMEOUT_SEC = max(2.5, min(8.0, float(os.getenv("UPF_QUICK_LLM_TIMEOUT_SEC", "4") or "4")))
 
 
 def _resize_image_for_scan(image_bytes: bytes) -> Tuple[bytes, Optional[Dict[str, int]]]:
@@ -19410,6 +20894,28 @@ def _resize_image_for_scan(image_bytes: bytes) -> Tuple[bytes, Optional[Dict[str
     except Exception as e:
         logger.warning("scan image resize skipped: %s", str(e)[:120])
         return image_bytes, None
+
+
+def _resize_image_for_upf_quick(image_bytes: bytes) -> bytes:
+    """Aggressively downscale packaged-product photos for low-latency UPF scoring."""
+    try:
+        img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+        w, h = img.size
+        max_edge = max(w, h)
+        cap = max(256, min(768, int(_UPF_QUICK_MAX_EDGE_PX)))
+        if max_edge <= cap:
+            buf = io.BytesIO()
+            img.save(buf, format="JPEG", quality=int(_UPF_QUICK_JPEG_QUALITY), optimize=True)
+            return buf.getvalue()
+        scale = cap / float(max_edge)
+        nw, nh = max(1, int(w * scale)), max(1, int(h * scale))
+        resized = img.resize((nw, nh), Image.Resampling.BILINEAR)
+        buf = io.BytesIO()
+        resized.save(buf, format="JPEG", quality=int(_UPF_QUICK_JPEG_QUALITY), optimize=True)
+        return buf.getvalue()
+    except Exception as e:
+        logger.warning("upf quick resize skipped: %s", str(e)[:120])
+        return image_bytes
 
 
 def _run_analyze_pipeline(
@@ -19517,6 +21023,11 @@ def _run_analyze_pipeline(
     ).strip():
         if float(_safe_float(vision_scan.vision_confidence, 0.65) or 0.65) < vision_threshold:
             personalization_used["asked_clarifying_question_reason"] = "low_confidence"
+    detected_items = _collapse_ambiguous_alternative_items(
+        detected_items,
+        vision_confidence=float(_safe_float(vision_scan.vision_confidence, 0.65) or 0.65),
+        vision_threshold=vision_threshold,
+    )
     ingredient_clarification_questions = _get_ingredient_clarification_questions(uid, detected_items)
     detected_items = _apply_stored_ingredient_choices_to_items(uid, detected_items)
     logger.info("Detected items: %s job_id=%s request_id=%s", detected_items, job_id, request_id)
@@ -19530,6 +21041,20 @@ def _run_analyze_pipeline(
     total_p = float(_safe_float(totals.get("protein_g"), 0.0) or 0.0)
     total_c = float(_safe_float(totals.get("carbs_g"), 0.0) or 0.0)
     total_f = float(_safe_float(totals.get("fat_g"), 0.0) or 0.0)
+    if _needs_high_kcal_portion_sanity_check(
+        detected_items,
+        totals,
+        vision_confidence=float(_safe_float(vision_scan.vision_confidence, 0.65) or 0.65),
+        vision_threshold=vision_threshold,
+    ):
+        try:
+            vision_payload = _model_dump(vision_scan)
+            vision_payload["clarifying_question"] = dict(_HIGH_KCAL_PORTION_CLARIFY_QUESTION)
+            vision_scan = _coerce_vision_scan_payload(vision_payload, vision_threshold=vision_threshold)
+            personalization_used["asked_clarifying_question"] = True
+            personalization_used["asked_clarifying_question_reason"] = "high_kcal_portion_sanity"
+        except Exception:
+            pass
 
     scan_coaching = build_coaching_payload(
         total_kcal=total_kcal,
@@ -19898,6 +21423,59 @@ async def analyze(
     return JSONResponse(status_code=202, content=out)
 
 
+@app.post("/analyze/upf")
+async def analyze_upf(
+    file: UploadFile = File(...),
+    user_id: Optional[str] = None,
+    tz: Optional[str] = None,
+    tz_offset_min: Optional[int] = None,
+    x_user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
+):
+    """
+    Fast ultra-processed estimate (~1 LLM call, no meal pipeline / job queue).
+    Returns the same coaching.ultra_processed_score shape the mobile UPF card expects.
+    """
+    uid = require_user_id(x_user_id, user_id)
+    require_ai_consent(uid)
+    request_id = _new_request_id()
+    contents = await file.read()
+    if not contents:
+        raise HTTPException(status_code=400, detail="Empty file")
+    try:
+        _ = Image.open(io.BytesIO(contents)).convert("RGB")
+    except Exception:
+        raise HTTPException(status_code=400, detail="Uploaded file is not a valid image")
+
+    today_local = _today_date(tz=tz, tz_offset_min=tz_offset_min)
+    usage_row = consume_one_scan(uid, today=today_local)
+
+    small = _resize_image_for_upf_quick(contents)
+    started = time.time()
+    score = gemini_upf_packaging_quick_v1(small, request_id=request_id)
+    score_r = round1(float(score))
+    latency_ms = int(max(0, round((time.time() - started) * 1000)))
+    coaching = {
+        "ultra_processed_score": float(score_r),
+        "messages": [],
+        "layman_terms": {
+            "ultra_processed": "How processed the food is (higher = more ultra-processed).",
+        },
+    }
+    out = {
+        "coaching": coaching,
+        "signals": {"ultra_processed_avg": float(score_r)},
+        "source": "upf_quick",
+        "request_id": request_id,
+        "latency_ms": latency_ms,
+        "usage": {
+            "plan": usage_row.get("plan"),
+            "remaining_day": int(usage_row.get("remaining_day") or 0),
+            "remaining_month": int(usage_row.get("remaining_month") or 0),
+        },
+    }
+    return JSONResponse(status_code=200, content=out)
+
+
 @app.get("/jobs/{job_id}")
 def get_analysis_job(
     job_id: str,
@@ -20057,6 +21635,10 @@ def analyze_rerun(
         base_conf = min(1.0, base_conf + 0.07)
         clarifying_q = None
         prior_clarifying_q = None
+    if getattr(req.edits, "clarifying_answers", None) and isinstance(req.edits.clarifying_answers, list) and req.edits.clarifying_answers:
+        base_conf = min(1.0, base_conf + 0.07)
+        clarifying_q = None
+        prior_clarifying_q = None
 
     vision_scan = _coerce_vision_scan_payload(
         {
@@ -20069,7 +21651,12 @@ def analyze_rerun(
     )
     # Preserve previously asked clarifying_question until explicitly answered.
     # Quick edits should not hide the confirmation block unless the underlying trigger is resolved.
-    if prior_clarifying_q and not str(req.edits.clarifying_answer or "").strip():
+    answered_structured = bool(
+        getattr(req.edits, "clarifying_answers", None)
+        and isinstance(req.edits.clarifying_answers, list)
+        and len(req.edits.clarifying_answers) > 0
+    )
+    if prior_clarifying_q and not str(req.edits.clarifying_answer or "").strip() and not answered_structured:
         try:
             is_fried_prior = str(prior_clarifying_q.get("ask") or "").strip() == str(_FRIED_CLARIFY_QUESTION.get("ask") or "").strip()
         except Exception:
@@ -20101,6 +21688,7 @@ def analyze_rerun(
                 save_user_ingredient_choices,
                 get_food_token_from_item,
                 component_memory_key,
+                component_memory_keys_for_item_name,
             )
         except ImportError:
             pass
@@ -20123,6 +21711,12 @@ def analyze_rerun(
                                         save_user_ingredient_choices(uid, ck, {k: v})
                     if choices_to_save:
                         save_user_ingredient_choices(uid, token, choices_to_save)
+                        # Data moat: also persist to decomposed component keys so
+                        # repeat scans with wording variations still reuse answers.
+                        first_name = str(first_item.get("name") or "").strip()
+                        if first_name:
+                            for ck in component_memory_keys_for_item_name(first_name):
+                                save_user_ingredient_choices(uid, ck, choices_to_save)
                         # Backward-compatible alias mapping: canonical dimension ids -> legacy keys
                         # used by existing name-enrichment logic.
                         if choices_to_save.get("dairy_type") and not choices_to_save.get("milk_type"):
@@ -20198,6 +21792,8 @@ def analyze_rerun(
                             g = max(0.0, float(_safe_float(it.get("grams"), 0.0) or 0.0))
                             if g > 0:
                                 it["grams"] = round(g * starch_mul, 1)
+
+    _apply_clarifying_dimensions_to_item_dicts(items_for_nutrition, req.edits)
 
     results, totals, total_micros, item_warnings, _ = _compute_scan_nutrition(items_for_nutrition)
     default_iid = _default_item_id_from_analysis_row(existing)

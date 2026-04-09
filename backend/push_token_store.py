@@ -80,6 +80,12 @@ def register_push_token(payload: Dict[str, Any]) -> Dict[str, Any]:
     platform = _normalize_space(payload.get("platform")) or "unknown"
     device_name = _normalize_space(payload.get("device_name")) or ""
     app_version = _normalize_space(payload.get("app_version")) or ""
+    tz_name = _normalize_space(payload.get("tz")) or ""
+    tz_offset_min_raw = payload.get("tz_offset_min")
+    try:
+        tz_offset_min = int(float(tz_offset_min_raw)) if tz_offset_min_raw is not None else None
+    except (TypeError, ValueError):
+        tz_offset_min = None
 
     now = _now_iso()
     new_entry = {
@@ -88,6 +94,8 @@ def register_push_token(payload: Dict[str, Any]) -> Dict[str, Any]:
         "platform": platform,
         "device_name": device_name,
         "app_version": app_version,
+        "tz": tz_name,
+        "tz_offset_min": tz_offset_min,
         "active": True,
         "created_at": now,
         "updated_at": now,
@@ -184,7 +192,7 @@ def deactivate_token_by_value(user_id: str, expo_push_token: str) -> bool:
 def list_users_with_active_push_tokens(limit: int = 1000) -> List[Dict[str, Any]]:
     """
     Return distinct users with at least one active push token, for batch sending.
-    Each row: user_id, active_tokens_count, last_seen_at (most recent), updated_at.
+    Each row: user_id, active_tokens_count, last_seen_at (most recent), updated_at, tz/tz_offset_min.
     """
     with _LOCK:
         store = _load_store()
@@ -210,6 +218,8 @@ def list_users_with_active_push_tokens(limit: int = 1000) -> List[Dict[str, Any]
                 "active_tokens_count": 0,
                 "last_seen_at": None,
                 "updated_at": None,
+                "tz": "",
+                "tz_offset_min": None,
             }
         by_user[uid]["active_tokens_count"] += 1
         for key in ("last_seen_at", "updated_at"):
@@ -218,6 +228,9 @@ def list_users_with_active_push_tokens(limit: int = 1000) -> List[Dict[str, Any]
                 existing = by_user[uid][key]
                 if not existing or (val > existing):
                     by_user[uid][key] = val
+                    tz_val = _normalize_space(t.get("tz"))
+                    by_user[uid]["tz"] = tz_val
+                    by_user[uid]["tz_offset_min"] = t.get("tz_offset_min")
 
     out = list(by_user.values())
     out.sort(key=lambda r: (r.get("last_seen_at") or r.get("updated_at") or ""), reverse=True)

@@ -115,6 +115,13 @@ export async function registerPushTokenWithBackend(opts = {}) {
   }
 
   try {
+    const tzOffsetMin = -new Date().getTimezoneOffset();
+    const tz =
+      (typeof Intl !== "undefined" &&
+        Intl?.DateTimeFormat &&
+        Intl.DateTimeFormat().resolvedOptions &&
+        Intl.DateTimeFormat().resolvedOptions().timeZone) ||
+      undefined;
     const res = await fetch(`${API_BASE}/push/register`, {
       method: "POST",
       headers: {
@@ -127,6 +134,8 @@ export async function registerPushTokenWithBackend(opts = {}) {
         platform: platform || Platform.OS || "unknown",
         device_name: deviceName || undefined,
         app_version: appVersion || undefined,
+        tz: tz || undefined,
+        tz_offset_min: Number.isFinite(tzOffsetMin) ? tzOffsetMin : undefined,
       }),
     });
     if (!res.ok) {

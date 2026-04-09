@@ -339,6 +339,20 @@ export function ScanResultScreen({
   const encouragementLine = String(mealLogEncouragement || goalCoachDaily?.meal_log_encouragement || "").trim();
   const rewardProteinStreak = showRewardFeedback ? num(goalCoachDaily?.protein_streak_days) : null;
   const rewardLoggingStreak = showRewardFeedback ? num(goalCoachDaily?.logging_streak_days) : null;
+  const memorySignals = result?.personalization_used || {};
+  const memoryApplied = Boolean(
+    result?.learning_applied ||
+      result?.usual_meal_hint?.line ||
+      memorySignals?.portion_prior_used ||
+      memorySignals?.oil_prior_used
+  );
+  const memoryAppliedLine = (() => {
+    if (result?.usual_meal_hint?.line) return "Used your usual meal memory.";
+    if (memorySignals?.portion_prior_used && memorySignals?.oil_prior_used) return "Used your saved portion and oil preferences.";
+    if (memorySignals?.portion_prior_used) return "Used your saved portion preference.";
+    if (memorySignals?.oil_prior_used) return "Used your saved oil preference.";
+    return "Used your saved scan preferences.";
+  })();
   const isScreenshot = Boolean(screenshotMode);
   const effectiveDetailsExpanded = isScreenshot ? false : detailsExpanded;
   const lastHapticKeyRef = useRef("");
@@ -414,6 +428,18 @@ export function ScanResultScreen({
       <View style={styles.section}>
         <ScanResultMacroCard result={result} />
       </View>
+
+      {memoryApplied ? (
+        <View style={styles.section}>
+          <View style={styles.memoryAppliedBanner}>
+            <View style={styles.memoryAppliedTop}>
+              <View style={styles.memoryAppliedDot} />
+              <Text style={styles.memoryAppliedKicker}>Memory applied</Text>
+            </View>
+            <Text style={styles.memoryAppliedText}>{memoryAppliedLine}</Text>
+          </View>
+        </View>
+      ) : null}
 
       {goalFit ? (
         <View style={styles.section}>
@@ -495,6 +521,9 @@ export function ScanResultScreen({
       {(result?.items?.length ?? 0) > 0 ? (
         <View style={styles.section}>
           <ScanResultItemsCard items={result?.items} />
+          {(result?.top_candidates?.length ?? 0) > 1 ? (
+            <Text style={styles.topCandidatesHint}>Top candidates are alternatives, not added calories.</Text>
+          ) : null}
         </View>
       ) : null}
 
@@ -752,6 +781,11 @@ const styles = StyleSheet.create({
     color: colors.text.muted,
     marginTop: spacing.xs,
   },
+  topCandidatesHint: {
+    marginTop: spacing.sm,
+    fontSize: typography.xs,
+    color: colors.text.muted,
+  },
   barcodeBanner: {
     backgroundColor: "#fff7e6",
     borderRadius: radius.xl,
@@ -871,6 +905,36 @@ const styles = StyleSheet.create({
   },
   rewardMetaChip: {
     marginRight: spacing.sm,
+  },
+  memoryAppliedBanner: {
+    backgroundColor: "rgba(34, 197, 94, 0.12)",
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: "rgba(34, 197, 94, 0.35)",
+    paddingVertical: spacing.base,
+    paddingHorizontal: spacing.lg,
+  },
+  memoryAppliedTop: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  memoryAppliedDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 999,
+    backgroundColor: colors.success.primary,
+    marginRight: spacing.sm,
+  },
+  memoryAppliedKicker: {
+    fontSize: typography.sm,
+    fontWeight: typography.weight.extrabold,
+    color: "#065f46",
+  },
+  memoryAppliedText: {
+    marginTop: spacing.xs,
+    fontSize: typography.sm,
+    color: "#064e3b",
+    lineHeight: typography.sm * typography.lineHeight.relaxed,
   },
   rerunBusyCard: {
     backgroundColor: colors.surface.elevated,

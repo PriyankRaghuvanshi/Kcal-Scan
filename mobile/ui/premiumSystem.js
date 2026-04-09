@@ -36,7 +36,7 @@ export const premium = StyleSheet.create({
     borderColor: colors.surface.cardBorder,
     paddingVertical: spacing.xl,
     paddingHorizontal: spacing.xl,
-    ...shadows.md,
+    ...shadows.lg,
   },
   cardInset: {
     backgroundColor: "rgba(8, 16, 30, 0.70)",

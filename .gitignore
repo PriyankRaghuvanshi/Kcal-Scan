@@ -16,6 +16,7 @@ yarn-error.log*
 .expo-shared/
 dist/
 build/
+frontend/.next/
 
 # Env secrets
 .env

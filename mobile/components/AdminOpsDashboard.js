@@ -1,6 +1,20 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, StyleSheet } from "react-native";
-import { fetchOpsDashboard, applyNextTargets, runBatchDryRun, checkReceipts, runAutoPromote } from "../adminOpsApi";
+import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, StyleSheet, TextInput, Alert } from "react-native";
+import {
+  fetchOpsDashboard,
+  applyNextTargets,
+  runBatchDryRun,
+  checkReceipts,
+  runAutoPromote,
+  fetchCoachNudgeDebugUser,
+  runCoachNudgeDryRunForUser,
+  runCoachNudgeRealSendForUser,
+  fetchCoachNudgeJobHealth,
+  adminLogin,
+  adminAuthMe,
+  getAdminAuthSnapshot,
+  clearAdminAuthState,
+} from "../adminOpsApi";
 import { safeArray, safeObject } from "../startupSafety";
 
 function num(x, d = 0) {
@@ -34,8 +48,22 @@ export function AdminOpsDashboard({ onClose }) {
   const [data, setData] = useState(null);
   const [actionBusy, setActionBusy] = useState("");
   const [actionResult, setActionResult] = useState(null);
+  const [adminAuthed, setAdminAuthed] = useState(false);
+  const [adminUser, setAdminUser] = useState("");
+  const [adminUsernameInput, setAdminUsernameInput] = useState("");
+  const [adminPasswordInput, setAdminPasswordInput] = useState("");
+  const [adminAuthBusy, setAdminAuthBusy] = useState(false);
+  const [adminAuthError, setAdminAuthError] = useState("");
+  const [adminAuthRetryAfterSec, setAdminAuthRetryAfterSec] = useState(null);
+  const [coachDebugUserId, setCoachDebugUserId] = useState("");
+  const [coachDebugDay, setCoachDebugDay] = useState("");
+  const [coachDebug, setCoachDebug] = useState(null);
+  const [coachDryRunResult, setCoachDryRunResult] = useState(null);
+  const [coachRealSendResult, setCoachRealSendResult] = useState(null);
+  const [coachJobHealth, setCoachJobHealth] = useState(null);
 
   async function refresh() {
+    if (!adminAuthed) return;
     setLoading(true);
     setErr("");
     const res = await fetchOpsDashboard({ limit_targets: 20, limit_areas: 5, scan_window_days: 7 });
@@ -50,8 +78,84 @@ export function AdminOpsDashboard({ onClose }) {
   }
 
   useEffect(() => {
-    void refresh();
+    let cancelled = false;
+    (async () => {
+      const snap = await getAdminAuthSnapshot();
+      if (cancelled) return;
+      if (!snap?.hasToken) {
+        setLoading(false);
+        setAdminAuthed(false);
+        return;
+      }
+      setAdminAuthBusy(true);
+      const me = await adminAuthMe();
+      if (cancelled) return;
+      if (me?.ok) {
+        setAdminAuthed(true);
+        setAdminUser(String(me?.data?.username || snap?.username || "admin"));
+        await refresh();
+      } else {
+        await clearAdminAuthState();
+        setAdminAuthed(false);
+        setLoading(false);
+      }
+      setAdminAuthBusy(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
+
+  async function handleAdminLogin() {
+    if (adminAuthBusy) return;
+    setAdminAuthBusy(true);
+    setAdminAuthError("");
+    setAdminAuthRetryAfterSec(null);
+    const res = await adminLogin({ username: adminUsernameInput, password: adminPasswordInput });
+    if (!res?.ok) {
+      setAdminAuthed(false);
+      const code = String(res?.code || "");
+      if (code === "too_many_attempts") {
+        const retry = Number.isFinite(Number(res?.retry_after_sec)) ? Number(res.retry_after_sec) : null;
+        setAdminAuthRetryAfterSec(retry);
+        setAdminAuthError("Too many login attempts. Try again later.");
+      } else if (code === "invalid_credentials") {
+        setAdminAuthError("Invalid admin username or password.");
+      } else if (code === "admin_auth_not_configured") {
+        setAdminAuthError("Admin auth is not configured on backend.");
+      } else {
+        setAdminAuthError(res?.error || "login_failed");
+      }
+      setAdminAuthBusy(false);
+      return;
+    }
+    const me = await adminAuthMe();
+    if (!me?.ok) {
+      await clearAdminAuthState();
+      setAdminAuthed(false);
+      setAdminAuthError(me?.error || "verify_failed");
+      setAdminAuthBusy(false);
+      return;
+    }
+    setAdminPasswordInput("");
+    setAdminAuthed(true);
+    setAdminUser(String(me?.data?.username || adminUsernameInput || "admin"));
+    setAdminAuthBusy(false);
+    await refresh();
+  }
+
+  async function handleAdminLogout() {
+    await clearAdminAuthState();
+    setAdminAuthed(false);
+    setAdminUser("");
+    setData(null);
+    setErr("");
+    setActionResult(null);
+    setCoachDebug(null);
+    setCoachDryRunResult(null);
+    setCoachRealSendResult(null);
+    setCoachJobHealth(null);
+  }
 
   const enrichment = safeObject(data?.enrichment, {});
   const push = safeObject(data?.push, {});
@@ -77,9 +181,77 @@ export function AdminOpsDashboard({ onClose }) {
         // Refresh after enrichment mutations
         void refresh();
       }
+      if (name === "coach_job_health_refresh" && res.ok) {
+        setCoachJobHealth(safeObject(res.data, {}));
+      }
     } finally {
       setActionBusy("");
     }
+  }
+
+  useEffect(() => {
+    if (!adminAuthed) return undefined;
+    let cancelled = false;
+    const tick = async () => {
+      if (cancelled || actionBusy) return;
+      const res = await fetchCoachNudgeJobHealth();
+      if (cancelled) return;
+      if (res?.ok) setCoachJobHealth(safeObject(res.data, {}));
+    };
+    void tick();
+    const id = setInterval(() => {
+      void tick();
+    }, 45000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [adminAuthed, actionBusy]);
+
+  if (!adminAuthed) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <Text style={styles.title}>Admin Login</Text>
+          <TouchableOpacity style={styles.smallBtn} onPress={onClose}>
+            <Text style={styles.smallBtnText}>Close</Text>
+          </TouchableOpacity>
+        </View>
+        <View style={{ padding: 16 }}>
+          <Text style={styles.tiny}>Separate admin credentials are required.</Text>
+          <TextInput
+            style={[styles.input, { marginTop: 10 }]}
+            placeholder="Admin username"
+            placeholderTextColor="#6f86ab"
+            value={adminUsernameInput}
+            onChangeText={setAdminUsernameInput}
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+          <TextInput
+            style={[styles.input, { marginTop: 8 }]}
+            placeholder="Admin password"
+            placeholderTextColor="#6f86ab"
+            value={adminPasswordInput}
+            onChangeText={setAdminPasswordInput}
+            secureTextEntry
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+          <TouchableOpacity
+            style={[styles.actionBtn, { marginTop: 10 }, adminAuthBusy ? styles.actionBtnDisabled : null]}
+            disabled={adminAuthBusy}
+            onPress={() => void handleAdminLogin()}
+          >
+            <Text style={styles.actionBtnText}>{adminAuthBusy ? "Signing in…" : "Sign in as admin"}</Text>
+          </TouchableOpacity>
+          {adminAuthError ? <Text style={[styles.tiny, { color: "#ffb4b4" }]}>Error: {adminAuthError}</Text> : null}
+          {adminAuthRetryAfterSec != null ? (
+            <Text style={[styles.tiny, { color: "#ffb4b4" }]}>Retry after: {Math.max(1, Math.round(adminAuthRetryAfterSec))}s</Text>
+          ) : null}
+        </View>
+      </View>
+    );
   }
 
   return (
@@ -87,8 +259,12 @@ export function AdminOpsDashboard({ onClose }) {
       <View style={styles.header}>
         <Text style={styles.title}>Admin Ops Dashboard</Text>
         <View style={{ flexDirection: "row", gap: 10 }}>
+          <Text style={[styles.tiny, { marginTop: 8 }]}>as {adminUser || "admin"}</Text>
           <TouchableOpacity style={styles.smallBtn} onPress={refresh} disabled={loading}>
             <Text style={styles.smallBtnText}>Refresh</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.smallBtn} onPress={() => void handleAdminLogout()}>
+            <Text style={styles.smallBtnText}>Logout</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.smallBtn} onPress={onClose}>
             <Text style={styles.smallBtnText}>Close</Text>
@@ -248,6 +424,45 @@ export function AdminOpsDashboard({ onClose }) {
             </Text>
           </View>
 
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Coach nudge job health</Text>
+            <TouchableOpacity
+              style={[styles.actionBtn, actionBusy ? styles.actionBtnDisabled : null]}
+              disabled={Boolean(actionBusy)}
+              onPress={() =>
+                runAction("coach_job_health_refresh", async () => {
+                  const res = await fetchCoachNudgeJobHealth();
+                  if (res?.ok) setCoachJobHealth(safeObject(res.data, {}));
+                  return res;
+                })
+              }
+            >
+              <Text style={styles.actionBtnText}>
+                {actionBusy === "coach_job_health_refresh" ? "Refreshing…" : "Refresh nudge job health"}
+              </Text>
+            </TouchableOpacity>
+            {coachJobHealth ? (
+              <View style={{ marginTop: 10, padding: 10, borderWidth: 1, borderColor: "#26364f", borderRadius: 10 }}>
+                <Text style={styles.tiny}>status: {String(coachJobHealth?.status || "-")}</Text>
+                <Text style={styles.tiny}>
+                  runs_24h={String(coachJobHealth?.summary?.runs_in_window ?? "-")} • failed_24h=
+                  {String(coachJobHealth?.summary?.failed_in_window ?? "-")} • running_now=
+                  {String(coachJobHealth?.summary?.running_now ?? "-")}
+                </Text>
+                <Text style={styles.tiny}>
+                  last_success={String(coachJobHealth?.summary?.last_success_at || "-")}
+                </Text>
+                <Text style={styles.tiny}>
+                  last_failure={String(coachJobHealth?.summary?.last_failure_at || "-")}
+                </Text>
+                <Text style={styles.tiny}>
+                  latest_run_status={String(coachJobHealth?.recent_runs?.[0]?.status || "-")} • duration_ms=
+                  {String(coachJobHealth?.recent_runs?.[0]?.duration_ms ?? "-")}
+                </Text>
+              </View>
+            ) : null}
+          </View>
+
           {/* Scan */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Scan health</Text>
@@ -312,6 +527,146 @@ export function AdminOpsDashboard({ onClose }) {
                 </Text>
                 <Text style={styles.tiny} numberOfLines={6}>
                   {actionResult.ok ? JSON.stringify(actionResult.data || {}, null, 0) : `error: ${actionResult.error}`}
+                </Text>
+              </View>
+            ) : null}
+          </View>
+
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Coach nudge debug (per user)</Text>
+            <Text style={styles.tiny}>Use this to inspect final_reason instantly.</Text>
+            <View style={{ gap: 8, marginTop: 8 }}>
+              <TextInput
+                style={styles.input}
+                placeholder="user_id"
+                placeholderTextColor="#6f86ab"
+                value={coachDebugUserId}
+                onChangeText={setCoachDebugUserId}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+              <TextInput
+                style={styles.input}
+                placeholder="day (optional, YYYY-MM-DD)"
+                placeholderTextColor="#6f86ab"
+                value={coachDebugDay}
+                onChangeText={setCoachDebugDay}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+              <TouchableOpacity
+                style={[styles.actionBtn, actionBusy ? styles.actionBtnDisabled : null]}
+                disabled={Boolean(actionBusy) || !String(coachDebugUserId || "").trim()}
+                onPress={() =>
+                  runAction("coach_debug_user", async () => {
+                    const res = await fetchCoachNudgeDebugUser({
+                      user_id: String(coachDebugUserId || "").trim(),
+                      day: String(coachDebugDay || "").trim(),
+                    });
+                    if (res?.ok) setCoachDebug(safeObject(res.data, {}));
+                    else setCoachDebug({ ok: false, error: res?.error || "failed", data: res?.data });
+                    return res;
+                  })
+                }
+              >
+                <Text style={styles.actionBtnText}>
+                  {actionBusy === "coach_debug_user" ? "Checking…" : "Check coach nudge status"}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.actionBtn, actionBusy ? styles.actionBtnDisabled : null]}
+                disabled={Boolean(actionBusy) || !String(coachDebugUserId || "").trim()}
+                onPress={() =>
+                  runAction("coach_dry_run_user", async () => {
+                    const res = await runCoachNudgeDryRunForUser({
+                      user_id: String(coachDebugUserId || "").trim(),
+                      day: String(coachDebugDay || "").trim(),
+                    });
+                    if (res?.ok) setCoachDryRunResult(safeObject(res.data, {}));
+                    else setCoachDryRunResult({ ok: false, error: res?.error || "failed", data: res?.data });
+                    return res;
+                  })
+                }
+              >
+                <Text style={styles.actionBtnText}>
+                  {actionBusy === "coach_dry_run_user" ? "Sending…" : "Dry-run send nudge"}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.actionBtn, styles.dangerBtn, actionBusy ? styles.actionBtnDisabled : null]}
+                disabled={Boolean(actionBusy) || !String(coachDebugUserId || "").trim()}
+                onPress={() => {
+                  const uid = String(coachDebugUserId || "").trim();
+                  const dayTxt = String(coachDebugDay || "").trim();
+                  Alert.alert(
+                    "Send real coach nudge?",
+                    `This will attempt a real push now for user ${uid}${dayTxt ? ` on ${dayTxt}` : ""}.`,
+                    [
+                      { text: "Cancel", style: "cancel" },
+                      {
+                        text: "Send",
+                        style: "destructive",
+                        onPress: () =>
+                          void runAction("coach_real_send_user", async () => {
+                            const res = await runCoachNudgeRealSendForUser({
+                              user_id: uid,
+                              day: dayTxt,
+                            });
+                            if (res?.ok) setCoachRealSendResult(safeObject(res.data, {}));
+                            else setCoachRealSendResult({ ok: false, error: res?.error || "failed", data: res?.data });
+                            return res;
+                          }),
+                      },
+                    ]
+                  );
+                }}
+              >
+                <Text style={styles.actionBtnText}>
+                  {actionBusy === "coach_real_send_user" ? "Sending…" : "Real send nudge"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+            {coachDebug ? (
+              <View style={{ marginTop: 12, padding: 10, borderWidth: 1, borderColor: "#26364f", borderRadius: 10 }}>
+                <Text style={styles.tiny}>final_reason: {String(coachDebug?.final_reason || coachDebug?.error || "-")}</Text>
+                <Text style={styles.tiny}>
+                  local_hour={String(coachDebug?.local_time?.local_hour ?? "-")} • quiet={String(
+                    coachDebug?.local_time?.in_quiet_hours ?? "-"
+                  )}
+                </Text>
+                <Text style={styles.tiny}>
+                  tokens={String(coachDebug?.tokens?.active_expo_tokens_count ?? "-")} • real_send_allowed=
+                  {String(coachDebug?.real_send_allowed ?? "-")}
+                </Text>
+                <Text style={styles.tiny}>
+                  cap {String(coachDebug?.daily_cap?.sent_today ?? "-")}/{String(coachDebug?.daily_cap?.max_per_day ?? "-")} • chosen=
+                  {String(coachDebug?.nudge_candidates?.chosen_type || "-")}
+                </Text>
+              </View>
+            ) : null}
+            {coachDryRunResult ? (
+              <View style={{ marginTop: 10, padding: 10, borderWidth: 1, borderColor: "#26364f", borderRadius: 10 }}>
+                <Text style={styles.tiny}>
+                  dry_run_result: {String(coachDryRunResult?.nudge_type || coachDryRunResult?.final_suppressed_reason || coachDryRunResult?.error || "-")}
+                </Text>
+                <Text style={styles.tiny}>
+                  attempted={String(coachDryRunResult?.notifications_attempted ?? "-")} • tickets={String(coachDryRunResult?.tickets_received ?? "-")}
+                </Text>
+                <Text style={styles.tiny}>
+                  real_send_reason={String(coachDryRunResult?.real_send_reason || "-")} • rollout={String(coachDryRunResult?.rollout_mode || "-")}
+                </Text>
+              </View>
+            ) : null}
+            {coachRealSendResult ? (
+              <View style={{ marginTop: 10, padding: 10, borderWidth: 1, borderColor: "#4a2530", borderRadius: 10 }}>
+                <Text style={styles.tiny}>
+                  real_send_result: {String(coachRealSendResult?.nudge_type || coachRealSendResult?.final_suppressed_reason || coachRealSendResult?.error || "-")}
+                </Text>
+                <Text style={styles.tiny}>
+                  attempted={String(coachRealSendResult?.notifications_attempted ?? "-")} • tickets={String(coachRealSendResult?.tickets_received ?? "-")}
+                </Text>
+                <Text style={styles.tiny}>
+                  real_send_reason={String(coachRealSendResult?.real_send_reason || "-")} • rollout={String(coachRealSendResult?.rollout_mode || "-")}
                 </Text>
               </View>
             ) : null}
@@ -389,4 +744,18 @@ const styles = StyleSheet.create({
   },
   actionBtnDisabled: { opacity: 0.55 },
   actionBtnText: { color: "#cfe3ff", fontSize: 12, fontWeight: "700" },
+  dangerBtn: {
+    borderColor: "#5a2b37",
+    backgroundColor: "#2a1117",
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: "#2a3d5b",
+    borderRadius: 10,
+    backgroundColor: "#0e1a2a",
+    color: "#e7f0ff",
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+    fontSize: 13,
+  },
 });

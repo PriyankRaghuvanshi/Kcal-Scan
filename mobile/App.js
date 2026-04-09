@@ -33,6 +33,7 @@ import "react-native-url-polyfill/auto";
 import * as AuthSession from "expo-auth-session";
 import * as Notifications from "expo-notifications";
 import Constants from "expo-constants";
+import { LinearGradient } from "expo-linear-gradient";
 import * as AppleAuthentication from "expo-apple-authentication";
 
 import {
@@ -81,7 +82,7 @@ import { VenueContributionSheet } from "./components/VenueContributionSheet";
 import { HomeTodayHero } from "./components/HomeTodayHero";
 import { RecipeSuggestionsRow } from "./components/RecipeSuggestionsRow";
 import { SavedRecipesList } from "./components/SavedRecipesList";
-import { spacing as tSpacing } from "./designTokens";
+import { spacing as tSpacing, colors as dt, radius as dr, shadows as dsh } from "./designTokens";
 import { premium } from "./ui/premiumSystem";
 import { hapticLight, layoutEaseInOut } from "./ui/feedback";
 import {
@@ -255,6 +256,10 @@ const COACH_PROFILE_KEY = "kcal_coach_profile_v1";
 const coachProfileKey = (uid) => `${COACH_PROFILE_KEY}:${uid}`;
 const COACH_VOICE_MEMORY_KEY = "kcal_coach_voice_memory_v1";
 const coachVoiceMemoryKey = (uid, day) => `${COACH_VOICE_MEMORY_KEY}:${uid}:${day}`;
+const COACH_CHAT_HISTORY_KEY = "kcal_coach_chat_history_v1";
+const coachChatHistoryKey = (uid, day) => `${COACH_CHAT_HISTORY_KEY}:${uid}:${day}`;
+const COACH_COMPLETION_NUDGE_KEY = "kcal_coach_completion_nudge_v1";
+const coachCompletionNudgeKey = (uid) => `${COACH_COMPLETION_NUDGE_KEY}:${uid}`;
 const UPGRADE_NUDGE_KEY = "kcal_upgrade_nudge_v1";
 const upgradeNudgeKey = (uid) => `${UPGRADE_NUDGE_KEY}:${uid}`;
 const POST_SCAN_BANNER_KEY = "kcal_post_scan_upgrade_banner_dismissed_v1";
@@ -269,6 +274,33 @@ const goalPlanCacheKey = (uid) => `${GOAL_PLAN_CACHE_KEY}:${uid}`;
 const RC_IOS_KEY = process.env.EXPO_PUBLIC_RC_IOS_KEY || "";
 const RC_ANDROID_KEY = process.env.EXPO_PUBLIC_RC_ANDROID_KEY || "";
 const OFFERING_ID = process.env.EXPO_PUBLIC_RC_OFFERING || "main";
+
+function resolvedOfferingId() {
+  const fromExtra = Constants.expoConfig?.extra?.REVENUECAT_OFFERING;
+  return String(fromExtra || OFFERING_ID || "main").trim() || "main";
+}
+
+/** RevenueCat can expose packages on `availablePackages` and/or duration slots (e.g. monthly). */
+function packagesFromOffering(offering) {
+  if (!offering || typeof offering !== "object") return [];
+  const out = [];
+  const seen = new Set();
+  const push = (p) => {
+    if (!p || typeof p !== "object") return;
+    const id = String(p.identifier || p.product?.identifier || "").trim();
+    const key = id || `__${seen.size}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    out.push(p);
+  };
+  if (Array.isArray(offering.availablePackages)) {
+    offering.availablePackages.forEach(push);
+  }
+  for (const k of ["lifetime", "annual", "sixMonth", "threeMonth", "twoMonth", "monthly", "weekly"]) {
+    push(offering[k]);
+  }
+  return out;
+}
 const PLAN_ORDER = ["free", "elite", "advanced", "pro", "infinite"];
 const ENTITLEMENTS = (process.env.EXPO_PUBLIC_RC_ENTITLEMENTS || "elite,advanced,pro,infinite")
   .split(",")
@@ -284,19 +316,39 @@ function packageMatchesEntitlement(pkg, entitlement) {
   ]
     .map((value) => String(value || "").trim().toLowerCase())
     .filter(Boolean);
-  const aliases = key === "advanced" ? ["advanced", "advance"] : [key];
+  // Pro / Elite / Advanced: match canonical spellings only. Infinite: also match Play SKU "infinit_*".
+  const aliases =
+    key === "infinite" ? ["infinite", "infinit"] : [key];
   return identifiers.some((identifier) => aliases.some((alias) => identifier.includes(alias)));
 }
 
 function getActiveOffering(offeringsObj) {
   if (!offeringsObj || typeof offeringsObj !== "object") return null;
-  const current = offeringsObj.current;
-  if (current && Array.isArray(current.availablePackages)) return current;
-  const all = offeringsObj.all && typeof offeringsObj.all === "object" ? offeringsObj.all : {};
-  const byConfiguredId = all[OFFERING_ID];
-  if (byConfiguredId && Array.isArray(byConfiguredId.availablePackages)) return byConfiguredId;
-  const first = Object.values(all).find((o) => o && Array.isArray(o.availablePackages));
-  return first || null;
+  const oid = resolvedOfferingId();
+  const allRaw = offeringsObj.all;
+  const all = typeof allRaw === "object" && allRaw !== null ? allRaw : {};
+  const candidates = [];
+  if (offeringsObj.current) candidates.push(offeringsObj.current);
+  if (all[oid]) candidates.push(all[oid]);
+  for (const k of Object.keys(all)) {
+    const o = all[k];
+    if (o && !candidates.includes(o)) candidates.push(o);
+  }
+  for (const o of candidates) {
+    if (o && packagesFromOffering(o).length > 0) return o;
+  }
+  return candidates[0] || null;
+}
+
+async function loadOfferingsWithRetry(maxAttempts = 6) {
+  let last = await Purchases.getOfferings();
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const active = getActiveOffering(last);
+    if (active && packagesFromOffering(active).length > 0) break;
+    await new Promise((r) => setTimeout(r, 300 * (attempt + 1)));
+    last = await Purchases.getOfferings();
+  }
+  return last;
 }
 
 // OPTIONAL: If you have a custom deep link redirect (recommended for Google OAuth),
@@ -868,6 +920,36 @@ function estimateLocalUPF(kcal, carbs_g, fat_g) {
   const fFrac = (Math.max(0, num(fat_g)) * 9) / total;
   return round1(Math.max(0, Math.min(10, (cFrac * 6) + (fFrac * 6) + (total / 800) * 4)));
 }
+function computeRecoveryModeBadge(rawHealthContext) {
+  const src = rawHealthContext && typeof rawHealthContext === "object" ? rawHealthContext : {};
+  const signals = src.signals && typeof src.signals === "object" ? src.signals : {};
+  const stress = String(src.stress_level || "").trim().toLowerCase();
+  const sleepLast = num(signals.sleep_last_night_hours);
+  const sleepAvg = num(signals.sleep_hours_avg_7d);
+  const sleep = (sleepLast != null && sleepLast > 0) ? sleepLast : sleepAvg;
+  const rhr = num(signals.resting_hr_avg_7d);
+  const hrv = num(signals.hrv_ms_avg_7d);
+  const taxed =
+    (sleep != null && sleep < 6.8) ||
+    (rhr != null && rhr >= 76) ||
+    (hrv != null && hrv < 32) ||
+    stress === "high" ||
+    stress === "very_high";
+  const ready =
+    (sleep != null && sleep >= 7.0) &&
+    (rhr == null || rhr <= 72) &&
+    (hrv == null || hrv >= 40) &&
+    !["high", "very_high"].includes(stress);
+  const lines = [
+    `Sleep: ${sleep != null ? `${round1(sleep)}h` : "—"}`,
+    `HRV: ${hrv != null ? `${round1(hrv)} ms` : "—"}`,
+    `RHR: ${rhr != null ? `${Math.round(rhr)} bpm` : "—"}`,
+    `Stress: ${stress ? stress.replace("_", " ") : "—"}`,
+  ];
+  if (taxed) return { label: "Recovery mode: light", tone: "red", lines };
+  if (ready) return { label: "Recovery mode: ready", tone: "green", lines };
+  return { label: "Recovery mode: balanced", tone: "amber", lines };
+}
 function bucketFromHour(hour) {
   const h = num(hour);
   if (h >= 5 && h < 11) return "breakfast";
@@ -1089,11 +1171,13 @@ function normalizeRerunPatch(patch, editableItems = []) {
     }
   }
   if (Array.isArray(src?.clarifying_answers)) {
-    out.clarifying_answers = src.clarifying_answers.map((a) =>
-      typeof a === "object" && a && ("key" in a || "value" in a)
-        ? { key: String(a.key || "").trim(), value: String(a.value || "").trim() }
-        : null
-    ).filter(Boolean);
+    out.clarifying_answers = src.clarifying_answers.map((a) => {
+      if (!(typeof a === "object" && a && ("key" in a || "value" in a))) return null;
+      const row = { key: String(a.key || "").trim(), value: String(a.value || "").trim() };
+      const ic = String(a.ingredient_context || "").trim();
+      if (ic) row.ingredient_context = ic;
+      return row;
+    }).filter(Boolean);
   }
   if (src?.macro_override && typeof src.macro_override === "object") {
     const protein_g = Math.max(0, num(src.macro_override?.protein_g));
@@ -1163,10 +1247,14 @@ function rerunPatchToActions(patch) {
   if (src?.macro_override && typeof src.macro_override === "object") {
     actions.push({
       type: "set_macro_override",
+      item_id: String(src.macro_override?.item_id || "").trim(),
       protein_g: num(src.macro_override?.protein_g),
       carbs_g: num(src.macro_override?.carbs_g),
       fat_g: num(src.macro_override?.fat_g),
     });
+  }
+  if (Array.isArray(src?.clarifying_answers) && src.clarifying_answers.length) {
+    actions.push({ type: "clarifying_answers", clarifying_answers: src.clarifying_answers });
   }
   return actions;
 }
@@ -1856,6 +1944,8 @@ export default function App() {
   const [selectedHealthyPlaceId, setSelectedHealthyPlaceId] = useState("");
   const [healthyNearbyRefreshing, setHealthyNearbyRefreshing] = useState(false);
   const [activeScreen, setActiveScreen] = useState("home");
+  /** Home hub: split the main feed into focused surfaces (premium IA — avoid one endless scroll). */
+  const [homeHubTab, setHomeHubTab] = useState("today");
   const [healthyNearbyTab, setHealthyNearbyTab] = useState("decision");
   const [lunchDecisionBusy, setLunchDecisionBusy] = useState(false);
   const [lunchDecisionError, setLunchDecisionError] = useState("");
@@ -1868,6 +1958,7 @@ export default function App() {
   const [upfScanBusy, setUpfScanBusy] = useState(false);
   const [upfScanResult, setUpfScanResult] = useState(null);
   const [upfScanError, setUpfScanError] = useState("");
+  const upfLastUserRef = useRef(null);
   const [cameraMode, setCameraMode] = useState("meal");
   const [pendingMealFeedback, setPendingMealFeedback] = useState(null);
   const [showMealFeedbackPrompt, setShowMealFeedbackPrompt] = useState(false);
@@ -1904,6 +1995,11 @@ export default function App() {
   const [coachProfileModal, setCoachProfileModal] = useState(false);
   const [coachMemoryFoodInput, setCoachMemoryFoodInput] = useState("");
   const [coachMemoryGoalInput, setCoachMemoryGoalInput] = useState("");
+  const [coachChatInput, setCoachChatInput] = useState("");
+  const [coachChatBusy, setCoachChatBusy] = useState(false);
+  const [coachChatMessages, setCoachChatMessages] = useState([]);
+  const [coachRecoveryBadge, setCoachRecoveryBadge] = useState({ label: "Recovery mode: balanced", tone: "amber" });
+  const [coachRecoveryExpanded, setCoachRecoveryExpanded] = useState(false);
   const coachReqRef = useRef(false);
   const coachRefreshTimerRef = useRef(null);
   const coachQueuedRefreshRef = useRef(null);
@@ -2240,6 +2336,60 @@ export default function App() {
     setUserId(uid);
   }, [session]);
 
+  useEffect(() => {
+    let mounted = true;
+    const uid = userId || session?.user?.id;
+    if (!uid) {
+      setCoachChatMessages([]);
+      return undefined;
+    }
+    const day = localDayISO();
+    (async () => {
+      const rows = await loadCoachChatHistory(uid, day);
+      if (mounted) setCoachChatMessages(rows);
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [userId, session?.user?.id]);
+
+  useEffect(() => {
+    let mounted = true;
+    const uid = userId || session?.user?.id;
+    if (!uid) {
+      setCoachRecoveryBadge({ label: "Recovery mode: balanced", tone: "amber" });
+      return undefined;
+    }
+    (async () => {
+      try {
+        const hc = (await getDailyHealthContext(localDayISO())) || {};
+        if (!mounted) return;
+        setCoachRecoveryBadge(computeRecoveryModeBadge(hc));
+      } catch (_) {
+        if (!mounted) return;
+        setCoachRecoveryBadge({ label: "Recovery mode: balanced", tone: "amber" });
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [userId, session?.user?.id, homeHubTab]);
+
+  useEffect(() => {
+    if (!homeMainVisible) return;
+    void scheduleCoachCompletionNudges();
+  }, [homeMainVisible, userId, session?.user?.id, aiConsentGiven, remainingToday?.protein_g, remainingToday?.fiber_g]);
+
+  useEffect(() => {
+    const uid = userId || session?.user?.id || null;
+    if (upfLastUserRef.current !== uid) {
+      upfLastUserRef.current = uid;
+      setUpfScanBusy(false);
+      setUpfScanError("");
+      setUpfScanResult(null);
+    }
+  }, [userId, session?.user?.id]);
+
   // Phase 1: fast local AI consent check (never block UI if already accepted).
   useEffect(() => {
     let mounted = true;
@@ -2307,6 +2457,10 @@ export default function App() {
     setCoachProfileDraft(DEFAULT_COACH_PROFILE);
     setCoachProfileReady(false);
     setCoachProfileModal(false);
+    setCoachChatInput("");
+    setCoachChatBusy(false);
+    setCoachChatMessages([]);
+    setCoachRecoveryExpanded(false);
     setRecipeSuggestPayload(null);
     setRecipeSuggestBusy(false);
     setRecipeDismissedLocal({});
@@ -3265,6 +3419,99 @@ export default function App() {
     } catch {}
   }
 
+  async function loadCoachChatHistory(uid, dayIso) {
+    try {
+      const raw = await AsyncStorage.getItem(coachChatHistoryKey(uid, dayIso));
+      const arr = safeParseJson(raw, [], "coach_chat_history");
+      return (Array.isArray(arr) ? arr : [])
+        .map((m) => ({
+          role: String(m?.role || "").trim().toLowerCase() === "coach" ? "coach" : "user",
+          text: String(m?.text || "").trim(),
+          ts: String(m?.ts || ""),
+        }))
+        .filter((m) => m.text)
+        .slice(-14);
+    } catch {
+      return [];
+    }
+  }
+
+  async function saveCoachChatHistory(uid, dayIso, messages) {
+    try {
+      const cleaned = (Array.isArray(messages) ? messages : [])
+        .map((m) => ({
+          role: String(m?.role || "").trim().toLowerCase() === "coach" ? "coach" : "user",
+          text: String(m?.text || "").trim().slice(0, 500),
+          ts: String(m?.ts || nowISO()),
+        }))
+        .filter((m) => m.text)
+        .slice(-14);
+      await AsyncStorage.setItem(coachChatHistoryKey(uid, dayIso), JSON.stringify(cleaned));
+    } catch {}
+  }
+
+  async function scheduleCoachCompletionNudges() {
+    const uid = userId || session?.user?.id;
+    if (!uid || !aiConsentGiven) return;
+    const today = localDayISO();
+    try {
+      const raw = await AsyncStorage.getItem(coachCompletionNudgeKey(uid));
+      const existing = safeParseJson(raw, {}, "coach_completion_nudge_state");
+      if (String(existing?.day || "") === today) return;
+    } catch {}
+
+    let perm = "undetermined";
+    try {
+      const p = await Notifications.getPermissionsAsync();
+      perm = String(p?.status || "undetermined");
+    } catch {}
+    if (perm !== "granted") return;
+
+    const proteinLeft = Math.max(0, num(remainingToday?.protein_g));
+    const fiberLeft = Math.max(0, num(remainingToday?.fiber_g));
+    const candidates = [];
+    if (proteinLeft >= 15) {
+      candidates.push({
+        title: "Coach nudge: protein check",
+        body: `About ${Math.round(proteinLeft)}g protein left today. Add one protein anchor in your next meal.`,
+      });
+    }
+    if (fiberLeft >= 7) {
+      candidates.push({
+        title: "Coach nudge: fiber check",
+        body: `You still have ~${Math.round(fiberLeft)}g fiber left. Add veg/fruit/beans in your next plate.`,
+      });
+    }
+    candidates.push({
+      title: "Coach nudge: hydration check",
+      body: "Quick water break now helps appetite control before the next meal.",
+    });
+    if (!candidates.length) return;
+
+    const now = new Date();
+    const mkFuture = (minsFromNow) => {
+      const d = new Date(now.getTime() + minsFromNow * 60 * 1000);
+      if (d.getHours() >= 22) d.setHours(21, 45, 0, 0);
+      return d;
+    };
+    const picks = candidates.slice(0, 2);
+    const id1 = await Notifications.scheduleNotificationAsync({
+      content: { title: picks[0].title, body: picks[0].body, sound: true },
+      trigger: mkFuture(40 + Math.floor(Math.random() * 60)),
+    });
+    let ids = [id1];
+    if (picks[1]) {
+      const id2 = await Notifications.scheduleNotificationAsync({
+        content: { title: picks[1].title, body: picks[1].body, sound: true },
+        trigger: mkFuture(130 + Math.floor(Math.random() * 90)),
+      });
+      ids.push(id2);
+    }
+    try {
+      await AsyncStorage.setItem(coachCompletionNudgeKey(uid), JSON.stringify({ day: today, ids }));
+    } catch {}
+  }
+
   function getTodayVoiceMeals(latestResult = null) {
     const today = localDayISO();
     const rows = (history || [])
@@ -3416,6 +3663,75 @@ export default function App() {
     } catch (e) {
       console.log("coach feedback failed", String(e));
       await enqueueCoachFeedback(uid, body);
+    }
+  }
+
+  async function sendCoachChatTurn() {
+    const uid = userId || session?.user?.id;
+    const text = String(coachChatInput || "").trim();
+    if (!uid || !text || coachChatBusy) return;
+    setCoachChatBusy(true);
+    const day = localDayISO();
+    const userMsg = { role: "user", text, ts: nowISO() };
+    const nextMessages = [...coachChatMessages, userMsg].slice(-12);
+    setCoachChatMessages(nextMessages);
+    void saveCoachChatHistory(uid, day, nextMessages);
+    setCoachChatInput("");
+    try {
+      const base = buildDailyCoachPayload();
+      let healthContext = {};
+      try {
+        healthContext = (await getDailyHealthContext(String(base?.date || localDayISO()))) || {};
+      } catch (_) {}
+      const history = nextMessages
+        .map((m) => ({
+          role: String(m?.role || "").trim().toLowerCase() === "coach" ? "coach" : "user",
+          text: String(m?.text || "").trim(),
+        }))
+        .filter((m) => m.text)
+        .slice(-10);
+      const body = {
+        user_id: uid,
+        day: String(base?.date || localDayISO()),
+        user_text: text,
+        goals: base?.goals || {},
+        consumed: base?.consumed || {},
+        health_context: healthContext,
+        history,
+        tone_preference: coachProfile?.tone_preference || "supportive",
+        tone_id: coachProfile?.tone_preference || "supportive",
+      };
+      const res = await fetch(withTimezoneQuery(`${API_BASE}/coach/audio/turn`), {
+        method: "POST",
+        headers: { "Content-Type": "application/json", accept: "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await safeJson(res);
+      if (!res.ok) {
+        throw new Error(errorToMessage(data?.detail || data?.message || `HTTP ${res.status}`, 0) || "Coach chat failed.");
+      }
+      const replyParts = [
+        String(data?.coach_reply || "").trim(),
+        String(data?.next_question || "").trim(),
+        String(data?.action_hint || "").trim(),
+      ].filter(Boolean);
+      const coachText = replyParts.join("\n\n").trim() || "Got it. Tell me what meal you are planning next.";
+      setCoachChatMessages((prev) => {
+        const merged = [...prev, { role: "coach", text: coachText, ts: nowISO() }].slice(-14);
+        void saveCoachChatHistory(uid, day, merged);
+        return merged;
+      });
+    } catch (e) {
+      setCoachChatMessages((prev) => {
+        const merged = [
+          ...prev,
+          { role: "coach", text: errorToMessage(e?.message || e, 0) || "Coach chat is unavailable right now.", ts: nowISO() },
+        ].slice(-14);
+        void saveCoachChatHistory(uid, day, merged);
+        return merged;
+      });
+    } finally {
+      setCoachChatBusy(false);
     }
   }
 
@@ -3888,27 +4204,31 @@ export default function App() {
 
   // ===================== RevenueCat =====================
   useEffect(() => {
+    const apiKey = Platform.OS === "ios" ? RC_IOS_KEY : RC_ANDROID_KEY;
+    if (!apiKey) {
+      console.log("RC init skipped: missing API key for", Platform.OS);
+      return;
+    }
+    Purchases.configure({ apiKey });
+    setRcReady(true);
+
     (async () => {
       try {
-        const apiKey = Platform.OS === "ios" ? RC_IOS_KEY : RC_ANDROID_KEY;
-        if (!apiKey) {
-          console.log("RC init skipped: missing API key for", Platform.OS);
-          return;
-        }
-        Purchases.configure({ apiKey });
-        setRcReady(true);
-
         const info = await Purchases.getCustomerInfo();
         setRcCustomerInfo(info);
 
-        const offs = await Purchases.getOfferings();
+        const offs = await loadOfferingsWithRetry();
         setOfferings(offs);
         const activeOffering = getActiveOffering(offs);
-        if (!activeOffering) {
+        const pkgCount = activeOffering ? packagesFromOffering(activeOffering).length : 0;
+        if (!activeOffering || pkgCount === 0) {
           const allIds = Object.keys((offs && offs.all) || {});
-          console.log("RC offerings loaded but no active offering", {
-            offeringIdConfigured: OFFERING_ID,
+          console.log("RC offerings missing packages", {
+            offeringIdResolved: resolvedOfferingId(),
+            offeringIdEnv: OFFERING_ID,
             availableOfferingIds: allIds,
+            hasCurrent: Boolean(offs?.current),
+            packageCount: pkgCount,
           });
         }
       } catch (e) {
@@ -3916,6 +4236,27 @@ export default function App() {
       }
     })();
   }, []);
+
+  useEffect(() => {
+    const apiKey = Platform.OS === "ios" ? RC_IOS_KEY : RC_ANDROID_KEY;
+    if (!apiKey || !userId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { customerInfo } = await Purchases.logIn(String(userId));
+        if (cancelled) return;
+        setRcCustomerInfo(customerInfo);
+        const offs = await loadOfferingsWithRetry();
+        if (cancelled) return;
+        setOfferings(offs);
+      } catch (e) {
+        console.log("RC logIn / offerings refresh error", e);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [userId]);
 
   const activeEntitlements = useMemo(() => {
     const active = rcCustomerInfo?.entitlements?.active || {};
@@ -3925,7 +4266,7 @@ export default function App() {
   const priceByEntitlement = useMemo(() => {
     const map = {};
     const activeOffering = getActiveOffering(offerings);
-    const pkgs = activeOffering?.availablePackages || [];
+    const pkgs = packagesFromOffering(activeOffering);
     for (const p of pkgs) {
       const prod = p?.product;
       const price =
@@ -3973,13 +4314,16 @@ export default function App() {
   async function purchaseEntitlement(entitlement) {
     try {
       const activeOffering = getActiveOffering(offerings);
-      if (!activeOffering) {
-        Alert.alert("Not ready", "Plans are still loading. Please wait a moment and try again.");
+      const packages = packagesFromOffering(activeOffering);
+      if (!activeOffering || !packages.length) {
+        Alert.alert(
+          "Not ready",
+          "Subscription options are not loading from Google Play. Check your internet connection, that this build is from the Play Store, and that products are active. Pull to refresh the app or try again in a minute.",
+        );
         return;
       }
       setRcBusy(true);
 
-      const packages = activeOffering.availablePackages || [];
       const target = packages.find((p) => packageMatchesEntitlement(p, entitlement));
 
       if (!target) {
@@ -4114,6 +4458,9 @@ export default function App() {
     setMenuScanBusy(false);
     setMenuScanError("");
     setMenuScanResult(null);
+    setUpfScanBusy(false);
+    setUpfScanError("");
+    setUpfScanResult(null);
     setRerunBusy(false);
     setPushRegisteredUserId(null);
     setExpoPushToken(null);
@@ -4756,13 +5103,13 @@ async function openCamera(mode = "meal") {
 
   function scrollToGoalProgressSection() {
     setActiveScreen("home");
-    const y = 1980;
+    setHomeHubTab("coach");
     requestAnimationFrame(() => {
       setTimeout(() => {
         try {
-          mainScrollRef.current?.scrollTo({ y, animated: true });
+          mainScrollRef.current?.scrollTo({ y: 520, animated: true });
         } catch (_) {}
-      }, 200);
+      }, 220);
     });
   }
 
@@ -5940,51 +6287,26 @@ async function openCamera(mode = "meal") {
     setUpfScanError("");
     setUpfScanResult(null);
     try {
-      const { prepareImageForScan } = await import("./utils/imageCompress");
-      const uriToUpload = await prepareImageForScan(photoUri);
+      const { prepareImageForUPF } = await import("./utils/imageCompress");
+      const uriToUpload = await prepareImageForUPF(photoUri);
       const form = new FormData();
       form.append("file", {
         uri: uriToUpload,
         name: "product.jpg",
         type: "image/jpeg",
       });
-      const analyzeUrl = withTimezoneQuery(`${API_BASE}/analyze?user_id=${encodeURIComponent(uid)}`);
+      const analyzeUrl = withTimezoneQuery(`${API_BASE}/analyze/upf?user_id=${encodeURIComponent(uid)}`);
       const res = await fetch(analyzeUrl, {
         method: "POST",
         headers: { accept: "application/json" },
         body: form,
       });
-      let data = await safeJson(res);
-      const queuedStatus = String(data?.status || "").trim().toLowerCase();
-      if (res.status === 202 || queuedStatus === "queued" || queuedStatus === "running") {
-        const jobId = String(data?.job_id || "").trim();
-        if (!jobId) {
-          throw new Error("Analysis was queued without a job_id.");
-        }
-        const startedAt = Date.now();
-        let pollDelay = 450;
-        let finalPayload = null;
-        while (Date.now() - startedAt < 120000) {
-          const jobUrl = withTimezoneQuery(
-            `${API_BASE}/jobs/${encodeURIComponent(jobId)}?user_id=${encodeURIComponent(uid)}`
-          );
-          const pollRes = await fetch(jobUrl, { method: "GET", headers: { accept: "application/json" } });
-          const pollData = await safeJson(pollRes);
-          const status = String(pollData?.status || "").trim().toLowerCase();
-          const resultObj = pollData?.result && typeof pollData.result === "object" ? pollData.result : null;
-          if (resultObj && !finalPayload) finalPayload = resultObj;
-          if (status === "done") {
-            finalPayload = resultObj;
-            break;
-          }
-          if (status === "failed") {
-            throw new Error(errorToMessage(pollData?.error || pollData?.message || "Scan failed.", 0) || "Scan failed.");
-          }
-          await sleepMs(pollDelay);
-          pollDelay = Math.min(1800, Math.round(pollDelay * 1.18));
-        }
-        if (!finalPayload) throw new Error("Scan timed out. Please try again.");
-        data = finalPayload;
+      const data = await safeJson(res);
+      if (!res.ok) {
+        throw new Error(errorToMessage(data?.detail || data?.message || `HTTP ${res.status}`, 0) || "Scan failed.");
+      }
+      if (data?.usage && typeof data.usage === "object") {
+        setUsage((prev) => ({ ...(prev && typeof prev === "object" ? prev : {}), ...data.usage }));
       }
       const score =
         (data?.coaching?.ultra_processed_score != null ? num(data.coaching.ultra_processed_score) : null) ??
@@ -6595,8 +6917,12 @@ async function openCamera(mode = "meal") {
     }
     setEditMacrosModalVisible(false);
     setFliPending(true);
+    const macroItemId = String(
+      result?.editable_context?.items?.[0]?.item_id || result?.items?.[0]?.item_id || ""
+    ).trim();
     await rerunAnalyzeWithPatch({
       macro_override: {
+        ...(macroItemId ? { item_id: macroItemId } : {}),
         protein_g: p,
         carbs_g: c,
         fat_g: f,
@@ -7007,10 +7333,53 @@ async function openCamera(mode = "meal") {
     return "AI helps you eat smarter anywhere.";
   })();
   const homeMainVisible = activeScreen !== "healthy_nearby" && activeScreen !== "saved_recipes";
+  const coachTabShowBadge = Boolean(
+    canCoaching &&
+      (fliPending || fliSyncing || coachStale || coachBusy || (coachErr && String(coachErr).trim()))
+  );
+  const smartAlertUnreadApprox = smartAlertState?.enabled ? (smartAlertCandidates || []).length : 0;
+  const coachTabShowDot = Boolean(coachTabShowBadge || smartAlertUnreadApprox > 0);
+  const planTabShowBadge = Boolean(
+    usage &&
+      (num(usage?.remaining_day) <= 2 ||
+        num(usage?.remaining_month) <= 5 ||
+        num(usage?.remaining_day) === 0 ||
+        num(usage?.remaining_month) === 0)
+  );
+  const todayStripLoggedKcal = Number.isFinite(num(dailySummary?.total_kcal))
+    ? round1(num(dailySummary.total_kcal))
+    : Number.isFinite(num(goals?.kcal)) && Number.isFinite(num(remainingToday?.kcal))
+    ? round1(Math.max(0, num(goals?.kcal || 0) - num(remainingToday.kcal)))
+    : null;
+  const todayStripProteinLeft = Number.isFinite(num(remainingToday?.protein_g))
+    ? round1(num(remainingToday.protein_g))
+    : null;
+  const todayStripGoalKcal = Number.isFinite(num(goals?.kcal)) ? Math.round(num(goals.kcal)) : null;
+  const todaySummaryStripLine = (() => {
+    let line = "";
+    if (todayStripLoggedKcal != null) {
+      line = `Logged ${todayStripLoggedKcal} kcal`;
+      if (todayStripGoalKcal != null) line += ` / ~${todayStripGoalKcal} kcal goal`;
+    } else {
+      line = "Log a meal to see today's total";
+    }
+    if (todayStripProteinLeft != null) line += ` · ${todayStripProteinLeft}g protein left`;
+    return line;
+  })();
 
   return (
-    <SafeAreaView style={[styles.safe, activeScreen === "healthy_nearby" || activeScreen === "saved_recipes" ? styles.nearbyScreenBg : null]}>
-      <ScrollView ref={mainScrollRef} contentContainerStyle={styles.container}>
+    <SafeAreaView
+      style={[
+        styles.safe,
+        styles.safeFlex,
+        activeScreen === "healthy_nearby" || activeScreen === "saved_recipes" ? styles.nearbyScreenBg : null,
+      ]}
+    >
+      <ScrollView
+        ref={mainScrollRef}
+        style={styles.mainScrollFlex}
+        contentContainerStyle={[styles.container, homeMainVisible ? styles.containerAboveBottomTabs : null]}
+      >
         {homeMainVisible ? (
         <View style={styles.topRow}>
           <View style={styles.topRowTitle}>
@@ -7022,25 +7391,7 @@ async function openCamera(mode = "meal") {
             </Text>
           </View>
           <View style={styles.topRowActions}>
-            {userId ? (
-              <TouchableOpacity
-                style={styles.smallBtn}
-                onPress={() => {
-                  setActiveScreen("saved_recipes");
-                  _scrollToTop();
-                }}
-              >
-                <Text style={styles.smallBtnText}>Saved recipes</Text>
-              </TouchableOpacity>
-            ) : null}
-            {!planAtLeast(plan, "pro") ? (
-              <TouchableOpacity style={styles.smallBtn} onPress={() => openPaywall(null)}>
-                <Text style={styles.smallBtnText}>Plans</Text>
-              </TouchableOpacity>
-            ) : null}
-            <TouchableOpacity style={styles.smallBtn} onPress={signOut}>
-              <Text style={styles.smallBtnText}>Logout</Text>
-            </TouchableOpacity>
+            <Text style={styles.topRowHint}>Use the More tab for account & saved recipes</Text>
           </View>
         </View>
         ) : (
@@ -7081,7 +7432,7 @@ async function openCamera(mode = "meal") {
           />
         ) : null}
 
-        {homeMainVisible ? (
+        {homeMainVisible && homeHubTab !== "more" ? (
         <View style={styles.homeSectionTight}>
           <HomeTodayHero
             plan={plan}
@@ -7099,7 +7450,51 @@ async function openCamera(mode = "meal") {
         </View>
         ) : null}
 
-        {homeMainVisible ? (
+        {homeMainVisible && homeHubTab === "more" ? (
+          <View style={[premium.cardBase, styles.homeMorePanel]}>
+            <Text style={premium.title}>More</Text>
+            <Text style={[premium.muted, { marginBottom: 6 }]}>Saved recipes, plans, and account</Text>
+            {userId ? (
+              <TouchableOpacity
+                style={styles.homeMoreRow}
+                onPress={() => {
+                  setActiveScreen("saved_recipes");
+                  _scrollToTop();
+                }}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.homeMoreRowText}>Saved recipes</Text>
+                <Text style={styles.homeMoreChevron}>›</Text>
+              </TouchableOpacity>
+            ) : null}
+            {!planAtLeast(plan, "pro") ? (
+              <TouchableOpacity style={styles.homeMoreRow} onPress={() => openPaywall(null)} activeOpacity={0.85}>
+                <Text style={styles.homeMoreRowText}>Plans & upgrades</Text>
+                <Text style={styles.homeMoreChevron}>›</Text>
+              </TouchableOpacity>
+            ) : null}
+            <TouchableOpacity style={styles.homeMoreRow} onPress={signOut} activeOpacity={0.85}>
+              <Text style={[styles.homeMoreRowText, { color: "#fca5a5" }]}>Log out</Text>
+              <Text style={[styles.homeMoreChevron, { color: "#fca5a5" }]}>›</Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
+
+        {homeMainVisible && homeHubTab === "today" ? (
+        <>
+        <View style={styles.todaySummaryStripWrap}>
+          <LinearGradient
+            colors={["rgba(147,197,253,0.45)", "rgba(34,197,94,0.35)", "rgba(34,197,94,0)"]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.todaySummaryStripHairline}
+            pointerEvents="none"
+          />
+          <View style={styles.todaySummaryStrip}>
+            <Text style={styles.todaySummaryStripLabel}>Today at a glance</Text>
+            <Text style={styles.todaySummaryStripMetrics}>{todaySummaryStripLine}</Text>
+          </View>
+        </View>
         <View style={styles.launcherCard}>
           <Text style={styles.launcherTitle}>CalorieClick AI</Text>
           <Text style={styles.launcherQuestion}>What should I eat right now?</Text>
@@ -7175,7 +7570,10 @@ async function openCamera(mode = "meal") {
               activeOpacity={0.85}
               onPress={() => {
                 if (goalPlan) {
-                  try { mainScrollRef.current?.scrollTo({ y: 640, animated: true }); } catch (_) {}
+                  setHomeHubTab("coach");
+                  try {
+                    mainScrollRef.current?.scrollTo({ y: 0, animated: true });
+                  } catch (_) {}
                 } else {
                   setLetsGoModalVisible(true);
                 }
@@ -7229,9 +7627,10 @@ async function openCamera(mode = "meal") {
             </View>
           ) : null}
         </View>
+        </>
         ) : null}
 
-        {homeMainVisible ? (
+        {homeMainVisible && homeHubTab === "coach" ? (
         <>
         {/* Daily progress (pulled up for above-the-fold momentum) */}
         {goalPlan ? (
@@ -7249,6 +7648,100 @@ async function openCamera(mode = "meal") {
             />
           </View>
         ) : null}
+
+        <View style={styles.homeSection}>
+          <View style={[premium.cardBase, styles.coachChatCard]}>
+            <View style={styles.coachChatHeaderRow}>
+              <Text style={premium.title}>Live Coach Chat</Text>
+              <View style={styles.coachChatHeaderActions}>
+                <TouchableOpacity
+                  style={[
+                    styles.coachRecoveryBadge,
+                    coachRecoveryBadge?.tone === "green"
+                      ? styles.coachRecoveryBadgeGreen
+                      : coachRecoveryBadge?.tone === "red"
+                      ? styles.coachRecoveryBadgeRed
+                      : styles.coachRecoveryBadgeAmber,
+                  ]}
+                  onPress={() => setCoachRecoveryExpanded((v) => !v)}
+                  activeOpacity={0.85}
+                >
+                  <Text style={styles.coachRecoveryBadgeText}>
+                    {String(coachRecoveryBadge?.label || "Recovery mode: balanced")} {coachRecoveryExpanded ? "▲" : "▼"}
+                  </Text>
+                </TouchableOpacity>
+                {coachChatMessages.length > 0 ? (
+                  <TouchableOpacity
+                    style={premium.ctaGhost}
+                    onPress={() => {
+                      setCoachChatMessages([]);
+                      const uid = userId || session?.user?.id;
+                      if (uid) void saveCoachChatHistory(uid, localDayISO(), []);
+                    }}
+                    disabled={coachChatBusy}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={premium.ctaGhostText}>Clear</Text>
+                  </TouchableOpacity>
+                ) : null}
+              </View>
+            </View>
+            {coachRecoveryExpanded ? (
+              <View style={styles.coachRecoveryPanel}>
+                {(Array.isArray(coachRecoveryBadge?.lines) ? coachRecoveryBadge.lines : []).map((line, idx) => (
+                  <Text key={`rec-line-${idx}`} style={styles.coachRecoveryPanelText}>
+                    {line}
+                  </Text>
+                ))}
+              </View>
+            ) : null}
+            <Text style={premium.muted}>Ask anything about your next meal, cravings, or plan for today.</Text>
+            <View style={styles.coachChatFeed}>
+              {(coachChatMessages.length ? coachChatMessages : [{ role: "coach", text: "I am here. Tell me what you are about to eat and I will guide your next best move." }]).slice(-8).map((m, idx) => {
+                const isCoach = String(m?.role || "").toLowerCase() === "coach";
+                return (
+                  <View key={`cc-${idx}`} style={[styles.coachChatBubble, isCoach ? styles.coachChatCoachBubble : styles.coachChatUserBubble]}>
+                    <Text style={[styles.coachChatBubbleText, isCoach ? styles.coachChatCoachText : styles.coachChatUserText]}>
+                      {String(m?.text || "")}
+                    </Text>
+                  </View>
+                );
+              })}
+            </View>
+            <View style={styles.coachQuickRow}>
+              {["Suggest dinner now", "I am craving sweet", "I might snack soon"].map((q) => (
+                <TouchableOpacity
+                  key={q}
+                  style={styles.coachQuickChip}
+                  onPress={() => setCoachChatInput(q)}
+                  disabled={coachChatBusy}
+                  activeOpacity={0.85}
+                >
+                  <Text style={styles.coachQuickChipText}>{q}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <View style={styles.coachChatComposerRow}>
+              <TextInput
+                style={styles.coachChatInput}
+                value={coachChatInput}
+                onChangeText={setCoachChatInput}
+                placeholder="Type your question..."
+                placeholderTextColor="#94a3b8"
+                editable={!coachChatBusy}
+                multiline
+              />
+              <TouchableOpacity
+                style={[premium.ctaPrimary, styles.coachChatSendBtn, (!coachChatInput.trim() || coachChatBusy) ? { opacity: 0.65 } : null]}
+                onPress={() => { void sendCoachChatTurn(); }}
+                disabled={!coachChatInput.trim() || coachChatBusy}
+                activeOpacity={0.9}
+              >
+                <Text style={premium.ctaPrimaryText}>{coachChatBusy ? "…" : "Send"}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
 
         {(() => {
           const enabled = smartAlertState?.enabled;
@@ -7515,7 +8008,10 @@ async function openCamera(mode = "meal") {
             ) : null}
           </>
         ) : null}
+        </>
+        ) : null}
 
+        {homeMainVisible && homeHubTab === "plan" ? (
         <View style={[premium.cardBase, styles.compactStatusCard]}>
           <View style={styles.compactHeaderRow}>
             <View style={{ flex: 1 }}>
@@ -7592,7 +8088,10 @@ async function openCamera(mode = "meal") {
             </View>
           ) : null}
         </View>
+        ) : null}
 
+        {homeMainVisible && homeHubTab === "coach" ? (
+        <>
         <View style={styles.card}>
           <View style={styles.intelHeader}>
             <View style={styles.intelHeaderTop}>
@@ -7725,9 +8224,9 @@ async function openCamera(mode = "meal") {
                     </View>
                   </View>
                   {!!String(coachVoice?.insight_line || "").trim() ? (
-                    <Text style={premium.body} numberOfLines={3}>{String(coachVoice?.insight_line || "")}</Text>
+                    <Text style={premium.body}>{String(coachVoice?.insight_line || "")}</Text>
                   ) : String(coachVoice?.empathy_line || "").trim() ? (
-                    <Text style={premium.body} numberOfLines={3}>{String(coachVoice?.empathy_line || "")}</Text>
+                    <Text style={premium.body}>{String(coachVoice?.empathy_line || "")}</Text>
                   ) : null}
                   {String(coachDaily?.one_sentence_summary || "").trim() ? (
                     <Text style={[premium.mutedOnDarkInset, { marginTop: 8 }]} numberOfLines={2}>
@@ -8088,7 +8587,11 @@ async function openCamera(mode = "meal") {
             </>
           )}
         </View>
+        </>
+        ) : null}
 
+        {homeMainVisible && homeHubTab === "today" ? (
+        <>
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Scan a meal</Text>
 
@@ -8308,7 +8811,8 @@ async function openCamera(mode = "meal") {
 
                   {(result?.clarification_questions || []).length > 0 ? (
                     <View style={{ marginTop: 10 }}>
-                      <Text style={[styles.p, { fontWeight: "700" }]}>Confirm details (we'll remember)</Text>
+                      <Text style={[styles.p, { fontWeight: "700" }]}>Confirm details (we learn and remember)</Text>
+                      <Text style={styles.tiny}>Your answers improve future scans for this meal and ingredients.</Text>
                       {(result.clarification_questions || []).map((q, qIdx) => (
                         <View key={q.key || qIdx} style={{ marginTop: 8 }}>
                           {q.ingredient_context ? (
@@ -10789,6 +11293,52 @@ async function openCamera(mode = "meal") {
         </Modal>
 
       </ScrollView>
+
+      {homeMainVisible ? (
+        <View style={styles.homeBottomTabBarOuter}>
+          <LinearGradient
+            colors={["rgba(147,197,253,0.5)", "rgba(34,197,94,0.45)", "rgba(34,197,94,0)"]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.homeBottomTabBarHairline}
+            pointerEvents="none"
+          />
+          <View style={styles.homeBottomTabBar} accessibilityRole="tablist">
+            {[
+              { key: "today", label: "Today", icon: "⌂" },
+              { key: "coach", label: "Coach", icon: "◎", badge: coachTabShowDot },
+              { key: "plan", label: "Plan", icon: "≡", badgeDot: planTabShowBadge },
+              { key: "more", label: "More", icon: "···" },
+            ].map((t) => (
+              <TouchableOpacity
+                key={t.key}
+                style={[styles.homeBottomTabItem, homeHubTab === t.key ? styles.homeBottomTabItemActive : null]}
+                onPress={() => {
+                  setHomeHubTab(t.key);
+                  try {
+                    mainScrollRef.current?.scrollTo({ y: 0, animated: true });
+                  } catch (_) {}
+                }}
+                accessibilityRole="tab"
+                accessibilityLabel={t.label}
+                accessibilityState={{ selected: homeHubTab === t.key }}
+                activeOpacity={0.88}
+              >
+                <View style={styles.homeBottomTabIconWrap}>
+                  <Text style={[styles.homeBottomTabIcon, homeHubTab === t.key ? styles.homeBottomTabIconActive : null]}>
+                    {t.icon}
+                  </Text>
+                  {(t.badge || t.badgeDot) ? <View style={styles.homeBottomTabBadgeDot} /> : null}
+                </View>
+                <Text style={[styles.homeBottomTabLabel, homeHubTab === t.key ? styles.homeBottomTabLabelActive : null]}>
+                  {t.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+      ) : null}
+
       <MealFeedbackPrompt
         visible={!!showMealFeedbackPrompt && !!pendingMealFeedback}
         pending={pendingMealFeedback}
@@ -10897,11 +11447,248 @@ async function openCamera(mode = "meal") {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: "#000", paddingBottom: 24 },
+  safeFlex: { flex: 1 },
+  mainScrollFlex: { flex: 1 },
   nearbyScreenBg: { backgroundColor: "#03080f" },
   container: { padding: 18, gap: 14, paddingBottom: 36 },
+  containerAboveBottomTabs: { paddingBottom: 100 },
   // Phase 1 home spacing (token-based): use wrapper views, avoid large refactors.
   homeSection: { marginTop: tSpacing.section },
   homeSectionTight: { marginTop: tSpacing.xl },
+  coachChatCard: { padding: 14 },
+  coachChatHeaderRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  coachChatHeaderActions: { flexDirection: "row", alignItems: "center", gap: 8 },
+  coachRecoveryBadge: {
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+  },
+  coachRecoveryBadgeGreen: {
+    borderColor: "rgba(34,197,94,0.5)",
+    backgroundColor: "rgba(34,197,94,0.14)",
+  },
+  coachRecoveryBadgeAmber: {
+    borderColor: "rgba(245,158,11,0.5)",
+    backgroundColor: "rgba(245,158,11,0.14)",
+  },
+  coachRecoveryBadgeRed: {
+    borderColor: "rgba(239,68,68,0.55)",
+    backgroundColor: "rgba(239,68,68,0.14)",
+  },
+  coachRecoveryBadgeText: { color: "#e2e8f0", fontSize: 11, fontWeight: "700" },
+  coachRecoveryPanel: {
+    marginTop: 8,
+    marginBottom: 4,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "rgba(148,163,184,0.24)",
+    backgroundColor: "rgba(2,6,23,0.35)",
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+  },
+  coachRecoveryPanelText: { color: "#cbd5e1", fontSize: 12, lineHeight: 18 },
+  coachChatFeed: {
+    marginTop: 10,
+    maxHeight: 260,
+    borderWidth: 1,
+    borderColor: "rgba(148, 163, 184, 0.22)",
+    borderRadius: 12,
+    padding: 10,
+    backgroundColor: "rgba(2, 6, 23, 0.35)",
+  },
+  coachChatBubble: {
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: 10,
+    marginBottom: 8,
+  },
+  coachChatCoachBubble: {
+    alignSelf: "flex-start",
+    backgroundColor: "rgba(147, 197, 253, 0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(147, 197, 253, 0.30)",
+  },
+  coachChatUserBubble: {
+    alignSelf: "flex-end",
+    backgroundColor: "rgba(34, 197, 94, 0.14)",
+    borderWidth: 1,
+    borderColor: "rgba(34, 197, 94, 0.30)",
+  },
+  coachChatBubbleText: { fontSize: 13, lineHeight: 18, fontWeight: "500" },
+  coachChatCoachText: { color: "#dbeafe" },
+  coachChatUserText: { color: "#dcfce7" },
+  coachQuickRow: { marginTop: 8, flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  coachQuickChip: {
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "rgba(148, 163, 184, 0.30)",
+    backgroundColor: "rgba(15, 23, 42, 0.45)",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  coachQuickChipText: { color: "#cbd5e1", fontSize: 12, fontWeight: "600" },
+  coachChatComposerRow: { marginTop: 10, flexDirection: "row", alignItems: "flex-end", gap: 8 },
+  coachChatInput: {
+    flex: 1,
+    minHeight: 42,
+    maxHeight: 110,
+    borderWidth: 1,
+    borderColor: "rgba(148, 163, 184, 0.24)",
+    borderRadius: 10,
+    color: "#f8fafc",
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    backgroundColor: "rgba(15, 23, 42, 0.55)",
+  },
+  coachChatSendBtn: { paddingHorizontal: 16, minHeight: 42 },
+  homeHubSegmentWrap: { marginTop: 2 },
+  homeHubSegmentRow: {
+    flexDirection: "row",
+    backgroundColor: "#070d16",
+    borderRadius: 18,
+    padding: 4,
+    borderWidth: 1,
+    borderColor: "#1a2535",
+    gap: 4,
+  },
+  homeHubSegmentPill: {
+    flex: 1,
+    paddingVertical: 11,
+    paddingHorizontal: 6,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  homeHubSegmentPillActive: {
+    backgroundColor: "rgba(34, 197, 94, 0.14)",
+    borderWidth: 1,
+    borderColor: "rgba(34, 197, 94, 0.45)",
+  },
+  homeHubSegmentText: { fontSize: 13, fontWeight: "700", color: "#64748b", letterSpacing: 0.2 },
+  homeHubSegmentTextActive: { color: "#ecfdf5" },
+  homeHubSegmentHint: {
+    marginTop: 8,
+    fontSize: 12,
+    color: "#64748b",
+    lineHeight: 17,
+    textAlign: "center",
+    letterSpacing: 0.15,
+  },
+  topRowHint: {
+    fontSize: 11,
+    color: "#64748b",
+    maxWidth: 200,
+    textAlign: "right",
+    lineHeight: 15,
+  },
+  todaySummaryStripWrap: {
+    marginTop: 2,
+    borderRadius: dr.xl,
+    borderWidth: 1,
+    borderColor: dt.surface.cardBorder,
+    backgroundColor: dt.surface.elevated,
+    overflow: "hidden",
+    ...dsh.sm,
+  },
+  todaySummaryStripHairline: {
+    height: 2,
+    width: "100%",
+    opacity: 0.95,
+  },
+  todaySummaryStrip: {
+    backgroundColor: "transparent",
+    borderRadius: 0,
+    borderWidth: 0,
+    paddingVertical: tSpacing.base,
+    paddingHorizontal: tSpacing.lg,
+    marginTop: 0,
+  },
+  todaySummaryStripLabel: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: dt.slate.primary,
+    letterSpacing: 0.8,
+    textTransform: "uppercase",
+    marginBottom: 4,
+  },
+  todaySummaryStripMetrics: {
+    fontSize: 14,
+    color: dt.text.secondary,
+    lineHeight: 20,
+    fontWeight: "600",
+  },
+  homeBottomTabBarOuter: {
+    backgroundColor: dt.surface.elevated,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(26, 38, 66, 0.9)",
+  },
+  homeBottomTabBarHairline: {
+    height: 2,
+    width: "100%",
+    opacity: 0.95,
+  },
+  homeBottomTabBar: {
+    flexDirection: "row",
+    alignItems: "stretch",
+    justifyContent: "space-between",
+    backgroundColor: "transparent",
+    paddingTop: tSpacing.sm,
+    paddingBottom: Platform.OS === "ios" ? 22 : 10,
+    paddingHorizontal: tSpacing.xs,
+  },
+  homeBottomTabItem: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: tSpacing.xs,
+    borderRadius: dr.lg,
+  },
+  homeBottomTabItemActive: {
+    backgroundColor: "rgba(34, 197, 94, 0.12)",
+  },
+  homeBottomTabIconWrap: {
+    position: "relative",
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: 22,
+  },
+  homeBottomTabIcon: {
+    fontSize: 17,
+    color: dt.slate.primary,
+    fontWeight: "800",
+  },
+  homeBottomTabIconActive: { color: dt.success.text },
+  homeBottomTabBadgeDot: {
+    position: "absolute",
+    top: -1,
+    right: -6,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "#f59e0b",
+    borderWidth: 1,
+    borderColor: dt.surface.primary,
+  },
+  homeBottomTabLabel: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: dt.slate.primary,
+    marginTop: 2,
+    letterSpacing: 0.2,
+  },
+  homeBottomTabLabelActive: { color: dt.text.primary },
+  homeMorePanel: { marginTop: tSpacing.section, padding: 16, gap: 0 },
+  homeMoreRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(148, 163, 184, 0.15)",
+  },
+  homeMoreRowText: { fontSize: 16, color: "#e2e8f0", fontWeight: "600" },
+  homeMoreChevron: { fontSize: 20, color: "#64748b", fontWeight: "300" },
   h1: { fontSize: 26, fontWeight: "900", color: "#fff", lineHeight: 31, letterSpacing: 0.2 },
   p: { fontSize: 14, color: "#cfd7e3", lineHeight: 21 },
   tiny: { fontSize: 12, color: "#92a0b3", lineHeight: 17 },
@@ -10943,15 +11730,16 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   launcherCard: {
-    backgroundColor: "#050a13",
+    backgroundColor: dt.surface.primary,
     borderRadius: 26,
     borderWidth: 1,
-    borderColor: "#263d62",
+    borderColor: dt.surface.cardBorder,
     padding: 20,
     gap: 14,
+    ...dsh.md,
   },
   launcherTitle: {
-    color: "#9fb5d4",
+    color: dt.accent.muted,
     fontSize: 13,
     fontWeight: "800",
     letterSpacing: 0.6,
@@ -10964,7 +11752,7 @@ const styles = StyleSheet.create({
     lineHeight: 34,
     letterSpacing: 0.2,
   },
-  launcherSubline: { color: "#9fb5d4", fontSize: 14, lineHeight: 20 },
+  launcherSubline: { color: dt.accent.muted, fontSize: 14, lineHeight: 20 },
   launcherActions: { gap: 12, marginTop: 14 },
   launcherPrimaryCard: {
     flexDirection: "row",
@@ -10972,10 +11760,11 @@ const styles = StyleSheet.create({
     gap: 14,
     borderRadius: 22,
     borderWidth: 1,
-    borderColor: "#22c55e",
-    backgroundColor: "#07161f",
+    borderColor: dt.success.primary,
+    backgroundColor: dt.surface.card,
     paddingVertical: 16,
     paddingHorizontal: 16,
+    ...dsh.sm,
   },
   launcherPrimaryIconWrap: {
     width: 40,
@@ -10995,13 +11784,14 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "flex-start",
     gap: 10,
-    borderRadius: 18,
+    borderRadius: dr.xl,
     borderWidth: 1,
-    borderColor: "#1f2937",
-    backgroundColor: "#0b1424",
+    borderColor: dt.surface.cardBorder,
+    backgroundColor: dt.surface.elevated,
     paddingVertical: 12,
     paddingHorizontal: 12,
     marginTop: 10,
+    ...dsh.sm,
   },
   launcherActionIcon: { fontSize: 20, marginTop: 2 },
   launcherActionTitle: { color: "#fff", fontSize: 18, fontWeight: "800", lineHeight: 22 },
