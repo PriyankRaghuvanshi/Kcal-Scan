@@ -44,4 +44,5 @@ backend/data/chains/*
 !backend/data/chains/mcdonalds_us.json
 !backend/data/chains/mcdonalds_in.json
 !backend/data/chains/starbucks_au.json
+!backend/data/chains/starbucks_us.json
 !backend/data/chain_rollout_registry.json
