@@ -3302,7 +3302,7 @@ export default function App() {
             fit_for_today:
               typeof row?.fit_for_today === "boolean" ? row.fit_for_today : null,
             health_score:
-              Number.isFinite(num(row?.health_score)) ? round1(num(row.health_score)) : null,
+              row?.health_score != null ? round1(num(row.health_score)) : null,
             why_it_helped: String(row?.why_it_helped || "").trim(),
           };
         })
@@ -3329,9 +3329,9 @@ export default function App() {
       place_name: placeName,
       recommended_order: order,
       fit_for_today: typeof payload?.fit_for_today === "boolean" ? payload.fit_for_today : null,
-      health_score: Number.isFinite(num(payload?.health_score_100))
+      health_score: payload?.health_score_100 != null
         ? round1(num(payload.health_score_100))
-        : Number.isFinite(num(payload?.health_score))
+        : payload?.health_score != null
         ? round1(num(payload.health_score) * 10)
         : null,
       why_it_helped: String(
@@ -10106,10 +10106,10 @@ async function openCamera(mode = "meal") {
                       screenshotMode={screenshotMode}
                       style={{ marginTop: 6 }}
                     />
-                    {Number.isFinite(num(card?.estimated_calories)) ? (
+                    {card?.estimated_calories != null ? (
                       <Text style={styles.tiny}>Calories: ~{Math.round(num(card?.estimated_calories))}</Text>
                     ) : null}
-                    {Number.isFinite(num(card?.estimated_protein_g)) ? (
+                    {card?.estimated_protein_g != null ? (
                       <Text style={styles.tiny}>Protein: {Math.round(num(card?.estimated_protein_g))}g</Text>
                     ) : null}
                     {cardSwaps.length && !screenshotMode ? (
