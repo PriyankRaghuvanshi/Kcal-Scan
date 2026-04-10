@@ -43,16 +43,26 @@ for (const file of files) {
     "([[[$1 sourceRevision] source] bundleIdentifier] ?: @\"\")"
   );
 
-  // Nil-guard [[...UUID] UUIDString]
+  // Nil-guard [[...UUID] UUIDString] — must wrap full expr in ( ) for valid Obj-C
   src = src.replace(
     /\[\[(\w+) UUID\] UUIDString\](?!\s*\?:)/g,
-    "[[$1 UUID] UUIDString] ?: @\"\")"
+    "([[$1 UUID] UUIDString] ?: @\"\")"
   );
 
   // Nil-guard [[...sourceRevision] productType]
   src = src.replace(
     /\[\[(\w+) sourceRevision\] productType\](?!\s*\?:)/g,
-    "[[$1 sourceRevision] productType] ?: @\"\")"
+    "([[$1 sourceRevision] productType] ?: @\"\")"
+  );
+
+  // Repair broken patches from earlier script (missing '(' before [[)
+  src = src.replace(
+    /\[\[(\w+) UUID\] UUIDString\] \?\: @""\)/g,
+    "([[$1 UUID] UUIDString] ?: @\"\")"
+  );
+  src = src.replace(
+    /\[\[(\w+) sourceRevision\] productType\] \?\: @""\)/g,
+    "([[$1 sourceRevision] productType] ?: @\"\")"
   );
 
   if (src !== original) {
