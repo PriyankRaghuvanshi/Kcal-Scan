@@ -1876,7 +1876,7 @@ export default function App() {
   // ===== Phase 1: local caches (consent + nearby snapshot) =====
   const AI_CONSENT_CACHE_KEY = "ai_consent_v1";
   const NEARBY_SNAPSHOT_CACHE_VERSION = 1;
-  const NEARBY_SNAPSHOT_TTL_MS = 15 * 60 * 1000; // 15 minutes
+  const NEARBY_SNAPSHOT_TTL_MS = 30 * 60 * 1000; // 30 minutes
   const nearbySnapshotKey = (uid) => `nearby_snapshot_v1:${String(uid || "").trim()}`;
 
   // ===== Auth (Supabase) =====

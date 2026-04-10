@@ -63,7 +63,7 @@ def _cache_key(lat: float, lng: float, radius_m: int, precision: int) -> str:
 
 
 def cache_ttl_sec() -> int:
-    raw = str(os.getenv("GOOGLE_NEARBY_CACHE_TTL_SEC", "300") or "300").strip()
+    raw = str(os.getenv("GOOGLE_NEARBY_CACHE_TTL_SEC", "900") or "900").strip()
     try:
         v = int(raw)
     except ValueError:
