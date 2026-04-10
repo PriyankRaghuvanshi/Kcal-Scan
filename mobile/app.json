@@ -16,6 +16,7 @@
     "ios": {
       "icon": "./assets/CalorieClick.png",
       "bundleIdentifier": "com.priyank.calorieclick",
+      "buildNumber": "181",
       "supportsTablet": true,
       "infoPlist": {
         "NSCameraUsageDescription": "We need camera access to scan meals and barcodes.",
@@ -25,7 +26,8 @@
         "NSHealthShareUsageDescription": "CalorieClick reads your sleep, steps, heart rate, and HRV from Apple Health to give you personalized recovery and coaching insights.",
         "NSHealthUpdateUsageDescription": "CalorieClick saves calories, protein, and other nutrients from your scans, and weight from your journey, to Apple Health.",
         "ITSAppUsesNonExemptEncryption": false
-      }
+      },
+      "buildNumber": "2"
     },
     "android": {
       "package": "com.priyank.calorieclick",
