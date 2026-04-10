@@ -21,7 +21,7 @@
       "autoIncrement": false,
       "cache": {
         "disabled": false,
-        "key": "production-v12-pin-build-181-20260411"
+        "key": "production-v13-cfbundle-181-final-20260411"
       },
       "env": {
         "EXPO_PUBLIC_SUPABASE_URL": "https://mgrwrthvhjpmbrvmvkeo.supabase.co",
