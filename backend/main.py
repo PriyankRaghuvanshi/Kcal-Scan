@@ -1635,6 +1635,12 @@ class CoachAudioTurnRequestModel(BaseModel):
     health_context: Dict[str, Any] = Field(default_factory=dict)
     tz: str = ""
     tz_offset_min: Optional[int] = None
+    # Rich context from app (was missing — caused generic LLM replies)
+    profile: Dict[str, Any] = Field(default_factory=dict)
+    food_preferences: List[str] = Field(default_factory=list)
+    goal_reminders: List[str] = Field(default_factory=list)
+    signals: Dict[str, Any] = Field(default_factory=dict)
+    meal_timing: Dict[str, Any] = Field(default_factory=dict)
 
 
 class CoachAudioPreferenceRequestModel(BaseModel):
@@ -12357,15 +12363,26 @@ def coach_voice(
 
 
 _COACH_CHAT_SYSTEM_PROMPT = (
-    "You are a real nutrition coach chatting live with one user right now. "
-    "You have full access to their daily targets, what they've eaten today, and their gaps. "
-    "Respond naturally and conversationally—this is a real-time text chat, not a report. "
-    "Be specific: use their actual numbers (protein gap, fiber gap, calorie surplus/deficit). "
-    "When they ask for food suggestions, give concrete options (e.g. '2 boiled eggs + a handful of almonds' or 'grilled chicken salad with chickpeas'). "
-    "When they say something vague like 'yes' or 'ok', acknowledge it and move the conversation forward with a useful follow-up. "
-    "Never give medical advice, diagnose conditions, or guarantee weight outcomes. "
-    "Keep each field concise: coach_reply <=280 chars, next_question <=120 chars, action_hint <=120 chars. "
-    "Output strict JSON only with keys: coach_reply, next_question, action_hint. No markdown, no extra keys."
+    "You are ONE dedicated nutrition & habits coach texting a real client you already know. "
+    "You are NOT a chatbot, FAQ, or wellness blog. Every reply must feel written for THIS person only.\n\n"
+    "NON-NEGOTIABLE GROUNDING:\n"
+    "- In coach_reply, you MUST either (a) repeat or clearly paraphrase something specific the user just said, OR "
+    "(b) cite at least ONE concrete number from their data (kcal %, protein_g gap, fiber gap, sleep/steps if given). "
+    "Vague encouragement with no anchor ('stay consistent', 'you got this', 'listen to your body') alone is FORBIDDEN.\n"
+    "- Tie food ideas to their goal_type and diet_style (e.g. veg/vegan = no meat; fat_loss = portions mindful of kcal left).\n"
+    "- If food_preferences exist, mention at least one by name when suggesting meals; if goal_reminders exist, connect to one when relevant.\n"
+    "- If their message is a question, answer THAT question first — do not pivot to generic habits.\n\n"
+    "BANNED (robot / template tells):\n"
+    "- Opening with: Great question, Absolutely, Sure, I hear you (as empty filler), As a coach, Remember to hydrate, "
+    "Stay positive, Balance is key, Everything in moderation, Listen to your body (without tying to their data).\n"
+    "- Generic lists that ignore their words (e.g. 'eat protein and veggies' with no portions or context).\n\n"
+    "STYLE:\n"
+    "- Short, human texts: 1–3 tight sentences in coach_reply. One concrete suggestion beats five platitudes.\n"
+    "- next_question must reference their situation (goal, gap, time of day, or last message) — never a generic 'how are you'.\n"
+    "- action_hint = one observable step in the next hour (specific food + rough portion, or one logging action).\n\n"
+    "SAFETY: No medical diagnosis, no promises about weight/disease. Informational coaching only.\n\n"
+    "OUTPUT: Strict JSON only: {\"coach_reply\":\"...\",\"next_question\":\"...\",\"action_hint\":\"...\"}. "
+    "Max lengths: coach_reply 400 chars, next_question 150 chars, action_hint 150 chars. No markdown, no extra keys."
 )
 
 
@@ -12379,6 +12396,11 @@ def _build_coach_chat_llm_prompt(
     kcal_delta: float,
     history: List[Dict[str, str]],
     health_context: Dict[str, Any],
+    profile: Optional[Dict[str, Any]] = None,
+    food_preferences: Optional[List[str]] = None,
+    goal_reminders: Optional[List[str]] = None,
+    signals: Optional[Dict[str, Any]] = None,
+    meal_timing: Optional[Dict[str, Any]] = None,
 ) -> str:
     tone_guidance = _daily_tone_prompt_text(tone)
     history_block = ""
@@ -12400,18 +12422,62 @@ def _build_coach_chat_llm_prompt(
         if stress:
             parts.append(f"stress_level: {stress}")
         if parts:
-            health_lines = "HEALTH_SIGNALS: " + ", ".join(parts)
+            health_lines = "APPLE_HEALTH_SIGNALS: " + ", ".join(parts)
+
+    prof = profile if isinstance(profile, dict) else {}
+    gkcal = goals.get("kcal")
+    gprot = goals.get("protein_g")
+    ckcal = consumed.get("kcal", 0) or 0
+    pct = 0
+    try:
+        if gkcal and float(gkcal) > 0:
+            pct = int(round(100.0 * float(ckcal) / float(gkcal)))
+    except Exception:
+        pct = 0
+
+    profile_lines = ""
+    if prof:
+        profile_lines = (
+            "CLIENT_PROFILE (obey these — do not suggest foods that violate diet_style):\n"
+            f"  goal_type: {prof.get('goal_type', '?')}\n"
+            f"  diet_style: {prof.get('diet_style', '?')}\n"
+            f"  training: {prof.get('training_days_per_week', '?')}x/week, usually {prof.get('training_time', '?')}\n"
+        )
+
+    prefs = [str(x).strip() for x in (food_preferences or []) if str(x).strip()]
+    prefs_line = ""
+    if prefs:
+        prefs_line = "FOODS_THEY_LIKE (use at least one when suggesting meals): " + ", ".join(prefs[:12]) + "\n"
+
+    rem = [str(x).strip() for x in (goal_reminders or []) if str(x).strip()]
+    rem_line = ""
+    if rem:
+        rem_line = "PERSONAL_REMINDERS (weave in when relevant): " + "; ".join(rem[:8]) + "\n"
+
+    sig_line = ""
+    if signals and isinstance(signals, dict):
+        sig_line = "APP_DAY_SIGNALS (from today's scans): " + json.dumps(signals, default=str)[:500] + "\n"
+
+    mt_line = ""
+    if meal_timing and isinstance(meal_timing, dict):
+        mt_line = "MEAL_TIMING: " + json.dumps(meal_timing, default=str)[:300] + "\n"
 
     return (
         f"COACH_TONE_ID: {tone}\n"
         f"COACH_TONE_RULES: {tone_guidance}\n\n"
+        f"{profile_lines}"
+        f"{prefs_line}"
+        f"{rem_line}"
         f"TODAY'S GOALS: kcal={goals.get('kcal', '?')}, protein={goals.get('protein_g', '?')}g, fiber={goals.get('fiber_g', '?')}g\n"
-        f"CONSUMED SO FAR: kcal={consumed.get('kcal', 0)}, protein={consumed.get('protein_g', 0)}g, fiber={consumed.get('fiber_g', 0)}g\n"
+        f"CONSUMED SO FAR: kcal={consumed.get('kcal', 0)}, protein={consumed.get('protein_g', 0)}g, fiber={consumed.get('fiber_g', 0)}g (~{pct}% of kcal target)\n"
         f"GAPS: protein_gap={round(protein_gap, 1)}g, fiber_gap={round(fiber_gap, 1)}g, kcal_delta={round(kcal_delta, 1)} (positive=over target)\n"
+        f"{sig_line}"
+        f"{mt_line}"
         f"{health_lines}\n\n"
         f"{history_block}\n\n"
-        f"USER (latest message): {user_text}\n\n"
-        "Respond as a live coach. Return strict JSON: {{\"coach_reply\": \"...\", \"next_question\": \"...\", \"action_hint\": \"...\"}}"
+        f"USER_LATEST_MESSAGE (respond to THIS, not a generic script): {user_text}\n\n"
+        "Before writing JSON, decide: what did they literally ask or say? What one concrete thing will you say back?\n"
+        'Return strict JSON: {"coach_reply": "...", "next_question": "...", "action_hint": "..."}'
     )
 
 
@@ -12425,6 +12491,11 @@ def _coach_chat_llm_reply(
     kcal_delta: float,
     history: List[Dict[str, str]],
     health_context: Dict[str, Any],
+    profile: Optional[Dict[str, Any]] = None,
+    food_preferences: Optional[List[str]] = None,
+    goal_reminders: Optional[List[str]] = None,
+    signals: Optional[Dict[str, Any]] = None,
+    meal_timing: Optional[Dict[str, Any]] = None,
 ) -> Optional[Dict[str, str]]:
     if not GEMINI_API_KEY and not OPENAI_API_KEY:
         return None
@@ -12432,22 +12503,27 @@ def _coach_chat_llm_reply(
         user_text, tone, goals, consumed,
         protein_gap, fiber_gap, kcal_delta,
         history, health_context,
+        profile=profile,
+        food_preferences=food_preferences,
+        goal_reminders=goal_reminders,
+        signals=signals,
+        meal_timing=meal_timing,
     )
     try:
         _require_coach_llm_provider_key()
         text, model_name, tried = _call_coach_llm_with_timeout(
             [_COACH_CHAT_SYSTEM_PROMPT, prompt],
             model_name=COACH_VOICE_LLM_MODEL,
-            timeout_sec=10.0,
+            timeout_sec=18.0,
             retries=1,
             purpose="coach_chat_turn",
         )
         parsed = coach_logic.extract_json_object(str(text or "").strip())
         if isinstance(parsed, dict) and parsed.get("coach_reply"):
             return {
-                "coach_reply": _limit_text(parsed.get("coach_reply"), 280),
-                "next_question": _limit_text(parsed.get("next_question"), 120),
-                "action_hint": _limit_text(parsed.get("action_hint"), 120),
+                "coach_reply": _limit_text(parsed.get("coach_reply"), 400),
+                "next_question": _limit_text(parsed.get("next_question"), 150),
+                "action_hint": _limit_text(parsed.get("action_hint"), 150),
             }
     except Exception as e:
         logger.warning(f"coach chat LLM failed, falling back to templates: {e}")
@@ -12501,6 +12577,11 @@ def coach_audio_turn(
         kcal_delta=kcal_delta,
         history=history,
         health_context=health_ctx,
+        profile=req.profile or {},
+        food_preferences=list(req.food_preferences or []),
+        goal_reminders=list(req.goal_reminders or []),
+        signals=req.signals or {},
+        meal_timing=req.meal_timing or {},
     )
     reply = llm_reply or _audio_turn_reply_text(
         user_text=user_text,
@@ -12515,10 +12596,10 @@ def coach_audio_turn(
     health_boost = _audio_health_guidance_lines(health_ctx)
     if health_boost and source == "rules":
         reply["coach_reply"] = _limit_text(
-            f"{str(reply.get('coach_reply') or '').strip()} {str(health_boost.get('coach_boost') or '').strip()}".strip(), 280
+            f"{str(reply.get('coach_reply') or '').strip()} {str(health_boost.get('coach_boost') or '').strip()}".strip(), 400
         )
         reply["action_hint"] = _limit_text(
-            f"{str(reply.get('action_hint') or '').strip()} {str(health_boost.get('action_boost') or '').strip()}".strip(), 180
+            f"{str(reply.get('action_hint') or '').strip()} {str(health_boost.get('action_boost') or '').strip()}".strip(), 200
         )
         reply["next_question"] = _limit_text(str(health_boost.get("next_q_boost") or reply.get("next_question") or "").strip(), 200)
     greeting_meta = _coach_temporal_greeting(
@@ -12529,7 +12610,7 @@ def coach_audio_turn(
     opening = str(greeting_meta.get("opening_greeting") or "").strip()
     coach_line = str(reply.get("coach_reply") or "")
     if not history:
-        coach_line = _prefix_once(coach_line, opening, 280)
+        coach_line = _prefix_once(coach_line, opening, 400)
 
     return {
         "ok": True,

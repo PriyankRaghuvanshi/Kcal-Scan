@@ -3902,6 +3902,11 @@ export default function App() {
       "- Ignoring their emotion: Client says 'I feel terrible' → Coach says 'Try adding more fiber' — completely tone-deaf.",
       "- Data-dumping: 'You need 45g more protein, 12g fiber, and 340 kcal' — they didn't ask for a spreadsheet.",
       "- Starting with 'I understand' — it's overused and feels hollow. SHOW understanding through your response instead.",
+      "",
+      "GROUNDING (same as production API coach):",
+      "- coach_reply MUST quote or paraphrase their exact words OR cite one number from TODAY'S NUTRITION / recovery — never only platitudes.",
+      "- If they asked a question, answer it first. Food suggestions must match diet_style and use food_preferences when listed.",
+      "- next_question must reference their situation (goal, gap, time, or last message), not generic 'how are you'.",
     ].join("\n");
 
     const userPrompt = [
@@ -3941,9 +3946,9 @@ export default function App() {
       "Reply ONLY with this JSON (no markdown, no code fences):",
       "{",
       "  \"deep_read\": \"<what the client is REALLY feeling/needing right now — max 200 chars, never shown to user>\",",
-      "  \"coach_reply\": \"<your warm, impactful, human reply — max 450 chars. Make every word count.\",",
-      "  \"next_question\": \"<a thoughtful follow-up that shows you're invested in their journey — max 140 chars>\",",
-      "  \"action_hint\": \"<one specific, doable thing they can do in the next 30 minutes — max 140 chars>\"",
+      "  \"coach_reply\": \"<grounded reply: their words OR one real number from context — max 420 chars>\",",
+      "  \"next_question\": \"<follow-up tied to their goal/gap/message — max 150 chars>\",",
+      "  \"action_hint\": \"<one specific step next hour — max 150 chars>\"",
       "}",
     ].filter(Boolean).join("\n");
 
@@ -3956,7 +3961,7 @@ export default function App() {
           body: JSON.stringify({
             systemInstruction: { parts: [{ text: systemPrompt }] },
             contents: [{ parts: [{ text: userPrompt }] }],
-            generationConfig: { temperature: 0.92, maxOutputTokens: 700 },
+            generationConfig: { temperature: 0.88, maxOutputTokens: 800 },
           }),
         }
       );
@@ -4016,6 +4021,8 @@ export default function App() {
         }
         healthContext = (await getDailyHealthContext(String(base?.date || localDayISO()))) || {};
       } catch (_) {}
+      const fp = Array.isArray(coachProfile?.food_preferences) ? coachProfile.food_preferences.filter(Boolean) : [];
+      const gr = Array.isArray(coachProfile?.goal_reminders) ? coachProfile.goal_reminders.filter(Boolean) : [];
       const body = {
         user_id: uid,
         day: String(base?.date || localDayISO()),
@@ -4026,6 +4033,11 @@ export default function App() {
         history,
         tone_preference: tone,
         tone_id: tone,
+        profile: base?.profile || {},
+        signals: base?.signals || {},
+        meal_timing: base?.meal_timing || {},
+        food_preferences: fp,
+        goal_reminders: gr,
       };
       const res = await fetch(withTimezoneQuery(`${API_BASE}/coach/audio/turn`), {
         method: "POST",
