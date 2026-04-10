@@ -3797,23 +3797,68 @@ export default function App() {
     const proteinGap = Math.max(0, num(g.protein_g) - num(c.protein_g));
     const fiberGap = Math.max(0, num(g.fiber_g) - num(c.fiber_g));
     const kcalLeft = Math.max(0, num(g.kcal) - num(c.kcal));
-    const histLines = (history || []).slice(-6).map(
+    const kcalPct = num(g.kcal) > 0 ? Math.round((num(c.kcal) / num(g.kcal)) * 100) : 0;
+
+    const prof = coachProfile || {};
+    const goalType = String(prof.goal_type || "fat_loss").replace(/_/g, " ");
+    const dietStyle = String(prof.diet_style || "non-veg").replace(/_/g, " ");
+    const trainingDays = num(prof.training_days_per_week) || 3;
+    const trainingTime = String(prof.training_time || "evening");
+    const foodPrefs = Array.isArray(prof.food_preferences) ? prof.food_preferences.filter(Boolean) : [];
+    const goalReminders = Array.isArray(prof.goal_reminders) ? prof.goal_reminders.filter(Boolean) : [];
+
+    const badge = coachRecoveryBadge || {};
+    const recoveryLines = Array.isArray(badge.lines) ? badge.lines : [];
+    const recoveryLabel = String(badge.label || "").trim();
+
+    const histLines = (history || []).slice(-8).map(
       (m) => `${String(m?.role || "user").toUpperCase()}: ${String(m?.text || "").trim()}`
     ).join("\n");
+
+    const toneGuide = {
+      supportive: "Warm, encouraging, like a caring friend who happens to be a nutrition expert. Use emojis naturally 😊💪🔥. Celebrate small wins.",
+      strict: "Direct and no-nonsense like a serious personal trainer. Still use occasional emojis 💪. Push them to stay disciplined but never be rude.",
+      funny: "Witty, light-hearted, make them laugh while sneaking in real advice. Use fun emojis 😄🍗🥦. Keep it entertaining.",
+      indian_coach: "Like a desi fitness coach — use Hindi/English mix naturally (e.g. 'bhai', 'yaar', 'chal'). Relatable Indian food examples. Emojis 💪🔥.",
+    };
+
     const prompt = [
-      "You are a real nutrition coach having a live text chat with one person.",
-      `Their tone preference is: ${tone || "supportive"}.`,
-      `TODAY'S GOALS: ${num(g.kcal)} kcal, ${num(g.protein_g)}g protein, ${num(g.fiber_g)}g fiber.`,
-      `EATEN SO FAR: ${num(c.kcal)} kcal, ${num(c.protein_g)}g protein, ${num(c.fiber_g)}g fiber.`,
-      `REMAINING: ${round1(kcalLeft)} kcal, ${round1(proteinGap)}g protein, ${round1(fiberGap)}g fiber.`,
-      histLines ? `RECENT CHAT:\n${histLines}` : "",
-      `USER (now): ${userText}`,
+      "You are a real personal nutrition & wellness coach texting with your client. You KNOW this person — their goals, preferences, body, and daily routine. You are NOT a generic AI. You are THEIR coach.",
       "",
-      "Respond naturally like a coach texting. Be specific — name real foods with portion sizes and gram amounts when relevant.",
-      "If they ask for suggestions, give 3-4 concrete options. If they say something vague like 'yes' or 'ok', move the conversation forward.",
-      "Keep it concise. No medical claims.",
-      "Reply ONLY with JSON, no markdown fences: {\"coach_reply\":\"<max 280 chars>\",\"next_question\":\"<max 120 chars>\",\"action_hint\":\"<max 120 chars>\"}",
+      "=== WHO YOUR CLIENT IS ===",
+      `Goal: ${goalType}`,
+      `Diet style: ${dietStyle}`,
+      `Training: ${trainingDays}x/week, usually in the ${trainingTime}`,
+      foodPrefs.length > 0 ? `Foods they love: ${foodPrefs.join(", ")}` : "",
+      goalReminders.length > 0 ? `Personal reminders: ${goalReminders.join(", ")}` : "",
+      "",
+      "=== TODAY'S NUTRITION ===",
+      `Daily target: ${num(g.kcal)} kcal | ${num(g.protein_g)}g protein | ${num(g.fiber_g)}g fiber`,
+      `Eaten so far: ${num(c.kcal)} kcal (${kcalPct}%) | ${num(c.protein_g)}g protein | ${num(c.fiber_g)}g fiber`,
+      `Still need: ${round1(kcalLeft)} kcal | ${round1(proteinGap)}g protein | ${round1(fiberGap)}g fiber`,
+      "",
+      recoveryLines.length > 0 ? `=== RECOVERY & WELLNESS ===\n${recoveryLabel}\n${recoveryLines.join(" | ")}` : "",
+      "",
+      histLines ? `=== CONVERSATION SO FAR ===\n${histLines}` : "",
+      `CLIENT (now): ${userText}`,
+      "",
+      "=== HOW TO RESPOND ===",
+      `Personality: ${toneGuide[tone] || toneGuide.supportive}`,
+      "Rules:",
+      "- LISTEN to what they actually said. If they ask a question, ANSWER it. If they share something, ACKNOWLEDGE it first.",
+      "- Be specific — suggest real foods with portions (e.g. '2 eggs + 1 toast with peanut butter 🥜' not 'eat more protein').",
+      "- If their remaining protein/fiber gap is big, weave that into your suggestions naturally.",
+      "- Reference their food preferences when making suggestions.",
+      "- If they mention feeling tired, stressed, or unwell — show empathy first, then gently connect it to sleep/nutrition/recovery.",
+      "- Use emojis naturally like a real person texting (2-4 per message) 😊💪🔥🥗",
+      "- Keep coach_reply under 300 chars. Sound human, not robotic.",
+      "- Never start with 'Great question!' or 'That's a great...' — just talk naturally.",
+      "- No medical claims or diagnoses.",
+      "",
+      "Reply ONLY with JSON, no markdown fences:",
+      "{\"coach_reply\":\"<your reply, max 300 chars>\",\"next_question\":\"<follow-up to keep chat going, max 120 chars>\",\"action_hint\":\"<one practical thing they can do right now, max 120 chars>\"}",
     ].filter(Boolean).join("\n");
+
     try {
       const res = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`,
@@ -3822,7 +3867,7 @@ export default function App() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             contents: [{ parts: [{ text: prompt }] }],
-            generationConfig: { temperature: 0.7, maxOutputTokens: 400 },
+            generationConfig: { temperature: 0.85, maxOutputTokens: 500 },
           }),
         }
       );
