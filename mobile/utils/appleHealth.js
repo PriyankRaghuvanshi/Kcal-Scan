@@ -16,7 +16,7 @@
 import { Platform } from "react-native";
 
 const isIOS = Platform.OS === "ios";
-const APPLE_HEALTH_ENABLED = false;
+const APPLE_HEALTH_ENABLED = true;
 
 let AppleHealthKit = null;
 let healthKitReady = false;
