@@ -1,7 +1,7 @@
 {
   "cli": {
     "version": ">= 16.28.0",
-    "appVersionSource": "remote"
+    "appVersionSource": "local"
   },
   "build": {
     "development": {
@@ -21,7 +21,7 @@
       "autoIncrement": true,
       "cache": {
         "disabled": false,
-        "key": "production-v9-health-nil-metadata-20260410"
+        "key": "production-v10-1.0.13-healthkit-nilfix-20260411"
       },
       "env": {
         "EXPO_PUBLIC_SUPABASE_URL": "https://mgrwrthvhjpmbrvmvkeo.supabase.co",
