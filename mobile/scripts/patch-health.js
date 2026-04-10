@@ -55,16 +55,6 @@ for (const file of files) {
     "([[$1 sourceRevision] productType] ?: @\"\")"
   );
 
-  // Repair broken patches from earlier script (missing '(' before [[)
-  src = src.replace(
-    /\[\[(\w+) UUID\] UUIDString\] \?\: @""\)/g,
-    "([[$1 UUID] UUIDString] ?: @\"\")"
-  );
-  src = src.replace(
-    /\[\[(\w+) sourceRevision\] productType\] \?\: @""\)/g,
-    "([[$1 sourceRevision] productType] ?: @\"\")"
-  );
-
   if (src !== original) {
     fs.writeFileSync(filePath, src, "utf8");
     totalPatches++;

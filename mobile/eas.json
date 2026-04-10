@@ -21,7 +21,7 @@
       "autoIncrement": true,
       "cache": {
         "disabled": false,
-        "key": "production-v7-20260409-rc-key-fix"
+        "key": "production-v8-patch-health-uuid-20260410"
       },
       "env": {
         "EXPO_PUBLIC_SUPABASE_URL": "https://mgrwrthvhjpmbrvmvkeo.supabase.co",
