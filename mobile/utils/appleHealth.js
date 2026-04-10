@@ -16,7 +16,7 @@
 import { Platform } from "react-native";
 
 const isIOS = Platform.OS === "ios";
-const APPLE_HEALTH_ENABLED = false;
+const APPLE_HEALTH_ENABLED = true;
 
 let AppleHealthKit = null;
 let healthKitReady = false;
@@ -52,6 +52,9 @@ function getPermissions() {
     perms.Steps,
     perms.SleepAnalysis,
     perms.DietaryWater,
+    perms.HeartRate,
+    perms.RestingHeartRate,
+    perms.HeartRateVariability,
   ].filter(Boolean);
   const write = [
     perms.EnergyConsumed,
@@ -151,30 +154,64 @@ export function initAppleHealth(callback) {
   }
 }
 
+function avgNumericSamples(rows) {
+  const vals = (Array.isArray(rows) ? rows : [])
+    .map((r) => num(r?.value ?? r?.quantity))
+    .filter((v) => v != null && v > 0);
+  if (vals.length === 0) return null;
+  return vals.reduce((a, b) => a + b, 0) / vals.length;
+}
+
 export async function getDailyHealthContext(dateIso) {
-  if (!APPLE_HEALTH_ENABLED || !isIOS || !AppleHealthKit) return null;
+  if (!APPLE_HEALTH_ENABLED || !isIOS || !AppleHealthKit || !healthKitReady) return null;
 
   const anchorDate = dateIso ? new Date(dateIso) : new Date();
   if (!Number.isFinite(anchorDate.getTime())) return null;
 
-  const stepsRows = await callHealthMethod("getDailyStepCountSamples", {
-    startDate: startOfDayIso(anchorDate),
-    endDate: endOfDayIso(anchorDate),
-  });
-  const sleepRows = await callHealthMethod("getSleepSamples", {
-    startDate: startOfDayIso(new Date(anchorDate.getTime() - 24 * 3600000)),
-    endDate: endOfDayIso(anchorDate),
-    limit: 24,
-    ascending: false,
-  });
-  const waterResult = await callHealthMethod("getWater", {
-    date: anchorDate.toISOString(),
-    includeManuallyAdded: true,
-  });
+  const sevenDaysAgo = new Date(anchorDate.getTime() - 7 * 24 * 3600000);
+
+  const [stepsRows, sleepRows, waterResult, hrvRows, rhrRows] =
+    await Promise.all([
+      callHealthMethod("getDailyStepCountSamples", {
+        startDate: startOfDayIso(anchorDate),
+        endDate: endOfDayIso(anchorDate),
+      }),
+      callHealthMethod("getSleepSamples", {
+        startDate: startOfDayIso(new Date(anchorDate.getTime() - 24 * 3600000)),
+        endDate: endOfDayIso(anchorDate),
+        limit: 24,
+        ascending: false,
+      }),
+      callHealthMethod("getWater", {
+        date: anchorDate.toISOString(),
+        includeManuallyAdded: true,
+      }),
+      callHealthMethod("getHeartRateVariabilitySamples", {
+        startDate: startOfDayIso(sevenDaysAgo),
+        endDate: endOfDayIso(anchorDate),
+        ascending: false,
+      }),
+      callHealthMethod("getRestingHeartRateSamples", {
+        startDate: startOfDayIso(sevenDaysAgo),
+        endDate: endOfDayIso(anchorDate),
+        ascending: false,
+      }),
+    ]);
 
   const stepsCount = Math.round(sumNumericValues(stepsRows));
   const sleepHours = Number(sleepHoursFromSamples(sleepRows).toFixed(1));
-  const waterLiters = Number((sumNumericValues(Array.isArray(waterResult) ? waterResult : [waterResult]) / 1000).toFixed(2));
+  const waterLiters = Number(
+    (
+      sumNumericValues(
+        Array.isArray(waterResult) ? waterResult : [waterResult]
+      ) / 1000
+    ).toFixed(2)
+  );
+
+  const hrvAvg = avgNumericSamples(hrvRows);
+  const rhrAvg = avgNumericSamples(rhrRows);
+  const hrvMs = hrvAvg != null ? Number((hrvAvg * 1000).toFixed(1)) : null;
+  const rhrBpm = rhrAvg != null ? Number(rhrAvg.toFixed(1)) : null;
 
   return {
     source: "apple_health",
@@ -185,6 +222,14 @@ export async function getDailyHealthContext(dateIso) {
     poor_sleep_flag: sleepHours > 0 ? sleepHours < 6.5 : false,
     low_hydration_flag: waterLiters > 0 ? waterLiters < 1.8 : false,
     low_steps_flag: stepsCount > 0 ? stepsCount < 4500 : false,
+    signals: {
+      sleep_last_night_hours: sleepHours > 0 ? sleepHours : null,
+      sleep_hours_avg_7d: sleepHours > 0 ? sleepHours : null,
+      resting_hr_avg_7d: rhrBpm,
+      hrv_ms_avg_7d: hrvMs,
+      steps_today: stepsCount > 0 ? stepsCount : null,
+    },
+    stress_level: null,
   };
 }
 

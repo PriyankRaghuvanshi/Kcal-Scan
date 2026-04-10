@@ -22,8 +22,8 @@
         "NSPhotoLibraryUsageDescription": "We need access to your photos if you choose an existing image to analyze.",
         "NSPhotoLibraryAddUsageDescription": "We need permission to save images if you export or save results.",
         "NSLocationWhenInUseUsageDescription": "We use your location to find healthy food places near you.",
-        "NSHealthShareUsageDescription": "CalorieClick can write your meal nutrition and weight to Apple Health so your data stays in one place.",
-        "NSHealthUpdateUsageDescription": "CalorieClick saves calories, protein, and other nutrients from your scans, and weight from your journey, to Health.",
+        "NSHealthShareUsageDescription": "CalorieClick reads your sleep, steps, heart rate, and HRV from Apple Health to give you personalized recovery and coaching insights.",
+        "NSHealthUpdateUsageDescription": "CalorieClick saves calories, protein, and other nutrients from your scans, and weight from your journey, to Apple Health.",
         "ITSAppUsesNonExemptEncryption": false
       }
     },
@@ -77,8 +77,8 @@
       [
         "react-native-health",
         {
-          "healthSharePermission": "CalorieClick can write your meal nutrition and weight to Apple Health so your data stays in one place.",
-          "healthUpdatePermission": "CalorieClick saves calories, protein, and other nutrients from your scans, and weight from your journey, to Health."
+          "healthSharePermission": "CalorieClick reads your sleep, steps, heart rate, and HRV from Apple Health to give you personalized recovery and coaching insights.",
+          "healthUpdatePermission": "CalorieClick saves calories, protein, and other nutrients from your scans, and weight from your journey, to Apple Health."
         }
       ],
       "expo-web-browser",

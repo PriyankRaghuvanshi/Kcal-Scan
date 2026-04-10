@@ -2370,6 +2370,9 @@ export default function App() {
     }
     (async () => {
       try {
+        if (Platform.OS === "ios" && isAppleHealthAvailable()) {
+          await new Promise((resolve) => initAppleHealth(() => resolve()));
+        }
         const hc = (await getDailyHealthContext(localDayISO())) || {};
         if (!mounted) return;
         setCoachRecoveryBadge(computeRecoveryModeBadge(hc));
@@ -3871,6 +3874,9 @@ export default function App() {
     try {
       let healthContext = {};
       try {
+        if (Platform.OS === "ios" && isAppleHealthAvailable()) {
+          await new Promise((resolve) => initAppleHealth(() => resolve()));
+        }
         healthContext = (await getDailyHealthContext(String(base?.date || localDayISO()))) || {};
       } catch (_) {}
       const body = {
@@ -3987,6 +3993,7 @@ export default function App() {
     let payload = baseCoachPayload;
     if (Platform.OS === "ios" && isAppleHealthAvailable()) {
       try {
+        await new Promise((resolve) => initAppleHealth(() => resolve()));
         const hc = await getDailyHealthContext(baseCoachPayload.date);
         if (hc && typeof hc === "object") {
           payload = { ...baseCoachPayload, health_context: hc };
