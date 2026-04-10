@@ -2,6 +2,7 @@ node_modules
 .git
 .expo
 .eas
+.venv
 dist
 build
 coverage

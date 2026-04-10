@@ -1,0 +1,29 @@
+# Exclude non-mobile directories from EAS Build uploads
+backend
+frontend
+mobile_broken_backup
+docs
+tools
+keys
+.pytest_cache
+
+# Large generated / dependency dirs
+node_modules
+.git
+.venv
+
+# Mobile-specific excludes (also in mobile/.easignore)
+mobile/node_modules
+mobile/.expo
+mobile/.eas
+mobile/dist
+mobile/build
+mobile/coverage
+mobile/ios
+mobile/android
+mobile/.venv
+
+# OS / editor
+.DS_Store
+**/.DS_Store
+*.log

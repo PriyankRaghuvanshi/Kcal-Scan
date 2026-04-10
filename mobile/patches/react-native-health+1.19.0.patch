@@ -1,0 +1,74 @@
+diff --git a/RCTAppleHealthKit/RCTAppleHealthKit+Queries.m b/RCTAppleHealthKit/RCTAppleHealthKit+Queries.m
+index 1234567..abcdefg 100644
+--- a/RCTAppleHealthKit/RCTAppleHealthKit+Queries.m
++++ b/RCTAppleHealthKit/RCTAppleHealthKit+Queries.m
+@@ -253,21 +253,25 @@
+             dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+ 
+                 for (HKQuantitySample *sample in results) {
++                    @try {
+                     HKQuantity *quantity = sample.quantity;
+                     double value = [quantity doubleValueForUnit:unit];
+ 
+-                    NSString *startDateString = [RCTAppleHealthKit buildISO8601StringFromDate:sample.startDate];
+-                    NSString *endDateString = [RCTAppleHealthKit buildISO8601StringFromDate:sample.endDate];
++                    NSString *startDateString = [RCTAppleHealthKit buildISO8601StringFromDate:sample.startDate] ?: @"";
++                    NSString *endDateString = [RCTAppleHealthKit buildISO8601StringFromDate:sample.endDate] ?: @"";
+ 
+                     NSMutableDictionary *elem = [NSMutableDictionary dictionaryWithDictionary:@{
+                             @"value" : @(value),
+-                            @"id" : [[sample UUID] UUIDString],
+-                            @"sourceName" : [[[sample sourceRevision] source] name],
+-                            @"sourceId" : [[[sample sourceRevision] source] bundleIdentifier],
++                            @"id" : [[sample UUID] UUIDString] ?: @"",
++                            @"sourceName" : [[[sample sourceRevision] source] name] ?: @"",
++                            @"sourceId" : [[[sample sourceRevision] source] bundleIdentifier] ?: @"",
+                             @"startDate" : startDateString,
+                             @"endDate" : endDateString,
+                     }];
+ 
+                     NSDictionary *metadata = [sample metadata];
+                     if (metadata) {
+                         [elem setValue:metadata forKey:kMetadataKey];
+                     }
+ 
+                     [data addObject:elem];
++                    } @catch (NSException *exception) {
++                        NSLog(@"RNHealth: error processing quantity sample: %@", exception);
++                    }
+                 }
+@@ -603,7 +607,8 @@
+             dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+ 
+                 for (HKCategorySample *sample in results) {
+-                    NSInteger val = sample.value;
++                    @try {
++                    NSInteger val = sample.value;
+ 
+-                    NSString *startDateString = [RCTAppleHealthKit buildISO8601StringFromDate:sample.startDate];
+-                    NSString *endDateString = [RCTAppleHealthKit buildISO8601StringFromDate:sample.endDate];
++                    NSString *startDateString = [RCTAppleHealthKit buildISO8601StringFromDate:sample.startDate] ?: @"";
++                    NSString *endDateString = [RCTAppleHealthKit buildISO8601StringFromDate:sample.endDate] ?: @"";
+ 
+                     NSString *valueString;
+ 
+@@ -638,13 +643,16 @@
+                   }
+ 
+                     NSDictionary *elem = @{
+-                            @"id" : [[sample UUID] UUIDString],
++                            @"id" : [[sample UUID] UUIDString] ?: @"",
+                             @"value" : valueString,
+                             @"startDate" : startDateString,
+                             @"endDate" : endDateString,
+-                            @"sourceName" : [[[sample sourceRevision] source] name],
+-                            @"sourceId" : [[[sample sourceRevision] source] bundleIdentifier],
++                            @"sourceName" : [[[sample sourceRevision] source] name] ?: @"",
++                            @"sourceId" : [[[sample sourceRevision] source] bundleIdentifier] ?: @"",
+                     };
+ 
+                     [data addObject:elem];
++                    } @catch (NSException *exception) {
++                        NSLog(@"RNHealth: error processing sleep sample: %@", exception);
++                    }
+                 }
