@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "postinstall": "node scripts/patch-health.js",
+    "postinstall": "node scripts/patch-health.js && node scripts/verify-health-native.js",
+    "verify:native-health": "node scripts/verify-health-native.js",
     "test": "jest",
     "start": "expo start",
     "start:clean": "expo start -c",

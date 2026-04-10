@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 /**
- * Postinstall script: patches react-native-health's nil-unsafe NSDictionary
- * literals in ALL native Objective-C files. The library crashes when HealthKit
- * samples have nil source name, bundleIdentifier, or UUID.
+ * Postinstall: harden react-native-health native code against nil in NSDictionary
+ * literals. HealthKit often returns nil for metadata, source fields, UUID strings, etc.
+ * Inserting nil into @{ ... } throws NSInvalidArgumentException (build 179 crash).
  *
- * This runs after `npm install` — including on EAS Build servers.
+ * Runs on every npm install including EAS Build.
  */
 
 const fs = require("fs");
@@ -24,12 +24,75 @@ if (!fs.existsSync(RN_HEALTH_DIR)) {
 }
 
 const files = fs.readdirSync(RN_HEALTH_DIR).filter((f) => f.endsWith(".m"));
-let totalPatches = 0;
 
-for (const file of files) {
-  const filePath = path.join(RN_HEALTH_DIR, file);
+/** Original upstream implementation — replace with nil-safe version. */
+const BUILD_ISO_OLD = `+ (NSString *)buildISO8601StringFromDate:(NSDate *)date
+{
+    @try {
+        NSDateFormatter *dateFormatter = [NSDateFormatter new];
+        NSLocale *posix = [NSLocale localeWithLocaleIdentifier:@"en_US_POSIX"];
+        dateFormatter.locale = posix;
+        dateFormatter.dateFormat = @"yyyy'-'MM'-'dd'T'HH':'mm':'ss.SSSZ";
+        return [dateFormatter stringFromDate:date];
+    } @catch (NSException *exception) {
+        NSLog(@"RNHealth: An error occured while trying parse ISO8601 string from date");
+        return nil;
+    }   
+}`;
+
+const BUILD_ISO_NEW = `+ (NSString *)buildISO8601StringFromDate:(NSDate *)date
+{
+    if (date == nil) {
+        return @"";
+    }
+    @try {
+        NSDateFormatter *dateFormatter = [NSDateFormatter new];
+        NSLocale *posix = [NSLocale localeWithLocaleIdentifier:@"en_US_POSIX"];
+        dateFormatter.locale = posix;
+        dateFormatter.dateFormat = @"yyyy'-'MM'-'dd'T'HH':'mm':'ss.SSSZ";
+        NSString *s = [dateFormatter stringFromDate:date];
+        return s ?: @"";
+    } @catch (NSException *exception) {
+        NSLog(@"RNHealth: An error occured while trying parse ISO8601 string from date");
+        return @"";
+    }
+}`;
+
+function patchFile(filePath, fileName) {
   let src = fs.readFileSync(filePath, "utf8");
   const original = src;
+
+  // --- RCTAppleHealthKit+Utils.m: never return nil from ISO string builder ---
+  if (fileName === "RCTAppleHealthKit+Utils.m") {
+    if (src.includes(BUILD_ISO_OLD)) {
+      src = src.replace(BUILD_ISO_OLD, BUILD_ISO_NEW);
+    } else if (!src.includes("if (date == nil)") && src.includes("buildISO8601StringFromDate")) {
+      console.warn(
+        `[patch-health] ${fileName}: buildISO8601StringFromDate shape changed upstream — verify manually`
+      );
+    }
+    // KVC type can be nil — cannot put nil in @{ }
+    src = src.replace(
+      /@"eventTypeInt":eventType,/g,
+      '@"eventTypeInt":(eventType ?: @(0)),'
+    );
+  }
+
+  // --- RCTAppleHealthKit+Queries.m: HKSample.metadata can be nil (workout anchored query) ---
+  src = src.replace(
+    /@"metadata"\s*:\s*\[sample metadata\],/g,
+    '@"metadata" : [sample metadata] ? [sample metadata] : [NSNull null],'
+  );
+
+  // --- HKSource bundleIdentifier / name can be nil (statistics query breakdown) ---
+  src = src.replace(
+    /@"sourceId"\s*:\s*bundleIdentifier,/g,
+    '@"sourceId" : (bundleIdentifier ?: @""),'
+  );
+  src = src.replace(
+    /@"sourceName"\s*:\s*name,/g,
+    '@"sourceName" : (name ?: @""),'
+  );
 
   // Nil-guard [[[...sourceRevision] source] name]
   src = src.replace(
@@ -43,7 +106,7 @@ for (const file of files) {
     "([[[$1 sourceRevision] source] bundleIdentifier] ?: @\"\")"
   );
 
-  // Nil-guard [[...UUID] UUIDString] — must wrap full expr in ( ) for valid Obj-C
+  // Nil-guard [[...UUID] UUIDString]
   src = src.replace(
     /\[\[(\w+) UUID\] UUIDString\](?!\s*\?:)/g,
     "([[$1 UUID] UUIDString] ?: @\"\")"
@@ -57,13 +120,22 @@ for (const file of files) {
 
   if (src !== original) {
     fs.writeFileSync(filePath, src, "utf8");
-    totalPatches++;
+    return true;
+  }
+  return false;
+}
+
+let patched = 0;
+for (const file of files) {
+  const filePath = path.join(RN_HEALTH_DIR, file);
+  if (patchFile(filePath, file)) {
+    patched++;
     console.log(`[patch-health] Patched ${file}`);
   }
 }
 
-if (totalPatches > 0) {
-  console.log(`[patch-health] Done — patched ${totalPatches} file(s).`);
+if (patched > 0) {
+  console.log(`[patch-health] Done — patched ${patched} file(s).`);
 } else {
   console.log("[patch-health] No changes needed (already patched).");
 }

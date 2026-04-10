@@ -19,8 +19,8 @@
 
 - **NEVER build or deploy without checking for potential crashes first.**
 - Before every EAS build, run through this checklist:
-  1. Search for any `nil` / `null` / `undefined` values being passed to native APIs (especially HealthKit, NSDictionary, react-native-health).
-  2. Verify the postinstall patch script (`mobile/scripts/patch-health.js`) is in place and runs correctly.
+  1. From `mobile/`, run `npm install` (or `npm run verify:native-health` after install). **`postinstall` must pass:** `patch-health.js` + `verify-health-native.js`. If verify fails, do not ship — fix the patch script for any `react-native-health` upstream drift.
+  2. Search for any `nil` / `null` / `undefined` values being passed to native APIs (especially HealthKit, NSDictionary, `react-native-health`). **Never put nil into Objective-C `@{ ... }` literals** (crashes with `NSInvalidArgumentException` / `objects[1]`).
   3. Check that no new native dependencies were added without proper null-safety guards.
   4. Review recent changes for any dictionary/object construction that could insert nil values.
   5. Test that `app.json` has all required permission descriptions and entitlements.
