@@ -1671,6 +1671,20 @@ def recommend_menu_items_for_place(
             top_item = None
             item_provenance = "none"
             covered_chain_neutral = True
+            # Auto-queue this chain+market for priority enrichment so items get ingested
+            try:
+                area = get_area_for_place(place)
+                area_key = str(area.get("area_key") or "").strip() if area else None
+                enqueue_place_for_enrichment(
+                    place,
+                    reason="covered_chain_no_items",
+                    area_key=area_key,
+                    chain_key=covered_chain_key,
+                )
+                place["_enqueued_for_enrichment"] = True
+                place["_enrichment_enqueue_reason"] = "covered_chain_no_items"
+            except Exception:
+                pass
     elif top_item:
         top_src = str(top_item.get("menu_item_source") or "").strip().lower()
         if top_src in {"real_menu", "user_scan", "exact_menu_cache", "structured_menu", "menu_intelligence_store"}:
@@ -1975,4 +1989,10 @@ def recommend_menu_items_for_place(
         "can_show_verified_badge": can_show_verified_badge,
         "covered_chain_key": covered_chain_key,
         "covered_chain_neutral": covered_chain_neutral,
+        "covered_chain_display_name": str(
+            chain_bundle.get("canonical_name") or chain_bundle.get("chain_name_resolved") or chain_bundle.get("chain_name") or ""
+        ).strip() if covered_chain_neutral and chain_bundle else "",
+        "covered_chain_menu_url": str(
+            chain_bundle.get("official_menu_source_url") or ""
+        ).strip() if covered_chain_neutral and chain_bundle else "",
     }

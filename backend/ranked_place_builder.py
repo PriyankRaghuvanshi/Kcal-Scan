@@ -252,6 +252,8 @@ def build_ranked_place_profile(
         "can_show_verified_badge": can_show_verified and not covered_chain_neutral,
         "covered_chain_key": covered_chain_key,
         "covered_chain_neutral": covered_chain_neutral,
+        "covered_chain_display_name": str(place.get("covered_chain_display_name") or "").strip(),
+        "covered_chain_menu_url": str(place.get("covered_chain_menu_url") or "").strip(),
         "food_quality_score_100": round(food_quality_100, 1),
         "protein_density_score_100": round(protein_density_100, 1),
         "context_bonus_100": context_mod.get("context_bonus_100"),

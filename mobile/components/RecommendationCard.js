@@ -4,7 +4,7 @@
  */
 
 import React from "react";
-import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
+import { View, Text, TouchableOpacity, Linking, StyleSheet } from "react-native";
 import { colors, spacing, radius, typography } from "../designTokens";
 import { premium } from "../ui/premiumSystem";
 import { ConfidenceBadge, inferConfidenceTier } from "./ConfidenceBadge";
@@ -140,9 +140,29 @@ export function RecommendationCard({
           {bestItem}
         </Text>
       ) : place.covered_chain_neutral ? (
-        <Text style={[styles.bestItem, { color: textMuted, fontStyle: "italic" }]} numberOfLines={1}>
-          Check menu in store
-        </Text>
+        <View style={{ marginTop: 4 }}>
+          <Text style={[styles.bestItem, { color: textMuted, fontStyle: "italic" }]} numberOfLines={1}>
+            Menu not yet available
+          </Text>
+          {String(place.covered_chain_display_name || "").trim() ? (
+            <Text style={{ color: textMuted, fontSize: 12, marginTop: 3 }} numberOfLines={1}>
+              We're adding {String(place.covered_chain_display_name).trim()}'s menu for your region
+            </Text>
+          ) : null}
+          {String(place.covered_chain_menu_url || "").trim() ? (
+            <TouchableOpacity
+              onPress={() => {
+                const url = String(place.covered_chain_menu_url).trim();
+                if (url.startsWith("http")) Linking.openURL(url).catch(() => {});
+              }}
+              style={{ marginTop: 6 }}
+            >
+              <Text style={{ color: colors.success.text, fontSize: 12, fontWeight: "600" }}>
+                View official menu
+              </Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
       ) : null}
 
       {/* C2. Evidence-backed best order trust (additive) */}
