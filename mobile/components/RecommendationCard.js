@@ -134,10 +134,14 @@ export function RecommendationCard({
         <ConfidenceBadge place={place} />
       </View>
 
-      {/* C. Best item */}
+      {/* C. Best item – or neutral state for covered chains without exact items */}
       {bestItem ? (
         <Text style={[styles.bestItem, { color: textPrimary }]} numberOfLines={2}>
           {bestItem}
+        </Text>
+      ) : place.covered_chain_neutral ? (
+        <Text style={[styles.bestItem, { color: textMuted, fontStyle: "italic" }]} numberOfLines={1}>
+          Check menu in store
         </Text>
       ) : null}
 

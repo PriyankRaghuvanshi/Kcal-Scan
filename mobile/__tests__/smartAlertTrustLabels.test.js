@@ -131,6 +131,65 @@ describe("getAlertHeroLabel", () => {
   });
 });
 
+describe("item_provenance covered-chain gating", () => {
+  test("covered chain + exact_chain_menu provenance => Chain-backed", () => {
+    expect(
+      getAlertTrustLabel({
+        item_provenance: "exact_chain_menu",
+        covered_chain_key: "dominos",
+        menu_item_source: "ingested_chain_item",
+      })
+    ).toBe(TRUST_LABELS.chain_backed);
+  });
+
+  test("covered chain + no exact item (neutral) => Needs menu check", () => {
+    expect(
+      getAlertTrustLabel({
+        covered_chain_neutral: true,
+        covered_chain_key: "dominos",
+        item_provenance: "none",
+      })
+    ).toBe(TRUST_LABELS.needs_menu_check);
+  });
+
+  test("covered chain card never shows fallback item as Chain-backed", () => {
+    // Even if confidence_label says Chain-backed, generic_fallback provenance overrides
+    expect(
+      getAlertTrustLabel({
+        item_provenance: "generic_fallback",
+        confidence_label: "Chain-backed",
+        menu_item_source: "heuristic",
+      })
+    ).toBe(TRUST_LABELS.needs_menu_check);
+  });
+
+  test("uncovered place with heuristic provenance => uses legacy logic", () => {
+    expect(
+      getAlertTrustLabel({
+        item_provenance: "heuristic",
+        recommendation_label: "Best pick",
+      })
+    ).toBe(TRUST_LABELS.estimated);
+  });
+
+  test("exact_menu provenance => Verified", () => {
+    expect(
+      getAlertTrustLabel({
+        item_provenance: "exact_menu",
+        menu_item_source: "real_menu",
+      })
+    ).toBe(TRUST_LABELS.verified);
+  });
+
+  test("badge is item-level: same venue, different item provenance => different badges", () => {
+    const sameVenue = { covered_chain_key: "kfc", menu_item_source: "ingested_chain_item" };
+    const withExact = { ...sameVenue, item_provenance: "exact_chain_menu" };
+    const withNone = { ...sameVenue, item_provenance: "none", covered_chain_neutral: true };
+    expect(getAlertTrustLabel(withExact)).toBe(TRUST_LABELS.chain_backed);
+    expect(getAlertTrustLabel(withNone)).toBe(TRUST_LABELS.needs_menu_check);
+  });
+});
+
 describe("inbox and push consistency", () => {
   test("F. same signals produce same trust label (API vs push payload)", () => {
     const apiCandidate = {

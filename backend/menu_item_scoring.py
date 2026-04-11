@@ -1645,6 +1645,50 @@ def recommend_menu_items_for_place(
         scored_items = preferred + [row for row in scored_items if row not in preferred]
     top_items = scored_items[:3]
     top_item = top_items[0] if top_items else None
+
+    # ── HARD GATE: Covered chains must ONLY show exact chain menu items ──
+    # If this venue is a recognized covered chain, reject any item that is not
+    # from an authoritative chain source.  This prevents generic/heuristic
+    # fallback items from leaking onto chain-backed cards.
+    _CHAIN_TRUSTED_SOURCES = frozenset({
+        "chain_registry", "ingested_chain_item",
+    })
+    covered_chain_key = str(chain_bundle.get("chain_key") or "").strip().lower() if chain_bundle else ""
+    item_provenance = "none"
+    covered_chain_neutral = False
+    if covered_chain_key:
+        chain_only = [
+            row for row in scored_items
+            if str(row.get("menu_item_source") or "").strip().lower() in _CHAIN_TRUSTED_SOURCES
+        ]
+        if chain_only:
+            top_items = chain_only[:3]
+            top_item = top_items[0]
+            item_provenance = "exact_chain_menu"
+        else:
+            # No exact chain items survived — show neutral state, NO recommendation
+            top_items = []
+            top_item = None
+            item_provenance = "none"
+            covered_chain_neutral = True
+    elif top_item:
+        top_src = str(top_item.get("menu_item_source") or "").strip().lower()
+        if top_src in {"real_menu", "user_scan", "exact_menu_cache", "structured_menu", "menu_intelligence_store"}:
+            item_provenance = "exact_menu"
+        elif top_src in {"enriched_local_profile", "local_venue_profile", "exact_local_profile"}:
+            item_provenance = "local_profile"
+        elif top_src in {"llm_inferred", "llm_reasoning"}:
+            item_provenance = "llm_inferred"
+        elif top_src == "heuristic" or any(
+            tok in str(top_item.get("item_name") or "").strip().lower()
+            for tok in _GENERIC_FALLBACK_NAME_TOKENS
+        ):
+            item_provenance = "generic_fallback"
+        else:
+            item_provenance = "heuristic"
+
+    can_show_verified_badge = item_provenance == "exact_chain_menu" or item_provenance == "exact_menu"
+
     resolved_source = str(menu_source or "").strip().lower()
     if top_item and isinstance(top_item, dict):
         top_source = str(top_item.get("menu_item_source") or "").strip().lower()
@@ -1926,4 +1970,9 @@ def recommend_menu_items_for_place(
         "cut_mode_active": cut_mode_active,
         "personalization_goal": goal_value,
         "llm_reasoning_candidates": llm_reasoning_candidates,
+        # Item-level provenance for covered-chain trust gating
+        "item_provenance": item_provenance,
+        "can_show_verified_badge": can_show_verified_badge,
+        "covered_chain_key": covered_chain_key,
+        "covered_chain_neutral": covered_chain_neutral,
     }
