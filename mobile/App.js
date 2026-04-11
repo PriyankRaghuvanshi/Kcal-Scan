@@ -136,16 +136,16 @@ import {
 } from "./pushNotifications";
 import { parseSmartAlertDeepLink, resolveSmartAlertNavigationTarget } from "./deepLinkRouter";
 import {
-  initAppleHealth,
+  initDeviceHealth,
   getDailyHealthContext,
-  writeNutritionToHealth,
-  writeWeightToHealth,
-  isAppleHealthAvailable,
-} from "./utils/appleHealth";
+  writeNutritionToDeviceHealth,
+  writeWeightToDeviceHealth,
+  isDeviceHealthAvailable,
+} from "./utils/deviceHealth";
 
 import * as WebBrowser from "expo-web-browser";
 // RevenueCat
-import Purchases from "react-native-purchases";
+import Purchases, { LOG_LEVEL } from "react-native-purchases";
 
 
 WebBrowser.maybeCompleteAuthSession();
@@ -256,10 +256,6 @@ const COACH_PROFILE_KEY = "kcal_coach_profile_v1";
 const coachProfileKey = (uid) => `${COACH_PROFILE_KEY}:${uid}`;
 const COACH_VOICE_MEMORY_KEY = "kcal_coach_voice_memory_v1";
 const coachVoiceMemoryKey = (uid, day) => `${COACH_VOICE_MEMORY_KEY}:${uid}:${day}`;
-const COACH_CHAT_HISTORY_KEY = "kcal_coach_chat_history_v1";
-const coachChatHistoryKey = (uid, day) => `${COACH_CHAT_HISTORY_KEY}:${uid}:${day}`;
-const COACH_COMPLETION_NUDGE_KEY = "kcal_coach_completion_nudge_v1";
-const coachCompletionNudgeKey = (uid) => `${COACH_COMPLETION_NUDGE_KEY}:${uid}`;
 const UPGRADE_NUDGE_KEY = "kcal_upgrade_nudge_v1";
 const upgradeNudgeKey = (uid) => `${UPGRADE_NUDGE_KEY}:${uid}`;
 const POST_SCAN_BANNER_KEY = "kcal_post_scan_upgrade_banner_dismissed_v1";
@@ -271,8 +267,14 @@ const weeklyCoachChoicesKey = (uid) => `${WEEKLY_COACH_CHOICES_KEY}:${uid}`;
 const GOAL_PLAN_CACHE_KEY = "kcal_goal_plan_cache_v1";
 const goalPlanCacheKey = (uid) => `${GOAL_PLAN_CACHE_KEY}:${uid}`;
 
-const RC_IOS_KEY = process.env.EXPO_PUBLIC_RC_IOS_KEY || "";
-const RC_ANDROID_KEY = process.env.EXPO_PUBLIC_RC_ANDROID_KEY || "";
+const RC_IOS_KEY =
+  process.env.EXPO_PUBLIC_RC_IOS_KEY ||
+  Constants.expoConfig?.extra?.REVENUECAT_IOS_API_KEY ||
+  "";
+const RC_ANDROID_KEY =
+  process.env.EXPO_PUBLIC_RC_ANDROID_KEY ||
+  Constants.expoConfig?.extra?.REVENUECAT_ANDROID_API_KEY ||
+  "goog_prIetTCSFiELCySmPqvheMMqbqi";
 const OFFERING_ID = process.env.EXPO_PUBLIC_RC_OFFERING || "main";
 
 function sanitizeHistoryEntries(rows) {
@@ -322,9 +324,14 @@ function packageMatchesEntitlement(pkg, entitlement) {
   ]
     .map((value) => String(value || "").trim().toLowerCase())
     .filter(Boolean);
-  // Pro / Elite / Advanced: match canonical spellings only. Infinite: also match Play SKU "infinit_*".
+  // Play product IDs use truncated names: advance_monthly, infinit_monthly.
+  // Map app entitlements to all known product-id substrings.
   const aliases =
-    key === "infinite" ? ["infinite", "infinit"] : [key];
+    key === "advanced"
+      ? ["advanced", "advance"]
+      : key === "infinite"
+        ? ["infinite", "infinit"]
+        : [key];
   return identifiers.some((identifier) => aliases.some((alias) => identifier.includes(alias)));
 }
 
@@ -925,38 +932,6 @@ function estimateLocalUPF(kcal, carbs_g, fat_g) {
   const cFrac = (Math.max(0, num(carbs_g)) * 4) / total;
   const fFrac = (Math.max(0, num(fat_g)) * 9) / total;
   return round1(Math.max(0, Math.min(10, (cFrac * 6) + (fFrac * 6) + (total / 800) * 4)));
-}
-function computeRecoveryModeBadge(rawHealthContext) {
-  const src = rawHealthContext && typeof rawHealthContext === "object" ? rawHealthContext : {};
-  const signals = src.signals && typeof src.signals === "object" ? src.signals : {};
-  const stress = String(src.stress_level || "").trim().toLowerCase();
-  const sleepLast = num(signals.sleep_last_night_hours) || null;
-  const sleepAvg = num(signals.sleep_hours_avg_7d) || null;
-  const sleep = (sleepLast != null && sleepLast > 0) ? sleepLast : (sleepAvg != null && sleepAvg > 0) ? sleepAvg : null;
-  const rhr = num(signals.resting_hr_avg_7d) || null;
-  const hrv = num(signals.hrv_ms_avg_7d) || null;
-  const steps = num(signals.steps_today) || null;
-  const taxed =
-    (sleep != null && sleep < 6.8) ||
-    (rhr != null && rhr >= 76) ||
-    (hrv != null && hrv < 32) ||
-    stress === "high" ||
-    stress === "very_high";
-  const ready =
-    (sleep != null && sleep >= 7.0) &&
-    (rhr == null || rhr <= 72) &&
-    (hrv == null || hrv >= 40) &&
-    !["high", "very_high"].includes(stress);
-  const lines = [
-    `Sleep: ${sleep != null ? `${round1(sleep)}h` : "—"}`,
-    `Steps: ${steps != null ? `${Math.round(steps)}` : "—"}`,
-    `HRV: ${hrv != null ? `${round1(hrv)} ms` : "—"}`,
-    `RHR: ${rhr != null ? `${Math.round(rhr)} bpm` : "—"}`,
-    `Stress: ${stress ? stress.replace("_", " ") : "—"}`,
-  ];
-  if (taxed) return { label: "Recovery mode: light", tone: "red", lines };
-  if (ready) return { label: "Recovery mode: ready", tone: "green", lines };
-  return { label: "Recovery mode: balanced", tone: "amber", lines };
 }
 function bucketFromHour(hour) {
   const h = num(hour);
@@ -1877,7 +1852,7 @@ export default function App() {
   // ===== Phase 1: local caches (consent + nearby snapshot) =====
   const AI_CONSENT_CACHE_KEY = "ai_consent_v1";
   const NEARBY_SNAPSHOT_CACHE_VERSION = 1;
-  const NEARBY_SNAPSHOT_TTL_MS = 30 * 60 * 1000; // 30 minutes
+  const NEARBY_SNAPSHOT_TTL_MS = 15 * 60 * 1000; // 15 minutes
   const nearbySnapshotKey = (uid) => `nearby_snapshot_v1:${String(uid || "").trim()}`;
 
   // ===== Auth (Supabase) =====
@@ -2003,17 +1978,10 @@ export default function App() {
   const [coachProfileModal, setCoachProfileModal] = useState(false);
   const [coachMemoryFoodInput, setCoachMemoryFoodInput] = useState("");
   const [coachMemoryGoalInput, setCoachMemoryGoalInput] = useState("");
-  const [coachChatInput, setCoachChatInput] = useState("");
-  const [coachChatBusy, setCoachChatBusy] = useState(false);
-  const [coachChatMessages, setCoachChatMessages] = useState([]);
-  const [coachRecoveryBadge, setCoachRecoveryBadge] = useState({ label: "Recovery mode: balanced", tone: "amber" });
-  const [coachRecoveryExpanded, setCoachRecoveryExpanded] = useState(false);
   const coachReqRef = useRef(false);
   const coachRefreshTimerRef = useRef(null);
   const coachQueuedRefreshRef = useRef(null);
   const coachTitleTapRef = useRef({ count: 0, lastTs: 0 });
-  const coachChatScrollRef = useRef(null);
-  const lastAppleHealthUserIdRef = useRef(null);
   const healthyPlacesReqSeqRef = useRef(0);
   const lunchDecisionReqSeqRef = useRef(0);
   const lunchDecisionInFlightRef = useRef(false);
@@ -2092,6 +2060,8 @@ export default function App() {
   const [offerings, setOfferings] = useState(null);
   const [rcCustomerInfo, setRcCustomerInfo] = useState(null);
   const [rcBusy, setRcBusy] = useState(false);
+  const [rcRefreshing, setRcRefreshing] = useState(false);
+  const [rcDebug, setRcDebug] = useState(null);
 
   // ===== Derived gating =====
   const canBarcode = planAtLeast(plan, "elite");
@@ -2347,59 +2317,6 @@ export default function App() {
   }, [session]);
 
   useEffect(() => {
-    let mounted = true;
-    const uid = userId || session?.user?.id;
-    if (!uid) {
-      setCoachChatMessages([]);
-      return undefined;
-    }
-    const day = localDayISO();
-    (async () => {
-      const rows = await loadCoachChatHistory(uid, day);
-      if (mounted) setCoachChatMessages(rows);
-    })();
-    return () => {
-      mounted = false;
-    };
-  }, [userId, session?.user?.id]);
-
-  useEffect(() => {
-    let mounted = true;
-    const uid = userId || session?.user?.id;
-    if (!uid) {
-      lastAppleHealthUserIdRef.current = null;
-      setCoachRecoveryBadge({ label: "Recovery mode: balanced", tone: "amber" });
-      return undefined;
-    }
-    (async () => {
-      try {
-        if (Platform.OS === "ios" && isAppleHealthAvailable()) {
-          const uidKey = uid || "";
-          const userChanged = lastAppleHealthUserIdRef.current !== uidKey;
-          lastAppleHealthUserIdRef.current = uidKey;
-          await new Promise((resolve) =>
-            initAppleHealth(() => resolve(), { force: userChanged })
-          );
-        }
-        const hc = (await getDailyHealthContext(localDayISO())) || {};
-        if (!mounted) return;
-        setCoachRecoveryBadge(computeRecoveryModeBadge(hc));
-      } catch (_) {
-        if (!mounted) return;
-        setCoachRecoveryBadge({ label: "Recovery mode: balanced", tone: "amber" });
-      }
-    })();
-    return () => {
-      mounted = false;
-    };
-  }, [userId, session?.user?.id, homeHubTab]);
-
-  useEffect(() => {
-    if (!homeMainVisible) return;
-    void scheduleCoachCompletionNudges();
-  }, [homeMainVisible, userId, session?.user?.id, aiConsentGiven, remainingToday?.protein_g, remainingToday?.fiber_g]);
-
-  useEffect(() => {
     const uid = userId || session?.user?.id || null;
     if (upfLastUserRef.current !== uid) {
       upfLastUserRef.current = uid;
@@ -2476,10 +2393,6 @@ export default function App() {
     setCoachProfileDraft(DEFAULT_COACH_PROFILE);
     setCoachProfileReady(false);
     setCoachProfileModal(false);
-    setCoachChatInput("");
-    setCoachChatBusy(false);
-    setCoachChatMessages([]);
-    setCoachRecoveryExpanded(false);
     setRecipeSuggestPayload(null);
     setRecipeSuggestBusy(false);
     setRecipeDismissedLocal({});
@@ -2601,13 +2514,10 @@ export default function App() {
   }, [userId, goalPlan?.plan_id]);
 
   useEffect(() => {
-    if (Platform.OS !== "ios" || !userId || !isAppleHealthAvailable()) return;
-    initAppleHealth(
-      (err) => {
-        if (err) console.log("Apple Health init:", err);
-      },
-      { force: true }
-    );
+    if (!userId || !isDeviceHealthAvailable()) return;
+    initDeviceHealth((err) => {
+      if (err) console.log("Device health init:", err);
+    });
   }, [userId]);
 
   useEffect(() => {
@@ -2631,24 +2541,12 @@ export default function App() {
         if (healthyPlaceCoords && userId && smartAlertState?.enabled) {
           void fetchSmartAlerts({ coords: healthyPlaceCoords, force: false });
         }
-        const uid = userId || session?.user?.id;
-        if (uid && Platform.OS === "ios" && isAppleHealthAvailable()) {
-          void (async () => {
-            try {
-              await new Promise((resolve) =>
-                initAppleHealth(() => resolve(), { force: true })
-              );
-              const hc = (await getDailyHealthContext(localDayISO())) || {};
-              setCoachRecoveryBadge(computeRecoveryModeBadge(hc));
-            } catch {
-              setCoachRecoveryBadge({ label: "Recovery mode: balanced", tone: "amber" });
-            }
-          })();
-        }
+        // Play Billing can come up late after resume; refresh offerings when app returns foreground.
+        void refreshRevenueCatState("app_active");
       }
     });
     return () => sub?.remove?.();
-  }, [healthyPlaceCoords?.lat, healthyPlaceCoords?.lng, userId, session?.user?.id, smartAlertState?.enabled]);
+  }, [healthyPlaceCoords?.lat, healthyPlaceCoords?.lng, userId, smartAlertState?.enabled]);
 
   // Push registration: when Smart Alerts enabled + userId, request permission, get token, register
   useEffect(() => {
@@ -3332,7 +3230,7 @@ export default function App() {
             fit_for_today:
               typeof row?.fit_for_today === "boolean" ? row.fit_for_today : null,
             health_score:
-              row?.health_score != null ? round1(num(row.health_score)) : null,
+              (row?.health_score != null) ? round1(num(row?.health_score)) : null,
             why_it_helped: String(row?.why_it_helped || "").trim(),
           };
         })
@@ -3359,9 +3257,9 @@ export default function App() {
       place_name: placeName,
       recommended_order: order,
       fit_for_today: typeof payload?.fit_for_today === "boolean" ? payload.fit_for_today : null,
-      health_score: payload?.health_score_100 != null
+      health_score: Number.isFinite(num(payload?.health_score_100))
         ? round1(num(payload.health_score_100))
-        : payload?.health_score != null
+        : Number.isFinite(num(payload?.health_score))
         ? round1(num(payload.health_score) * 10)
         : null,
       why_it_helped: String(
@@ -3452,99 +3350,6 @@ export default function App() {
       if (!msg.advice_key) return;
       const merged = [msg, ...cur.filter((x) => x.advice_key !== msg.advice_key)].slice(0, 6);
       await AsyncStorage.setItem(coachVoiceMemoryKey(uid, dayIso), JSON.stringify(merged));
-    } catch {}
-  }
-
-  async function loadCoachChatHistory(uid, dayIso) {
-    try {
-      const raw = await AsyncStorage.getItem(coachChatHistoryKey(uid, dayIso));
-      const arr = safeParseJson(raw, [], "coach_chat_history");
-      return (Array.isArray(arr) ? arr : [])
-        .map((m) => ({
-          role: String(m?.role || "").trim().toLowerCase() === "coach" ? "coach" : "user",
-          text: String(m?.text || "").trim(),
-          ts: String(m?.ts || ""),
-        }))
-        .filter((m) => m.text)
-        .slice(-14);
-    } catch {
-      return [];
-    }
-  }
-
-  async function saveCoachChatHistory(uid, dayIso, messages) {
-    try {
-      const cleaned = (Array.isArray(messages) ? messages : [])
-        .map((m) => ({
-          role: String(m?.role || "").trim().toLowerCase() === "coach" ? "coach" : "user",
-          text: String(m?.text || "").trim().slice(0, 500),
-          ts: String(m?.ts || nowISO()),
-        }))
-        .filter((m) => m.text)
-        .slice(-14);
-      await AsyncStorage.setItem(coachChatHistoryKey(uid, dayIso), JSON.stringify(cleaned));
-    } catch {}
-  }
-
-  async function scheduleCoachCompletionNudges() {
-    const uid = userId || session?.user?.id;
-    if (!uid || !aiConsentGiven) return;
-    const today = localDayISO();
-    try {
-      const raw = await AsyncStorage.getItem(coachCompletionNudgeKey(uid));
-      const existing = safeParseJson(raw, {}, "coach_completion_nudge_state");
-      if (String(existing?.day || "") === today) return;
-    } catch {}
-
-    let perm = "undetermined";
-    try {
-      const p = await Notifications.getPermissionsAsync();
-      perm = String(p?.status || "undetermined");
-    } catch {}
-    if (perm !== "granted") return;
-
-    const proteinLeft = Math.max(0, num(remainingToday?.protein_g));
-    const fiberLeft = Math.max(0, num(remainingToday?.fiber_g));
-    const candidates = [];
-    if (proteinLeft >= 15) {
-      candidates.push({
-        title: "Coach nudge: protein check",
-        body: `About ${Math.round(proteinLeft)}g protein left today. Add one protein anchor in your next meal.`,
-      });
-    }
-    if (fiberLeft >= 7) {
-      candidates.push({
-        title: "Coach nudge: fiber check",
-        body: `You still have ~${Math.round(fiberLeft)}g fiber left. Add veg/fruit/beans in your next plate.`,
-      });
-    }
-    candidates.push({
-      title: "Coach nudge: hydration check",
-      body: "Quick water break now helps appetite control before the next meal.",
-    });
-    if (!candidates.length) return;
-
-    const now = new Date();
-    const mkFuture = (minsFromNow) => {
-      const d = new Date(now.getTime() + minsFromNow * 60 * 1000);
-      if (d.getHours() >= 22) d.setHours(21, 45, 0, 0);
-      return d;
-    };
-    const picks = candidates.slice(0, 2);
-    const id1 = await Notifications.scheduleNotificationAsync({
-      content: { title: picks[0].title, body: picks[0].body, sound: true },
-      trigger: mkFuture(40 + Math.floor(Math.random() * 60)),
-    });
-    let ids = [id1];
-    if (picks[1]) {
-      const id2 = await Notifications.scheduleNotificationAsync({
-        content: { title: picks[1].title, body: picks[1].body, sound: true },
-        trigger: mkFuture(130 + Math.floor(Math.random() * 90)),
-      });
-      ids.push(id2);
-    }
-    try {
-      await AsyncStorage.setItem(coachCompletionNudgeKey(uid), JSON.stringify({ day: today, ids }));
     } catch {}
   }
 
@@ -3702,98 +3507,6 @@ export default function App() {
     }
   }
 
-  async function sendCoachChatTurn() {
-    const uid = userId || session?.user?.id;
-    const text = String(coachChatInput || "").trim();
-    if (!uid || !text || coachChatBusy) return;
-    setCoachChatBusy(true);
-    const day = localDayISO();
-    const userMsg = { role: "user", text, ts: nowISO() };
-    const nextMessages = [...coachChatMessages, userMsg].slice(-12);
-    setCoachChatMessages(nextMessages);
-    void saveCoachChatHistory(uid, day, nextMessages);
-    setCoachChatInput("");
-    const base = buildDailyCoachPayload();
-    const tone = coachProfile?.tone_preference || "supportive";
-
-    const _applyReply = (data) => {
-      const replyParts = [
-        String(data?.coach_reply || "").trim(),
-        String(data?.next_question || "").trim(),
-        String(data?.action_hint || "").trim(),
-      ].filter(Boolean);
-      const coachText = replyParts.join("\n\n").trim();
-      if (!coachText) {
-        throw new Error("Coach returned an empty reply. Please try again.");
-      }
-      setCoachChatMessages((prev) => {
-        const merged = [...prev, { role: "coach", text: coachText, ts: nowISO() }].slice(-14);
-        void saveCoachChatHistory(uid, day, merged);
-        return merged;
-      });
-    };
-
-    const history = nextMessages
-      .map((m) => ({
-        role: String(m?.role || "").trim().toLowerCase() === "coach" ? "coach" : "user",
-        text: String(m?.text || "").trim(),
-      }))
-      .filter((m) => m.text)
-      .slice(-10);
-
-    try {
-      let healthContext = {};
-      try {
-        if (Platform.OS === "ios" && isAppleHealthAvailable()) {
-          await new Promise((resolve) => initAppleHealth(() => resolve()));
-        }
-        healthContext = (await getDailyHealthContext(String(base?.date || localDayISO()))) || {};
-      } catch (_) {}
-      const fp = Array.isArray(coachProfile?.food_preferences) ? coachProfile.food_preferences.filter(Boolean) : [];
-      const gr = Array.isArray(coachProfile?.goal_reminders) ? coachProfile.goal_reminders.filter(Boolean) : [];
-      const body = {
-        user_id: uid,
-        day: String(base?.date || localDayISO()),
-        user_text: text,
-        goals: base?.goals || {},
-        consumed: base?.consumed || {},
-        health_context: healthContext,
-        history,
-        tone_preference: tone,
-        tone_id: tone,
-        profile: base?.profile || {},
-        signals: base?.signals || {},
-        meal_timing: base?.meal_timing || {},
-        food_preferences: fp,
-        goal_reminders: gr,
-      };
-      const bodyStr = JSON.stringify(body);
-      const coachTurnPaths = ["/coach/audio/turn", "/coach/chat/turn"];
-      let res = null;
-      for (const path of coachTurnPaths) {
-        res = await fetch(withTimezoneQuery(`${API_BASE}${path}`), {
-          method: "POST",
-          headers: { "Content-Type": "application/json", accept: "application/json" },
-          body: bodyStr,
-        });
-        if (res.status !== 404) break;
-      }
-      const data = await safeJson(res);
-      _applyReply(data);
-    } catch (err) {
-      const fallback =
-        "Coach could not respond right now. Check your connection and try again.";
-      const msg = String(err?.message || "").trim() || fallback;
-      setCoachChatMessages((prev) => {
-        const merged = [...prev, { role: "coach", text: msg, ts: nowISO(), coach_error: true }].slice(-14);
-        void saveCoachChatHistory(uid, day, merged);
-        return merged;
-      });
-    } finally {
-      setCoachChatBusy(false);
-    }
-  }
-
   async function fetchWeeklyReport(force = false) {
     const uid = userId || session?.user?.id;
     if (!uid || !canCoaching) return;
@@ -3876,9 +3589,8 @@ export default function App() {
 
     const baseCoachPayload = buildDailyCoachPayload();
     let payload = baseCoachPayload;
-    if (Platform.OS === "ios" && isAppleHealthAvailable()) {
+    if (isDeviceHealthAvailable()) {
       try {
-        await new Promise((resolve) => initAppleHealth(() => resolve()));
         const hc = await getDailyHealthContext(baseCoachPayload.date);
         if (hc && typeof hc === "object") {
           payload = { ...baseCoachPayload, health_context: hc };
@@ -4263,22 +3975,72 @@ export default function App() {
   }
 
   // ===================== RevenueCat =====================
+  async function refreshRevenueCatState(reason = "manual") {
+    const apiKey = Platform.OS === "ios" ? RC_IOS_KEY : RC_ANDROID_KEY;
+    if (!apiKey) return { info: null, offerings: null };
+    setRcRefreshing(true);
+    try {
+      try { await Purchases.invalidateCustomerInfoCache(); } catch (_) {}
+      const info = await Purchases.getCustomerInfo();
+      const offs = await loadOfferingsWithRetry(10);
+      setRcCustomerInfo(info);
+      setOfferings(offs);
+      const activeOffering = getActiveOffering(offs);
+      const packageCount = activeOffering ? packagesFromOffering(activeOffering).length : 0;
+      const pkgIds = packagesFromOffering(activeOffering).map(
+        (p) => p?.product?.identifier || p?.identifier || "?"
+      );
+      console.log("RC refresh", {
+        reason,
+        packageCount,
+        pkgIds,
+        offeringIdResolved: resolvedOfferingId(),
+        availableOfferingIds: Object.keys((offs && offs.all) || {}),
+        hasCurrent: Boolean(offs?.current),
+        currentId: offs?.current?.identifier || null,
+        platform: Platform.OS,
+      });
+      setRcDebug({
+        reason,
+        packageCount,
+        pkgIds,
+        offeringId: resolvedOfferingId(),
+        allOfferingIds: Object.keys((offs && offs.all) || {}),
+        hasCurrent: Boolean(offs?.current),
+        currentId: offs?.current?.identifier || null,
+        ts: new Date().toLocaleTimeString(),
+      });
+      return { info, offerings: offs };
+    } catch (e) {
+      console.log("RC refresh error", reason, e);
+      setRcDebug({ reason, error: String(e?.message || e), ts: new Date().toLocaleTimeString() });
+      return { info: null, offerings: null };
+    } finally {
+      setRcRefreshing(false);
+    }
+  }
+
   useEffect(() => {
     const apiKey = Platform.OS === "ios" ? RC_IOS_KEY : RC_ANDROID_KEY;
     if (!apiKey) {
       console.log("RC init skipped: missing API key for", Platform.OS);
       return;
     }
+    console.log("RC configure", {
+      platform: Platform.OS,
+      keyLength: apiKey.length,
+      keyPrefix: apiKey.slice(0, 8),
+      keySuffix: apiKey.slice(-4),
+      fromEnv: Boolean(process.env.EXPO_PUBLIC_RC_ANDROID_KEY),
+      fromExtra: Boolean(Constants.expoConfig?.extra?.REVENUECAT_ANDROID_API_KEY),
+    });
+    Purchases.setLogLevel(LOG_LEVEL.DEBUG);
     Purchases.configure({ apiKey });
     setRcReady(true);
 
     (async () => {
       try {
-        const info = await Purchases.getCustomerInfo();
-        setRcCustomerInfo(info);
-
-        const offs = await loadOfferingsWithRetry();
-        setOfferings(offs);
+        const { offerings: offs } = await refreshRevenueCatState("init");
         const activeOffering = getActiveOffering(offs);
         const pkgCount = activeOffering ? packagesFromOffering(activeOffering).length : 0;
         if (!activeOffering || pkgCount === 0) {
@@ -4306,7 +4068,7 @@ export default function App() {
         const { customerInfo } = await Purchases.logIn(String(userId));
         if (cancelled) return;
         setRcCustomerInfo(customerInfo);
-        const offs = await loadOfferingsWithRetry();
+        const { offerings: offs } = await refreshRevenueCatState("login");
         if (cancelled) return;
         setOfferings(offs);
       } catch (e) {
@@ -4373,14 +4135,19 @@ export default function App() {
 
   async function purchaseEntitlement(entitlement) {
     try {
-      const activeOffering = getActiveOffering(offerings);
-      const packages = packagesFromOffering(activeOffering);
+      let activeOffering = getActiveOffering(offerings);
+      let packages = packagesFromOffering(activeOffering);
       if (!activeOffering || !packages.length) {
-        Alert.alert(
-          "Not ready",
-          "Subscription options are not loading from Google Play. Check your internet connection, that this build is from the Play Store, and that products are active. Pull to refresh the app or try again in a minute.",
-        );
-        return;
+        const refreshed = await refreshRevenueCatState("purchase_preflight");
+        activeOffering = getActiveOffering(refreshed.offerings || offerings);
+        packages = packagesFromOffering(activeOffering);
+        if (!activeOffering || !packages.length) {
+          Alert.alert(
+            "Not ready",
+            "Subscriptions are still loading from Google Play. Please open this app from the Play internal testing build/account, then retry in 30-60 seconds.",
+          );
+          return;
+        }
       }
       setRcBusy(true);
 
@@ -5460,14 +5227,14 @@ async function openCamera(mode = "meal") {
       if (photoScansAfterThisAnalyze === 1 && !planAtLeast(plan, "pro")) {
         void showPostScanBannerIfNeeded();
       }
-      if (Platform.OS === "ios" && isAppleHealthAvailable()) {
+      if (isDeviceHealthAvailable()) {
         const kcal = num(normalized?.totals?.kcal ?? normalized?.totals?.total_kcal ?? data?.total_kcal);
         const protein = num(normalized?.totals?.protein_g ?? data?.totals?.protein_g);
         const carbs = num(normalized?.totals?.carbs_g ?? data?.totals?.carbs_g);
         const fat = num(normalized?.totals?.fat_g ?? data?.totals?.fat_g);
         const fiber = num(normalized?.micros?.fiber_g ?? data?.totals?.micros?.fiber_g);
         if (Number.isFinite(kcal) && kcal >= 0) {
-          writeNutritionToHealth(
+          writeNutritionToDeviceHealth(
             {
               dateIso: latestScanTs || nowISO(),
               energyKcal: kcal,
@@ -5702,18 +5469,16 @@ async function openCamera(mode = "meal") {
       const reqSeq = healthyPlacesReqSeqRef.current + 1;
       healthyPlacesReqSeqRef.current = reqSeq;
 
-      const remainingCalories =
-        finiteNumOrNull(opts?.remaining_calories) !== null
-          ? Math.max(0, num(opts?.remaining_calories))
-          : remainingToday != null && finiteNumOrNull(remainingToday.kcal) !== null
-            ? Math.max(0, num(remainingToday.kcal))
-            : null;
-      const remainingProtein =
-        finiteNumOrNull(opts?.remaining_protein_g) !== null
-          ? Math.max(0, num(opts?.remaining_protein_g))
-          : remainingToday != null && finiteNumOrNull(remainingToday.protein_g) !== null
-            ? Math.max(0, num(remainingToday.protein_g))
-            : null;
+      const remainingCalories = Number.isFinite(num(opts?.remaining_calories))
+        ? Math.max(0, num(opts?.remaining_calories))
+        : Number.isFinite(num(remainingToday?.kcal))
+        ? Math.max(0, num(remainingToday?.kcal))
+        : null;
+      const remainingProtein = Number.isFinite(num(opts?.remaining_protein_g))
+        ? Math.max(0, num(opts?.remaining_protein_g))
+        : Number.isFinite(num(remainingToday?.protein_g))
+        ? Math.max(0, num(remainingToday?.protein_g))
+        : null;
       const params = [
         "lat=" + encodeURIComponent(lat),
         "lng=" + encodeURIComponent(lng),
@@ -5862,14 +5627,8 @@ async function openCamera(mode = "meal") {
         userId: userId || session?.user?.id,
         lat: num(coords.lat),
         lng: num(coords.lng),
-        remainingCalories:
-          remainingToday != null && finiteNumOrNull(remainingToday.kcal) !== null
-            ? num(remainingToday.kcal)
-            : null,
-        remainingProteinG:
-          remainingToday != null && finiteNumOrNull(remainingToday.protein_g) !== null
-            ? num(remainingToday.protein_g)
-            : null,
+        remainingCalories: (remainingToday?.kcal != null) ? num(remainingToday?.kcal) : null,
+        remainingProteinG: (remainingToday?.protein_g != null) ? num(remainingToday?.protein_g) : null,
         goal: resolveLunchGoal(),
         ignoredStreak: state?.ignored_streak_local ?? 0,
         diet_preference: dietPreferenceQueryFromCoachStyle(coachProfile?.diet_style),
@@ -6082,30 +5841,20 @@ async function openCamera(mode = "meal") {
 
       setHealthyPlaceCoords({ lat, lng });
 
-      const remainingCalories =
-        remainingToday != null && finiteNumOrNull(remainingToday.kcal) !== null
-          ? Math.max(0, num(remainingToday.kcal))
-          : null;
-      const remainingProtein =
-        remainingToday != null && finiteNumOrNull(remainingToday.protein_g) !== null
-          ? Math.max(0, num(remainingToday.protein_g))
-          : null;
-      const targetCalories =
-        goals != null && finiteNumOrNull(goals.kcal) !== null ? Math.max(0, num(goals.kcal)) : null;
-      const targetProtein =
-        goals != null && finiteNumOrNull(goals.protein_g) !== null
-          ? Math.max(0, num(goals.protein_g))
-          : null;
-      const consumedKcalRaw =
-        dailySummary != null
-          ? finiteNumOrNull(
-              dailySummary.total_kcal ?? dailySummary.totals?.kcal ?? dailySummary.totals?.total_kcal
-            )
-          : null;
-      const consumedCalories = consumedKcalRaw !== null ? Math.max(0, consumedKcalRaw) : null;
-      const consumedProteinRaw =
-        dailySummary != null ? finiteNumOrNull(dailySummary.totals?.protein_g) : null;
-      const consumedProtein = consumedProteinRaw !== null ? Math.max(0, consumedProteinRaw) : null;
+      const remainingCalories = Number.isFinite(num(remainingToday?.kcal)) ? Math.max(0, num(remainingToday?.kcal)) : null;
+      const remainingProtein = Number.isFinite(num(remainingToday?.protein_g))
+        ? Math.max(0, num(remainingToday?.protein_g))
+        : null;
+      const targetCalories = Number.isFinite(num(goals?.kcal)) ? Math.max(0, num(goals?.kcal)) : null;
+      const targetProtein = Number.isFinite(num(goals?.protein_g)) ? Math.max(0, num(goals?.protein_g)) : null;
+      const consumedCalories = Number.isFinite(
+        num(dailySummary?.total_kcal ?? dailySummary?.totals?.kcal ?? dailySummary?.totals?.total_kcal)
+      )
+        ? Math.max(0, num(dailySummary?.total_kcal ?? dailySummary?.totals?.kcal ?? dailySummary?.totals?.total_kcal))
+        : null;
+      const consumedProtein = Number.isFinite(num(dailySummary?.totals?.protein_g))
+        ? Math.max(0, num(dailySummary?.totals?.protein_g))
+        : null;
       const currentHour = new Date().getHours();
       const goal = resolveLunchGoal();
       const cutMode = goal === "fat_loss";
@@ -6287,14 +6036,12 @@ async function openCamera(mode = "meal") {
 
       const goal = resolveLunchGoal();
       const cutMode = goal === "fat_loss";
-      const remainingCalories =
-        remainingToday != null && finiteNumOrNull(remainingToday.kcal) !== null
-          ? Math.max(0, num(remainingToday.kcal))
-          : null;
-      const remainingProtein =
-        remainingToday != null && finiteNumOrNull(remainingToday.protein_g) !== null
-          ? Math.max(0, num(remainingToday.protein_g))
-          : null;
+      const remainingCalories = Number.isFinite(num(remainingToday?.kcal))
+        ? Math.max(0, num(remainingToday?.kcal))
+        : null;
+      const remainingProtein = Number.isFinite(num(remainingToday?.protein_g))
+        ? Math.max(0, num(remainingToday?.protein_g))
+        : null;
 
       const form = new FormData();
       form.append("file", {
@@ -7426,27 +7173,15 @@ async function openCamera(mode = "meal") {
         num(usage?.remaining_day) === 0 ||
         num(usage?.remaining_month) === 0)
   );
-  const loggedKcalFromSummary =
-    dailySummary != null
-      ? finiteNumOrNull(
-          dailySummary.total_kcal ?? dailySummary.totals?.kcal ?? dailySummary.totals?.total_kcal
-        )
-      : null;
-  const todayStripLoggedKcal =
-    loggedKcalFromSummary !== null
-      ? round1(loggedKcalFromSummary)
-      : goals != null && finiteNumOrNull(goals.kcal) !== null && remainingToday != null
-      ? (() => {
-          const rem = finiteNumOrNull(remainingToday.kcal);
-          if (rem === null) return null;
-          return round1(Math.max(0, num(goals?.kcal || 0) - rem));
-        })()
-      : null;
-  const proteinLeftRaw =
-    remainingToday != null ? finiteNumOrNull(remainingToday.protein_g) : null;
-  const todayStripProteinLeft = proteinLeftRaw !== null ? round1(proteinLeftRaw) : null;
-  const todayStripGoalKcal =
-    goals != null && finiteNumOrNull(goals.kcal) !== null ? Math.round(num(goals.kcal)) : null;
+  const todayStripLoggedKcal = (dailySummary?.total_kcal != null)
+    ? round1(num(dailySummary?.total_kcal))
+    : (goals?.kcal != null && remainingToday?.kcal != null)
+    ? round1(Math.max(0, num(goals?.kcal || 0) - num(remainingToday?.kcal)))
+    : null;
+  const todayStripProteinLeft = (remainingToday?.protein_g != null)
+    ? round1(num(remainingToday?.protein_g))
+    : null;
+  const todayStripGoalKcal = (goals?.kcal != null) ? Math.round(num(goals?.kcal)) : null;
   const todaySummaryStripLine = (() => {
     let line = "";
     if (todayStripLoggedKcal != null) {
@@ -7741,106 +7476,6 @@ async function openCamera(mode = "meal") {
           </View>
         ) : null}
 
-        <View style={styles.homeSection}>
-          <View style={[premium.cardBase, styles.coachChatCard]}>
-            <View style={styles.coachChatHeaderRow}>
-              <Text style={premium.title}>Live Coach Chat</Text>
-              <View style={styles.coachChatHeaderActions}>
-                <TouchableOpacity
-                  style={[
-                    styles.coachRecoveryBadge,
-                    coachRecoveryBadge?.tone === "green"
-                      ? styles.coachRecoveryBadgeGreen
-                      : coachRecoveryBadge?.tone === "red"
-                      ? styles.coachRecoveryBadgeRed
-                      : styles.coachRecoveryBadgeAmber,
-                  ]}
-                  onPress={() => setCoachRecoveryExpanded((v) => !v)}
-                  activeOpacity={0.85}
-                >
-                  <Text style={styles.coachRecoveryBadgeText}>
-                    {String(coachRecoveryBadge?.label || "Recovery mode: balanced")} {coachRecoveryExpanded ? "▲" : "▼"}
-                  </Text>
-                </TouchableOpacity>
-                {coachChatMessages.length > 0 ? (
-                  <TouchableOpacity
-                    style={premium.ctaGhost}
-                    onPress={() => {
-                      setCoachChatMessages([]);
-                      const uid = userId || session?.user?.id;
-                      if (uid) void saveCoachChatHistory(uid, localDayISO(), []);
-                    }}
-                    disabled={coachChatBusy}
-                    activeOpacity={0.85}
-                  >
-                    <Text style={premium.ctaGhostText}>Clear</Text>
-                  </TouchableOpacity>
-                ) : null}
-              </View>
-            </View>
-            {coachRecoveryExpanded ? (
-              <View style={styles.coachRecoveryPanel}>
-                {(Array.isArray(coachRecoveryBadge?.lines) ? coachRecoveryBadge.lines : []).map((line, idx) => (
-                  <Text key={`rec-line-${idx}`} style={styles.coachRecoveryPanelText}>
-                    {line}
-                  </Text>
-                ))}
-              </View>
-            ) : null}
-            <Text style={premium.muted}>Ask anything about your next meal, cravings, or plan for today.</Text>
-            <ScrollView
-              style={styles.coachChatFeed}
-              contentContainerStyle={styles.coachChatFeedContent}
-              showsVerticalScrollIndicator={false}
-              onContentSizeChange={(_, h) => { coachChatScrollRef.current?.scrollToEnd?.({ animated: true }); }}
-              ref={coachChatScrollRef}
-            >
-              {(coachChatMessages.length ? coachChatMessages : [{ role: "coach", text: "Hey! 👋 I'm your personal coach. Tell me what's on your mind — meals, cravings, how you're feeling... I'm here for it all 😊" }]).slice(-8).map((m, idx) => {
-                const isCoach = String(m?.role || "").toLowerCase() === "coach";
-                return (
-                  <View key={`cc-${idx}`} style={[styles.coachChatBubble, isCoach ? styles.coachChatCoachBubble : styles.coachChatUserBubble]}>
-                    <Text style={[styles.coachChatBubbleText, isCoach ? styles.coachChatCoachText : styles.coachChatUserText]}>
-                      {String(m?.text || "")}
-                    </Text>
-                  </View>
-                );
-              })}
-            </ScrollView>
-            <View style={styles.coachQuickRow}>
-              {["What should I eat rn? 🍽️", "Having a craving 😩", "How's my day looking?", "Feeling low today"].map((q) => (
-                <TouchableOpacity
-                  key={q}
-                  style={styles.coachQuickChip}
-                  onPress={() => setCoachChatInput(q)}
-                  disabled={coachChatBusy}
-                  activeOpacity={0.85}
-                >
-                  <Text style={styles.coachQuickChipText}>{q}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-            <View style={styles.coachChatComposerRow}>
-              <TextInput
-                style={styles.coachChatInput}
-                value={coachChatInput}
-                onChangeText={setCoachChatInput}
-                placeholder="Type your question..."
-                placeholderTextColor="#94a3b8"
-                editable={!coachChatBusy}
-                multiline
-              />
-              <TouchableOpacity
-                style={[premium.ctaPrimary, styles.coachChatSendBtn, (!coachChatInput.trim() || coachChatBusy) ? { opacity: 0.65 } : null]}
-                onPress={() => { void sendCoachChatTurn(); }}
-                disabled={!coachChatInput.trim() || coachChatBusy}
-                activeOpacity={0.9}
-              >
-                <Text style={premium.ctaPrimaryText}>{coachChatBusy ? "…" : "Send"}</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-
         {(() => {
           const enabled = smartAlertState?.enabled;
           const count = (smartAlertCandidates || []).length;
@@ -8014,8 +7649,8 @@ async function openCamera(mode = "meal") {
                         await submitWeightEntry(API_BASE, uid, { value_kg: v, day: localDayISO() });
                         setJourneyWeightInput("");
                         void fetchGoalCoachJourney();
-                        if (Platform.OS === "ios" && isAppleHealthAvailable()) {
-                          writeWeightToHealth({ dateIso: localDayISO(), valueKg: v }, () => {});
+                        if (isDeviceHealthAvailable()) {
+                          writeWeightToDeviceHealth({ dateIso: localDayISO(), valueKg: v }, () => {});
                         }
                       } catch (e) {
                         if (e?.status === 402) openPaywall("advanced");
@@ -8149,7 +7784,7 @@ async function openCamera(mode = "meal") {
             <TouchableOpacity
               style={[premium.ctaGhost, { marginLeft: 10 }]}
               onPress={restorePurchases}
-              disabled={rcBusy || !rcReady}
+              disabled={rcBusy || rcRefreshing || !rcReady}
               activeOpacity={0.9}
             >
               <Text style={premium.ctaGhostText}>{rcBusy ? "…" : "Restore"}</Text>
@@ -8177,12 +7812,10 @@ async function openCamera(mode = "meal") {
                 </TouchableOpacity>
               </View>
               <View style={{ marginTop: 8 }}>
-                <Text style={styles.p}>
-                  Protein left today: {round1(remainingToday?.protein_g)}g
-                </Text>
+                <Text style={styles.p}>Protein left today: {round1(remainingToday?.protein_g)}g</Text>
                 <Text style={styles.tiny}>
-                  Remaining: {round1(remainingToday?.kcal)} kcal • C {round1(remainingToday?.carbs_g)}g • F{" "}
-                  {round1(remainingToday?.fat_g)}g • Fiber {round1(remainingToday?.fiber_g)}g
+                  Remaining: {round1(remainingToday?.kcal)} kcal • C {round1(remainingToday?.carbs_g)}g • F {round1(remainingToday?.fat_g)}g • Fiber{" "}
+                  {round1(remainingToday?.fiber_g)}g
                 </Text>
               </View>
             </View>
@@ -10053,36 +9686,19 @@ async function openCamera(mode = "meal") {
                   ? Math.max(0, Math.round(caloriesSavedRaw))
                   : null;
                 const typicalOrderName = String(realityCheck?.typical_order?.name || "").trim();
-                const orderCal =
-                  finiteNumOrNull(card?.estimated_calories) !== null
-                    ? num(card?.estimated_calories)
-                    : null;
-                const orderProtein =
-                  finiteNumOrNull(card?.estimated_protein_g) !== null
-                    ? num(card?.estimated_protein_g)
-                    : null;
+                const orderCal = (card?.estimated_calories != null) ? num(card?.estimated_calories) : null;
+                const orderProtein = (card?.estimated_protein_g != null) ? num(card?.estimated_protein_g) : null;
                 const decisionCtx = effectiveLunchDecision?.decision_context;
                 const dayProgress = effectiveLunchDecision?.day_coach?.day_summary?.progress;
                 const pageRemainingCal =
-                  remainingToday != null && finiteNumOrNull(remainingToday.kcal) !== null
-                    ? num(remainingToday.kcal)
-                    : finiteNumOrNull(decisionCtx?.remaining_calories) !== null
-                      ? num(decisionCtx?.remaining_calories)
-                      : finiteNumOrNull(dayProgress?.remaining_calories) !== null
-                        ? num(dayProgress?.remaining_calories)
-                        : null;
+                  (remainingToday?.kcal != null) ? num(remainingToday?.kcal) :
+                  (decisionCtx?.remaining_calories != null) ? num(decisionCtx?.remaining_calories) :
+                  (dayProgress?.remaining_calories != null) ? num(dayProgress?.remaining_calories) : null;
                 const pageRemainingProtein =
-                  remainingToday != null && finiteNumOrNull(remainingToday.protein_g) !== null
-                    ? num(remainingToday.protein_g)
-                    : finiteNumOrNull(decisionCtx?.remaining_protein_g) !== null
-                      ? num(decisionCtx?.remaining_protein_g)
-                      : finiteNumOrNull(dayProgress?.remaining_protein_g) !== null
-                        ? num(dayProgress?.remaining_protein_g)
-                        : null;
-                const cardRemaining =
-                  finiteNumOrNull(card?.remaining_calories) !== null
-                    ? num(card?.remaining_calories)
-                    : null;
+                  (remainingToday?.protein_g != null) ? num(remainingToday?.protein_g) :
+                  (decisionCtx?.remaining_protein_g != null) ? num(decisionCtx?.remaining_protein_g) :
+                  (dayProgress?.remaining_protein_g != null) ? num(dayProgress?.remaining_protein_g) : null;
+                const cardRemaining = (card?.remaining_calories != null) ? num(card?.remaining_calories) : null;
                 const remainingLine = buildRemainingLine({
                   pageRemainingCal: pageRemainingCal,
                   pageRemainingProtein: pageRemainingProtein,
@@ -10166,10 +9782,10 @@ async function openCamera(mode = "meal") {
                       screenshotMode={screenshotMode}
                       style={{ marginTop: 6 }}
                     />
-                    {card?.estimated_calories != null ? (
+                    {Number.isFinite(num(card?.estimated_calories)) ? (
                       <Text style={styles.tiny}>Calories: ~{Math.round(num(card?.estimated_calories))}</Text>
                     ) : null}
-                    {card?.estimated_protein_g != null ? (
+                    {Number.isFinite(num(card?.estimated_protein_g)) ? (
                       <Text style={styles.tiny}>Protein: {Math.round(num(card?.estimated_protein_g))}g</Text>
                     ) : null}
                     {cardSwaps.length && !screenshotMode ? (
@@ -10650,7 +10266,7 @@ async function openCamera(mode = "meal") {
                 key={p}
                 style={styles.secondaryBtn}
                 onPress={() => purchaseEntitlement(p)}
-                disabled={rcBusy || !rcReady}
+                disabled={rcBusy || rcRefreshing || !rcReady}
               >
                 <Text style={styles.btnText}>{p.toUpperCase()}</Text>
               </TouchableOpacity>
@@ -10678,6 +10294,23 @@ async function openCamera(mode = "meal") {
               <Text style={styles.muted}>• Pro — {subscriptionPriceText("pro")}</Text>
               <Text style={styles.muted}>• Infinite — {subscriptionPriceText("infinite")}</Text>
             </View>
+            {rcRefreshing ? <Text style={[styles.muted, { marginTop: 6 }]}>Refreshing plans from store...</Text> : null}
+
+            {rcDebug ? (
+              <View style={{ marginTop: 10, backgroundColor: "#0d1117", borderRadius: 8, padding: 10, borderWidth: 1, borderColor: "#1f2937" }}>
+                <Text style={{ color: "#f59e0b", fontSize: 11, fontWeight: "800", marginBottom: 4 }}>RC DEBUG (remove before release)</Text>
+                <Text style={{ color: "#94a3b8", fontSize: 10, lineHeight: 15 }}>
+                  {`Offering: ${rcDebug.offeringId || "?"}\nCurrent: ${rcDebug.currentId || "none"} (has: ${rcDebug.hasCurrent})\nAll offerings: [${(rcDebug.allOfferingIds || []).join(", ")}]\nPackages: ${rcDebug.packageCount ?? "?"}\nIDs: [${(rcDebug.pkgIds || []).join(", ")}]\nReason: ${rcDebug.reason}\nTime: ${rcDebug.ts}${rcDebug.error ? `\nError: ${rcDebug.error}` : ""}`}
+                </Text>
+                <TouchableOpacity
+                  style={{ marginTop: 6, backgroundColor: "#1e40af", borderRadius: 6, paddingVertical: 6, paddingHorizontal: 10, alignSelf: "flex-start" }}
+                  onPress={() => refreshRevenueCatState("manual_tap")}
+                  disabled={rcRefreshing}
+                >
+                  <Text style={{ color: "#fff", fontSize: 11, fontWeight: "700" }}>{rcRefreshing ? "Refreshing…" : "Force Refresh RC"}</Text>
+                </TouchableOpacity>
+              </View>
+            ) : null}
 
             <Text style={[styles.muted, { marginTop: 8 }]}>
               Subscriptions are billed monthly and auto-renew unless cancelled at least 24 hours before the end of the
@@ -10863,7 +10496,7 @@ async function openCamera(mode = "meal") {
                           setPaywallPlanHint(null);
                           await purchaseEntitlement(planKey);
                         }}
-                        disabled={rcBusy || !rcReady}
+                        disabled={rcBusy || rcRefreshing || !rcReady}
                       >
                         <Text style={styles.btnText}>{rcBusy ? "…" : "Upgrade"}</Text>
                       </TouchableOpacity>
@@ -11574,97 +11207,6 @@ const styles = StyleSheet.create({
   // Phase 1 home spacing (token-based): use wrapper views, avoid large refactors.
   homeSection: { marginTop: tSpacing.section },
   homeSectionTight: { marginTop: tSpacing.xl },
-  coachChatCard: { padding: 14 },
-  coachChatHeaderRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  coachChatHeaderActions: { flexDirection: "row", alignItems: "center", gap: 8 },
-  coachRecoveryBadge: {
-    borderRadius: 999,
-    borderWidth: 1,
-    paddingHorizontal: 9,
-    paddingVertical: 5,
-  },
-  coachRecoveryBadgeGreen: {
-    borderColor: "rgba(34,197,94,0.5)",
-    backgroundColor: "rgba(34,197,94,0.14)",
-  },
-  coachRecoveryBadgeAmber: {
-    borderColor: "rgba(245,158,11,0.5)",
-    backgroundColor: "rgba(245,158,11,0.14)",
-  },
-  coachRecoveryBadgeRed: {
-    borderColor: "rgba(239,68,68,0.55)",
-    backgroundColor: "rgba(239,68,68,0.14)",
-  },
-  coachRecoveryBadgeText: { color: "#e2e8f0", fontSize: 11, fontWeight: "700" },
-  coachRecoveryPanel: {
-    marginTop: 8,
-    marginBottom: 4,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "rgba(148,163,184,0.24)",
-    backgroundColor: "rgba(2,6,23,0.35)",
-    paddingVertical: 8,
-    paddingHorizontal: 10,
-  },
-  coachRecoveryPanelText: { color: "#cbd5e1", fontSize: 12, lineHeight: 18 },
-  coachChatFeed: {
-    marginTop: 10,
-    maxHeight: 300,
-    borderWidth: 1,
-    borderColor: "rgba(148, 163, 184, 0.22)",
-    borderRadius: 12,
-    backgroundColor: "rgba(2, 6, 23, 0.35)",
-  },
-  coachChatFeedContent: {
-    padding: 10,
-    flexGrow: 1,
-    justifyContent: "flex-end",
-  },
-  coachChatBubble: {
-    paddingVertical: 8,
-    paddingHorizontal: 10,
-    borderRadius: 10,
-    marginBottom: 8,
-  },
-  coachChatCoachBubble: {
-    alignSelf: "flex-start",
-    backgroundColor: "rgba(147, 197, 253, 0.12)",
-    borderWidth: 1,
-    borderColor: "rgba(147, 197, 253, 0.30)",
-  },
-  coachChatUserBubble: {
-    alignSelf: "flex-end",
-    backgroundColor: "rgba(34, 197, 94, 0.14)",
-    borderWidth: 1,
-    borderColor: "rgba(34, 197, 94, 0.30)",
-  },
-  coachChatBubbleText: { fontSize: 13, lineHeight: 18, fontWeight: "500" },
-  coachChatCoachText: { color: "#dbeafe" },
-  coachChatUserText: { color: "#dcfce7" },
-  coachQuickRow: { marginTop: 8, flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  coachQuickChip: {
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: "rgba(148, 163, 184, 0.30)",
-    backgroundColor: "rgba(15, 23, 42, 0.45)",
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-  },
-  coachQuickChipText: { color: "#cbd5e1", fontSize: 12, fontWeight: "600" },
-  coachChatComposerRow: { marginTop: 10, flexDirection: "row", alignItems: "flex-end", gap: 8 },
-  coachChatInput: {
-    flex: 1,
-    minHeight: 42,
-    maxHeight: 110,
-    borderWidth: 1,
-    borderColor: "rgba(148, 163, 184, 0.24)",
-    borderRadius: 10,
-    color: "#f8fafc",
-    paddingHorizontal: 12,
-    paddingVertical: 9,
-    backgroundColor: "rgba(15, 23, 42, 0.55)",
-  },
-  coachChatSendBtn: { paddingHorizontal: 16, minHeight: 42 },
   homeHubSegmentWrap: { marginTop: 2 },
   homeHubSegmentRow: {
     flexDirection: "row",

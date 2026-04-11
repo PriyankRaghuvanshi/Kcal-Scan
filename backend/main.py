@@ -10711,6 +10711,18 @@ def _normalize_health_context(raw: Any) -> Dict[str, Any]:
     flat_steps = _safe_float(src.get("steps_count"), 0.0)
     flat_sleep = _safe_float(src.get("sleep_hours"), 0.0)
     flat_hydration = _safe_float(src.get("hydration_l"), 0.0)
+    flat_rhr = _safe_float(src.get("resting_heart_rate_bpm"), 0.0)
+    flat_hrv = _safe_float(src.get("hrv_rmssd_ms_avg"), 0.0)
+    flat_hr_avg = _safe_float(src.get("heart_rate_avg_bpm"), 0.0)
+    flat_active_kcal = _safe_float(src.get("active_energy_kcal"), 0.0)
+    flat_dist_km = _safe_float(src.get("distance_walking_running_km"), 0.0)
+    flat_floors = _safe_float(src.get("floors_climbed"), 0.0)
+    rhr_sig = _safe_float(signals.get("resting_hr_avg_7d"), 0.0)
+    if flat_rhr > 0 and rhr_sig <= 0:
+        rhr_sig = flat_rhr
+    hrv_sig = _safe_float(signals.get("hrv_ms_avg_7d"), 0.0)
+    if flat_hrv > 0 and hrv_sig <= 0:
+        hrv_sig = flat_hrv
     if flat_steps > 0 and steps_today <= 0 and steps_avg <= 0 and steps_yday <= 0:
         steps_today = flat_steps
     if flat_sleep > 0 and sleep_last <= 0:
@@ -10725,14 +10737,22 @@ def _normalize_health_context(raw: Any) -> Dict[str, Any]:
         "poor_sleep_flag": bool(src.get("poor_sleep_flag")),
         "low_hydration_flag": bool(src.get("low_hydration_flag")),
         "low_steps_flag": bool(src.get("low_steps_flag")),
+        "low_hrv_flag": bool(src.get("low_hrv_flag")),
+        "elevated_resting_hr_flag": bool(src.get("elevated_resting_hr_flag")),
+        "resting_heart_rate_bpm": max(0.0, flat_rhr),
+        "hrv_rmssd_ms_avg": max(0.0, flat_hrv),
+        "heart_rate_avg_bpm": max(0.0, flat_hr_avg),
+        "active_energy_kcal": max(0.0, flat_active_kcal),
+        "distance_walking_running_km": max(0.0, flat_dist_km),
+        "floors_climbed": max(0.0, flat_floors),
         "signals": {
             "steps_avg_7d": max(0.0, steps_avg),
             "steps_yesterday": max(0.0, steps_yday),
             "steps_today": max(0.0, steps_today),
             "sleep_hours_avg_7d": max(0.0, sleep_avg),
             "sleep_last_night_hours": max(0.0, sleep_last),
-            "resting_hr_avg_7d": _safe_float(signals.get("resting_hr_avg_7d"), 0.0),
-            "hrv_ms_avg_7d": _safe_float(signals.get("hrv_ms_avg_7d"), 0.0),
+            "resting_hr_avg_7d": max(0.0, rhr_sig),
+            "hrv_ms_avg_7d": max(0.0, hrv_sig),
             "weight_kg_latest": _safe_float(signals.get("weight_kg_latest"), 0.0),
             "hydration_l": max(0.0, flat_hydration),
         },
@@ -10831,6 +10851,14 @@ def _build_health_parameter_advice(health_context: Dict[str, Any]) -> Dict[str, 
     elif hydration_l > 0 and hydration_l < 1.8:
         engaging_line = (
             f"Fluids are light at about {round(hydration_l, 1)}L—sipping steadily through the day can ease fatigue-driven snacking."
+        )
+    elif rhr > 0 and rhr >= 72:
+        engaging_line = (
+            f"Resting heart rate is around {int(round(rhr))} bpm—extra sleep and hydration this week often nudge it the right way."
+        )
+    elif hrv > 0 and hrv < 35:
+        engaging_line = (
+            f"HRV is on the lower side (~{int(round(hrv))} ms)—one easier day and steady bedtime can help recovery."
         )
     elif top:
         engaging_line = "You are close—lock one health habit today and your fat-loss trend gets easier to sustain."
