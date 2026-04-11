@@ -2,49 +2,41 @@
   "brand_name": "Nando's",
   "source_type": "seed_template",
   "source_url": "",
-  "store_name_variants": ["nandos", "nando's"],
+  "store_name_variants": [
+    "nandos",
+    "nando's"
+  ],
   "items": [
     {
-      "item_name": "Quarter Chicken with Salad",
-      "category": "entree",
-      "estimated_calories": 380,
-      "estimated_protein_g": 42,
-      "estimated_carbs_g": 8,
-      "estimated_fat_g": 20,
-      "confidence": 0.88,
-      "vegetarian_possible": false,
-      "vegan_possible": false
-    },
-    {
-      "item_name": "Half Chicken with Broccolini",
-      "category": "entree",
-      "estimated_calories": 480,
-      "estimated_protein_g": 52,
-      "estimated_carbs_g": 12,
-      "estimated_fat_g": 24,
-      "confidence": 0.84,
-      "vegetarian_possible": false,
-      "vegan_possible": false
-    },
-    {
-      "item_name": "Butterfly Burger with Salad",
-      "category": "entree",
-      "estimated_calories": 520,
+      "item_name": "Quarter Chicken + Side Salad",
+      "category": "grilled_chicken",
+      "estimated_calories": 540,
       "estimated_protein_g": 44,
-      "estimated_carbs_g": 28,
-      "estimated_fat_g": 26,
-      "confidence": 0.80,
+      "estimated_carbs_g": 20,
+      "estimated_fat_g": 28,
+      "confidence": 0.93,
       "vegetarian_possible": false,
       "vegan_possible": false
     },
     {
-      "item_name": "Chicken Wrap with Peri-Peri",
-      "category": "entree",
-      "estimated_calories": 450,
-      "estimated_protein_g": 36,
-      "estimated_carbs_g": 32,
-      "estimated_fat_g": 20,
-      "confidence": 0.78,
+      "item_name": "Chicken Butterfly + Broccolini",
+      "category": "grilled_chicken",
+      "estimated_calories": 500,
+      "estimated_protein_g": 47,
+      "estimated_carbs_g": 16,
+      "estimated_fat_g": 24,
+      "confidence": 0.91,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Chicken Breast Fillet Burger, no mayo",
+      "category": "burger",
+      "estimated_calories": 480,
+      "estimated_protein_g": 38,
+      "estimated_carbs_g": 38,
+      "estimated_fat_g": 17,
+      "confidence": 0.84,
       "vegetarian_possible": false,
       "vegan_possible": false
     }

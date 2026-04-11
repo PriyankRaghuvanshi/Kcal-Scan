@@ -24,12 +24,105 @@ BONUS_ENRICHED_LOCAL = 4
 BONUS_HEURISTIC_LOCAL = 1
 PENALTY_GENERIC_FALLBACK = -4
 
+_OIL_KEYWORDS = (
+    "palm oil",
+    "palmolein",
+    "vegetable oil",
+    "canola oil",
+    "soybean oil",
+    "sunflower oil",
+    "rapeseed oil",
+    "cottonseed oil",
+    "hydrogenated oil",
+    "partially hydrogenated",
+    "shortening",
+)
+
 
 def _safe_float(value: Any, default: float = 0.0) -> float:
     try:
         return float(value)
     except (TypeError, ValueError):
         return default
+
+
+def _clamp(val: float, lo: float, hi: float) -> float:
+    return max(lo, min(hi, val))
+
+
+def _extract_ingredient_list(item: Dict[str, Any]) -> List[str]:
+    """
+    Return normalized ingredient tokens when present on the item.
+    Supports list or string payloads; returns [] when missing.
+    """
+    for key in ("ingredients", "ingredient_list", "ingredient_list_text", "ingredient_list_raw"):
+        raw = item.get(key)
+        if isinstance(raw, list):
+            return [str(x).strip().lower() for x in raw if str(x).strip()]
+        if isinstance(raw, str) and raw.strip():
+            parts = [p.strip().lower() for p in raw.replace(";", ",").split(",")]
+            return [p for p in parts if p]
+    return []
+
+
+def _oil_intensity_from_ingredients(ingredients: List[str]) -> float:
+    if not ingredients:
+        return 0.0
+    for idx, token in enumerate(ingredients):
+        if any(k in token for k in _OIL_KEYWORDS):
+            if idx <= 4:
+                return 90.0
+            if idx <= 9:
+                return 60.0
+            return 30.0
+    return 0.0
+
+
+def _oil_intensity_from_fat(calories: float, fat_g: float, sat_fat_g: float = 0.0) -> float:
+    if calories <= 0 or fat_g <= 0:
+        return 0.0
+    unsat = max(0.0, fat_g - max(0.0, sat_fat_g))
+    fat_density = (unsat / calories) * 1000.0
+    return _clamp(fat_density * 0.8, 0.0, 100.0)
+
+
+def _oil_penalty(item: Dict[str, Any]) -> float:
+    """
+    Conservative oil penalty (0-6) based on ingredient list when present,
+    otherwise fat-density fallback. Deterministic.
+    """
+    ingredients = _extract_ingredient_list(item)
+    intensity = _oil_intensity_from_ingredients(ingredients)
+    if intensity <= 0.0:
+        calories = _safe_float(item.get("estimated_calories"), 0.0)
+        fat_g = _safe_float(item.get("estimated_fat_g"), 0.0)
+        sat_fat = _safe_float(item.get("estimated_sat_fat_g"), 0.0)
+        intensity = _oil_intensity_from_fat(calories, fat_g, sat_fat)
+    if intensity < 30.0:
+        return 0.0
+    return _clamp(round((intensity / 100.0) * 6.0, 2), 0.0, 6.0)
+
+
+def _apply_oil_penalty(candidates: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """
+    Apply small oil penalty as an adjusted fitness score without overwriting originals.
+    """
+    out: List[Dict[str, Any]] = []
+    for item in candidates:
+        if not isinstance(item, dict):
+            continue
+        c = dict(item)
+        penalty = _oil_penalty(c)
+        if penalty > 0:
+            base = _safe_float(c.get("fat_loss_fit_score"), 0.0)
+            if base <= 0:
+                base = _safe_float(c.get("protein_density_score"), 0.0)
+            if base > 0:
+                c["oil_penalty"] = penalty
+                c["fat_loss_fit_score_oil_adj"] = max(0.0, round(base - penalty, 2))
+        out.append(c)
+    return out
+
 
 
 def _sort_chain_candidates_by_fitness(candidates: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -42,7 +135,7 @@ def _sort_chain_candidates_by_fitness(candidates: List[Dict[str, Any]]) -> List[
         return []
     def key(c: Dict[str, Any]) -> tuple:
         return (
-            _safe_float(c.get("fat_loss_fit_score"), 0.0),
+            _safe_float(c.get("fat_loss_fit_score_oil_adj"), _safe_float(c.get("fat_loss_fit_score"), 0.0)),
             _safe_float(c.get("protein_density_score"), 0.0),
             _safe_float(c.get("estimated_protein_g"), 0.0),
             _safe_float(c.get("confidence") or c.get("menu_confidence"), 0.0),
@@ -183,6 +276,7 @@ def enrich_place_with_local_profile(
                 c["profile_source"] = "chain_menu_supabase"
                 c["specificity_tier"] = "exact_menu_match"
                 candidates.append(c)
+            candidates = _apply_oil_penalty(candidates)
             # Diet-aware: hard filter to diet-safe candidates before sort
             if diet != "omnivore":
                 candidates, _excluded = _filter_chain_candidates_for_diet(candidates, diet)

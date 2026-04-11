@@ -73,15 +73,31 @@ function getPermissions() {
   };
 }
 
+/**
+ * Interpret `YYYY-MM-DD` as a calendar day in the device's local timezone.
+ * `new Date("2026-04-10")` is UTC midnight and maps to the wrong local day for most zones.
+ */
+export function localCalendarDayToDate(dayIso) {
+  const s = String(dayIso || "").trim();
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+  if (!m) return null;
+  const y = Number(m[1]);
+  const mo = Number(m[2]) - 1;
+  const d = Number(m[3]);
+  if (!Number.isFinite(y) || !Number.isFinite(mo) || !Number.isFinite(d)) return null;
+  const dt = new Date(y, mo, d, 12, 0, 0, 0);
+  return Number.isFinite(dt.getTime()) ? dt : null;
+}
+
 function startOfDayIso(dateLike) {
-  const d = dateLike ? new Date(dateLike) : new Date();
+  const d = dateLike ? new Date(dateLike.getTime()) : new Date();
   if (!Number.isFinite(d.getTime())) return new Date().toISOString();
   d.setHours(0, 0, 0, 0);
   return d.toISOString();
 }
 
 function endOfDayIso(dateLike) {
-  const d = dateLike ? new Date(dateLike) : new Date();
+  const d = dateLike ? new Date(dateLike.getTime()) : new Date();
   if (!Number.isFinite(d.getTime())) return new Date().toISOString();
   d.setHours(23, 59, 59, 999);
   return d.toISOString();
@@ -115,15 +131,29 @@ function sumNumericValues(rows) {
 }
 
 function sleepHoursFromSamples(rows) {
-  const allowed = new Set(["ASLEEP", "CORE", "DEEP", "REM", "ASLEEP_CORE", "ASLEEP_DEEP", "ASLEEP_REM"]);
-  return (Array.isArray(rows) ? rows : []).reduce((acc, row) => {
-    const value = String(row?.value || "").trim().toUpperCase();
-    if (value && !allowed.has(value)) return acc;
-    const start = new Date(row?.startDate || "");
-    const end = new Date(row?.endDate || "");
-    if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime()) || end <= start) return acc;
-    return acc + ((end.getTime() - start.getTime()) / 3600000);
-  }, 0);
+  const asleepStages = new Set([
+    "ASLEEP",
+    "CORE",
+    "DEEP",
+    "REM",
+    "ASLEEP_CORE",
+    "ASLEEP_DEEP",
+    "ASLEEP_REM",
+  ]);
+  const arr = Array.isArray(rows) ? rows : [];
+  const sumFor = (pred) =>
+    arr.reduce((acc, row) => {
+      const value = String(row?.value || "").trim().toUpperCase();
+      if (!pred(value)) return acc;
+      const start = new Date(row?.startDate || "");
+      const end = new Date(row?.endDate || "");
+      if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime()) || end <= start) return acc;
+      return acc + (end.getTime() - start.getTime()) / 3600000;
+    }, 0);
+  const asleep = sumFor((v) => asleepStages.has(v));
+  if (asleep >= 0.25) return asleep;
+  const inbed = sumFor((v) => v === "INBED");
+  return Math.max(asleep, inbed);
 }
 
 /**
@@ -163,23 +193,34 @@ function avgNumericSamples(rows) {
 }
 
 export async function getDailyHealthContext(dateIso) {
-  if (!APPLE_HEALTH_ENABLED || !isIOS || !AppleHealthKit || !healthKitReady) return null;
+  if (!APPLE_HEALTH_ENABLED || !isIOS || !AppleHealthKit) return null;
+  if (!healthKitReady) {
+    await new Promise((resolve) => initAppleHealth(() => resolve()));
+  }
+  if (!healthKitReady) return null;
 
-  const anchorDate = dateIso ? new Date(dateIso) : new Date();
+  let anchorDate = dateIso ? localCalendarDayToDate(String(dateIso).trim()) : null;
+  if (!anchorDate || !Number.isFinite(anchorDate.getTime())) {
+    anchorDate = new Date();
+  }
   if (!Number.isFinite(anchorDate.getTime())) return null;
 
   const sevenDaysAgo = new Date(anchorDate.getTime() - 7 * 24 * 3600000);
 
-  const [stepsRows, sleepRows, waterResult, hrvRows, rhrRows] =
+  const [stepCountDay, stepsRows, sleepRows, waterResult, hrvRows, rhrRows] =
     await Promise.all([
+      callHealthMethod("getStepCount", {
+        date: anchorDate.toISOString(),
+        includeManuallyAdded: true,
+      }),
       callHealthMethod("getDailyStepCountSamples", {
         startDate: startOfDayIso(anchorDate),
         endDate: endOfDayIso(anchorDate),
+        includeManuallyAdded: true,
       }),
       callHealthMethod("getSleepSamples", {
-        startDate: startOfDayIso(new Date(anchorDate.getTime() - 24 * 3600000)),
+        startDate: startOfDayIso(new Date(anchorDate.getTime() - 36 * 3600000)),
         endDate: endOfDayIso(anchorDate),
-        limit: 24,
         ascending: false,
       }),
       callHealthMethod("getWater", {
@@ -198,7 +239,12 @@ export async function getDailyHealthContext(dateIso) {
       }),
     ]);
 
-  const stepsCount = Math.round(sumNumericValues(stepsRows));
+  const stepFromDay = num(stepCountDay?.value);
+  let stepsCount =
+    stepFromDay != null && Number.isFinite(stepFromDay) ? Math.round(stepFromDay) : 0;
+  if (stepsCount <= 0) {
+    stepsCount = Math.round(sumNumericValues(stepsRows));
+  }
   const sleepHours = Number(sleepHoursFromSamples(sleepRows).toFixed(1));
   const waterLiters = Number(
     (

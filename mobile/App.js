@@ -242,7 +242,6 @@ const API_BASE =
 
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL || "";
 const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || "";
-const GEMINI_KEY = process.env.EXPO_PUBLIC_GEMINI_KEY || "";
 const HAS_SUPABASE = Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
 const supabase = HAS_SUPABASE ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
 
@@ -936,6 +935,7 @@ function computeRecoveryModeBadge(rawHealthContext) {
   const sleep = (sleepLast != null && sleepLast > 0) ? sleepLast : (sleepAvg != null && sleepAvg > 0) ? sleepAvg : null;
   const rhr = num(signals.resting_hr_avg_7d) || null;
   const hrv = num(signals.hrv_ms_avg_7d) || null;
+  const steps = num(signals.steps_today) || null;
   const taxed =
     (sleep != null && sleep < 6.8) ||
     (rhr != null && rhr >= 76) ||
@@ -949,6 +949,7 @@ function computeRecoveryModeBadge(rawHealthContext) {
     !["high", "very_high"].includes(stress);
   const lines = [
     `Sleep: ${sleep != null ? `${round1(sleep)}h` : "—"}`,
+    `Steps: ${steps != null ? `${Math.round(steps)}` : "—"}`,
     `HRV: ${hrv != null ? `${round1(hrv)} ms` : "—"}`,
     `RHR: ${rhr != null ? `${Math.round(rhr)} bpm` : "—"}`,
     `Stress: ${stress ? stress.replace("_", " ") : "—"}`,
@@ -2620,10 +2621,22 @@ export default function App() {
         if (healthyPlaceCoords && userId && smartAlertState?.enabled) {
           void fetchSmartAlerts({ coords: healthyPlaceCoords, force: false });
         }
+        const uid = userId || session?.user?.id;
+        if (uid && Platform.OS === "ios" && isAppleHealthAvailable()) {
+          void (async () => {
+            try {
+              await new Promise((resolve) => initAppleHealth(() => resolve()));
+              const hc = (await getDailyHealthContext(localDayISO())) || {};
+              setCoachRecoveryBadge(computeRecoveryModeBadge(hc));
+            } catch {
+              setCoachRecoveryBadge({ label: "Recovery mode: balanced", tone: "amber" });
+            }
+          })();
+        }
       }
     });
     return () => sub?.remove?.();
-  }, [healthyPlaceCoords?.lat, healthyPlaceCoords?.lng, userId, smartAlertState?.enabled]);
+  }, [healthyPlaceCoords?.lat, healthyPlaceCoords?.lng, userId, session?.user?.id, smartAlertState?.enabled]);
 
   // Push registration: when Smart Alerts enabled + userId, request permission, get token, register
   useEffect(() => {
@@ -3677,306 +3690,6 @@ export default function App() {
     }
   }
 
-  function _localCoachTurnReply(userText, goalsObj, consumedObj, tone) {
-    const txt = String(userText || "").trim().toLowerCase();
-    const g = goalsObj || {};
-    const c = consumedObj || {};
-    const proteinGap = Math.max(0, num(g.protein_g) - num(c.protein_g));
-    const fiberGap = Math.max(0, num(g.fiber_g) - num(c.fiber_g));
-    const kcalDelta = num(c.kcal) - num(g.kcal);
-    const kcalLeft = Math.max(0, num(g.kcal) - num(c.kcal));
-
-    const proteinFoods = proteinGap > 40
-      ? "Try grilled chicken breast (31g protein), 3 boiled eggs (18g), paneer tikka (25g), or a whey shake (24g)."
-      : proteinGap > 20
-      ? "A portion of dal + curd (18g), 2 eggs with toast (16g), or a chicken wrap (22g) would cover most of it."
-      : "A handful of almonds (6g), a cup of Greek yogurt (10g), or some cottage cheese (14g) would close the gap.";
-
-    const fiberFoods = "A bowl of salad with beans (8g fiber), an apple (4g), or a serving of oats with berries (6g) would help.";
-
-    let coachReply = "";
-    let nextQ = "What meal are you planning next?";
-    let actionHint = "";
-
-    if (/(suggest|recommend|what should i|give me|option|idea|tell me what|good food|rich food|high protein|protein.*(food|meal|option|snack|rich)|food.*(suggest|idea|option))/.test(txt)) {
-      if (proteinGap > 10) {
-        coachReply = `You need about ${round1(proteinGap)}g more protein today. ${proteinFoods}`;
-        actionHint = `Pick one protein source above and log it after eating.`;
-      } else if (fiberGap > 5) {
-        coachReply = `You\u2019re ${round1(fiberGap)}g short on fiber. ${fiberFoods}`;
-        actionHint = `Add a fiber-rich side to your next meal.`;
-      } else if (kcalLeft > 300) {
-        coachReply = `You have ${round1(kcalLeft)} kcal left. A balanced meal like grilled fish with veggies and rice (~450 kcal) or a chicken salad bowl (~350 kcal) would work well.`;
-        actionHint = `Go for a balanced plate: protein + veggies + small carb portion.`;
-      } else {
-        coachReply = "You\u2019re close to your targets! If you\u2019re still hungry, keep it light \u2014 Greek yogurt, a handful of nuts, or a small fruit.";
-        actionHint = "Keep it light and clean for the rest of today.";
-      }
-      nextQ = "Want me to narrow it down based on what\u2019s available to you?";
-    } else if (/(hungry|craving|snack|sweet|sugar|chocolate|chip|tempt)/.test(txt)) {
-      if (proteinGap > 15) {
-        coachReply = `Cravings often spike when protein is low \u2014 you\u2019re ${round1(proteinGap)}g short. Try 2 boiled eggs or a handful of roasted chana instead of something sweet.`;
-      } else {
-        coachReply = "If you need a quick fix, go for Greek yogurt with a few almonds \u2014 it\u2019s filling and won\u2019t derail your day.";
-      }
-      nextQ = "Are you eating in the next 30 minutes?";
-      actionHint = "Bridge the craving with protein, not sugar.";
-    } else if (/(dinner|lunch|breakfast|meal|eat|cook|order|recipe)/.test(txt)) {
-      if (proteinGap > 20) {
-        coachReply = `Make this meal count \u2014 you need ${round1(proteinGap)}g protein still. ${proteinFoods}`;
-      } else if (kcalLeft > 400) {
-        coachReply = `You have ${round1(kcalLeft)} kcal room. A proper meal with protein + veggies + some carbs works perfectly here.`;
-      } else if (kcalLeft < 150) {
-        coachReply = "You\u2019re almost at your calorie limit. If you need to eat, keep it very light \u2014 a salad or some soup.";
-      } else {
-        coachReply = "Let\u2019s make this meal do real work. Prioritize protein and vegetables, keep carbs moderate.";
-      }
-      nextQ = "What do you have available to cook or order?";
-      actionHint = "Protein first, then fill with vegetables.";
-    } else if (/(walk|steps|hydration|water|sleep|tired|rest|exercise|gym|run|workout)/.test(txt)) {
-      coachReply = "Recovery matters as much as eating right. Even a 10-minute walk or an extra glass of water shifts how your body handles the next meal.";
-      nextQ = "What\u2019s one thing you can do in the next 15 minutes?";
-      actionHint = "Move for 10 min or drink 500ml water now.";
-    } else if (/(yes|ok|sure|yeah|yep|go ahead|do it|sounds good|alright)/.test(txt)) {
-      if (proteinGap > 15) {
-        coachReply = `Great \u2014 let\u2019s focus on closing your ${round1(proteinGap)}g protein gap. ${proteinFoods}`;
-      } else if (kcalLeft > 300) {
-        coachReply = `You\u2019ve got ${round1(kcalLeft)} kcal to work with. A solid option: grilled chicken or fish with a side of veggies and a small portion of rice.`;
-      } else {
-        coachReply = "Alright, let\u2019s keep it simple. What are you about to eat? I\u2019ll tell you if it fits your remaining targets.";
-      }
-      nextQ = "What are you about to eat?";
-      actionHint = "Log your next meal after eating.";
-    } else if (/(protein|fibre|fiber)/.test(txt)) {
-      if (proteinGap > 5) {
-        coachReply = `You\u2019re ${round1(proteinGap)}g short on protein. ${proteinFoods}`;
-      } else if (fiberGap > 3) {
-        coachReply = `You need about ${round1(fiberGap)}g more fiber. ${fiberFoods}`;
-      } else {
-        coachReply = "Your protein and fiber are looking solid. Keep the same pattern for the rest of the day.";
-      }
-      nextQ = "Want me to plan your next meal around this?";
-      actionHint = "Pick the highest-protein option available to you.";
-    } else if (/(calorie|kcal|over|too much|cheat|binge|guilt|bad day)/.test(txt)) {
-      if (kcalDelta > 200) {
-        coachReply = `You\u2019re about ${round1(kcalDelta)} kcal over \u2014 not the end of the world. Skip the next snack, have a protein-heavy dinner, and tomorrow is a clean reset.`;
-      } else if (kcalDelta > 0) {
-        coachReply = "Slightly over, but nothing dramatic. A light, protein-focused meal for the rest of the day keeps you on track.";
-      } else {
-        coachReply = `You still have ${round1(kcalLeft)} kcal left today. You\u2019re doing fine \u2014 use them on a balanced meal.`;
-      }
-      nextQ = "Want me to suggest something light for your next meal?";
-      actionHint = "Next meal: protein + vegetables, keep carbs minimal.";
-    } else {
-      if (proteinGap > 20) {
-        coachReply = `Right now your biggest gap is protein \u2014 ${round1(proteinGap)}g to go. ${proteinFoods}`;
-        actionHint = "Prioritize protein in your next meal.";
-      } else if (fiberGap > 5) {
-        coachReply = `Your fiber is ${round1(fiberGap)}g short. ${fiberFoods}`;
-        actionHint = "Add vegetables or fruit to your next meal.";
-      } else if (kcalDelta > 150) {
-        coachReply = `Calories are ${round1(kcalDelta)} over target. Keep the rest of today very light \u2014 salads, soups, or just water until tomorrow.`;
-        actionHint = "No more snacking today. Reset tomorrow.";
-      } else if (kcalLeft > 400) {
-        coachReply = `You\u2019ve got ${round1(kcalLeft)} kcal and ${round1(proteinGap)}g protein left. A solid meal now would be perfect \u2014 what do you have available?`;
-        actionHint = "Use your remaining budget on a balanced meal.";
-      } else {
-        coachReply = "You\u2019re tracking well today. Keep listening to your body and log your next meal when you eat.";
-        actionHint = "Stay consistent and log your next meal.";
-      }
-    }
-
-    if (!actionHint) actionHint = "Log your next meal after eating to stay on track.";
-    return { coach_reply: coachReply, next_question: nextQ, action_hint: actionHint };
-  }
-
-  function _getOccasionGreeting() {
-    const now = new Date();
-    const m = now.getMonth() + 1;
-    const d = now.getDate();
-    if (m === 1 && d <= 3) return "Happy New Year! 🎉🥳 Fresh start, fresh goals.";
-    if (m === 2 && d === 14) return "Happy Valentine's Day! ❤️";
-    if (m === 3 && d === 8) return "Happy International Women's Day! 💪";
-    if (m === 8 && d === 15) return "Happy Independence Day! 🇮🇳🎉";
-    if (m === 10 && d >= 20 && d <= 31) return "Happy Diwali season! 🪔✨ Festival of lights and good vibes.";
-    if (m === 11 && d >= 20 && d <= 30) return "Happy Thanksgiving week! 🦃";
-    if (m === 12 && d >= 23 && d <= 26) return "Merry Christmas! 🎄🎅";
-    if (m === 12 && d === 31) return "Happy New Year's Eve! 🥂";
-    return "";
-  }
-
-  async function _geminiCoachChat(userText, goalsObj, consumedObj, tone, history) {
-    if (!GEMINI_KEY) return null;
-    const g = goalsObj || {};
-    const c = consumedObj || {};
-    const proteinGap = Math.max(0, num(g.protein_g) - num(c.protein_g));
-    const fiberGap = Math.max(0, num(g.fiber_g) - num(c.fiber_g));
-    const kcalLeft = Math.max(0, num(g.kcal) - num(c.kcal));
-    const kcalPct = num(g.kcal) > 0 ? Math.round((num(c.kcal) / num(g.kcal)) * 100) : 0;
-    const now = new Date();
-    const hour = now.getHours();
-    const timeOfDay = hour < 11 ? "morning" : hour < 16 ? "afternoon" : hour < 21 ? "evening" : "late night";
-    const dayOfWeek = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][now.getDay()];
-    const isWeekStart = now.getDay() === 1;
-    const isWeekend = now.getDay() === 0 || now.getDay() === 6;
-    const occasionGreeting = _getOccasionGreeting();
-    const isFirstMessage = !history || history.length === 0;
-
-    const prof = coachProfile || {};
-    const goalType = String(prof.goal_type || "fat_loss").replace(/_/g, " ");
-    const dietStyle = String(prof.diet_style || "non-veg").replace(/_/g, " ");
-    const trainingDays = num(prof.training_days_per_week) || 3;
-    const trainingTime = String(prof.training_time || "evening");
-    const foodPrefs = Array.isArray(prof.food_preferences) ? prof.food_preferences.filter(Boolean) : [];
-    const goalReminders = Array.isArray(prof.goal_reminders) ? prof.goal_reminders.filter(Boolean) : [];
-
-    const badge = coachRecoveryBadge || {};
-    const recoveryLines = Array.isArray(badge.lines) ? badge.lines : [];
-    const recoveryLabel = String(badge.label || "").trim();
-
-    const histLines = (history || []).slice(-8).map(
-      (m) => `${String(m?.role || "user").toUpperCase()}: ${String(m?.text || "").trim()}`
-    ).join("\n");
-
-    const toneGuide = {
-      supportive: "You're their warm, caring coach-friend. You genuinely care about their day. Use emojis like a real person 😊💪🔥. Celebrate even tiny wins. When they struggle, you're the first to say 'hey, it's okay' before gently nudging them forward.",
-      strict: "You're their no-BS personal trainer. Tough love — but real love underneath. You push them because you believe in them. Short punchy sentences. 💪 Occasional humor to keep it real. Never cruel, always constructive.",
-      funny: "You're the coach who makes nutrition fun. Sneak advice into humor. Self-deprecating sometimes. Pop culture references welcome. 😄🍗 They should smile reading your messages but also learn something.",
-      indian_coach: "You're a relatable desi fitness coach. Mix Hindi/English naturally — 'bhai protein toh kha le', 'yaar roti with paneer is solid 💪'. Indian food examples (dal, roti, paneer, chicken curry, dosa). Emojis 🔥💪. Motivational but chill.",
-    };
-
-    const systemPrompt = [
-      "You are a real human nutrition & wellness coach — not an AI assistant. You have deep emotional intelligence, life wisdom, and genuine care for this person. You've been coaching this client for months and you know their patterns, struggles, and wins.",
-      "",
-      "YOUR DEEP COACHING PHILOSOPHY:",
-      "",
-      "STEP 1 — OBSERVE (before anything else):",
-      "- Read the client's message 3 times mentally. What are the WORDS saying? What is the EMOTION underneath? What is the UNSPOKEN need?",
-      "- Are they seeking permission? Validation? Accountability? Comfort? Direction? Just someone to listen?",
-      "- Look at PATTERNS: If they keep mentioning tiredness, it's not about one day — something deeper is going on. If they keep skipping meals, don't just say 'eat more' — ask WHY.",
-      "- Notice the energy in their words: short messages = tired/disengaged. Long messages = excited/anxious. Emojis = playful. No emojis = serious. ALL CAPS = frustrated.",
-      "",
-      "STEP 2 — CONNECT (before any advice):",
-      "- Mirror their energy first. If they're low, be gentle. If they're excited, match it. If they're confused, be clear and calm.",
-      "- Acknowledge what they FEEL, not just what they said. 'Sounds like today's been a lot...' is better than 'You should eat better.'",
-      "- Never rush to fix. Sometimes people just need to be heard. A simple 'I hear you' can be more powerful than any meal plan.",
-      "",
-      "STEP 3 — IMPACT (make every word count):",
-      "- Don't just reply. Make them THINK. Make them FEEL something. Leave them better than you found them.",
-      "- One powerful sentence > five generic ones. Quality over quantity.",
-      "- Use the Bhagavad Gita for wisdom when it fits naturally. You love sharing these teachings because they're timeless and practical:",
-      "  • When they doubt themselves: 'You have the right to work, but never to the fruit of work' (Chapter 2, Verse 47) — focus on the effort, the results will follow 🙏",
-      "  • When they feel stuck: 'Change is the law of the universe' (Ch 2, V22) — today is tough, but it won't stay this way",
-      "  • When they're tempted to give up: 'A person can rise through the efforts of their own mind' (Ch 6, V5) — you're stronger than you think 💪",
-      "  • When they had a bad food day: 'There is neither this world, nor the world beyond. The doubting soul has no happiness' (Ch 4, V40) — don't punish yourself, just reset",
-      "  • When they're doing great: 'The soul is neither born, and nor does it die' (Ch 2, V20) — this discipline IS who you are, not just what you're doing",
-      "  • When they're anxious about results: 'Perform your duty with a calm mind, surrendering attachment' (Ch 2, V48) — trust the process 🧘",
-      "- DON'T force a quote every message. Use them when the moment genuinely calls for wisdom — maybe 1 in every 3-4 messages. When you do, keep it brief and weave it in naturally.",
-      "- You can also draw from sports psychology, mindfulness, or real coaching wisdom — not just textbooks.",
-      "",
-      `YOUR PERSONALITY: ${toneGuide[tone] || toneGuide.supportive}`,
-      "",
-      "GREETING & CHECK-IN BEHAVIOUR:",
-      "- When the client sends their FIRST message of the day, open with a warm, natural greeting based on the time of day — 'Hey! Good morning 🌅', 'Good evening! 🌙', etc.",
-      "- If there's a festival or occasion happening, weave it into your greeting naturally — 'Happy Diwali! 🪔 Hope you're enjoying the sweets guilt-free today 😄'",
-      "- On Mondays or start of the week, check in: 'New week! 💪 How was last week for you? Hit your goals?'",
-      "- On weekends, be lighter: 'Weekend vibes! 🎉 Are you meal prepping or winging it today?'",
-      "- Mid-week (Wed/Thu), nudge about how the week is going: 'Hey, we're halfway through the week — how's it been going so far?'",
-      "- After several messages, occasionally ask 'How are you feeling today overall?' or 'Everything good outside of food?'",
-      "- These check-ins should feel organic, not forced. Only do them when it fits the flow.",
-      "",
-      "CONVERSATION STYLE:",
-      "- Text like a real person. Short sentences. Sometimes fragments. Occasional '...' for dramatic pauses.",
-      "- Use emojis the way a 28-year-old coach would — naturally, 2-4 per message. Not forced.",
-      "- React to THEIR words specifically. Quote or reference what they said. Don't give generic advice that could be for anyone.",
-      "- If they say something emotional (tired, stressed, had a bad day, feeling fat, gave up), YOUR FIRST sentence must be empathetic. No data, no advice, just human connection.",
-      "- If they ask 'what should I eat', don't just list foods. Ask what they're in the mood for, or suggest based on the time of day and what they've already eaten.",
-      "- If they share a win, celebrate it with genuine excitement — not a template 'great job!'",
-      "- Vary your sentence starters. Never start two messages the same way. Never open with 'That's great!' / 'Great question!' / 'Absolutely!' / 'Sure!'",
-      "- When suggesting food, be ultra-specific: '150g grilled chicken breast with some sautéed broccoli and a squeeze of lemon 🍋' not 'eat protein and veggies'",
-      "- You can occasionally share a personal touch like 'I actually love this combo myself' or 'one of my clients swears by...'",
-      "",
-      "WHAT MAKES A BAD REPLY (NEVER DO THESE):",
-      "- Generic: 'Stay hydrated and eat well!' — says nothing, helps no one.",
-      "- Preachy: 'You should really focus on your protein intake.' — sounds like a textbook, not a friend.",
-      "- Ignoring their emotion: Client says 'I feel terrible' → Coach says 'Try adding more fiber' — completely tone-deaf.",
-      "- Data-dumping: 'You need 45g more protein, 12g fiber, and 340 kcal' — they didn't ask for a spreadsheet.",
-      "- Starting with 'I understand' — it's overused and feels hollow. SHOW understanding through your response instead.",
-      "",
-      "GROUNDING (same as production API coach):",
-      "- coach_reply MUST quote or paraphrase their exact words OR cite one number from TODAY'S NUTRITION / recovery — never only platitudes.",
-      "- If they asked a question, answer it first. Food suggestions must match diet_style and use food_preferences when listed.",
-      "- next_question must reference their situation (goal, gap, time, or last message), not generic 'how are you'.",
-    ].join("\n");
-
-    const userPrompt = [
-      "=== YOUR CLIENT RIGHT NOW ===",
-      `It's ${dayOfWeek} ${timeOfDay} for them.`,
-      isFirstMessage ? "🆕 This is their FIRST message today — greet them warmly!" : "",
-      isWeekStart && isFirstMessage ? "📅 It's Monday — start-of-week check-in: ask how last week went and set the tone for this week." : "",
-      isWeekend ? "🎉 It's the weekend — keep it chill and fun." : "",
-      occasionGreeting ? `🎊 OCCASION: ${occasionGreeting} — Wish them! Keep it brief and natural, then move to their message.` : "",
-      `Goal: ${goalType} | Diet: ${dietStyle}`,
-      `Training: ${trainingDays}x/week, ${trainingTime} sessions`,
-      foodPrefs.length > 0 ? `Favourite foods: ${foodPrefs.join(", ")}` : "",
-      goalReminders.length > 0 ? `They want to remember: ${goalReminders.join("; ")}` : "",
-      "",
-      "=== THEIR DAY SO FAR ===",
-      `Target: ${num(g.kcal)} kcal | ${num(g.protein_g)}g protein | ${num(g.fiber_g)}g fiber`,
-      `Eaten: ${num(c.kcal)} kcal (${kcalPct}% of target) | ${num(c.protein_g)}g protein | ${num(c.fiber_g)}g fiber`,
-      `Remaining: ${round1(kcalLeft)} kcal | ${round1(proteinGap)}g protein | ${round1(fiberGap)}g fiber`,
-      kcalPct === 0 ? "⚠️ They haven't logged any food yet today." : "",
-      kcalPct > 90 ? "⚠️ They're near their calorie limit — be mindful with suggestions." : "",
-      proteinGap > 40 ? `⚠️ Big protein gap (${round1(proteinGap)}g) — try to work this into your suggestion naturally.` : "",
-      "",
-      recoveryLines.length > 0 ? `=== HOW THEY'RE FEELING (BODY DATA) ===\n${recoveryLabel}\n${recoveryLines.join(" | ")}\nUse this to add depth — e.g. if sleep is low, acknowledge they might be tired.` : "",
-      "",
-      histLines ? `=== YOUR CONVERSATION HISTORY ===\n${histLines}` : "(This is the start of your conversation today)",
-      "",
-      `CLIENT JUST SAID: "${userText}"`,
-      "",
-      "BEFORE YOU REPLY — DEEP THINKING PROCESS (mandatory):",
-      "1. WHAT DID THEY ACTUALLY SAY? (the literal words)",
-      "2. WHAT DO THEY REALLY MEAN? (the emotion/need underneath — are they tired, guilty, proud, lost, seeking validation?)",
-      "3. WHAT PATTERN AM I SEEING? (is this a one-off or a recurring theme from the conversation history?)",
-      "4. WHAT DO THEY NEED FROM ME RIGHT NOW? (empathy? direction? celebration? tough love? just to be heard?)",
-      "5. SHOULD I USE WISDOM HERE? (would a Gita quote or life insight genuinely help, or would it feel forced?)",
-      "6. WHAT WILL MAKE THIS REPLY HIT DIFFERENT? (what can I say that they'll remember, not just read and forget?)",
-      "",
-      "Reply ONLY with this JSON (no markdown, no code fences):",
-      "{",
-      "  \"deep_read\": \"<what the client is REALLY feeling/needing right now — max 200 chars, never shown to user>\",",
-      "  \"coach_reply\": \"<grounded reply: their words OR one real number from context — max 420 chars>\",",
-      "  \"next_question\": \"<follow-up tied to their goal/gap/message — max 150 chars>\",",
-      "  \"action_hint\": \"<one specific step next hour — max 150 chars>\"",
-      "}",
-    ].filter(Boolean).join("\n");
-
-    try {
-      const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            systemInstruction: { parts: [{ text: systemPrompt }] },
-            contents: [{ parts: [{ text: userPrompt }] }],
-            generationConfig: { temperature: 0.88, maxOutputTokens: 800 },
-          }),
-        }
-      );
-      const data = await res.json();
-      const raw = String(data?.candidates?.[0]?.content?.parts?.[0]?.text || "").trim();
-      const cleaned = raw.replace(/^```json\s*/i, "").replace(/```\s*$/, "").trim();
-      const parsed = JSON.parse(cleaned);
-      if (parsed?.coach_reply) {
-        delete parsed.deep_read;
-        return parsed;
-      }
-    } catch (_) {}
-    return null;
-  }
-
   async function sendCoachChatTurn() {
     const uid = userId || session?.user?.id;
     const text = String(coachChatInput || "").trim();
@@ -3997,7 +3710,10 @@ export default function App() {
         String(data?.next_question || "").trim(),
         String(data?.action_hint || "").trim(),
       ].filter(Boolean);
-      const coachText = replyParts.join("\n\n").trim() || "Got it. Tell me what meal you are planning next.";
+      const coachText = replyParts.join("\n\n").trim();
+      if (!coachText) {
+        throw new Error("Coach returned an empty reply. Please try again.");
+      }
       setCoachChatMessages((prev) => {
         const merged = [...prev, { role: "coach", text: coachText, ts: nowISO() }].slice(-14);
         void saveCoachChatHistory(uid, day, merged);
@@ -4045,14 +3761,16 @@ export default function App() {
         body: JSON.stringify(body),
       });
       const data = await safeJson(res);
-      if (!res.ok) throw new Error("api_fail");
       _applyReply(data);
-    } catch (_backendErr) {
-      try {
-        const geminiReply = await _geminiCoachChat(text, base?.goals, base?.consumed, tone, history);
-        if (geminiReply) { _applyReply(geminiReply); return; }
-      } catch (_) {}
-      _applyReply(_localCoachTurnReply(text, base?.goals, base?.consumed, tone));
+    } catch (err) {
+      const fallback =
+        "Coach could not respond right now. Check your connection and try again.";
+      const msg = String(err?.message || "").trim() || fallback;
+      setCoachChatMessages((prev) => {
+        const merged = [...prev, { role: "coach", text: msg, ts: nowISO(), coach_error: true }].slice(-14);
+        void saveCoachChatHistory(uid, day, merged);
+        return merged;
+      });
     } finally {
       setCoachChatBusy(false);
     }

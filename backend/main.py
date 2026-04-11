@@ -253,12 +253,22 @@ def whoami():
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],   # tighten later
-    allow_credentials=True,
+    allow_origins=["*"],
+    # Wildcard origin is incompatible with credentials=True in browsers; TripDeal UI uses default fetch (no cookies).
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 app.include_router(yieldpilot_case_router, prefix="/yieldpilot")
+
+# TripDeal Next.js UI (/v1/*) — same process as `uvicorn main:app` (port 8000 by default).
+try:
+    from app.api.tripdeal_mvp import router as _tripdeal_mvp_router
+
+    app.include_router(_tripdeal_mvp_router, prefix="/v1")
+    logger.info("TripDeal API mounted at /v1 (search, saved searches, alerts, dispatches).")
+except Exception as _tripdeal_mount_exc:
+    logger.warning("TripDeal /v1 routes not mounted: %s", _tripdeal_mount_exc)
 
 # -------------------- ENV --------------------
 USDA_API_KEY = os.getenv("USDA_API_KEY", "").strip()
@@ -268,7 +278,8 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "").strip()
 if GEMINI_API_KEY:
     genai.configure(api_key=GEMINI_API_KEY)
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "").strip()
-COACH_LLM_PROVIDER = str(os.getenv("COACH_LLM_PROVIDER", "gemini") or "gemini").strip().lower()
+# Raw env: "openai" | "gemini" | "auto" (default). Auto prefers OpenAI when OPENAI_API_KEY is set.
+COACH_LLM_PROVIDER = str(os.getenv("COACH_LLM_PROVIDER", "auto") or "auto").strip().lower()
 
 OPENFOODFACTS_BASE = os.getenv("OPENFOODFACTS_BASE", "https://world.openfoodfacts.org/api/v2").strip()
 OPENFOODFACTS_USER_AGENT = os.getenv(
@@ -595,8 +606,19 @@ def _require_gemini_key():
 
 
 def _coach_llm_provider() -> str:
-    p = str(COACH_LLM_PROVIDER or "gemini").strip().lower()
-    return p if p in {"gemini", "openai"} else "gemini"
+    """
+    Effective LLM vendor for coach + scan flows.
+    - COACH_LLM_PROVIDER=openai|gemini forces that vendor (key must exist).
+    - COACH_LLM_PROVIDER=auto (default): use OpenAI if OPENAI_API_KEY is set, else Gemini.
+    """
+    p = str(COACH_LLM_PROVIDER or "auto").strip().lower()
+    if p == "openai":
+        return "openai"
+    if p == "gemini":
+        return "gemini"
+    if OPENAI_API_KEY:
+        return "openai"
+    return "gemini"
 
 
 def _require_coach_llm_provider_key():
@@ -780,6 +802,18 @@ def _normalize_prompt_to_openai_messages(prompt: List[Any]) -> List[Dict[str, st
     return [{"role": "system", "content": parts[0]}, {"role": "user", "content": "\n\n".join(parts[1:])}]
 
 
+def _openai_chat_model_effective(requested: Optional[str]) -> str:
+    """Coach stack often sets COACH_VOICE_LLM_MODEL to a Gemini id; never send that to OpenAI."""
+    env_default = str(os.getenv("OPENAI_COACH_MODEL", "gpt-4o-mini") or "gpt-4o-mini").strip() or "gpt-4o-mini"
+    raw = str(requested or "").strip()
+    if not raw:
+        return env_default
+    low = raw.lower()
+    if "gemini" in low or low.startswith("google/"):
+        return env_default
+    return raw
+
+
 def _call_openai_text_with_timeout(
     prompt: List[Any],
     *,
@@ -789,7 +823,7 @@ def _call_openai_text_with_timeout(
     purpose: str = "llm",
     request_id: str = "",
 ) -> Tuple[str, str, List[str]]:
-    selected_model = str(model_name or os.getenv("OPENAI_COACH_MODEL", "gpt-4o-mini")).strip() or "gpt-4o-mini"
+    selected_model = _openai_chat_model_effective(model_name)
     caller_timeout = float(timeout_sec if timeout_sec is not None else 8.0)
     effective_timeout = max(3.0, min(120.0, caller_timeout))
     attempts = max(1, min(2, int(retries or 1) + 1))
@@ -856,8 +890,15 @@ def _call_coach_llm_with_timeout(
     retries: int = 1,
     purpose: str = "llm",
     request_id: str = "",
+    provider: Optional[str] = None,
 ) -> Tuple[str, str, List[str]]:
-    if _coach_llm_provider() == "openai":
+    """
+    Route coach LLM calls. If provider is \"openai\" | \"gemini\", force that vendor; else use _coach_llm_provider().
+    """
+    p = str(provider or "").strip().lower()
+    if p not in ("openai", "gemini"):
+        p = _coach_llm_provider()
+    if p == "openai":
         return _call_openai_text_with_timeout(
             prompt,
             model_name=model_name,
@@ -12130,98 +12171,6 @@ def _generate_human_coach_voice_llm(
     return parsed
 
 
-def _audio_turn_reply_text(
-    *,
-    user_text: str,
-    tone: str,
-    protein_gap: float,
-    fiber_gap: float,
-    kcal_delta: float,
-    history: Optional[List[Dict[str, str]]] = None,
-) -> Dict[str, str]:
-    txt = str(user_text or "").strip()
-    txt_l = txt.lower()
-    hist = history if isinstance(history, list) else []
-    last_user = ""
-    for row in reversed(hist):
-        if str(row.get("role") or "").strip().lower() == "user" and str(row.get("text") or "").strip():
-            last_user = str(row.get("text") or "").strip()
-            break
-    continuity_prefix = ""
-    if last_user and txt and _is_repetitive_line(txt, [last_user], threshold=0.92):
-        continuity_prefix = "Picking up from your last message, "
-    if any(w in txt_l for w in ("hungry", "craving", "snack")):
-        coach_reply = f"{continuity_prefix}cravings usually hit harder when protein or fiber is low. Let’s protect your next meal."
-        next_q = "Are you eating in the next 60 minutes, or do you need a bridge snack first?"
-    elif any(w in txt_l for w in ("walk", "steps", "hydration", "water", "sleep")):
-        coach_reply = f"{continuity_prefix}good call checking recovery signals. They can shift appetite and choices fast."
-        next_q = "What is one thing you can do now: 10-minute walk, 500ml water, or both?"
-    elif any(w in txt_l for w in ("dinner", "lunch", "breakfast", "meal")):
-        coach_reply = f"{continuity_prefix}let’s make this meal do real work for your targets."
-        next_q = "Do you want a quick protein-first plate suggestion or a lighter calorie option?"
-    else:
-        if protein_gap >= fiber_gap and protein_gap > 0:
-            coach_reply = f"{continuity_prefix}main lever is protein right now. You still have about {round(protein_gap, 1)}g to recover."
-        elif fiber_gap > 0:
-            coach_reply = f"{continuity_prefix}main lever is fiber right now. You still have about {round(fiber_gap, 1)}g to recover."
-        elif kcal_delta > 150:
-            coach_reply = f"{continuity_prefix}calories are running a bit high, so the next choice should be lighter and cleaner."
-        else:
-            coach_reply = f"{continuity_prefix}you’re in a decent range. One structured meal now can keep momentum."
-        next_q = "What meal are you about to eat next?"
-
-    style_seed = hashlib.sha256(f"{tone}|{txt_l}|{round(protein_gap,1)}|{round(fiber_gap,1)}|{round(kcal_delta,1)}".encode("utf-8")).hexdigest()
-    if tone == "supportive":
-        prefixes = ["Quick read: ", "From your check-in: ", "Here’s what I’d do: "]
-        coach_reply = prefixes[int(style_seed[:4], 16) % len(prefixes)] + coach_reply
-    if tone == "strict":
-        prefixes = ["Direct check: ", "No fluff: ", "Straight answer: "]
-        coach_reply = prefixes[int(style_seed[4:8], 16) % len(prefixes)] + coach_reply
-    elif tone == "funny":
-        prefixes = ["Quick coach plot twist: ", "Today’s coach update: ", "Friendly reality check: "]
-        coach_reply = prefixes[int(style_seed[8:12], 16) % len(prefixes)] + coach_reply
-    elif tone == "indian_coach":
-        prefixes = ["Chalo seedhi baat: ", "Dekho simple hai: ", "Suno, quick plan: "]
-        coach_reply = prefixes[int(style_seed[12:16], 16) % len(prefixes)] + coach_reply
-
-    action_hint = "Next action: keep protein + fiber in the next meal, then log it."
-    return {
-        "coach_reply": _limit_text(coach_reply, 280),
-        "next_question": _limit_text(next_q, 200),
-        "action_hint": _limit_text(action_hint, 180),
-    }
-
-
-def _audio_health_guidance_lines(health_context: Dict[str, Any]) -> Dict[str, str]:
-    """
-    Build short, human guidance lines from recovery signals (sleep/HRV/RHR/stress).
-    """
-    hc = _normalize_health_context(health_context)
-    signals = hc.get("signals") if isinstance(hc.get("signals"), dict) else {}
-    stress = str(hc.get("stress_level") or "").strip().lower()
-    sleep_last = float(_safe_float(signals.get("sleep_last_night_hours"), 0.0) or 0.0)
-    sleep_avg = float(_safe_float(signals.get("sleep_hours_avg_7d"), 0.0) or 0.0)
-    sleep_h = sleep_last if sleep_last > 0 else sleep_avg
-    rhr = float(_safe_float(signals.get("resting_hr_avg_7d"), 0.0) or 0.0)
-    hrv = float(_safe_float(signals.get("hrv_ms_avg_7d"), 0.0) or 0.0)
-
-    readiness_low = (sleep_h > 0 and sleep_h < 6.8) or (rhr > 0 and rhr >= 76) or (hrv > 0 and hrv < 32) or (stress in {"high", "very_high"})
-    if readiness_low:
-        coach = "Recovery looks taxed today. Keep training low-impact and make meals simpler: protein + fiber + hydration."
-        action = "Workout: Zone-2 walk or light lift. Nutrition: protein-first plate, add fruit/veg, reduce late heavy food."
-        next_q = "Do you want a low-stress meal plan for the next 6 hours or a light training option first?"
-        return {"coach_boost": coach, "action_boost": action, "next_q_boost": next_q}
-
-    readiness_good = (sleep_h >= 7.0 if sleep_h > 0 else False) and ((hrv >= 40) if hrv > 0 else True) and ((rhr <= 72) if rhr > 0 else True)
-    if readiness_good:
-        coach = "Recovery signals look solid today. Great day for quality training and structured nutrition."
-        action = "Workout: strength or intervals as planned. Nutrition: anchor each meal with protein, then carbs around training."
-        next_q = "Want a pre- and post-workout meal suggestion based on today’s gaps?"
-        return {"coach_boost": coach, "action_boost": action, "next_q_boost": next_q}
-
-    return {}
-
-
 def _audio_history_normalize(history: Any, limit: int = 8) -> List[Dict[str, str]]:
     out: List[Dict[str, str]] = []
     for row in (history or []):
@@ -12386,6 +12335,44 @@ _COACH_CHAT_SYSTEM_PROMPT = (
 )
 
 
+def _coach_chat_provider_key_configured() -> bool:
+    return bool(OPENAI_API_KEY or GEMINI_API_KEY)
+
+
+def _coach_chat_llm_provider_try_order() -> List[str]:
+    """Try preferred provider first (COACH_LLM_PROVIDER / auto), then the other if that key exists."""
+    order: List[str] = []
+    seen = set()
+
+    def add(vendor: str) -> None:
+        v = str(vendor or "").strip().lower()
+        if v in seen:
+            return
+        if v == "openai" and OPENAI_API_KEY:
+            order.append("openai")
+            seen.add("openai")
+        elif v == "gemini" and GEMINI_API_KEY:
+            order.append("gemini")
+            seen.add("gemini")
+
+    add(_coach_llm_provider())
+    add("openai")
+    add("gemini")
+    return order
+
+
+def _coach_chat_fallback_reply() -> Dict[str, str]:
+    """Honest copy when the LLM is unavailable — not a fake personalized coach reply."""
+    return {
+        "coach_reply": _limit_text(
+            "I couldn’t finish a personalized reply just now — the coaching service hiccupped. That’s on us, not you.",
+            400,
+        ),
+        "next_question": _limit_text("Want to send your message again in a few seconds?", 150),
+        "action_hint": _limit_text("Keep logging your meals; we’ll pick this up properly once the line is clear.", 150),
+    }
+
+
 def _build_coach_chat_llm_prompt(
     user_text: str,
     tone: str,
@@ -12497,7 +12484,9 @@ def _coach_chat_llm_reply(
     signals: Optional[Dict[str, Any]] = None,
     meal_timing: Optional[Dict[str, Any]] = None,
 ) -> Optional[Dict[str, str]]:
-    if not GEMINI_API_KEY and not OPENAI_API_KEY:
+    """Returns coach JSON from the LLM, or None if no keys / both vendors fail / output invalid. Tries OpenAI then Gemini or the reverse per _coach_chat_llm_provider_try_order()."""
+    if not _coach_chat_provider_key_configured():
+        logger.warning("coach chat skipped: no OPENAI_API_KEY or GEMINI_API_KEY configured")
         return None
     prompt = _build_coach_chat_llm_prompt(
         user_text, tone, goals, consumed,
@@ -12509,24 +12498,29 @@ def _coach_chat_llm_reply(
         signals=signals,
         meal_timing=meal_timing,
     )
-    try:
-        _require_coach_llm_provider_key()
-        text, model_name, tried = _call_coach_llm_with_timeout(
-            [_COACH_CHAT_SYSTEM_PROMPT, prompt],
-            model_name=COACH_VOICE_LLM_MODEL,
-            timeout_sec=18.0,
-            retries=1,
-            purpose="coach_chat_turn",
-        )
-        parsed = coach_logic.extract_json_object(str(text or "").strip())
-        if isinstance(parsed, dict) and parsed.get("coach_reply"):
-            return {
-                "coach_reply": _limit_text(parsed.get("coach_reply"), 400),
-                "next_question": _limit_text(parsed.get("next_question"), 150),
-                "action_hint": _limit_text(parsed.get("action_hint"), 150),
-            }
-    except Exception as e:
-        logger.warning(f"coach chat LLM failed, falling back to templates: {e}")
+    full_prompt: List[Any] = [_COACH_CHAT_SYSTEM_PROMPT, prompt]
+    for prov in _coach_chat_llm_provider_try_order():
+        try:
+            text, _model_name, _tried = _call_coach_llm_with_timeout(
+                full_prompt,
+                model_name=COACH_VOICE_LLM_MODEL,
+                timeout_sec=18.0,
+                retries=1,
+                purpose="coach_chat_turn",
+                provider=prov,
+            )
+            parsed = coach_logic.extract_json_object(str(text or "").strip())
+            if isinstance(parsed, dict):
+                coach_reply = _limit_text(parsed.get("coach_reply"), 400)
+                if str(coach_reply or "").strip():
+                    return {
+                        "coach_reply": coach_reply,
+                        "next_question": _limit_text(parsed.get("next_question"), 150),
+                        "action_hint": _limit_text(parsed.get("action_hint"), 150),
+                    }
+        except Exception as e:
+            logger.warning("coach chat LLM failed provider=%s: %s", prov, e)
+            continue
     return None
 
 
@@ -12583,25 +12577,13 @@ def coach_audio_turn(
         signals=req.signals or {},
         meal_timing=req.meal_timing or {},
     )
-    reply = llm_reply or _audio_turn_reply_text(
-        user_text=user_text,
-        tone=tone_pref,
-        protein_gap=protein_gap,
-        fiber_gap=fiber_gap,
-        kcal_delta=kcal_delta,
-        history=history,
+    reply = llm_reply if llm_reply else _coach_chat_fallback_reply()
+    source = "llm" if llm_reply else "fallback"
+    health_context_used = bool(
+        health_ctx
+        and isinstance(health_ctx, dict)
+        and str(health_ctx.get("source") or "").strip() == "apple_health"
     )
-    source = "llm" if llm_reply else "rules"
-
-    health_boost = _audio_health_guidance_lines(health_ctx)
-    if health_boost and source == "rules":
-        reply["coach_reply"] = _limit_text(
-            f"{str(reply.get('coach_reply') or '').strip()} {str(health_boost.get('coach_boost') or '').strip()}".strip(), 400
-        )
-        reply["action_hint"] = _limit_text(
-            f"{str(reply.get('action_hint') or '').strip()} {str(health_boost.get('action_boost') or '').strip()}".strip(), 200
-        )
-        reply["next_question"] = _limit_text(str(health_boost.get("next_q_boost") or reply.get("next_question") or "").strip(), 200)
     greeting_meta = _coach_temporal_greeting(
         tz=req.tz or "",
         tz_offset_min=req.tz_offset_min,
@@ -12626,7 +12608,7 @@ def coach_audio_turn(
             "fiber_gap": fiber_gap,
             "kcal_delta": kcal_delta,
         },
-        "health_context_used": bool(health_boost),
+        "health_context_used": health_context_used,
         **greeting_meta,
         "disclaimer": "Informational only. Not medical advice.",
     }
@@ -12806,12 +12788,21 @@ def coach_live_chat_stream(
         raise HTTPException(status_code=400, detail={"error": "missing_user_text"})
     history = _audio_history_normalize(payload.get("history"), limit=10)
 
+    goals = payload.get("goals") if isinstance(payload.get("goals"), dict) else {}
+    consumed = payload.get("consumed") if isinstance(payload.get("consumed"), dict) else {}
+    health_ctx = payload.get("health_context") if isinstance(payload.get("health_context"), dict) else {}
+    profile = payload.get("profile") if isinstance(payload.get("profile"), dict) else {}
+    signals = payload.get("signals") if isinstance(payload.get("signals"), dict) else {}
+    meal_timing = payload.get("meal_timing") if isinstance(payload.get("meal_timing"), dict) else {}
+    food_preferences = list(payload.get("food_preferences") or [])
+    goal_reminders = list(payload.get("goal_reminders") or [])
+
     voice_like = CoachVoiceRequestModel(
         user_id=uid,
         day=day_iso,
         payload_hash="",
-        goals=payload.get("goals") if isinstance(payload.get("goals"), dict) else {},
-        consumed=payload.get("consumed") if isinstance(payload.get("consumed"), dict) else {},
+        goals=goals,
+        consumed=consumed,
         meals=[],
         recent_messages=[],
         user_profile=CoachVoiceProfileModel(),
@@ -12819,14 +12810,27 @@ def coach_live_chat_stream(
         tone_id=tone,
     )
     metrics = _voice_metrics_from_request(voice_like)
-    reply = _audio_turn_reply_text(
+    protein_gap = float(_safe_float(metrics.get("protein_gap"), 0.0) or 0.0)
+    fiber_gap = float(_safe_float(metrics.get("fiber_gap"), 0.0) or 0.0)
+    kcal_delta = float(_safe_float(metrics.get("kcal_delta"), 0.0) or 0.0)
+    llm_reply = _coach_chat_llm_reply(
         user_text=user_text,
         tone=tone,
-        protein_gap=float(_safe_float(metrics.get("protein_gap"), 0.0) or 0.0),
-        fiber_gap=float(_safe_float(metrics.get("fiber_gap"), 0.0) or 0.0),
-        kcal_delta=float(_safe_float(metrics.get("kcal_delta"), 0.0) or 0.0),
+        goals=goals,
+        consumed=consumed,
+        protein_gap=protein_gap,
+        fiber_gap=fiber_gap,
+        kcal_delta=kcal_delta,
         history=history,
+        health_context=health_ctx,
+        profile=profile,
+        food_preferences=food_preferences,
+        goal_reminders=goal_reminders,
+        signals=signals,
+        meal_timing=meal_timing,
     )
+    reply = llm_reply if llm_reply else _coach_chat_fallback_reply()
+    stream_source = "llm" if llm_reply else "fallback"
     full_text = " ".join(
         [
             str(reply.get("coach_reply") or "").strip(),
@@ -12834,15 +12838,16 @@ def coach_live_chat_stream(
             str(reply.get("action_hint") or "").strip(),
         ]
     ).strip()
-    if not full_text:
-        full_text = "I am here with you. Tell me what you are planning to eat next."
 
     def _event(name: str, data_obj: Dict[str, Any]) -> str:
         return f"event: {name}\ndata: {json.dumps(data_obj, ensure_ascii=True)}\n\n"
 
     def _iter():
         stream_id = str(uuid.uuid4())
-        yield _event("start", {"ok": True, "stream_id": stream_id, "tone_used": tone, "day": day_iso})
+        yield _event(
+            "start",
+            {"ok": True, "stream_id": stream_id, "tone_used": tone, "day": day_iso, "source": stream_source},
+        )
         chunk_size = 38
         idx = 0
         for i in range(0, len(full_text), chunk_size):
@@ -12854,6 +12859,7 @@ def coach_live_chat_stream(
             {
                 "ok": True,
                 "stream_id": stream_id,
+                "source": stream_source,
                 "full_text": full_text,
                 "coach_reply": str(reply.get("coach_reply") or ""),
                 "next_question": str(reply.get("next_question") or ""),

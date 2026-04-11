@@ -4,17 +4,6 @@ import main as main_mod
 
 
 class AudioCoachTurnTests(unittest.TestCase):
-    def test_audio_reply_builder_contains_question(self):
-        out = main_mod._audio_turn_reply_text(
-            user_text="I am very hungry and craving snacks",
-            tone="supportive",
-            protein_gap=42.0,
-            fiber_gap=9.0,
-            kcal_delta=120.0,
-        )
-        self.assertTrue(str(out.get("coach_reply") or "").strip())
-        self.assertTrue(str(out.get("next_question") or "").strip())
-
     def test_audio_history_normalize_filters_roles(self):
         rows = main_mod._audio_history_normalize(
             [

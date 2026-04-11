@@ -1,8 +1,8 @@
-diff --git a/RCTAppleHealthKit/RCTAppleHealthKit+Queries.m b/RCTAppleHealthKit/RCTAppleHealthKit+Queries.m
-index 1234567..abcdefg 100644
---- a/RCTAppleHealthKit/RCTAppleHealthKit+Queries.m
-+++ b/RCTAppleHealthKit/RCTAppleHealthKit+Queries.m
-@@ -253,21 +253,25 @@
+diff --git a/node_modules/react-native-health/RCTAppleHealthKit/RCTAppleHealthKit+Queries.m b/node_modules/react-native-health/RCTAppleHealthKit/RCTAppleHealthKit+Queries.m
+index d6d61ef..e7fc322 100644
+--- a/node_modules/react-native-health/RCTAppleHealthKit/RCTAppleHealthKit+Queries.m
++++ b/node_modules/react-native-health/RCTAppleHealthKit/RCTAppleHealthKit+Queries.m
+@@ -254,17 +254,18 @@ - (void)fetchQuantitySamplesOfType:(HKQuantityType *)quantityType
              dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
  
                  for (HKQuantitySample *sample in results) {
@@ -26,10 +26,7 @@ index 1234567..abcdefg 100644
                              @"startDate" : startDateString,
                              @"endDate" : endDateString,
                      }];
- 
-                     NSDictionary *metadata = [sample metadata];
-                     if (metadata) {
-                         [elem setValue:metadata forKey:kMetadataKey];
+@@ -275,6 +276,9 @@ - (void)fetchQuantitySamplesOfType:(HKQuantityType *)quantityType
                      }
  
                      [data addObject:elem];
@@ -37,13 +34,14 @@ index 1234567..abcdefg 100644
 +                        NSLog(@"RNHealth: error processing quantity sample: %@", exception);
 +                    }
                  }
-@@ -603,7 +607,8 @@
+ 
+                 completion(data, error);
+@@ -604,10 +608,11 @@ - (void)fetchSleepCategorySamplesForPredicate:(NSPredicate *)predicate
              dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
  
                  for (HKCategorySample *sample in results) {
--                    NSInteger val = sample.value;
 +                    @try {
-+                    NSInteger val = sample.value;
+                     NSInteger val = sample.value;
  
 -                    NSString *startDateString = [RCTAppleHealthKit buildISO8601StringFromDate:sample.startDate];
 -                    NSString *endDateString = [RCTAppleHealthKit buildISO8601StringFromDate:sample.endDate];
@@ -52,7 +50,7 @@ index 1234567..abcdefg 100644
  
                      NSString *valueString;
  
-@@ -638,13 +643,16 @@
+@@ -639,15 +644,18 @@ - (void)fetchSleepCategorySamplesForPredicate:(NSPredicate *)predicate
                    }
  
                      NSDictionary *elem = @{
@@ -72,3 +70,5 @@ index 1234567..abcdefg 100644
 +                        NSLog(@"RNHealth: error processing sleep sample: %@", exception);
 +                    }
                  }
+ 
+                 completion(data, error);
