@@ -3,7 +3,7 @@
     "scheme": "calorieclickai",
     "name": "CalorieClick AI",
     "slug": "calorieclick-ai",
-    "version": "1.0.11",
+    "version": "1.0.12",
     "orientation": "portrait",
     "icon": "./assets/CalorieClick.png",
     "userInterfaceStyle": "light",
@@ -16,6 +16,7 @@
     "ios": {
       "icon": "./assets/CalorieClick.png",
       "bundleIdentifier": "com.priyank.calorieclick",
+      "buildNumber": "15",
       "supportsTablet": true,
       "infoPlist": {
         "NSCameraUsageDescription": "We need camera access to scan meals and barcodes.",
@@ -29,6 +30,7 @@
     },
     "android": {
       "package": "com.priyank.calorieclick",
+      "versionCode": 186,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
@@ -70,7 +72,8 @@
       "USAGE_URL": "https://kcal-scan-production.up.railway.app/usage",
       "REVENUECAT_OFFERING": "main",
       "REVENUECAT_IOS_API_KEY": "appl_SoteCFCeVzvTTQWIpwbClzFnBdq",
-      "REVENUECAT_ANDROID_API_KEY": "goog_prIetTCSFiELCySmPqvheMMqbqi"
+      "REVENUECAT_ANDROID_API_KEY": "goog_prIetTCSFiELCySmPqvheMMqbqi",
+      "GOOGLE_MAPS_API_KEY": "AIzaSyDLta_em4OgP5E7h59rOtqQw_344j1vnFQ"
     },
     "plugins": [
       [

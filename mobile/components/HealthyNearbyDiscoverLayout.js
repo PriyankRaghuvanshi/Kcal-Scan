@@ -4,8 +4,8 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Platform } from "react-native";
-import Constants from "expo-constants";
 import { LinearGradient } from "expo-linear-gradient";
+import { hasGoogleMapsKeyForAndroid } from "../utils/mapsConfig";
 import { HealthyMapFilters } from "./HealthyMapFilters";
 import { HealthyNearbyGridTile } from "./HealthyNearbyGridTile";
 import { getPlaceCoords } from "../mapUtils";
@@ -18,11 +18,6 @@ try {
   MapView = Maps.default;
   Marker = Maps.Marker;
 } catch (_) {}
-
-const hasGoogleMapsKey = Boolean(
-  Constants.expoConfig?.android?.config?.googleMaps?.apiKey ||
-  Constants.expoConfig?.extra?.GOOGLE_MAPS_API_KEY
-);
 
 const ACCENT_PURPLE = "#a855f7";
 const ACCENT_PINK = "#ec4899";
@@ -98,7 +93,7 @@ export function HealthyNearbyDiscoverLayout({
   const mapRef = useRef(null);
   const [mapReady, setMapReady] = useState(false);
   const useSafeAndroidPreview = Platform.OS === "android";
-  const canRenderMap = MapView && Marker && (Platform.OS === "ios" || hasGoogleMapsKey);
+  const canRenderMap = MapView && Marker && (Platform.OS === "ios" || hasGoogleMapsKeyForAndroid());
 
   const markersWithCoords = (Array.isArray(places) ? places : [])
     .map((place, idx) => ({ place, idx, coords: getPlaceCoords(place) }))

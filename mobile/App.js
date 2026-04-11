@@ -2517,6 +2517,14 @@ export default function App() {
     if (!userId || !isDeviceHealthAvailable()) return;
     initDeviceHealth((err) => {
       if (err) console.log("Device health init:", err);
+      else {
+        // Coach often ran before Health Connect finished (Android) or HealthKit auth (iOS).
+        void ensureDailyCoach(true, {
+          refreshServer: true,
+          fastMode: true,
+          trigger: "device_health_ready",
+        });
+      }
     });
   }, [userId]);
 

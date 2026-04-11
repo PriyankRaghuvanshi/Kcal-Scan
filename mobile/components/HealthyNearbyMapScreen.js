@@ -14,7 +14,7 @@ import {
   Platform,
   ScrollView,
 } from "react-native";
-import Constants from "expo-constants";
+import { hasGoogleMapsKeyForAndroid } from "../utils/mapsConfig";
 
 let MapView = null;
 let Marker = null;
@@ -23,11 +23,6 @@ try {
   MapView = Maps.default;
   Marker = Maps.Marker;
 } catch (_) {}
-
-const hasGoogleMapsKey = Boolean(
-  Constants.expoConfig?.android?.config?.googleMaps?.apiKey ||
-  Constants.expoConfig?.extra?.GOOGLE_MAPS_API_KEY
-);
 import { HealthyMapFilters } from "./HealthyMapFilters";
 import { HealthyPlaceBottomCard } from "./HealthyPlaceBottomCard";
 import { getPlaceCoords } from "../mapUtils";
@@ -188,7 +183,7 @@ export function HealthyNearbyMapScreen({
 
   const placeCount = markersWithCoords.length;
 
-  const canRenderMap = MapView && Marker && (Platform.OS === "ios" || hasGoogleMapsKey);
+  const canRenderMap = MapView && Marker && (Platform.OS === "ios" || hasGoogleMapsKeyForAndroid());
 
   return (
     <View style={styles.container}>
