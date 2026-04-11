@@ -13192,10 +13192,15 @@ def goal_coach_daily_get(
     )
     coach_connection = build_coach_connection_line(state, wins_streaks)
     meal_log_encouragement = build_meal_log_encouragement(state, wins_streaks)
+    # Compute temporal greeting so coach_connection adapts to user's timezone
+    temporal = _coach_temporal_greeting(tz=tz, tz_offset_min=tz_offset_min)
+    greeting_prefix = str(temporal.get("opening_greeting") or "").strip()
+    if greeting_prefix and coach_connection:
+        coach_connection = _prefix_once(coach_connection, greeting_prefix, 300)
     plan_str = get_user_plan(uid)
     sub_required = kickoff.get("requires_subscription", False)
     requires_advanced = sub_required and not plan_at_least(plan_str, "advanced")
-    return {
+    resp = {
         "ok": True,
         "has_plan": True,
         "today_targets": today_targets,
@@ -13218,6 +13223,8 @@ def goal_coach_daily_get(
         "logging_streak_days": wins_streaks.get("logging_streak_days", 0),
         "win_line": wins_streaks.get("win_line", ""),
     }
+    resp.update(temporal)
+    return resp
 
 
 @app.get("/goal-coach/weekly")

@@ -21,17 +21,30 @@ function formatGrams(v) {
   return `${Math.max(0, Math.round(n))}g`;
 }
 
+/** Device-local greeting so cached/stale data never shows the wrong time-of-day. */
+function deviceGreeting() {
+  const h = new Date().getHours();
+  if (h >= 5 && h <= 11) return "Good morning.";
+  if (h >= 12 && h <= 16) return "Good afternoon.";
+  if (h >= 17 && h <= 21) return "Good evening.";
+  return "Good night.";
+}
+
 function bestStatusLine({ daily, remainingToday }) {
+  const greeting = deviceGreeting();
   const winLine = String(daily?.win_line || "").trim();
-  if (winLine) return winLine;
+  if (winLine) return `${greeting} ${winLine}`;
 
   const connection = String(daily?.coach_connection || "").trim();
-  if (connection) return connection.length > 150 ? `${connection.slice(0, 147)}…` : connection;
+  if (connection) {
+    const line = connection.length > 140 ? `${connection.slice(0, 137)}…` : connection;
+    return `${greeting} ${line}`;
+  }
 
   const remainingKcal = num(remainingToday?.kcal);
-  if (remainingKcal != null && remainingKcal <= 0) return "Nice — you’re in range for today.";
+  if (remainingKcal != null && remainingKcal <= 0) return `${greeting} Nice — you’re in range for today.`;
 
-  return "Your day, at a glance.";
+  return `${greeting} Your day, at a glance.`;
 }
 
 function buildChips(daily) {

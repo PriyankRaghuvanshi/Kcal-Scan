@@ -145,7 +145,7 @@ import {
 
 import * as WebBrowser from "expo-web-browser";
 // RevenueCat
-import Purchases, { LOG_LEVEL } from "react-native-purchases";
+import Purchases from "react-native-purchases";
 
 
 WebBrowser.maybeCompleteAuthSession();
@@ -156,7 +156,9 @@ const TERMS_URL = "https://www.apple.com/legal/internet-services/itunes/dev/stde
 
 // Pricing note for App Review & international launch
 const SUBSCRIPTION_PRICE_NOTE =
-  "Prices are shown in the App Store and may vary by country or region.";
+  Platform.OS === "android"
+    ? "Prices are shown in Google Play and may vary by country or region."
+    : "Prices are shown in the App Store and may vary by country or region.";
 
 // Safe link open (avoids crash if URL invalid or Linking fails)
 async function openURLSafe(url, fallbackMessage = "Could not open link.") {
@@ -248,6 +250,8 @@ const supabase = HAS_SUPABASE ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : 
 const HISTORY_KEY = "kcal_scan_history_v3";
 const historyKey = (uid) => `${HISTORY_KEY}:${uid}`;
 const MAX_HISTORY = 50;
+const MEAL_MEMORY_KEY = "kcal_meal_memory_v1";
+const mealMemoryKey = (uid) => `${MEAL_MEMORY_KEY}:${uid}`;
 const GOALS_KEY = "kcal_user_goals_v1";
 const goalsKey = (uid) => `${GOALS_KEY}:${uid}`;
 const DAILY_COACH_KEY = "kcal_daily_coach_v1";
@@ -418,6 +422,14 @@ function round1(x) {
   const n = Number(x);
   return Number.isFinite(n) ? Math.round(n * 10) / 10 : 0;
 }
+/** Device-local time-of-day greeting (never stale — always uses current clock). */
+function localGreeting() {
+  const h = new Date().getHours();
+  if (h >= 5 && h <= 11) return "Good morning.";
+  if (h >= 12 && h <= 16) return "Good afternoon.";
+  if (h >= 17 && h <= 21) return "Good evening.";
+  return "Good night.";
+}
 function getDeviceTimeZone() {
   try {
     const tz = Intl?.DateTimeFormat?.().resolvedOptions?.().timeZone;
@@ -426,6 +438,66 @@ function getDeviceTimeZone() {
     return "";
   }
 }
+// ===================== MEAL MEMORY =====================
+function mealFingerprint(items) {
+  if (!Array.isArray(items) || !items.length) return "";
+  const names = items
+    .map((it) => String(it?.name || it?.item || "").trim().toLowerCase())
+    .filter(Boolean);
+  if (!names.length) return "";
+  return [...new Set(names)].sort().join("|");
+}
+function mealLabel(items) {
+  if (!Array.isArray(items) || !items.length) return "meal";
+  const names = items
+    .map((it) => String(it?.name || it?.item || "").trim())
+    .filter(Boolean)
+    .slice(0, 4);
+  if (!names.length) return "meal";
+  if (names.length === 1) return names[0];
+  return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+}
+async function loadMealMemory(uid) {
+  if (!uid) return {};
+  try {
+    const raw = await AsyncStorage.getItem(mealMemoryKey(uid));
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+async function recordMealToMemory(uid, items) {
+  if (!uid) return;
+  const fp = mealFingerprint(items);
+  if (!fp) return;
+  const mem = await loadMealMemory(uid);
+  const existing = mem[fp] || { label: mealLabel(items), count: 0, lastTs: "" };
+  existing.count = (existing.count || 0) + 1;
+  existing.lastTs = new Date().toISOString();
+  existing.label = mealLabel(items);
+  mem[fp] = existing;
+  const sorted = Object.entries(mem).sort((a, b) => b[1].count - a[1].count).slice(0, 30);
+  try {
+    await AsyncStorage.setItem(mealMemoryKey(uid), JSON.stringify(Object.fromEntries(sorted)));
+  } catch {}
+}
+function findMealInMemory(mem, items) {
+  if (!mem || typeof mem !== "object") return null;
+  const fp = mealFingerprint(items);
+  if (!fp) return null;
+  const hit = mem[fp];
+  if (hit && hit.count >= 1) return { label: hit.label, count: hit.count };
+  return null;
+}
+function frequentMealSummaries(mem) {
+  if (!mem || typeof mem !== "object") return [];
+  return Object.entries(mem)
+    .filter(([, v]) => v.count >= 2)
+    .sort((a, b) => b[1].count - a[1].count)
+    .slice(0, 10)
+    .map(([fp, v]) => ({ fingerprint: fp, label: v.label, count: v.count }));
+}
+
 function withTimezoneQuery(url) {
   const tz = getDeviceTimeZone();
   const tzOffsetMin = -new Date().getTimezoneOffset(); // local UTC offset; east is positive
@@ -1950,6 +2022,7 @@ export default function App() {
 
   // ===== History (isolated by user id) =====
   const [history, setHistory] = useState([]);
+  const [mealMemory, setMealMemory] = useState({});
   const [coachDaily, setCoachDaily] = useState(null);
   const [coachVoice, setCoachVoice] = useState(null);
   const [coachVoiceBusy, setCoachVoiceBusy] = useState(false);
@@ -2061,7 +2134,7 @@ export default function App() {
   const [rcCustomerInfo, setRcCustomerInfo] = useState(null);
   const [rcBusy, setRcBusy] = useState(false);
   const [rcRefreshing, setRcRefreshing] = useState(false);
-  const [rcDebug, setRcDebug] = useState(null);
+  // rcDebug removed — no longer needed in production
 
   // ===== Derived gating =====
   const canBarcode = planAtLeast(plan, "elite");
@@ -2501,6 +2574,7 @@ export default function App() {
     ensureGoals();
     fetchDailySummary();
     loadHistory();
+    loadMealMemory(userId).then((m) => setMealMemory(m || {})).catch(() => {});
     void fetchAiConsent(userId);
     void flushCoachFeedbackQueue(userId);
     void fetchGoalPlan();
@@ -3998,30 +4072,8 @@ export default function App() {
       const pkgIds = packagesFromOffering(activeOffering).map(
         (p) => p?.product?.identifier || p?.identifier || "?"
       );
-      console.log("RC refresh", {
-        reason,
-        packageCount,
-        pkgIds,
-        offeringIdResolved: resolvedOfferingId(),
-        availableOfferingIds: Object.keys((offs && offs.all) || {}),
-        hasCurrent: Boolean(offs?.current),
-        currentId: offs?.current?.identifier || null,
-        platform: Platform.OS,
-      });
-      setRcDebug({
-        reason,
-        packageCount,
-        pkgIds,
-        offeringId: resolvedOfferingId(),
-        allOfferingIds: Object.keys((offs && offs.all) || {}),
-        hasCurrent: Boolean(offs?.current),
-        currentId: offs?.current?.identifier || null,
-        ts: new Date().toLocaleTimeString(),
-      });
       return { info, offerings: offs };
-    } catch (e) {
-      console.log("RC refresh error", reason, e);
-      setRcDebug({ reason, error: String(e?.message || e), ts: new Date().toLocaleTimeString() });
+    } catch (_) {
       return { info: null, offerings: null };
     } finally {
       setRcRefreshing(false);
@@ -4030,39 +4082,15 @@ export default function App() {
 
   useEffect(() => {
     const apiKey = Platform.OS === "ios" ? RC_IOS_KEY : RC_ANDROID_KEY;
-    if (!apiKey) {
-      console.log("RC init skipped: missing API key for", Platform.OS);
-      return;
-    }
-    console.log("RC configure", {
-      platform: Platform.OS,
-      keyLength: apiKey.length,
-      keyPrefix: apiKey.slice(0, 8),
-      keySuffix: apiKey.slice(-4),
-      fromEnv: Boolean(process.env.EXPO_PUBLIC_RC_ANDROID_KEY),
-      fromExtra: Boolean(Constants.expoConfig?.extra?.REVENUECAT_ANDROID_API_KEY),
-    });
-    Purchases.setLogLevel(LOG_LEVEL.DEBUG);
+    if (!apiKey) return;
     Purchases.configure({ apiKey });
     setRcReady(true);
 
     (async () => {
       try {
-        const { offerings: offs } = await refreshRevenueCatState("init");
-        const activeOffering = getActiveOffering(offs);
-        const pkgCount = activeOffering ? packagesFromOffering(activeOffering).length : 0;
-        if (!activeOffering || pkgCount === 0) {
-          const allIds = Object.keys((offs && offs.all) || {});
-          console.log("RC offerings missing packages", {
-            offeringIdResolved: resolvedOfferingId(),
-            offeringIdEnv: OFFERING_ID,
-            availableOfferingIds: allIds,
-            hasCurrent: Boolean(offs?.current),
-            packageCount: pkgCount,
-          });
-        }
-      } catch (e) {
-        console.log("RC init error", e);
+        await refreshRevenueCatState("init");
+      } catch (_) {
+        // RC init failed silently
       }
     })();
   }, []);
@@ -4079,8 +4107,8 @@ export default function App() {
         const { offerings: offs } = await refreshRevenueCatState("login");
         if (cancelled) return;
         setOfferings(offs);
-      } catch (e) {
-        console.log("RC logIn / offerings refresh error", e);
+      } catch (_) {
+        // RC logIn / refresh failed silently
       }
     })();
     return () => {
@@ -5040,6 +5068,11 @@ async function openCamera(mode = "meal") {
         name: "meal.jpg",
         type: "image/jpeg",
       });
+      // Send frequent meal summaries so backend can personalise (usual_meal_hint)
+      const freqMeals = frequentMealSummaries(mealMemory);
+      if (freqMeals.length) {
+        form.append("frequent_meals", JSON.stringify(freqMeals));
+      }
 
       const analyzeUrl = withTimezoneQuery(`${API_BASE}/analyze?user_id=${encodeURIComponent(userId)}`);
       const res = await fetch(analyzeUrl, {
@@ -5111,6 +5144,16 @@ async function openCamera(mode = "meal") {
         }
       }
       const normalized = normalizeAnalyzeResult(data);
+      // Enrich with local meal memory if backend didn't return usual_meal_hint
+      if (!normalized.usual_meal_hint && mealMemory) {
+        const memHit = findMealInMemory(mealMemory, normalized.items);
+        if (memHit && memHit.count >= 2) {
+          normalized.usual_meal_hint = {
+            label: "Frequent meal",
+            line: `Is this your usual ${memHit.label}? Scanned ${memHit.count} time${memHit.count === 1 ? "" : "s"} before.`,
+          };
+        }
+      }
       setResult(normalized);
       const latestScanId = String(data?.scan_id || data?.latest_scan_id || data?.analysis_id || normalized?.analysis_id || "").trim();
       const latestScanTs = String(data?.latest_scan_ts || nowISO()).trim();
@@ -5201,6 +5244,8 @@ async function openCamera(mode = "meal") {
         coaching: data?.coaching || null,
         locked: data?.locked || null,
       });
+      // Record meal items into memory for future "your usual meal" recognition
+      recordMealToMemory(userId, data?.items).catch(() => {});
       const dailyTotalsVersion = normalizeVersionToken(data?.daily_totals_version || data?.state_signature || "");
       scheduleDailyCoachRefresh({
         latestScanId,
@@ -7145,27 +7190,28 @@ async function openCamera(mode = "meal") {
       : "Take a photo";
   const barcodeModalTitle = barcodeMode === "supplement" ? "Scan supplement barcode" : "Scan barcode";
 
-  const subscriptionPriceText = (key) => priceByEntitlement?.[key] || (rcReady ? "Loading…" : "See App Store");
+  const subscriptionPriceText = (key) => priceByEntitlement?.[key] || (rcReady ? "Loading…" : Platform.OS === "android" ? "See Google Play" : "See App Store");
   const homeCoachLine = (() => {
+    const greet = localGreeting();
     const daySummaryHeadline = String(lunchDayCoach?.day_summary?.headline || "").trim();
-    if (daySummaryHeadline) return daySummaryHeadline;
+    if (daySummaryHeadline) return `${greet} ${daySummaryHeadline}`;
 
     const bestCard = Array.isArray(effectiveLunchDecision?.cards) && effectiveLunchDecision.cards.length
       ? effectiveLunchDecision.cards.find((x) => String(x?.card_type || "").trim().toLowerCase() === "best_right_now") ||
         effectiveLunchDecision.cards[0]
       : null;
     const bestPlace = String(bestCard?.place_name || "").trim();
-    if (bestPlace) return `Best next meal near you: ${bestPlace}`;
+    if (bestPlace) return `${greet} Best next meal near you: ${bestPlace}`;
 
     const gcConn = goalPlan && String(goalCoachDaily?.coach_connection || "").trim();
-    if (gcConn) return gcConn.length > 160 ? `${gcConn.slice(0, 157)}…` : gcConn;
+    if (gcConn) return gcConn.length > 150 ? `${gcConn.slice(0, 147)}…` : gcConn;
 
     const remainingProtein = num(remainingToday?.protein_g);
     if (Number.isFinite(remainingProtein) && remainingProtein > 0) {
-      return `You still need ${Math.round(Math.max(0, remainingProtein))}g protein today.`;
+      return `${greet} You still need ${Math.round(Math.max(0, remainingProtein))}g protein today.`;
     }
 
-    return "AI helps you eat smarter anywhere.";
+    return `${greet} AI helps you eat smarter anywhere.`;
   })();
   const homeMainVisible = activeScreen !== "healthy_nearby" && activeScreen !== "saved_recipes";
   const coachTabShowBadge = Boolean(
@@ -10304,21 +10350,6 @@ async function openCamera(mode = "meal") {
             </View>
             {rcRefreshing ? <Text style={[styles.muted, { marginTop: 6 }]}>Refreshing plans from store...</Text> : null}
 
-            {rcDebug ? (
-              <View style={{ marginTop: 10, backgroundColor: "#0d1117", borderRadius: 8, padding: 10, borderWidth: 1, borderColor: "#1f2937" }}>
-                <Text style={{ color: "#f59e0b", fontSize: 11, fontWeight: "800", marginBottom: 4 }}>RC DEBUG (remove before release)</Text>
-                <Text style={{ color: "#94a3b8", fontSize: 10, lineHeight: 15 }}>
-                  {`Offering: ${rcDebug.offeringId || "?"}\nCurrent: ${rcDebug.currentId || "none"} (has: ${rcDebug.hasCurrent})\nAll offerings: [${(rcDebug.allOfferingIds || []).join(", ")}]\nPackages: ${rcDebug.packageCount ?? "?"}\nIDs: [${(rcDebug.pkgIds || []).join(", ")}]\nReason: ${rcDebug.reason}\nTime: ${rcDebug.ts}${rcDebug.error ? `\nError: ${rcDebug.error}` : ""}`}
-                </Text>
-                <TouchableOpacity
-                  style={{ marginTop: 6, backgroundColor: "#1e40af", borderRadius: 6, paddingVertical: 6, paddingHorizontal: 10, alignSelf: "flex-start" }}
-                  onPress={() => refreshRevenueCatState("manual_tap")}
-                  disabled={rcRefreshing}
-                >
-                  <Text style={{ color: "#fff", fontSize: 11, fontWeight: "700" }}>{rcRefreshing ? "Refreshing…" : "Force Refresh RC"}</Text>
-                </TouchableOpacity>
-              </View>
-            ) : null}
 
             <Text style={[styles.muted, { marginTop: 8 }]}>
               Subscriptions are billed monthly and auto-renew unless cancelled at least 24 hours before the end of the
