@@ -2013,6 +2013,7 @@ export default function App() {
   const coachQueuedRefreshRef = useRef(null);
   const coachTitleTapRef = useRef({ count: 0, lastTs: 0 });
   const coachChatScrollRef = useRef(null);
+  const lastAppleHealthUserIdRef = useRef(null);
   const healthyPlacesReqSeqRef = useRef(0);
   const lunchDecisionReqSeqRef = useRef(0);
   const lunchDecisionInFlightRef = useRef(false);
@@ -2366,13 +2367,19 @@ export default function App() {
     let mounted = true;
     const uid = userId || session?.user?.id;
     if (!uid) {
+      lastAppleHealthUserIdRef.current = null;
       setCoachRecoveryBadge({ label: "Recovery mode: balanced", tone: "amber" });
       return undefined;
     }
     (async () => {
       try {
         if (Platform.OS === "ios" && isAppleHealthAvailable()) {
-          await new Promise((resolve) => initAppleHealth(() => resolve()));
+          const uidKey = uid || "";
+          const userChanged = lastAppleHealthUserIdRef.current !== uidKey;
+          lastAppleHealthUserIdRef.current = uidKey;
+          await new Promise((resolve) =>
+            initAppleHealth(() => resolve(), { force: userChanged })
+          );
         }
         const hc = (await getDailyHealthContext(localDayISO())) || {};
         if (!mounted) return;
@@ -2595,9 +2602,12 @@ export default function App() {
 
   useEffect(() => {
     if (Platform.OS !== "ios" || !userId || !isAppleHealthAvailable()) return;
-    initAppleHealth((err) => {
-      if (err) console.log("Apple Health init:", err);
-    });
+    initAppleHealth(
+      (err) => {
+        if (err) console.log("Apple Health init:", err);
+      },
+      { force: true }
+    );
   }, [userId]);
 
   useEffect(() => {
@@ -2625,7 +2635,9 @@ export default function App() {
         if (uid && Platform.OS === "ios" && isAppleHealthAvailable()) {
           void (async () => {
             try {
-              await new Promise((resolve) => initAppleHealth(() => resolve()));
+              await new Promise((resolve) =>
+                initAppleHealth(() => resolve(), { force: true })
+              );
               const hc = (await getDailyHealthContext(localDayISO())) || {};
               setCoachRecoveryBadge(computeRecoveryModeBadge(hc));
             } catch {
@@ -3755,11 +3767,17 @@ export default function App() {
         food_preferences: fp,
         goal_reminders: gr,
       };
-      const res = await fetch(withTimezoneQuery(`${API_BASE}/coach/audio/turn`), {
-        method: "POST",
-        headers: { "Content-Type": "application/json", accept: "application/json" },
-        body: JSON.stringify(body),
-      });
+      const bodyStr = JSON.stringify(body);
+      const coachTurnPaths = ["/coach/audio/turn", "/coach/chat/turn"];
+      let res = null;
+      for (const path of coachTurnPaths) {
+        res = await fetch(withTimezoneQuery(`${API_BASE}${path}`), {
+          method: "POST",
+          headers: { "Content-Type": "application/json", accept: "application/json" },
+          body: bodyStr,
+        });
+        if (res.status !== 404) break;
+      }
       const data = await safeJson(res);
       _applyReply(data);
     } catch (err) {

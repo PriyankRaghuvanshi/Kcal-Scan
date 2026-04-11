@@ -569,18 +569,18 @@ def health():
         "status": "ok",
         "version": "railway-v1",
         # Helps verify production is running this codebase (if these are missing, deploy is stale or wrong service).
-        "coach_chat_post_path": "/coach/audio/turn",
+        "coach_chat_post_paths": ["/coach/audio/turn", "/coach/chat/turn"],
         "git_sha": (os.getenv("RAILWAY_GIT_COMMIT_SHA") or os.getenv("VERCEL_GIT_COMMIT_SHA") or "")[:12],
     }
 
 
 @app.get("/coach/ping")
 def coach_ping():
-    """Cheap GET for uptime checks; confirms coach routes are mounted (POST /coach/audio/turn)."""
+    """Cheap GET for uptime checks; confirms coach chat POST routes are mounted."""
     return {
         "ok": True,
         "service": "kcal-scan",
-        "coach_audio_turn": "POST /coach/audio/turn",
+        "coach_chat_turn": ["POST /coach/audio/turn", "POST /coach/chat/turn"],
     }
 
 
@@ -12540,7 +12540,9 @@ def _coach_chat_llm_reply(
     return None
 
 
+# Alias: some proxies or older clients may hit /coach/chat/turn; keep both paths identical.
 @app.post("/coach/audio/turn")
+@app.post("/coach/chat/turn")
 def coach_audio_turn(
     payload: Dict[str, Any] = Body(...),
     user_id: Optional[str] = None,

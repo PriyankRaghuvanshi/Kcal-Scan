@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Header, HTTPException, Query
 from fastapi.responses import PlainTextResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from yieldpilot_case_workflow import (
     add_comment,
@@ -54,6 +54,8 @@ def _require_user_id(
 
 
 class CreateCaseBody(BaseModel):
+    model_config = ConfigDict(protected_namespaces=())  # allow field name model_score (not a BaseModel hook)
+
     symbol: str
     profile_id: Optional[str] = None
     contract_symbol: Optional[str] = None
