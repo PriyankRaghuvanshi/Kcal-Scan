@@ -136,12 +136,12 @@ import {
 } from "./pushNotifications";
 import { parseSmartAlertDeepLink, resolveSmartAlertNavigationTarget } from "./deepLinkRouter";
 import {
-  initAppleHealth,
+  initDeviceHealth,
   getDailyHealthContext,
-  writeNutritionToHealth,
-  writeWeightToHealth,
-  isAppleHealthAvailable,
-} from "./utils/appleHealth";
+  writeNutritionToDeviceHealth,
+  writeWeightToDeviceHealth,
+  isDeviceHealthAvailable,
+} from "./utils/deviceHealth";
 
 import * as WebBrowser from "expo-web-browser";
 // RevenueCat
@@ -2514,9 +2514,9 @@ export default function App() {
   }, [userId, goalPlan?.plan_id]);
 
   useEffect(() => {
-    if (Platform.OS !== "ios" || !userId || !isAppleHealthAvailable()) return;
-    initAppleHealth((err) => {
-      if (err) console.log("Apple Health init:", err);
+    if (!userId || !isDeviceHealthAvailable()) return;
+    initDeviceHealth((err) => {
+      if (err) console.log("Device health init:", err);
     });
   }, [userId]);
 
@@ -3589,7 +3589,7 @@ export default function App() {
 
     const baseCoachPayload = buildDailyCoachPayload();
     let payload = baseCoachPayload;
-    if (Platform.OS === "ios" && isAppleHealthAvailable()) {
+    if (isDeviceHealthAvailable()) {
       try {
         const hc = await getDailyHealthContext(baseCoachPayload.date);
         if (hc && typeof hc === "object") {
@@ -5227,14 +5227,14 @@ async function openCamera(mode = "meal") {
       if (photoScansAfterThisAnalyze === 1 && !planAtLeast(plan, "pro")) {
         void showPostScanBannerIfNeeded();
       }
-      if (Platform.OS === "ios" && isAppleHealthAvailable()) {
+      if (isDeviceHealthAvailable()) {
         const kcal = num(normalized?.totals?.kcal ?? normalized?.totals?.total_kcal ?? data?.total_kcal);
         const protein = num(normalized?.totals?.protein_g ?? data?.totals?.protein_g);
         const carbs = num(normalized?.totals?.carbs_g ?? data?.totals?.carbs_g);
         const fat = num(normalized?.totals?.fat_g ?? data?.totals?.fat_g);
         const fiber = num(normalized?.micros?.fiber_g ?? data?.totals?.micros?.fiber_g);
         if (Number.isFinite(kcal) && kcal >= 0) {
-          writeNutritionToHealth(
+          writeNutritionToDeviceHealth(
             {
               dateIso: latestScanTs || nowISO(),
               energyKcal: kcal,
@@ -7649,8 +7649,8 @@ async function openCamera(mode = "meal") {
                         await submitWeightEntry(API_BASE, uid, { value_kg: v, day: localDayISO() });
                         setJourneyWeightInput("");
                         void fetchGoalCoachJourney();
-                        if (Platform.OS === "ios" && isAppleHealthAvailable()) {
-                          writeWeightToHealth({ dateIso: localDayISO(), valueKg: v }, () => {});
+                        if (isDeviceHealthAvailable()) {
+                          writeWeightToDeviceHealth({ dateIso: localDayISO(), valueKg: v }, () => {});
                         }
                       } catch (e) {
                         if (e?.status === 402) openPaywall("advanced");
