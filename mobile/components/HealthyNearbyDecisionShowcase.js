@@ -40,10 +40,7 @@ function hashPair(seed) {
 function MealTile({ card, onPress }) {
   const placeName = String(card?.place_name || card?.title || "Nearby meal suggestion").trim();
   const itemName = String(card?.best_item_name || card?.recommended_order || card?.best_order || "").trim();
-  const isNeutralChain = Boolean(card?.covered_chain_neutral);
-  const subtitle = isNeutralChain
-    ? "Menu not yet available — check in store"
-    : (itemName || "Smart nearby meal pick");
+  const subtitle = itemName || "Smart nearby meal pick";
   const score = Math.max(0, Math.min(100, Math.round(num(card?.display_rank_score_100) ?? num(card?.health_score_100) ?? 74)));
   const photoUri = pickPhotoUri(card);
   const [c0, c1] = hashPair(placeName + subtitle);

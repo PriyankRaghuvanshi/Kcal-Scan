@@ -1666,12 +1666,11 @@ def recommend_menu_items_for_place(
             top_item = top_items[0]
             item_provenance = "exact_chain_menu"
         else:
-            # No exact chain items survived — show neutral state, NO recommendation
-            top_items = []
-            top_item = None
-            item_provenance = "none"
-            covered_chain_neutral = True
-            # Auto-queue this chain+market for priority enrichment so items get ingested
+            # No exact chain items — keep best heuristic as a suggestion
+            # but downgrade provenance so badge never says Chain-backed/Verified.
+            item_provenance = "heuristic_suggestion"
+            covered_chain_neutral = False
+            # Auto-queue this chain+market for priority enrichment so real items replace the suggestion
             try:
                 area = get_area_for_place(place)
                 area_key = str(area.get("area_key") or "").strip() if area else None
@@ -1991,8 +1990,8 @@ def recommend_menu_items_for_place(
         "covered_chain_neutral": covered_chain_neutral,
         "covered_chain_display_name": str(
             chain_bundle.get("canonical_name") or chain_bundle.get("chain_name_resolved") or chain_bundle.get("chain_name") or ""
-        ).strip() if covered_chain_neutral and chain_bundle else "",
+        ).strip() if covered_chain_key and chain_bundle else "",
         "covered_chain_menu_url": str(
             chain_bundle.get("official_menu_source_url") or ""
-        ).strip() if covered_chain_neutral and chain_bundle else "",
+        ).strip() if covered_chain_key and chain_bundle else "",
     }

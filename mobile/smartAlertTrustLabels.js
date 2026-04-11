@@ -59,12 +59,11 @@ export function getAlertTrustLabel(alertOrPlace) {
   const provenance = String(alertOrPlace.item_provenance || "").trim().toLowerCase();
   const coveredChainNeutral = Boolean(alertOrPlace.covered_chain_neutral);
 
-  // Covered-chain neutral: no exact item available — force weakest label
-  if (coveredChainNeutral) return TRUST_LABELS.needs_menu_check;
-
-  // When item_provenance is present, prefer it over legacy heuristic signals
+  // When item_provenance is present, prefer it over legacy heuristic signals.
+  // This prevents covered chains from showing Chain-backed when the item is a suggestion.
   if (provenance === "exact_chain_menu") return TRUST_LABELS.chain_backed;
   if (provenance === "exact_menu") return TRUST_LABELS.verified;
+  if (provenance === "heuristic_suggestion") return TRUST_LABELS.estimated;
   if (provenance === "generic_fallback" || provenance === "none") return TRUST_LABELS.needs_menu_check;
 
   // E. Needs menu check – weak/generic fallback or low-confidence

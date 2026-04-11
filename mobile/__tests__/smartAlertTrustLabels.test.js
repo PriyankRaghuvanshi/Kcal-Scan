@@ -142,14 +142,13 @@ describe("item_provenance covered-chain gating", () => {
     ).toBe(TRUST_LABELS.chain_backed);
   });
 
-  test("covered chain + no exact item (neutral) => Needs menu check", () => {
+  test("covered chain + heuristic suggestion => Estimated (never Chain-backed)", () => {
     expect(
       getAlertTrustLabel({
-        covered_chain_neutral: true,
         covered_chain_key: "dominos",
-        item_provenance: "none",
+        item_provenance: "heuristic_suggestion",
       })
-    ).toBe(TRUST_LABELS.needs_menu_check);
+    ).toBe(TRUST_LABELS.estimated);
   });
 
   test("covered chain card never shows fallback item as Chain-backed", () => {
@@ -163,11 +162,12 @@ describe("item_provenance covered-chain gating", () => {
     ).toBe(TRUST_LABELS.needs_menu_check);
   });
 
-  test("uncovered place with heuristic provenance => uses legacy logic", () => {
+  test("heuristic_suggestion provenance => Estimated (not Chain-backed)", () => {
     expect(
       getAlertTrustLabel({
-        item_provenance: "heuristic",
-        recommendation_label: "Best pick",
+        item_provenance: "heuristic_suggestion",
+        confidence_label: "Chain-backed",
+        menu_item_source: "ingested_chain_item",
       })
     ).toBe(TRUST_LABELS.estimated);
   });
@@ -184,9 +184,9 @@ describe("item_provenance covered-chain gating", () => {
   test("badge is item-level: same venue, different item provenance => different badges", () => {
     const sameVenue = { covered_chain_key: "kfc", menu_item_source: "ingested_chain_item" };
     const withExact = { ...sameVenue, item_provenance: "exact_chain_menu" };
-    const withNone = { ...sameVenue, item_provenance: "none", covered_chain_neutral: true };
+    const withSuggestion = { ...sameVenue, item_provenance: "heuristic_suggestion" };
     expect(getAlertTrustLabel(withExact)).toBe(TRUST_LABELS.chain_backed);
-    expect(getAlertTrustLabel(withNone)).toBe(TRUST_LABELS.needs_menu_check);
+    expect(getAlertTrustLabel(withSuggestion)).toBe(TRUST_LABELS.estimated);
   });
 });
 

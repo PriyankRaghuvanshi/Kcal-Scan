@@ -87,17 +87,14 @@ def build_ranked_place_profile(
 
     Returns only ranking-related keys to merge into the place.
     """
-    # Covered-chain neutral state: if the scoring layer found no exact chain items,
-    # suppress the recommendation entirely rather than showing a fallback.
+    # Item-level provenance: tracks whether the displayed item comes from
+    # an exact chain menu, a heuristic suggestion, or something else.
     covered_chain_neutral = bool(place.get("covered_chain_neutral"))
     item_provenance = str(place.get("item_provenance") or "").strip() or None
     covered_chain_key = str(place.get("covered_chain_key") or "").strip() or None
     can_show_verified = bool(place.get("can_show_verified_badge"))
 
-    if covered_chain_neutral:
-        best_order = ""
-    else:
-        best_order = str(place.get("recommended_order") or place.get("best_order") or "").strip() or "Lighter menu option"
+    best_order = str(place.get("recommended_order") or place.get("best_order") or "").strip() or "Lighter menu option"
     place_profile = {
         "name": str(place.get("name") or "").strip(),
         "cuisine_hint": str(place.get("cuisine_hint") or ""),
@@ -143,9 +140,9 @@ def build_ranked_place_profile(
         rec_label = LABEL_SUGGESTED_HEALTHIER
     if is_generic and rec_label == LABEL_STRONG_OPTION:
         rec_label = LABEL_NEEDS_MENU_CHECK
-    # Covered-chain neutral: no item to recommend
-    if covered_chain_neutral:
-        rec_label = LABEL_NEEDS_MENU_CHECK
+    # Covered chain with heuristic suggestion: downgrade from Best pick
+    if item_provenance == "heuristic_suggestion" and rec_label == LABEL_BEST_PICK:
+        rec_label = LABEL_SUGGESTED_HEALTHIER
 
     display_rank_score_100 = round(meal_result["meal_fitness_score_100"], 1)
     venue_prior_score_100 = int(round(_safe_float(place.get("health_score"), 5.0) * 10.0))
@@ -154,9 +151,9 @@ def build_ranked_place_profile(
 
     diet_pref = str(user_context.get("diet_preference") or "").strip() or ""
     confidence_lbl = _confidence_label(place_profile["menu_item_source"], place_profile["menu_item_confidence"], diet_preference=diet_pref)
-    # Override confidence label for covered-chain neutral (no exact item)
-    if covered_chain_neutral:
-        confidence_lbl = "Needs menu check"
+    # Override confidence label for heuristic suggestion on covered chain
+    if item_provenance == "heuristic_suggestion":
+        confidence_lbl = "Estimated"
     fit_today_100 = _safe_float(place.get("fit_today_score_100") or ctx.get("fit_today_score_100"), 50.0)
     rank_reason = _rank_reason_short(
         display_rank_score_100,
@@ -242,14 +239,14 @@ def build_ranked_place_profile(
         "calorie_fit_score_100": round(_safe_float(place.get("calorie_fit_score_100") or ctx.get("calorie_fit_score_100"), 50.0), 1),
         "protein_fit_score_100": round(_safe_float(place.get("protein_fit_score_100") or ctx.get("protein_fit_score_100"), 50.0), 1),
         "overshoot_penalty_100": round(_safe_float(place.get("overshoot_penalty_100") or ctx.get("overshoot_penalty_100"), 0.0), 1),
-        "best_item_name": best_order if not covered_chain_neutral else "",
-        "best_item_calories": int(max(0, place_profile["estimated_calories"])) if not covered_chain_neutral else 0,
-        "best_item_protein": int(max(0, place_profile["estimated_protein_g"])) if not covered_chain_neutral else 0,
+        "best_item_name": best_order,
+        "best_item_calories": int(max(0, place_profile["estimated_calories"])),
+        "best_item_protein": int(max(0, place_profile["estimated_protein_g"])),
         "best_item_source": place_profile["menu_item_source"],
-        "best_item_is_generic_fallback": is_generic or covered_chain_neutral,
+        "best_item_is_generic_fallback": is_generic,
         "best_item_needs_menu_check": confidence_lbl == "Needs menu check" or rec_label == LABEL_NEEDS_MENU_CHECK,
-        "item_provenance": item_provenance or ("exact_chain_menu" if not covered_chain_neutral and covered_chain_key else None),
-        "can_show_verified_badge": can_show_verified and not covered_chain_neutral,
+        "item_provenance": item_provenance,
+        "can_show_verified_badge": can_show_verified,
         "covered_chain_key": covered_chain_key,
         "covered_chain_neutral": covered_chain_neutral,
         "covered_chain_display_name": str(place.get("covered_chain_display_name") or "").strip(),

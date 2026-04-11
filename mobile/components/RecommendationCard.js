@@ -134,33 +134,31 @@ export function RecommendationCard({
         <ConfidenceBadge place={place} />
       </View>
 
-      {/* C. Best item – or neutral state for covered chains without exact items */}
+      {/* C. Best item + heuristic suggestion disclaimer for covered chains */}
       {bestItem ? (
-        <Text style={[styles.bestItem, { color: textPrimary }]} numberOfLines={2}>
-          {bestItem}
-        </Text>
-      ) : place.covered_chain_neutral ? (
-        <View style={{ marginTop: 4 }}>
-          <Text style={[styles.bestItem, { color: textMuted, fontStyle: "italic" }]} numberOfLines={1}>
-            Menu not yet available
+        <View>
+          <Text style={[styles.bestItem, { color: textPrimary }]} numberOfLines={2}>
+            {bestItem}
           </Text>
-          {String(place.covered_chain_display_name || "").trim() ? (
-            <Text style={{ color: textMuted, fontSize: 12, marginTop: 3 }} numberOfLines={1}>
-              We're adding {String(place.covered_chain_display_name).trim()}'s menu for your region
-            </Text>
-          ) : null}
-          {String(place.covered_chain_menu_url || "").trim() ? (
-            <TouchableOpacity
-              onPress={() => {
-                const url = String(place.covered_chain_menu_url).trim();
-                if (url.startsWith("http")) Linking.openURL(url).catch(() => {});
-              }}
-              style={{ marginTop: 6 }}
-            >
-              <Text style={{ color: colors.success.text, fontSize: 12, fontWeight: "600" }}>
-                View official menu
+          {place.item_provenance === "heuristic_suggestion" && place.covered_chain_key ? (
+            <View style={{ marginTop: 4 }}>
+              <Text style={{ color: textMuted, fontSize: 11, fontStyle: "italic" }} numberOfLines={1}>
+                Suggested pick — not from official menu
               </Text>
-            </TouchableOpacity>
+              {String(place.covered_chain_menu_url || "").trim() ? (
+                <TouchableOpacity
+                  onPress={() => {
+                    const url = String(place.covered_chain_menu_url).trim();
+                    if (url.startsWith("http")) Linking.openURL(url).catch(() => {});
+                  }}
+                  style={{ marginTop: 3 }}
+                >
+                  <Text style={{ color: colors.success.text, fontSize: 11, fontWeight: "600" }}>
+                    View {String(place.covered_chain_display_name || "official").trim()} menu
+                  </Text>
+                </TouchableOpacity>
+              ) : null}
+            </View>
           ) : null}
         </View>
       ) : null}

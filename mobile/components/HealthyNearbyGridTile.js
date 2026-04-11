@@ -36,13 +36,11 @@ const COMPACT_ANDROID = Platform.OS === "android";
 
 export function HealthyNearbyGridTile({ place, index, onPress, formatDistance, selected, getStableId }) {
   const name = String(place?.place_name ?? place?.name ?? "Restaurant").trim() || "Restaurant";
-  const isNeutralChain = Boolean(place?.covered_chain_neutral);
-  const subtitle = isNeutralChain
-    ? "Check menu in store"
-    : String(place?.best_item_name ?? place?.best_order ?? place?.primary_type ?? "")
-      .trim()
-      .replace(/_/g, " ")
-      .slice(0, 44);
+  const rawSubtitle = String(place?.best_item_name ?? place?.best_order ?? place?.primary_type ?? "")
+    .trim()
+    .replace(/_/g, " ")
+    .slice(0, 44);
+  const subtitle = rawSubtitle || "Nearby option";
   const score = num(place?.display_rank_score_100) ?? num(place?.health_score_100);
   const kcal = num(place?.best_item_calories) ?? num(place?.estimated_calories);
   const protein = num(place?.best_item_protein) ?? num(place?.estimated_protein_g);

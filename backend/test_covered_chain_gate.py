@@ -57,25 +57,26 @@ class TestCoveredChainGateRankedBuilder(unittest.TestCase):
         self.assertFalse(result["covered_chain_neutral"])
         self.assertIn(result["confidence_label"], ["Verified", "Chain-backed"])
 
-    def test_covered_chain_no_exact_item_neutral_state(self):
-        """Covered chain with no exact item => empty best_item, no badge, neutral."""
+    def test_covered_chain_heuristic_suggestion_shows_estimated(self):
+        """Covered chain with heuristic suggestion => item shown, badge downgraded to Estimated."""
         place = self._base_place(
-            recommended_order="",
-            best_order="",
+            recommended_order="Grilled Chicken Salad Bowl",
+            best_order="Grilled Chicken Salad Bowl",
             menu_item_source="heuristic",
-            menu_item_confidence=0.4,
-            item_provenance="none",
+            menu_item_confidence=0.52,
+            item_provenance="heuristic_suggestion",
             can_show_verified_badge=False,
             covered_chain_key="dominos",
-            covered_chain_neutral=True,
+            covered_chain_neutral=False,
             chain_key="dominos",
         )
         result = build_ranked_place_profile(place, self._user_context())
-        self.assertEqual(result["best_item_name"], "")
+        # Item is shown (still helpful for deciding what to eat)
+        self.assertTrue(len(result["best_item_name"]) > 0)
+        # But badge is downgraded — never Chain-backed or Verified
+        self.assertEqual(result["confidence_label"], "Estimated")
         self.assertFalse(result["can_show_verified_badge"])
-        self.assertTrue(result["covered_chain_neutral"])
-        self.assertEqual(result["confidence_label"], "Needs menu check")
-        self.assertTrue(result["best_item_is_generic_fallback"])
+        self.assertEqual(result["item_provenance"], "heuristic_suggestion")
 
     def test_uncovered_place_fallback_still_works(self):
         """Non-chain place with heuristic fallback => existing logic preserved."""
