@@ -565,7 +565,23 @@ def root():
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "version": "railway-v1"}
+    return {
+        "status": "ok",
+        "version": "railway-v1",
+        # Helps verify production is running this codebase (if these are missing, deploy is stale or wrong service).
+        "coach_chat_post_path": "/coach/audio/turn",
+        "git_sha": (os.getenv("RAILWAY_GIT_COMMIT_SHA") or os.getenv("VERCEL_GIT_COMMIT_SHA") or "")[:12],
+    }
+
+
+@app.get("/coach/ping")
+def coach_ping():
+    """Cheap GET for uptime checks; confirms coach routes are mounted (POST /coach/audio/turn)."""
+    return {
+        "ok": True,
+        "service": "kcal-scan",
+        "coach_audio_turn": "POST /coach/audio/turn",
+    }
 
 
 @app.get("/scan-performance/summary")
