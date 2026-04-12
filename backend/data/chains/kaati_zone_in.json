@@ -1,0 +1,68 @@
+{
+  "brand_name": "Kaati Zone",
+  "source_type": "seed_template",
+  "source_url": "https://kaatizone.com/menu",
+  "store_name_variants": [
+    "kaati zone",
+    "kaati junction",
+    "kaati roll",
+    "kati zone"
+  ],
+  "items": [
+    {
+      "item_name": "Chicken Tikka Kaati Roll",
+      "category": "entree",
+      "estimated_calories": 420,
+      "estimated_protein_g": 26,
+      "estimated_carbs_g": 44,
+      "estimated_fat_g": 14,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Paneer Tikka Kaati Roll",
+      "category": "entree",
+      "estimated_calories": 440,
+      "estimated_protein_g": 18,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 22,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Egg Chicken Roll",
+      "category": "entree",
+      "estimated_calories": 460,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 18,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Veg Roll",
+      "category": "entree",
+      "estimated_calories": 340,
+      "estimated_protein_g": 10,
+      "estimated_carbs_g": 48,
+      "estimated_fat_g": 12,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Mutton Seekh Roll",
+      "category": "entree",
+      "estimated_calories": 520,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 44,
+      "estimated_fat_g": 24,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    }
+  ]
+}

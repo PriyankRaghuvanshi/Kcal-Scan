@@ -1,0 +1,55 @@
+{
+  "brand_name": "JumboKing",
+  "source_type": "seed_template",
+  "source_url": "https://www.jumboking.in/menu",
+  "store_name_variants": [
+    "jumboking",
+    "jumbo king"
+  ],
+  "items": [
+    {
+      "item_name": "Classic Vada Pav",
+      "category": "entree",
+      "estimated_calories": 280,
+      "estimated_protein_g": 7,
+      "estimated_carbs_g": 38,
+      "estimated_fat_g": 10,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": true
+    },
+    {
+      "item_name": "Cheese Vada Pav",
+      "category": "entree",
+      "estimated_calories": 340,
+      "estimated_protein_g": 10,
+      "estimated_carbs_g": 38,
+      "estimated_fat_g": 14,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Schezwan Vada Pav",
+      "category": "entree",
+      "estimated_calories": 300,
+      "estimated_protein_g": 7,
+      "estimated_carbs_g": 40,
+      "estimated_fat_g": 12,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": true
+    },
+    {
+      "item_name": "Veggie Burger",
+      "category": "entree",
+      "estimated_calories": 320,
+      "estimated_protein_g": 10,
+      "estimated_carbs_g": 44,
+      "estimated_fat_g": 12,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    }
+  ]
+}

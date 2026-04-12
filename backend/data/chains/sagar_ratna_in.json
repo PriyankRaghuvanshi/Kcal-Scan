@@ -1,0 +1,65 @@
+{
+  "brand_name": "Sagar Ratna",
+  "source_type": "seed_template",
+  "source_url": "https://sagarratna.in/menu",
+  "store_name_variants": [
+    "sagar ratna"
+  ],
+  "items": [
+    {
+      "item_name": "Masala Dosa",
+      "category": "entree",
+      "estimated_calories": 380,
+      "estimated_protein_g": 10,
+      "estimated_carbs_g": 56,
+      "estimated_fat_g": 14,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Idli Sambar (4pc)",
+      "category": "entree",
+      "estimated_calories": 280,
+      "estimated_protein_g": 10,
+      "estimated_carbs_g": 52,
+      "estimated_fat_g": 4,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": true
+    },
+    {
+      "item_name": "Rava Dosa",
+      "category": "entree",
+      "estimated_calories": 360,
+      "estimated_protein_g": 9,
+      "estimated_carbs_g": 54,
+      "estimated_fat_g": 12,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Mini Meals (portion)",
+      "category": "entree",
+      "estimated_calories": 440,
+      "estimated_protein_g": 14,
+      "estimated_carbs_g": 72,
+      "estimated_fat_g": 10,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Plain Dosa",
+      "category": "entree",
+      "estimated_calories": 260,
+      "estimated_protein_g": 8,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 6,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": true
+    }
+  ]
+}

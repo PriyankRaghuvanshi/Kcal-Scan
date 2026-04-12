@@ -1,0 +1,68 @@
+{
+  "brand_name": "La Pino'z Pizza",
+  "source_type": "seed_template",
+  "source_url": "https://www.lapinozpizza.in/menu",
+  "store_name_variants": [
+    "la pinoz",
+    "la pino'z",
+    "lapinoz",
+    "la pinoz pizza"
+  ],
+  "items": [
+    {
+      "item_name": "Grilled Chicken Personal Pizza",
+      "category": "entree",
+      "estimated_calories": 520,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 62,
+      "estimated_fat_g": 18,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Hawaiian Personal Pizza",
+      "category": "entree",
+      "estimated_calories": 540,
+      "estimated_protein_g": 22,
+      "estimated_carbs_g": 68,
+      "estimated_fat_g": 18,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Peri Peri Chicken Pizza (personal)",
+      "category": "entree",
+      "estimated_calories": 560,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 60,
+      "estimated_fat_g": 22,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Veg Exotica Personal Pizza",
+      "category": "entree",
+      "estimated_calories": 480,
+      "estimated_protein_g": 16,
+      "estimated_carbs_g": 66,
+      "estimated_fat_g": 14,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Tandoori Paneer Personal Pizza",
+      "category": "entree",
+      "estimated_calories": 540,
+      "estimated_protein_g": 20,
+      "estimated_carbs_g": 62,
+      "estimated_fat_g": 22,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    }
+  ]
+}
