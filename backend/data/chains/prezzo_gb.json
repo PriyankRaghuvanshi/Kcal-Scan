@@ -1,0 +1,43 @@
+{
+  "brand_name": "Prezzo",
+  "source_type": "seed_template",
+  "source_url": "https://www.prezzorestaurants.co.uk/menu",
+  "store_name_variants": [
+    "prezzo"
+  ],
+  "items": [
+    {
+      "item_name": "Grilled Chicken Pasta",
+      "category": "entree",
+      "estimated_calories": 520,
+      "estimated_protein_g": 34,
+      "estimated_carbs_g": 56,
+      "estimated_fat_g": 18,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Classic Margherita (personal)",
+      "category": "entree",
+      "estimated_calories": 540,
+      "estimated_protein_g": 22,
+      "estimated_carbs_g": 62,
+      "estimated_fat_g": 18,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Grilled Salmon + Vegetables",
+      "category": "entree",
+      "estimated_calories": 440,
+      "estimated_protein_g": 36,
+      "estimated_carbs_g": 18,
+      "estimated_fat_g": 22,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    }
+  ]
+}

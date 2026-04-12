@@ -1,0 +1,43 @@
+{
+  "brand_name": "Bob Evans",
+  "source_type": "seed_template",
+  "source_url": "https://www.bobevans.com/menu",
+  "store_name_variants": [
+    "bob evans"
+  ],
+  "items": [
+    {
+      "item_name": "Grilled Chicken + Vegetables",
+      "category": "entree",
+      "estimated_calories": 360,
+      "estimated_protein_g": 38,
+      "estimated_carbs_g": 14,
+      "estimated_fat_g": 14,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Turkey & Dressing Dinner",
+      "category": "entree",
+      "estimated_calories": 540,
+      "estimated_protein_g": 36,
+      "estimated_carbs_g": 52,
+      "estimated_fat_g": 20,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Roasted Turkey Breast",
+      "category": "entree",
+      "estimated_calories": 320,
+      "estimated_protein_g": 42,
+      "estimated_carbs_g": 4,
+      "estimated_fat_g": 12,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    }
+  ]
+}

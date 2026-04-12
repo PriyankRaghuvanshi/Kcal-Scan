@@ -1,0 +1,54 @@
+{
+  "brand_name": "Waffle House",
+  "source_type": "seed_template",
+  "source_url": "https://www.wafflehouse.com/menu",
+  "store_name_variants": [
+    "waffle house"
+  ],
+  "items": [
+    {
+      "item_name": "Grilled Chicken Melt (no bread)",
+      "category": "entree",
+      "estimated_calories": 340,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 12,
+      "estimated_fat_g": 18,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "T-Bone Steak + Eggs",
+      "category": "breakfast",
+      "estimated_calories": 560,
+      "estimated_protein_g": 44,
+      "estimated_carbs_g": 4,
+      "estimated_fat_g": 40,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Hashbrowns (plain, small)",
+      "category": "side",
+      "estimated_calories": 200,
+      "estimated_protein_g": 2,
+      "estimated_carbs_g": 22,
+      "estimated_fat_g": 12,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": true
+    },
+    {
+      "item_name": "Ham & Cheese Omelet",
+      "category": "breakfast",
+      "estimated_calories": 360,
+      "estimated_protein_g": 26,
+      "estimated_carbs_g": 4,
+      "estimated_fat_g": 26,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    }
+  ]
+}

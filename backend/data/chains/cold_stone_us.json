@@ -1,0 +1,33 @@
+{
+  "brand_name": "Cold Stone Creamery",
+  "source_type": "seed_template",
+  "source_url": "https://www.coldstonecreamery.com/menu",
+  "store_name_variants": [
+    "cold stone",
+    "cold stone creamery"
+  ],
+  "items": [
+    {
+      "item_name": "Like It Size (any flavor)",
+      "category": "dessert",
+      "estimated_calories": 260,
+      "estimated_protein_g": 4,
+      "estimated_carbs_g": 28,
+      "estimated_fat_g": 14,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Sinless Sans Fat (scoop)",
+      "category": "dessert",
+      "estimated_calories": 140,
+      "estimated_protein_g": 6,
+      "estimated_carbs_g": 22,
+      "estimated_fat_g": 0,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    }
+  ]
+}

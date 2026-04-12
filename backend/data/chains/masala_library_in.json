@@ -1,0 +1,54 @@
+{
+  "brand_name": "Masala Library",
+  "source_type": "seed_template",
+  "source_url": "https://masalalibrary.com/menu",
+  "store_name_variants": [
+    "masala library"
+  ],
+  "items": [
+    {
+      "item_name": "Grilled Seabass Recheado",
+      "category": "entree",
+      "estimated_calories": 380,
+      "estimated_protein_g": 34,
+      "estimated_carbs_g": 10,
+      "estimated_fat_g": 22,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Murgh Malai Kebab",
+      "category": "entree",
+      "estimated_calories": 380,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 6,
+      "estimated_fat_g": 26,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Palak Patta Chaat",
+      "category": "entree",
+      "estimated_calories": 240,
+      "estimated_protein_g": 8,
+      "estimated_carbs_g": 24,
+      "estimated_fat_g": 12,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Dal Makhani (portion)",
+      "category": "entree",
+      "estimated_calories": 340,
+      "estimated_protein_g": 12,
+      "estimated_carbs_g": 28,
+      "estimated_fat_g": 18,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    }
+  ]
+}

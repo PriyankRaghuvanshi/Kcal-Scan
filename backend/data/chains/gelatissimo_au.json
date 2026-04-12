@@ -1,0 +1,32 @@
+{
+  "brand_name": "Gelatissimo",
+  "source_type": "seed_template",
+  "source_url": "https://gelatissimo.com.au/menu",
+  "store_name_variants": [
+    "gelatissimo"
+  ],
+  "items": [
+    {
+      "item_name": "Single Scoop Gelato",
+      "category": "dessert",
+      "estimated_calories": 140,
+      "estimated_protein_g": 3,
+      "estimated_carbs_g": 20,
+      "estimated_fat_g": 5,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Sorbet Scoop",
+      "category": "dessert",
+      "estimated_calories": 110,
+      "estimated_protein_g": 1,
+      "estimated_carbs_g": 26,
+      "estimated_fat_g": 0,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": true
+    }
+  ]
+}

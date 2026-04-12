@@ -1,0 +1,54 @@
+{
+  "brand_name": "Olive Garden",
+  "source_type": "seed_template",
+  "source_url": "https://www.olivegarden.com/menu",
+  "store_name_variants": [
+    "olive garden"
+  ],
+  "items": [
+    {
+      "item_name": "Grilled Chicken Salad (no dressing)",
+      "category": "entree",
+      "estimated_calories": 380,
+      "estimated_protein_g": 34,
+      "estimated_carbs_g": 16,
+      "estimated_fat_g": 22,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Herb-Grilled Salmon",
+      "category": "entree",
+      "estimated_calories": 460,
+      "estimated_protein_g": 44,
+      "estimated_carbs_g": 10,
+      "estimated_fat_g": 28,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Chicken Piccata",
+      "category": "entree",
+      "estimated_calories": 560,
+      "estimated_protein_g": 38,
+      "estimated_carbs_g": 48,
+      "estimated_fat_g": 22,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Minestrone Soup",
+      "category": "side",
+      "estimated_calories": 110,
+      "estimated_protein_g": 5,
+      "estimated_carbs_g": 20,
+      "estimated_fat_g": 2,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": true
+    }
+  ]
+}
