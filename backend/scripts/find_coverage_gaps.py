@@ -11,8 +11,8 @@ Run: cd backend && python scripts/find_coverage_gaps.py [--prod URL]
 import argparse
 import json
 import sys
+import subprocess
 import urllib.parse
-import urllib.request
 from collections import defaultdict
 from pathlib import Path
 
@@ -67,9 +67,12 @@ FALLBACK_PREFIXES = (
 def fetch(base_url: str, lat: float, lng: float, radius: int = 600) -> list[dict]:
     q = urllib.parse.urlencode({"lat": lat, "lng": lng, "radius": radius})
     url = f"{base_url}/places/healthy?{q}"
-    req = urllib.request.Request(url, headers={"User-Agent": "kcal-gap-finder/1"})
-    with urllib.request.urlopen(req, timeout=25) as resp:
-        data = json.loads(resp.read().decode())
+    # Use curl — avoids macOS Python SSL cert-chain issues in CLI contexts.
+    out = subprocess.run(
+        ["curl", "-s", "-m", "25", "-A", "kcal-gap-finder/1", url],
+        capture_output=True, text=True, check=True,
+    )
+    data = json.loads(out.stdout)
     return data.get("places") or data.get("results") or []
 
 
