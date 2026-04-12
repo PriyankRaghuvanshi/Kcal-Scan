@@ -1,0 +1,33 @@
+{
+  "brand_name": "Poulet Réti",
+  "source_type": "seed_template",
+  "source_url": "https://www.pouletreti.fr/menu",
+  "store_name_variants": [
+    "poulet reti",
+    "poulet réti"
+  ],
+  "items": [
+    {
+      "item_name": "Quarter Rotisserie Chicken + Veg",
+      "category": "entree",
+      "estimated_calories": 440,
+      "estimated_protein_g": 42,
+      "estimated_carbs_g": 14,
+      "estimated_fat_g": 24,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Grilled Chicken Thigh + Salad",
+      "category": "entree",
+      "estimated_calories": 360,
+      "estimated_protein_g": 36,
+      "estimated_carbs_g": 8,
+      "estimated_fat_g": 22,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    }
+  ]
+}

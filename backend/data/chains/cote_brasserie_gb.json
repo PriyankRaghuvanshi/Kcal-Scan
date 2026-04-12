@@ -1,0 +1,46 @@
+{
+  "brand_name": "Côte Brasserie",
+  "source_type": "seed_template",
+  "source_url": "https://www.cote.co.uk/menu",
+  "store_name_variants": [
+    "cote",
+    "côte",
+    "cote brasserie",
+    "côte brasserie"
+  ],
+  "items": [
+    {
+      "item_name": "Grilled Chicken Breast + Salad",
+      "category": "entree",
+      "estimated_calories": 380,
+      "estimated_protein_g": 38,
+      "estimated_carbs_g": 12,
+      "estimated_fat_g": 20,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Salmon Fillet + Vegetables",
+      "category": "entree",
+      "estimated_calories": 440,
+      "estimated_protein_g": 36,
+      "estimated_carbs_g": 10,
+      "estimated_fat_g": 28,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Steak Frites 6oz (no fries)",
+      "category": "entree",
+      "estimated_calories": 360,
+      "estimated_protein_g": 38,
+      "estimated_carbs_g": 4,
+      "estimated_fat_g": 22,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    }
+  ]
+}

@@ -1,0 +1,44 @@
+{
+  "brand_name": "Kahve Dünyası",
+  "source_type": "seed_template",
+  "source_url": "https://www.kahvedunyasi.com/menu",
+  "store_name_variants": [
+    "kahve dunyasi",
+    "kahve dünyası"
+  ],
+  "items": [
+    {
+      "item_name": "Turkish Coffee (unsweetened)",
+      "category": "beverage",
+      "estimated_calories": 10,
+      "estimated_protein_g": 0,
+      "estimated_carbs_g": 1,
+      "estimated_fat_g": 0,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Americano",
+      "category": "beverage",
+      "estimated_calories": 5,
+      "estimated_protein_g": 0,
+      "estimated_carbs_g": 1,
+      "estimated_fat_g": 0,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": true
+    },
+    {
+      "item_name": "Chocolate Bar (50g)",
+      "category": "dessert",
+      "estimated_calories": 280,
+      "estimated_protein_g": 4,
+      "estimated_carbs_g": 28,
+      "estimated_fat_g": 18,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    }
+  ]
+}

@@ -1,0 +1,43 @@
+{
+  "brand_name": "Arabiata",
+  "source_type": "seed_template",
+  "source_url": "https://arabiata.com/menu",
+  "store_name_variants": [
+    "arabiata"
+  ],
+  "items": [
+    {
+      "item_name": "Chicken Shawarma Plate",
+      "category": "entree",
+      "estimated_calories": 540,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 52,
+      "estimated_fat_g": 22,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Grilled Kofta",
+      "category": "entree",
+      "estimated_calories": 480,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 18,
+      "estimated_fat_g": 30,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Falafel Sandwich",
+      "category": "entree",
+      "estimated_calories": 380,
+      "estimated_protein_g": 14,
+      "estimated_carbs_g": 52,
+      "estimated_fat_g": 14,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": true
+    }
+  ]
+}

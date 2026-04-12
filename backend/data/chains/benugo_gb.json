@@ -1,0 +1,43 @@
+{
+  "brand_name": "Benugo",
+  "source_type": "seed_template",
+  "source_url": "https://www.benugo.com/menu",
+  "store_name_variants": [
+    "benugo"
+  ],
+  "items": [
+    {
+      "item_name": "Grilled Chicken Focaccia",
+      "category": "entree",
+      "estimated_calories": 440,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 16,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Falafel Wrap",
+      "category": "entree",
+      "estimated_calories": 420,
+      "estimated_protein_g": 14,
+      "estimated_carbs_g": 54,
+      "estimated_fat_g": 16,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": true
+    },
+    {
+      "item_name": "Soup of the Day (portion)",
+      "category": "side",
+      "estimated_calories": 180,
+      "estimated_protein_g": 8,
+      "estimated_carbs_g": 22,
+      "estimated_fat_g": 6,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    }
+  ]
+}

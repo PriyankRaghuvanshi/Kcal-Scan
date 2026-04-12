@@ -1,0 +1,43 @@
+{
+  "brand_name": "Taco Bell",
+  "source_type": "seed_template",
+  "source_url": "https://www.tacobell.co.uk/menu",
+  "store_name_variants": [
+    "taco bell"
+  ],
+  "items": [
+    {
+      "item_name": "Crunchy Taco (chicken, 1pc)",
+      "category": "entree",
+      "estimated_calories": 170,
+      "estimated_protein_g": 9,
+      "estimated_carbs_g": 14,
+      "estimated_fat_g": 9,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Power Bowl (chicken)",
+      "category": "entree",
+      "estimated_calories": 480,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 52,
+      "estimated_fat_g": 16,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Soft Taco Grilled Chicken",
+      "category": "entree",
+      "estimated_calories": 180,
+      "estimated_protein_g": 12,
+      "estimated_carbs_g": 18,
+      "estimated_fat_g": 8,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    }
+  ]
+}

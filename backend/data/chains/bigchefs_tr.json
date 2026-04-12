@@ -1,0 +1,44 @@
+{
+  "brand_name": "Big Chefs",
+  "source_type": "seed_template",
+  "source_url": "https://www.bigchefs.com.tr/menu",
+  "store_name_variants": [
+    "bigchefs",
+    "big chefs"
+  ],
+  "items": [
+    {
+      "item_name": "Grilled Chicken Paillard",
+      "category": "entree",
+      "estimated_calories": 440,
+      "estimated_protein_g": 40,
+      "estimated_carbs_g": 12,
+      "estimated_fat_g": 22,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Salmon Teriyaki + Rice",
+      "category": "entree",
+      "estimated_calories": 520,
+      "estimated_protein_g": 36,
+      "estimated_carbs_g": 58,
+      "estimated_fat_g": 18,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Caesar Salad + Chicken",
+      "category": "entree",
+      "estimated_calories": 440,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 18,
+      "estimated_fat_g": 26,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    }
+  ]
+}

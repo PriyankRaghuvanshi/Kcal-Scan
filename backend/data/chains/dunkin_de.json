@@ -1,0 +1,45 @@
+{
+  "brand_name": "Dunkin'",
+  "source_type": "seed_template",
+  "source_url": "https://www.dunkin.de/menu",
+  "store_name_variants": [
+    "dunkin",
+    "dunkin'",
+    "dunkin donuts"
+  ],
+  "items": [
+    {
+      "item_name": "Original Glazed Donut",
+      "category": "dessert",
+      "estimated_calories": 260,
+      "estimated_protein_g": 3,
+      "estimated_carbs_g": 31,
+      "estimated_fat_g": 14,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Americano (black)",
+      "category": "beverage",
+      "estimated_calories": 5,
+      "estimated_protein_g": 0,
+      "estimated_carbs_g": 1,
+      "estimated_fat_g": 0,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": true
+    },
+    {
+      "item_name": "Turkey Bagel",
+      "category": "entree",
+      "estimated_calories": 360,
+      "estimated_protein_g": 22,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 10,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    }
+  ]
+}

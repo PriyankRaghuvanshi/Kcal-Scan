@@ -1,0 +1,44 @@
+{
+  "brand_name": "Simit Sarayı",
+  "source_type": "seed_template",
+  "source_url": "https://www.simitsarayi.com/menu",
+  "store_name_variants": [
+    "simit sarayi",
+    "simit sarayı"
+  ],
+  "items": [
+    {
+      "item_name": "Simit (plain, 100g)",
+      "category": "snack",
+      "estimated_calories": 320,
+      "estimated_protein_g": 10,
+      "estimated_carbs_g": 62,
+      "estimated_fat_g": 5,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": true
+    },
+    {
+      "item_name": "Peynirli Poğaça (cheese)",
+      "category": "entree",
+      "estimated_calories": 260,
+      "estimated_protein_g": 10,
+      "estimated_carbs_g": 28,
+      "estimated_fat_g": 12,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Cay (Turkish tea, unsweetened)",
+      "category": "beverage",
+      "estimated_calories": 5,
+      "estimated_protein_g": 0,
+      "estimated_carbs_g": 1,
+      "estimated_fat_g": 0,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": true
+    }
+  ]
+}

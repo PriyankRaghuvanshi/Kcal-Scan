@@ -1,0 +1,44 @@
+{
+  "brand_name": "Mo'men",
+  "source_type": "seed_template",
+  "source_url": "https://momen.com/menu",
+  "store_name_variants": [
+    "momen",
+    "mo'men"
+  ],
+  "items": [
+    {
+      "item_name": "Grilled Chicken Burger",
+      "category": "entree",
+      "estimated_calories": 480,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 20,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Chicken Shawarma Sandwich",
+      "category": "entree",
+      "estimated_calories": 440,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 44,
+      "estimated_fat_g": 16,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Classic Mo'men Burger",
+      "category": "entree",
+      "estimated_calories": 540,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 26,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    }
+  ]
+}

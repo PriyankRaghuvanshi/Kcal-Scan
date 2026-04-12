@@ -1,0 +1,34 @@
+{
+  "brand_name": "Smoke's Poutinerie",
+  "source_type": "seed_template",
+  "source_url": "https://www.smokespoutinerie.com/menu",
+  "store_name_variants": [
+    "smokes poutinerie",
+    "smoke's poutinerie",
+    "smokes"
+  ],
+  "items": [
+    {
+      "item_name": "Classic Poutine (small)",
+      "category": "side",
+      "estimated_calories": 640,
+      "estimated_protein_g": 22,
+      "estimated_carbs_g": 74,
+      "estimated_fat_g": 28,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Chicken Poutine (small)",
+      "category": "entree",
+      "estimated_calories": 720,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 74,
+      "estimated_fat_g": 32,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    }
+  ]
+}
