@@ -21,7 +21,14 @@
       "vegan_possible": true,
       "halal_possible": true,
       "gluten_free_possible": true,
-      "diet_type": "vegan"
+      "diet_type": "vegan",
+      "contains_nuts": false,
+      "contains_dairy": false,
+      "contains_gluten": false,
+      "contains_soy": false,
+      "contains_shellfish": false,
+      "contains_egg": false,
+      "contains_sesame": false
     },
     {
       "item_name": "Grilled Chicken Caesar Salad",
@@ -35,7 +42,14 @@
       "vegan_possible": false,
       "halal_possible": true,
       "gluten_free_possible": true,
-      "diet_type": "non_veg"
+      "diet_type": "non_veg",
+      "contains_nuts": false,
+      "contains_dairy": false,
+      "contains_gluten": false,
+      "contains_soy": false,
+      "contains_shellfish": false,
+      "contains_egg": false,
+      "contains_sesame": false
     },
     {
       "item_name": "Eggs Benedict (ham)",
@@ -49,7 +63,14 @@
       "vegan_possible": false,
       "halal_possible": false,
       "gluten_free_possible": true,
-      "diet_type": "non_veg"
+      "diet_type": "non_veg",
+      "contains_nuts": false,
+      "contains_dairy": false,
+      "contains_gluten": false,
+      "contains_soy": false,
+      "contains_shellfish": false,
+      "contains_egg": true,
+      "contains_sesame": false
     },
     {
       "item_name": "Chicken Schnitzel + Side Salad",
@@ -63,7 +84,14 @@
       "vegan_possible": false,
       "halal_possible": true,
       "gluten_free_possible": true,
-      "diet_type": "non_veg"
+      "diet_type": "non_veg",
+      "contains_nuts": false,
+      "contains_dairy": false,
+      "contains_gluten": false,
+      "contains_soy": false,
+      "contains_shellfish": false,
+      "contains_egg": false,
+      "contains_sesame": false
     }
   ]
 }

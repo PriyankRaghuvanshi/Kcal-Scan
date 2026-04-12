@@ -19,7 +19,14 @@
       "vegan_possible": false,
       "halal_possible": true,
       "gluten_free_possible": true,
-      "diet_type": "vegetarian"
+      "diet_type": "vegetarian",
+      "contains_nuts": false,
+      "contains_dairy": false,
+      "contains_gluten": false,
+      "contains_soy": false,
+      "contains_shellfish": false,
+      "contains_egg": false,
+      "contains_sesame": false
     },
     {
       "item_name": "Idli Sambar (4pc)",
@@ -33,7 +40,14 @@
       "vegan_possible": false,
       "halal_possible": true,
       "gluten_free_possible": true,
-      "diet_type": "vegetarian"
+      "diet_type": "vegetarian",
+      "contains_nuts": false,
+      "contains_dairy": false,
+      "contains_gluten": false,
+      "contains_soy": false,
+      "contains_shellfish": false,
+      "contains_egg": false,
+      "contains_sesame": false
     },
     {
       "item_name": "Curd Rice",
@@ -47,7 +61,14 @@
       "vegan_possible": false,
       "halal_possible": true,
       "gluten_free_possible": true,
-      "diet_type": "vegetarian"
+      "diet_type": "vegetarian",
+      "contains_nuts": false,
+      "contains_dairy": true,
+      "contains_gluten": false,
+      "contains_soy": false,
+      "contains_shellfish": false,
+      "contains_egg": false,
+      "contains_sesame": false
     },
     {
       "item_name": "Mini Tiffin (Idli + Dosa + Vada)",
@@ -61,7 +82,14 @@
       "vegan_possible": false,
       "halal_possible": true,
       "gluten_free_possible": true,
-      "diet_type": "vegetarian"
+      "diet_type": "vegetarian",
+      "contains_nuts": false,
+      "contains_dairy": false,
+      "contains_gluten": false,
+      "contains_soy": false,
+      "contains_shellfish": false,
+      "contains_egg": false,
+      "contains_sesame": false
     },
     {
       "item_name": "Rava Upma",
@@ -75,7 +103,14 @@
       "vegan_possible": false,
       "halal_possible": true,
       "gluten_free_possible": true,
-      "diet_type": "vegetarian"
+      "diet_type": "vegetarian",
+      "contains_nuts": false,
+      "contains_dairy": false,
+      "contains_gluten": false,
+      "contains_soy": false,
+      "contains_shellfish": false,
+      "contains_egg": false,
+      "contains_sesame": false
     }
   ]
 }

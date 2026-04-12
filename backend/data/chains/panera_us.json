@@ -22,7 +22,14 @@
       "gluten_free_possible": true,
       "diet_type": "non_veg",
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "contains_nuts": false,
+      "contains_dairy": false,
+      "contains_gluten": false,
+      "contains_soy": false,
+      "contains_shellfish": false,
+      "contains_egg": false,
+      "contains_sesame": false
     },
     {
       "item_name": "Mediterranean Bowl with Chicken",
@@ -36,7 +43,14 @@
       "gluten_free_possible": true,
       "diet_type": "non_veg",
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "contains_nuts": false,
+      "contains_dairy": false,
+      "contains_gluten": false,
+      "contains_soy": false,
+      "contains_shellfish": false,
+      "contains_egg": false,
+      "contains_sesame": false
     },
     {
       "item_name": "Frontega Chicken Panini",
@@ -50,7 +64,14 @@
       "gluten_free_possible": true,
       "diet_type": "non_veg",
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "contains_nuts": false,
+      "contains_dairy": false,
+      "contains_gluten": false,
+      "contains_soy": false,
+      "contains_shellfish": false,
+      "contains_egg": false,
+      "contains_sesame": false
     },
     {
       "item_name": "Caesar Salad with Grilled Chicken",
@@ -64,7 +85,14 @@
       "gluten_free_possible": true,
       "diet_type": "non_veg",
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "contains_nuts": false,
+      "contains_dairy": false,
+      "contains_gluten": false,
+      "contains_soy": false,
+      "contains_shellfish": false,
+      "contains_egg": false,
+      "contains_sesame": false
     }
   ]
 }

@@ -19,7 +19,14 @@
       "vegan_possible": false,
       "halal_possible": true,
       "gluten_free_possible": true,
-      "diet_type": "non_veg"
+      "diet_type": "non_veg",
+      "contains_nuts": false,
+      "contains_dairy": false,
+      "contains_gluten": false,
+      "contains_soy": false,
+      "contains_shellfish": false,
+      "contains_egg": false,
+      "contains_sesame": false
     },
     {
       "item_name": "Veg Puff",
@@ -33,7 +40,14 @@
       "vegan_possible": false,
       "halal_possible": true,
       "gluten_free_possible": true,
-      "diet_type": "vegetarian"
+      "diet_type": "vegetarian",
+      "contains_nuts": false,
+      "contains_dairy": false,
+      "contains_gluten": false,
+      "contains_soy": false,
+      "contains_shellfish": false,
+      "contains_egg": false,
+      "contains_sesame": false
     },
     {
       "item_name": "Grilled Chicken Sandwich",
@@ -47,7 +61,14 @@
       "vegan_possible": false,
       "halal_possible": true,
       "gluten_free_possible": false,
-      "diet_type": "non_veg"
+      "diet_type": "non_veg",
+      "contains_nuts": false,
+      "contains_dairy": false,
+      "contains_gluten": true,
+      "contains_soy": false,
+      "contains_shellfish": false,
+      "contains_egg": false,
+      "contains_sesame": false
     },
     {
       "item_name": "Cream Donut",
@@ -61,7 +82,14 @@
       "vegan_possible": false,
       "halal_possible": true,
       "gluten_free_possible": false,
-      "diet_type": "vegetarian"
+      "diet_type": "vegetarian",
+      "contains_nuts": false,
+      "contains_dairy": true,
+      "contains_gluten": true,
+      "contains_soy": false,
+      "contains_shellfish": false,
+      "contains_egg": false,
+      "contains_sesame": false
     }
   ]
 }
