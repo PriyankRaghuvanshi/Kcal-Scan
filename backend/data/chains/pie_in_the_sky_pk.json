@@ -1,0 +1,55 @@
+{
+  "brand_name": "Pie In The Sky",
+  "source_type": "seed_template",
+  "source_url": "https://www.pieinthesky.com.pk/menu",
+  "store_name_variants": [
+    "pie in the sky",
+    "pits"
+  ],
+  "items": [
+    {
+      "item_name": "Grilled Chicken Personal Pizza",
+      "category": "entree",
+      "estimated_calories": 520,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 62,
+      "estimated_fat_g": 18,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Chicken Tikka Pie",
+      "category": "entree",
+      "estimated_calories": 460,
+      "estimated_protein_g": 22,
+      "estimated_carbs_g": 48,
+      "estimated_fat_g": 22,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Beef Pie (small)",
+      "category": "entree",
+      "estimated_calories": 440,
+      "estimated_protein_g": 20,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 22,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Caesar Salad + Grilled Chicken",
+      "category": "entree",
+      "estimated_calories": 340,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 14,
+      "estimated_fat_g": 18,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    }
+  ]
+}

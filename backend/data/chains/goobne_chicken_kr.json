@@ -1,0 +1,56 @@
+{
+  "brand_name": "Goobne Chicken",
+  "source_type": "seed_template",
+  "source_url": "https://www.goobne.co.kr/menu",
+  "store_name_variants": [
+    "goobne",
+    "goobne chicken",
+    "굽네치킨"
+  ],
+  "items": [
+    {
+      "item_name": "Oven Roasted Chicken (half)",
+      "category": "entree",
+      "estimated_calories": 420,
+      "estimated_protein_g": 38,
+      "estimated_carbs_g": 8,
+      "estimated_fat_g": 24,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Cheese Oven Chicken (half)",
+      "category": "entree",
+      "estimated_calories": 520,
+      "estimated_protein_g": 40,
+      "estimated_carbs_g": 12,
+      "estimated_fat_g": 32,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Sweet Potato Chicken",
+      "category": "entree",
+      "estimated_calories": 560,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 28,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Salad Bowl",
+      "category": "side",
+      "estimated_calories": 180,
+      "estimated_protein_g": 12,
+      "estimated_carbs_g": 16,
+      "estimated_fat_g": 8,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    }
+  ]
+}

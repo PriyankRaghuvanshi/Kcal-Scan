@@ -1,0 +1,45 @@
+{
+  "brand_name": "Fakruddin Biryani",
+  "source_type": "seed_template",
+  "source_url": "https://www.fakruddin.com/menu",
+  "store_name_variants": [
+    "fakruddin",
+    "fakruddin biryani",
+    "fakhruddin"
+  ],
+  "items": [
+    {
+      "item_name": "Kacchi Biryani (mutton)",
+      "category": "entree",
+      "estimated_calories": 720,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 74,
+      "estimated_fat_g": 34,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Chicken Biryani",
+      "category": "entree",
+      "estimated_calories": 560,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 62,
+      "estimated_fat_g": 22,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Beef Tehari",
+      "category": "entree",
+      "estimated_calories": 620,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 60,
+      "estimated_fat_g": 28,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    }
+  ]
+}

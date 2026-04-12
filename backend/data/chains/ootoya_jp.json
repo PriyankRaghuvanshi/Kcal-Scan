@@ -1,0 +1,55 @@
+{
+  "brand_name": "Ootoya",
+  "source_type": "seed_template",
+  "source_url": "https://www.ootoya.com/menu",
+  "store_name_variants": [
+    "ootoya",
+    "大戸屋"
+  ],
+  "items": [
+    {
+      "item_name": "Grilled Salmon Set",
+      "category": "entree",
+      "estimated_calories": 520,
+      "estimated_protein_g": 36,
+      "estimated_carbs_g": 58,
+      "estimated_fat_g": 14,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Chicken Katsu Teishoku",
+      "category": "entree",
+      "estimated_calories": 640,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 62,
+      "estimated_fat_g": 26,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Saba Shioyaki Set",
+      "category": "entree",
+      "estimated_calories": 540,
+      "estimated_protein_g": 34,
+      "estimated_carbs_g": 58,
+      "estimated_fat_g": 18,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Hamburg Steak Set",
+      "category": "entree",
+      "estimated_calories": 580,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 56,
+      "estimated_fat_g": 24,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    }
+  ]
+}

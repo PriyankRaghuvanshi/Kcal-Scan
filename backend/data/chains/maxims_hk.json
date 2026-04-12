@@ -1,0 +1,57 @@
+{
+  "brand_name": "Maxim's MX",
+  "source_type": "seed_template",
+  "source_url": "https://www.maxims.com.hk/menu",
+  "store_name_variants": [
+    "maxims",
+    "maxim's",
+    "maxim's mx",
+    "美心mx"
+  ],
+  "items": [
+    {
+      "item_name": "Cantonese Roast Goose Rice (quarter)",
+      "category": "entree",
+      "estimated_calories": 620,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 62,
+      "estimated_fat_g": 28,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "BBQ Pork Rice",
+      "category": "entree",
+      "estimated_calories": 560,
+      "estimated_protein_g": 26,
+      "estimated_carbs_g": 62,
+      "estimated_fat_g": 22,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Steamed Fish Rice",
+      "category": "entree",
+      "estimated_calories": 420,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 56,
+      "estimated_fat_g": 8,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Wonton Noodles",
+      "category": "entree",
+      "estimated_calories": 380,
+      "estimated_protein_g": 20,
+      "estimated_carbs_g": 52,
+      "estimated_fat_g": 10,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    }
+  ]
+}

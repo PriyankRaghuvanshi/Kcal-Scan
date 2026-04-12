@@ -1,0 +1,55 @@
+{
+  "brand_name": "Star Kabab",
+  "source_type": "seed_template",
+  "source_url": "https://www.starkabab.com/menu",
+  "store_name_variants": [
+    "star kabab",
+    "star kabab and restaurant"
+  ],
+  "items": [
+    {
+      "item_name": "Chicken Kabab (2pc)",
+      "category": "entree",
+      "estimated_calories": 320,
+      "estimated_protein_g": 26,
+      "estimated_carbs_g": 6,
+      "estimated_fat_g": 20,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Beef Kabab (2pc)",
+      "category": "entree",
+      "estimated_calories": 360,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 6,
+      "estimated_fat_g": 24,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Chicken Biryani (regular)",
+      "category": "entree",
+      "estimated_calories": 560,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 62,
+      "estimated_fat_g": 22,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Beef Tehari",
+      "category": "entree",
+      "estimated_calories": 620,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 60,
+      "estimated_fat_g": 28,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    }
+  ]
+}

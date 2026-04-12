@@ -1,0 +1,55 @@
+{
+  "brand_name": "Tsui Wah",
+  "source_type": "seed_template",
+  "source_url": "https://www.tsuiwahrestaurant.com/menu",
+  "store_name_variants": [
+    "tsui wah",
+    "翠華"
+  ],
+  "items": [
+    {
+      "item_name": "Swiss Sauce Chicken Wings + Rice",
+      "category": "entree",
+      "estimated_calories": 520,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 58,
+      "estimated_fat_g": 18,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Baked Pork Chop Rice",
+      "category": "entree",
+      "estimated_calories": 620,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 62,
+      "estimated_fat_g": 28,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Instant Noodles + Chicken Wings",
+      "category": "entree",
+      "estimated_calories": 420,
+      "estimated_protein_g": 22,
+      "estimated_carbs_g": 52,
+      "estimated_fat_g": 14,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Crispy Bun + Condensed Milk",
+      "category": "dessert",
+      "estimated_calories": 320,
+      "estimated_protein_g": 6,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 14,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    }
+  ]
+}

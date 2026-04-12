@@ -1,0 +1,55 @@
+{
+  "brand_name": "The Coffee House",
+  "source_type": "seed_template",
+  "source_url": "https://www.thecoffeehouse.com/menu",
+  "store_name_variants": [
+    "the coffee house",
+    "coffee house vn"
+  ],
+  "items": [
+    {
+      "item_name": "Americano (black)",
+      "category": "beverage",
+      "estimated_calories": 5,
+      "estimated_protein_g": 0,
+      "estimated_carbs_g": 1,
+      "estimated_fat_g": 0,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": true
+    },
+    {
+      "item_name": "Cappuccino (no sugar)",
+      "category": "beverage",
+      "estimated_calories": 110,
+      "estimated_protein_g": 6,
+      "estimated_carbs_g": 9,
+      "estimated_fat_g": 5,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Grilled Chicken Bowl",
+      "category": "entree",
+      "estimated_calories": 420,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 44,
+      "estimated_fat_g": 14,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Banh Mi Grilled Chicken",
+      "category": "entree",
+      "estimated_calories": 380,
+      "estimated_protein_g": 24,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 12,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    }
+  ]
+}

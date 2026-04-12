@@ -1,0 +1,56 @@
+{
+  "brand_name": "Mom's Touch",
+  "source_type": "seed_template",
+  "source_url": "https://www.momstouch.co.kr/menu",
+  "store_name_variants": [
+    "moms touch",
+    "mom's touch",
+    "맘스터치"
+  ],
+  "items": [
+    {
+      "item_name": "Thighburger",
+      "category": "entree",
+      "estimated_calories": 480,
+      "estimated_protein_g": 26,
+      "estimated_carbs_g": 46,
+      "estimated_fat_g": 20,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Grilled Chicken Burger",
+      "category": "entree",
+      "estimated_calories": 420,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 14,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Chicken Tender (3pc)",
+      "category": "entree",
+      "estimated_calories": 320,
+      "estimated_protein_g": 26,
+      "estimated_carbs_g": 18,
+      "estimated_fat_g": 14,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Salad Bowl",
+      "category": "side",
+      "estimated_calories": 160,
+      "estimated_protein_g": 10,
+      "estimated_carbs_g": 14,
+      "estimated_fat_g": 8,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    }
+  ]
+}

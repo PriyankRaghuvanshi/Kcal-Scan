@@ -1,0 +1,56 @@
+{
+  "brand_name": "Shakey's Pizza",
+  "source_type": "seed_template",
+  "source_url": "https://shakeyspizza.ph/menu",
+  "store_name_variants": [
+    "shakeys",
+    "shakey's",
+    "shakeys pizza"
+  ],
+  "items": [
+    {
+      "item_name": "Chicken 'n' Mojos (1pc + mojos)",
+      "category": "entree",
+      "estimated_calories": 540,
+      "estimated_protein_g": 26,
+      "estimated_carbs_g": 48,
+      "estimated_fat_g": 28,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Manager's Choice Personal Pizza",
+      "category": "entree",
+      "estimated_calories": 560,
+      "estimated_protein_g": 24,
+      "estimated_carbs_g": 62,
+      "estimated_fat_g": 22,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Hawaiian Delight Personal",
+      "category": "entree",
+      "estimated_calories": 540,
+      "estimated_protein_g": 22,
+      "estimated_carbs_g": 68,
+      "estimated_fat_g": 18,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Caesar Salad + Chicken",
+      "category": "entree",
+      "estimated_calories": 320,
+      "estimated_protein_g": 26,
+      "estimated_carbs_g": 16,
+      "estimated_fat_g": 16,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    }
+  ]
+}
