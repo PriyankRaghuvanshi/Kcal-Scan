@@ -1,0 +1,52 @@
+{
+  "brand_name": "Anna's Taqueria",
+  "source_type": "seed_template",
+  "source_url": "https://annastaqueria.com/menu",
+  "store_name_variants": [
+    "annas taqueria",
+    "anna's taqueria",
+    "anna'staqueria",
+    "annastaqueria"
+  ],
+  "items": [
+    {
+      "item_name": "Grilled Chicken Burrito",
+      "category": "entree",
+      "estimated_calories": 620,
+      "estimated_protein_g": 34,
+      "estimated_carbs_g": 62,
+      "estimated_fat_g": 26,
+      "confidence": 0.8,
+      "vegetarian_possible": false,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": false
+    },
+    {
+      "item_name": "Steak Taco (1pc)",
+      "category": "entree",
+      "estimated_calories": 240,
+      "estimated_protein_g": 18,
+      "estimated_carbs_g": 22,
+      "estimated_fat_g": 10,
+      "confidence": 0.8,
+      "vegetarian_possible": false,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": false
+    },
+    {
+      "item_name": "Veggie Burrito",
+      "category": "entree",
+      "estimated_calories": 540,
+      "estimated_protein_g": 18,
+      "estimated_carbs_g": 72,
+      "estimated_fat_g": 18,
+      "confidence": 0.8,
+      "vegetarian_possible": true,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": false
+    }
+  ]
+}

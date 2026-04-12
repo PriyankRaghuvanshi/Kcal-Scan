@@ -1,0 +1,55 @@
+{
+  "brand_name": "Govinda's Restaurant",
+  "source_type": "seed_template",
+  "source_url": "https://govindas.com.au/menu",
+  "store_name_variants": [
+    "govindas",
+    "govinda's",
+    "govindas hare krishna",
+    "govinda's restaurant",
+    "govinda'srestaurant",
+    "govindas restaurant",
+    "govindasharekrishna"
+  ],
+  "items": [
+    {
+      "item_name": "Vegetarian Thali",
+      "category": "entree",
+      "estimated_calories": 540,
+      "estimated_protein_g": 18,
+      "estimated_carbs_g": 80,
+      "estimated_fat_g": 16,
+      "confidence": 0.8,
+      "vegetarian_possible": true,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
+    },
+    {
+      "item_name": "Dal + Rice",
+      "category": "entree",
+      "estimated_calories": 380,
+      "estimated_protein_g": 14,
+      "estimated_carbs_g": 62,
+      "estimated_fat_g": 8,
+      "confidence": 0.8,
+      "vegetarian_possible": true,
+      "vegan_possible": true,
+      "halal_possible": true,
+      "gluten_free_possible": true
+    },
+    {
+      "item_name": "Aloo Gobi + Roti",
+      "category": "entree",
+      "estimated_calories": 440,
+      "estimated_protein_g": 14,
+      "estimated_carbs_g": 58,
+      "estimated_fat_g": 16,
+      "confidence": 0.8,
+      "vegetarian_possible": true,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": false
+    }
+  ]
+}
