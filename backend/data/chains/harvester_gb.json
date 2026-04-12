@@ -1,0 +1,43 @@
+{
+  "brand_name": "Harvester",
+  "source_type": "seed_template",
+  "source_url": "https://www.harvester.co.uk/menu",
+  "store_name_variants": [
+    "harvester"
+  ],
+  "items": [
+    {
+      "item_name": "Rotisserie Chicken (half) + Salad",
+      "category": "entree",
+      "estimated_calories": 560,
+      "estimated_protein_g": 44,
+      "estimated_carbs_g": 20,
+      "estimated_fat_g": 30,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "8oz Gammon Steak",
+      "category": "entree",
+      "estimated_calories": 540,
+      "estimated_protein_g": 46,
+      "estimated_carbs_g": 18,
+      "estimated_fat_g": 30,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Grilled Salmon + Vegetables",
+      "category": "entree",
+      "estimated_calories": 420,
+      "estimated_protein_g": 36,
+      "estimated_carbs_g": 14,
+      "estimated_fat_g": 24,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    }
+  ]
+}

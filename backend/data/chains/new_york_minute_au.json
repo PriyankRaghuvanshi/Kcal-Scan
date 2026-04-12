@@ -1,0 +1,44 @@
+{
+  "brand_name": "New York Minute",
+  "source_type": "seed_template",
+  "source_url": "https://newyorkminute.com.au/menu",
+  "store_name_variants": [
+    "new york minute",
+    "ny minute"
+  ],
+  "items": [
+    {
+      "item_name": "Grilled Chicken NY Bagel",
+      "category": "entree",
+      "estimated_calories": 380,
+      "estimated_protein_g": 26,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 12,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Smoked Salmon Bagel",
+      "category": "entree",
+      "estimated_calories": 420,
+      "estimated_protein_g": 22,
+      "estimated_carbs_g": 44,
+      "estimated_fat_g": 14,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Plain Bagel + Cream Cheese",
+      "category": "breakfast",
+      "estimated_calories": 340,
+      "estimated_protein_g": 12,
+      "estimated_carbs_g": 52,
+      "estimated_fat_g": 10,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    }
+  ]
+}

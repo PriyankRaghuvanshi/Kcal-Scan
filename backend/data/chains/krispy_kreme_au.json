@@ -1,0 +1,32 @@
+{
+  "brand_name": "Krispy Kreme",
+  "source_type": "seed_template",
+  "source_url": "https://www.krispykreme.com.au/menu",
+  "store_name_variants": [
+    "krispy kreme"
+  ],
+  "items": [
+    {
+      "item_name": "Original Glazed Donut",
+      "category": "dessert",
+      "estimated_calories": 190,
+      "estimated_protein_g": 2,
+      "estimated_carbs_g": 22,
+      "estimated_fat_g": 11,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Americano (black)",
+      "category": "beverage",
+      "estimated_calories": 5,
+      "estimated_protein_g": 0,
+      "estimated_carbs_g": 1,
+      "estimated_fat_g": 0,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": true
+    }
+  ]
+}

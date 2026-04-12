@@ -1,0 +1,56 @@
+{
+  "brand_name": "Paul",
+  "source_type": "seed_template",
+  "source_url": "https://www.paul-uk.com/menu",
+  "store_name_variants": [
+    "paul",
+    "paul bakery",
+    "paul boulangerie"
+  ],
+  "items": [
+    {
+      "item_name": "Americano (black)",
+      "category": "beverage",
+      "estimated_calories": 5,
+      "estimated_protein_g": 0,
+      "estimated_carbs_g": 1,
+      "estimated_fat_g": 0,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": true
+    },
+    {
+      "item_name": "Ham & Cheese Baguette",
+      "category": "entree",
+      "estimated_calories": 460,
+      "estimated_protein_g": 22,
+      "estimated_carbs_g": 52,
+      "estimated_fat_g": 18,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Chicken Caesar Salad",
+      "category": "entree",
+      "estimated_calories": 420,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 18,
+      "estimated_fat_g": 22,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Plain Croissant",
+      "category": "breakfast",
+      "estimated_calories": 260,
+      "estimated_protein_g": 6,
+      "estimated_carbs_g": 26,
+      "estimated_fat_g": 14,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    }
+  ]
+}

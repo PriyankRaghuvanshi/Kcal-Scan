@@ -1,0 +1,44 @@
+{
+  "brand_name": "Mother Dairy",
+  "source_type": "seed_template",
+  "source_url": "https://www.motherdairy.com/products",
+  "store_name_variants": [
+    "mother dairy",
+    "mother dairy booth"
+  ],
+  "items": [
+    {
+      "item_name": "Mother Dairy Cone",
+      "category": "dessert",
+      "estimated_calories": 170,
+      "estimated_protein_g": 3,
+      "estimated_carbs_g": 22,
+      "estimated_fat_g": 7,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Frozen Dessert (small cup)",
+      "category": "dessert",
+      "estimated_calories": 120,
+      "estimated_protein_g": 2,
+      "estimated_carbs_g": 18,
+      "estimated_fat_g": 5,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Lassi (unsweetened)",
+      "category": "beverage",
+      "estimated_calories": 120,
+      "estimated_protein_g": 6,
+      "estimated_carbs_g": 14,
+      "estimated_fat_g": 4,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    }
+  ]
+}

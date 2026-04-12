@@ -1,0 +1,43 @@
+{
+  "brand_name": "White Castle",
+  "source_type": "seed_template",
+  "source_url": "https://www.whitecastle.com/menu",
+  "store_name_variants": [
+    "white castle"
+  ],
+  "items": [
+    {
+      "item_name": "Original Slider (1pc)",
+      "category": "entree",
+      "estimated_calories": 140,
+      "estimated_protein_g": 7,
+      "estimated_carbs_g": 13,
+      "estimated_fat_g": 7,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Grilled Chicken Slider",
+      "category": "entree",
+      "estimated_calories": 180,
+      "estimated_protein_g": 12,
+      "estimated_carbs_g": 18,
+      "estimated_fat_g": 6,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Veggie Slider",
+      "category": "entree",
+      "estimated_calories": 150,
+      "estimated_protein_g": 5,
+      "estimated_carbs_g": 20,
+      "estimated_fat_g": 5,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    }
+  ]
+}

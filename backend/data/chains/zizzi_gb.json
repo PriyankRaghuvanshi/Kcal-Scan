@@ -1,0 +1,43 @@
+{
+  "brand_name": "Zizzi",
+  "source_type": "seed_template",
+  "source_url": "https://www.zizzi.co.uk/menu",
+  "store_name_variants": [
+    "zizzi"
+  ],
+  "items": [
+    {
+      "item_name": "Grilled Chicken Pasta",
+      "category": "entree",
+      "estimated_calories": 520,
+      "estimated_protein_g": 36,
+      "estimated_carbs_g": 56,
+      "estimated_fat_g": 18,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Rustica Classic Pizza (personal)",
+      "category": "entree",
+      "estimated_calories": 560,
+      "estimated_protein_g": 26,
+      "estimated_carbs_g": 62,
+      "estimated_fat_g": 20,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "King Prawn Linguine",
+      "category": "entree",
+      "estimated_calories": 480,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 52,
+      "estimated_fat_g": 14,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    }
+  ]
+}

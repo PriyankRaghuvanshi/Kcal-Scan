@@ -1,0 +1,45 @@
+{
+  "brand_name": "Amul Parlour",
+  "source_type": "seed_template",
+  "source_url": "https://www.amul.com/products",
+  "store_name_variants": [
+    "amul parlour",
+    "amul",
+    "amul ice cream parlour"
+  ],
+  "items": [
+    {
+      "item_name": "Amul Cone (single scoop)",
+      "category": "dessert",
+      "estimated_calories": 180,
+      "estimated_protein_g": 3,
+      "estimated_carbs_g": 22,
+      "estimated_fat_g": 8,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Amul Kulfi Stick",
+      "category": "dessert",
+      "estimated_calories": 160,
+      "estimated_protein_g": 4,
+      "estimated_carbs_g": 18,
+      "estimated_fat_g": 9,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Amul Lassi (unsweetened)",
+      "category": "beverage",
+      "estimated_calories": 120,
+      "estimated_protein_g": 6,
+      "estimated_carbs_g": 14,
+      "estimated_fat_g": 4,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    }
+  ]
+}

@@ -1,0 +1,43 @@
+{
+  "brand_name": "Max Brenner",
+  "source_type": "seed_template",
+  "source_url": "https://maxbrenner.com.au/menu",
+  "store_name_variants": [
+    "max brenner"
+  ],
+  "items": [
+    {
+      "item_name": "Chocolate Pizza (slice)",
+      "category": "dessert",
+      "estimated_calories": 380,
+      "estimated_protein_g": 6,
+      "estimated_carbs_g": 48,
+      "estimated_fat_g": 18,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Hot Chocolate (regular, no sugar)",
+      "category": "beverage",
+      "estimated_calories": 160,
+      "estimated_protein_g": 8,
+      "estimated_carbs_g": 16,
+      "estimated_fat_g": 8,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Dark Chocolate Fondue (small)",
+      "category": "dessert",
+      "estimated_calories": 340,
+      "estimated_protein_g": 4,
+      "estimated_carbs_g": 40,
+      "estimated_fat_g": 18,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    }
+  ]
+}

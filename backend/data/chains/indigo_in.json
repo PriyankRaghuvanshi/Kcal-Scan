@@ -1,0 +1,56 @@
+{
+  "brand_name": "Indigo",
+  "source_type": "seed_template",
+  "source_url": "https://www.foodindigo.com/menu",
+  "store_name_variants": [
+    "indigo",
+    "indigo restaurant",
+    "indigo deli"
+  ],
+  "items": [
+    {
+      "item_name": "Grilled Chicken Breast + Vegetables",
+      "category": "entree",
+      "estimated_calories": 420,
+      "estimated_protein_g": 38,
+      "estimated_carbs_g": 20,
+      "estimated_fat_g": 20,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Pan-Seared Seabass",
+      "category": "entree",
+      "estimated_calories": 380,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 8,
+      "estimated_fat_g": 22,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Caesar Salad (grilled chicken)",
+      "category": "entree",
+      "estimated_calories": 380,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 16,
+      "estimated_fat_g": 22,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Lamb Chops (4pc)",
+      "category": "entree",
+      "estimated_calories": 480,
+      "estimated_protein_g": 40,
+      "estimated_carbs_g": 8,
+      "estimated_fat_g": 30,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    }
+  ]
+}

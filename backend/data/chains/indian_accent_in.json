@@ -1,0 +1,54 @@
+{
+  "brand_name": "Indian Accent",
+  "source_type": "seed_template",
+  "source_url": "https://indianaccent.com/menu",
+  "store_name_variants": [
+    "indian accent"
+  ],
+  "items": [
+    {
+      "item_name": "Tandoori Bacon Prawns",
+      "category": "entree",
+      "estimated_calories": 360,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 8,
+      "estimated_fat_g": 22,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Kashmiri Morel Musallam (half)",
+      "category": "entree",
+      "estimated_calories": 380,
+      "estimated_protein_g": 12,
+      "estimated_carbs_g": 20,
+      "estimated_fat_g": 26,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Soy Keema Pav (half)",
+      "category": "entree",
+      "estimated_calories": 320,
+      "estimated_protein_g": 22,
+      "estimated_carbs_g": 26,
+      "estimated_fat_g": 14,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": true
+    },
+    {
+      "item_name": "Duck Khurchan Cornetto",
+      "category": "entree",
+      "estimated_calories": 280,
+      "estimated_protein_g": 22,
+      "estimated_carbs_g": 14,
+      "estimated_fat_g": 16,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    }
+  ]
+}

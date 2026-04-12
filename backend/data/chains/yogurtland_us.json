@@ -1,0 +1,32 @@
+{
+  "brand_name": "Yogurtland",
+  "source_type": "seed_template",
+  "source_url": "https://www.yogurt-land.com/menu",
+  "store_name_variants": [
+    "yogurtland"
+  ],
+  "items": [
+    {
+      "item_name": "Small Yogurt Cup (plain + fruit)",
+      "category": "dessert",
+      "estimated_calories": 200,
+      "estimated_protein_g": 8,
+      "estimated_carbs_g": 32,
+      "estimated_fat_g": 4,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Regular Cup with Toppings",
+      "category": "dessert",
+      "estimated_calories": 320,
+      "estimated_protein_g": 10,
+      "estimated_carbs_g": 48,
+      "estimated_fat_g": 8,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    }
+  ]
+}

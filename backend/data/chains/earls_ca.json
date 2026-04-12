@@ -1,0 +1,45 @@
+{
+  "brand_name": "Earls Kitchen + Bar",
+  "source_type": "seed_template",
+  "source_url": "https://earls.ca/menu",
+  "store_name_variants": [
+    "earls",
+    "earls kitchen",
+    "earls kitchen + bar"
+  ],
+  "items": [
+    {
+      "item_name": "Grilled Chicken Dragon Bowl",
+      "category": "entree",
+      "estimated_calories": 520,
+      "estimated_protein_g": 36,
+      "estimated_carbs_g": 58,
+      "estimated_fat_g": 18,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Classic Caesar Salad (chicken)",
+      "category": "entree",
+      "estimated_calories": 440,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 18,
+      "estimated_fat_g": 26,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Blackened Chicken Bowl",
+      "category": "entree",
+      "estimated_calories": 540,
+      "estimated_protein_g": 38,
+      "estimated_carbs_g": 52,
+      "estimated_fat_g": 20,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    }
+  ]
+}

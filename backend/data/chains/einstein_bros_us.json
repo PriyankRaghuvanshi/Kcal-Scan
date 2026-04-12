@@ -1,0 +1,45 @@
+{
+  "brand_name": "Einstein Bros. Bagels",
+  "source_type": "seed_template",
+  "source_url": "https://www.einsteinbros.com/menu",
+  "store_name_variants": [
+    "einstein bros",
+    "einstein bros bagels",
+    "einstein bagels"
+  ],
+  "items": [
+    {
+      "item_name": "Turkey Bacon Egg White Bagel Thin",
+      "category": "breakfast",
+      "estimated_calories": 320,
+      "estimated_protein_g": 22,
+      "estimated_carbs_g": 30,
+      "estimated_fat_g": 10,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Plain Bagel with Light Cream Cheese",
+      "category": "breakfast",
+      "estimated_calories": 320,
+      "estimated_protein_g": 12,
+      "estimated_carbs_g": 52,
+      "estimated_fat_g": 10,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Turkey Sandwich",
+      "category": "entree",
+      "estimated_calories": 380,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 10,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    }
+  ]
+}

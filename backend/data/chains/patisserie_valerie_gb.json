@@ -1,0 +1,44 @@
+{
+  "brand_name": "Patisserie Valerie",
+  "source_type": "seed_template",
+  "source_url": "https://www.patisserie-valerie.co.uk/menu",
+  "store_name_variants": [
+    "patisserie valerie",
+    "patisserie"
+  ],
+  "items": [
+    {
+      "item_name": "Americano (black)",
+      "category": "beverage",
+      "estimated_calories": 5,
+      "estimated_protein_g": 0,
+      "estimated_carbs_g": 1,
+      "estimated_fat_g": 0,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": true
+    },
+    {
+      "item_name": "Ham & Cheese Croissant",
+      "category": "entree",
+      "estimated_calories": 380,
+      "estimated_protein_g": 14,
+      "estimated_carbs_g": 40,
+      "estimated_fat_g": 18,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Chocolate Slice",
+      "category": "dessert",
+      "estimated_calories": 340,
+      "estimated_protein_g": 4,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 18,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    }
+  ]
+}

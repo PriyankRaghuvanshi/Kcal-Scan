@@ -1,0 +1,44 @@
+{
+  "brand_name": "Ribs & Burgers",
+  "source_type": "seed_template",
+  "source_url": "https://www.ribsandburgers.com/menu",
+  "store_name_variants": [
+    "ribs and burgers",
+    "ribs & burgers"
+  ],
+  "items": [
+    {
+      "item_name": "Grilled Chicken Burger",
+      "category": "entree",
+      "estimated_calories": 520,
+      "estimated_protein_g": 34,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 22,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "The Classic Burger",
+      "category": "entree",
+      "estimated_calories": 620,
+      "estimated_protein_g": 34,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 34,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Baby Back Ribs (half rack)",
+      "category": "entree",
+      "estimated_calories": 620,
+      "estimated_protein_g": 48,
+      "estimated_carbs_g": 22,
+      "estimated_fat_g": 36,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    }
+  ]
+}

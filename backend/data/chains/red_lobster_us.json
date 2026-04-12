@@ -1,0 +1,54 @@
+{
+  "brand_name": "Red Lobster",
+  "source_type": "seed_template",
+  "source_url": "https://www.redlobster.com/menu",
+  "store_name_variants": [
+    "red lobster"
+  ],
+  "items": [
+    {
+      "item_name": "Grilled Salmon (no sides)",
+      "category": "entree",
+      "estimated_calories": 360,
+      "estimated_protein_g": 46,
+      "estimated_carbs_g": 2,
+      "estimated_fat_g": 18,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Garlic Shrimp Skewers",
+      "category": "entree",
+      "estimated_calories": 320,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 10,
+      "estimated_fat_g": 18,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Chicken Caesar Salad",
+      "category": "entree",
+      "estimated_calories": 420,
+      "estimated_protein_g": 34,
+      "estimated_carbs_g": 18,
+      "estimated_fat_g": 24,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Snow Crab Legs (1 lb, steamed)",
+      "category": "entree",
+      "estimated_calories": 220,
+      "estimated_protein_g": 48,
+      "estimated_carbs_g": 0,
+      "estimated_fat_g": 2,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    }
+  ]
+}

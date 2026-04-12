@@ -1,0 +1,55 @@
+{
+  "brand_name": "Berco's",
+  "source_type": "seed_template",
+  "source_url": "https://bercos.com/menu",
+  "store_name_variants": [
+    "bercos",
+    "berco's"
+  ],
+  "items": [
+    {
+      "item_name": "Chicken Hakka Noodles",
+      "category": "entree",
+      "estimated_calories": 540,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 62,
+      "estimated_fat_g": 18,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Kung Pao Chicken",
+      "category": "entree",
+      "estimated_calories": 440,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 22,
+      "estimated_fat_g": 22,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Chicken Manchurian",
+      "category": "entree",
+      "estimated_calories": 420,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 18,
+      "estimated_fat_g": 22,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Veg Noodles + Chilli Paneer",
+      "category": "entree",
+      "estimated_calories": 520,
+      "estimated_protein_g": 20,
+      "estimated_carbs_g": 62,
+      "estimated_fat_g": 22,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    }
+  ]
+}

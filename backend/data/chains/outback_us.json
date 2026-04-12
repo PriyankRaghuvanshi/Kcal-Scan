@@ -1,0 +1,44 @@
+{
+  "brand_name": "Outback Steakhouse",
+  "source_type": "seed_template",
+  "source_url": "https://www.outback.com/menu",
+  "store_name_variants": [
+    "outback",
+    "outback steakhouse"
+  ],
+  "items": [
+    {
+      "item_name": "6oz Sirloin + Steamed Vegetables",
+      "category": "entree",
+      "estimated_calories": 380,
+      "estimated_protein_g": 40,
+      "estimated_carbs_g": 12,
+      "estimated_fat_g": 18,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Grilled Chicken on the Barbie",
+      "category": "entree",
+      "estimated_calories": 340,
+      "estimated_protein_g": 42,
+      "estimated_carbs_g": 4,
+      "estimated_fat_g": 14,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Grilled Salmon + Asparagus",
+      "category": "entree",
+      "estimated_calories": 380,
+      "estimated_protein_g": 38,
+      "estimated_carbs_g": 8,
+      "estimated_fat_g": 20,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    }
+  ]
+}
