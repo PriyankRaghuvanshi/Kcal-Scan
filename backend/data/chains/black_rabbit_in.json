@@ -1,0 +1,44 @@
+{
+  "brand_name": "The Black Rabbit",
+  "source_type": "seed_template",
+  "source_url": "https://blackrabbit.in/menu",
+  "store_name_variants": [
+    "the black rabbit",
+    "black rabbit"
+  ],
+  "items": [
+    {
+      "item_name": "Grilled Chicken Platter",
+      "category": "entree",
+      "estimated_calories": 480,
+      "estimated_protein_g": 38,
+      "estimated_carbs_g": 14,
+      "estimated_fat_g": 28,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "BBQ Chicken Burger",
+      "category": "entree",
+      "estimated_calories": 540,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 44,
+      "estimated_fat_g": 24,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Chicken Caesar",
+      "category": "entree",
+      "estimated_calories": 420,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 18,
+      "estimated_fat_g": 24,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    }
+  ]
+}
