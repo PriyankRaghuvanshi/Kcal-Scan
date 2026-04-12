@@ -1,0 +1,77 @@
+{
+  "brand_name": "Chipotle",
+  "source_type": "seed_template",
+  "source_url": "https://www.chipotle.com/nutrition-calculator",
+  "store_name_variants": [
+    "chipotle",
+    "chipotle mexican grill"
+  ],
+  "items": [
+    {
+      "item_name": "High Protein Bowl",
+      "category": "entree",
+      "estimated_calories": 820,
+      "estimated_protein_g": 60,
+      "estimated_carbs_g": 55,
+      "estimated_fat_g": 35,
+      "confidence": 0.85,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Chicken Burrito Bowl (no rice)",
+      "category": "entree",
+      "estimated_calories": 510,
+      "estimated_protein_g": 42,
+      "estimated_carbs_g": 22,
+      "estimated_fat_g": 18,
+      "confidence": 0.85,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Chicken Salad",
+      "category": "entree",
+      "estimated_calories": 480,
+      "estimated_protein_g": 38,
+      "estimated_carbs_g": 20,
+      "estimated_fat_g": 24,
+      "confidence": 0.85,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Barbacoa Bowl",
+      "category": "entree",
+      "estimated_calories": 620,
+      "estimated_protein_g": 36,
+      "estimated_carbs_g": 52,
+      "estimated_fat_g": 24,
+      "confidence": 0.85,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Sofritas Bowl",
+      "category": "entree",
+      "estimated_calories": 540,
+      "estimated_protein_g": 18,
+      "estimated_carbs_g": 58,
+      "estimated_fat_g": 22,
+      "confidence": 0.85,
+      "vegetarian_possible": true,
+      "vegan_possible": true
+    },
+    {
+      "item_name": "Chicken Tacos (3)",
+      "category": "entree",
+      "estimated_calories": 540,
+      "estimated_protein_g": 36,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 18,
+      "confidence": 0.85,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    }
+  ]
+}
