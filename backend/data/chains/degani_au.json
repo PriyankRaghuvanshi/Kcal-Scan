@@ -1,0 +1,53 @@
+{
+  "brand_name": "Degani",
+  "source_type": "seed_template",
+  "source_url": "https://degani.com.au/menu",
+  "store_name_variants": [
+    "degani",
+    "degani bakery",
+    "degani bakery cafe",
+    "deganibakery",
+    "deganibakerycafe"
+  ],
+  "items": [
+    {
+      "item_name": "Grilled Chicken Focaccia",
+      "category": "entree",
+      "estimated_calories": 440,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 16,
+      "confidence": 0.8,
+      "vegetarian_possible": false,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": false
+    },
+    {
+      "item_name": "Caesar Salad (chicken)",
+      "category": "entree",
+      "estimated_calories": 440,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 18,
+      "estimated_fat_g": 26,
+      "confidence": 0.8,
+      "vegetarian_possible": false,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
+    },
+    {
+      "item_name": "Cappuccino (no sugar)",
+      "category": "beverage",
+      "estimated_calories": 110,
+      "estimated_protein_g": 6,
+      "estimated_carbs_g": 9,
+      "estimated_fat_g": 5,
+      "confidence": 0.8,
+      "vegetarian_possible": true,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
+    }
+  ]
+}

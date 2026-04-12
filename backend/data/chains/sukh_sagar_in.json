@@ -1,0 +1,50 @@
+{
+  "brand_name": "Sukh Sagar",
+  "source_type": "seed_template",
+  "source_url": "https://sukhsagar.in/menu",
+  "store_name_variants": [
+    "sukh sagar",
+    "sukhsagar"
+  ],
+  "items": [
+    {
+      "item_name": "Masala Dosa",
+      "category": "entree",
+      "estimated_calories": 380,
+      "estimated_protein_g": 10,
+      "estimated_carbs_g": 56,
+      "estimated_fat_g": 14,
+      "confidence": 0.8,
+      "vegetarian_possible": true,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
+    },
+    {
+      "item_name": "Pav Bhaji",
+      "category": "entree",
+      "estimated_calories": 440,
+      "estimated_protein_g": 10,
+      "estimated_carbs_g": 54,
+      "estimated_fat_g": 20,
+      "confidence": 0.8,
+      "vegetarian_possible": true,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": false
+    },
+    {
+      "item_name": "South Indian Thali",
+      "category": "entree",
+      "estimated_calories": 560,
+      "estimated_protein_g": 18,
+      "estimated_carbs_g": 86,
+      "estimated_fat_g": 14,
+      "confidence": 0.8,
+      "vegetarian_possible": true,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
+    }
+  ]
+}

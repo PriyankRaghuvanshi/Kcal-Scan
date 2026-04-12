@@ -1,0 +1,51 @@
+{
+  "brand_name": "Chai Sutta Bar",
+  "source_type": "seed_template",
+  "source_url": "https://chaisuttabarindia.com/menu",
+  "store_name_variants": [
+    "chai sutta bar",
+    "csb",
+    "chaisuttabar"
+  ],
+  "items": [
+    {
+      "item_name": "Kulhad Chai (no sugar)",
+      "category": "beverage",
+      "estimated_calories": 120,
+      "estimated_protein_g": 4,
+      "estimated_carbs_g": 14,
+      "estimated_fat_g": 5,
+      "confidence": 0.8,
+      "vegetarian_possible": true,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
+    },
+    {
+      "item_name": "Elaichi Chai (less sugar)",
+      "category": "beverage",
+      "estimated_calories": 130,
+      "estimated_protein_g": 4,
+      "estimated_carbs_g": 16,
+      "estimated_fat_g": 5,
+      "confidence": 0.8,
+      "vegetarian_possible": true,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
+    },
+    {
+      "item_name": "Maggi (regular)",
+      "category": "entree",
+      "estimated_calories": 340,
+      "estimated_protein_g": 8,
+      "estimated_carbs_g": 52,
+      "estimated_fat_g": 10,
+      "confidence": 0.8,
+      "vegetarian_possible": true,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
+    }
+  ]
+}
