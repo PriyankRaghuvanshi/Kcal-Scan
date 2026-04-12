@@ -1,0 +1,38 @@
+{
+  "brand_name": "Gelato Messina",
+  "source_type": "seed_template",
+  "source_url": "https://gelatomessina.com/menu",
+  "store_name_variants": [
+    "messina",
+    "gelato messina",
+    "gelatomessina"
+  ],
+  "items": [
+    {
+      "item_name": "Single Scoop Gelato",
+      "category": "dessert",
+      "estimated_calories": 160,
+      "estimated_protein_g": 4,
+      "estimated_carbs_g": 20,
+      "estimated_fat_g": 7,
+      "confidence": 0.8,
+      "vegetarian_possible": true,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
+    },
+    {
+      "item_name": "Sorbet Scoop",
+      "category": "dessert",
+      "estimated_calories": 120,
+      "estimated_protein_g": 1,
+      "estimated_carbs_g": 28,
+      "estimated_fat_g": 0,
+      "confidence": 0.8,
+      "vegetarian_possible": true,
+      "vegan_possible": true,
+      "halal_possible": true,
+      "gluten_free_possible": true
+    }
+  ]
+}

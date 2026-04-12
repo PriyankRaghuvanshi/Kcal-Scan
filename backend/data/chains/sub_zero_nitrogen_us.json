@@ -1,0 +1,26 @@
+{
+  "brand_name": "Sub Zero Nitrogen Ice Cream",
+  "source_type": "seed_template",
+  "source_url": "https://subzeroicecream.com/menu",
+  "store_name_variants": [
+    "sub zero nitrogen",
+    "subzero ice cream",
+    "subzeroicecream",
+    "subzeronitrogen"
+  ],
+  "items": [
+    {
+      "item_name": "Single Scoop (any flavor)",
+      "category": "dessert",
+      "estimated_calories": 240,
+      "estimated_protein_g": 4,
+      "estimated_carbs_g": 28,
+      "estimated_fat_g": 14,
+      "confidence": 0.8,
+      "vegetarian_possible": true,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
+    }
+  ]
+}

@@ -1,0 +1,54 @@
+{
+  "brand_name": "5 & Dime Bagel",
+  "source_type": "seed_template",
+  "source_url": "https://5anddime.com.au/menu",
+  "store_name_variants": [
+    "5 and dime",
+    "5 & dime",
+    "five and dime bagel",
+    "5&dime",
+    "5anddime",
+    "fiveanddimebagel"
+  ],
+  "items": [
+    {
+      "item_name": "Smoked Salmon Bagel",
+      "category": "entree",
+      "estimated_calories": 420,
+      "estimated_protein_g": 24,
+      "estimated_carbs_g": 44,
+      "estimated_fat_g": 14,
+      "confidence": 0.8,
+      "vegetarian_possible": false,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": false
+    },
+    {
+      "item_name": "Grilled Chicken Bagel",
+      "category": "entree",
+      "estimated_calories": 380,
+      "estimated_protein_g": 26,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 12,
+      "confidence": 0.8,
+      "vegetarian_possible": false,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": false
+    },
+    {
+      "item_name": "Plain Bagel + Cream Cheese",
+      "category": "breakfast",
+      "estimated_calories": 340,
+      "estimated_protein_g": 12,
+      "estimated_carbs_g": 52,
+      "estimated_fat_g": 10,
+      "confidence": 0.8,
+      "vegetarian_possible": true,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": false
+    }
+  ]
+}

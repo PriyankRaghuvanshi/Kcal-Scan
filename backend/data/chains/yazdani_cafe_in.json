@@ -1,0 +1,39 @@
+{
+  "brand_name": "Yazdani Restaurant & Bakery",
+  "source_type": "seed_template",
+  "source_url": "https://yazdanibakeryrestaurant.com/menu",
+  "store_name_variants": [
+    "yazdani cafe",
+    "yazdani restaurant",
+    "yazdanicafe",
+    "yazdanirestaurant"
+  ],
+  "items": [
+    {
+      "item_name": "Bun Maska + Chai",
+      "category": "breakfast",
+      "estimated_calories": 320,
+      "estimated_protein_g": 8,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 14,
+      "confidence": 0.8,
+      "vegetarian_possible": true,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": false
+    },
+    {
+      "item_name": "Mawa Cake",
+      "category": "dessert",
+      "estimated_calories": 360,
+      "estimated_protein_g": 6,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 16,
+      "confidence": 0.8,
+      "vegetarian_possible": true,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": false
+    }
+  ]
+}
