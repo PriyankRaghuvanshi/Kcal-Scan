@@ -1,0 +1,66 @@
+{
+  "brand_name": "Punjabi by Nature",
+  "source_type": "seed_template",
+  "source_url": "https://www.punjabibynature.in/menu",
+  "store_name_variants": [
+    "punjabi by nature",
+    "pbn"
+  ],
+  "items": [
+    {
+      "item_name": "Tandoori Chicken (half)",
+      "category": "entree",
+      "estimated_calories": 440,
+      "estimated_protein_g": 38,
+      "estimated_carbs_g": 8,
+      "estimated_fat_g": 26,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Dal Makhani",
+      "category": "entree",
+      "estimated_calories": 340,
+      "estimated_protein_g": 12,
+      "estimated_carbs_g": 30,
+      "estimated_fat_g": 18,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Murgh Tikka Masala",
+      "category": "entree",
+      "estimated_calories": 460,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 14,
+      "estimated_fat_g": 28,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Sarson Ka Saag + Makki Roti",
+      "category": "entree",
+      "estimated_calories": 380,
+      "estimated_protein_g": 14,
+      "estimated_carbs_g": 46,
+      "estimated_fat_g": 16,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Seekh Kebab (mutton, 2pc)",
+      "category": "entree",
+      "estimated_calories": 340,
+      "estimated_protein_g": 26,
+      "estimated_carbs_g": 4,
+      "estimated_fat_g": 22,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    }
+  ]
+}

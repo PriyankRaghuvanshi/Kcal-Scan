@@ -1,0 +1,67 @@
+{
+  "brand_name": "Karim's",
+  "source_type": "seed_template",
+  "source_url": "https://karimhoteldelhi.com/menu",
+  "store_name_variants": [
+    "karims",
+    "karim's",
+    "karim hotel"
+  ],
+  "items": [
+    {
+      "item_name": "Mutton Burra (half)",
+      "category": "entree",
+      "estimated_calories": 420,
+      "estimated_protein_g": 34,
+      "estimated_carbs_g": 4,
+      "estimated_fat_g": 30,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Chicken Jahangiri",
+      "category": "entree",
+      "estimated_calories": 440,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 12,
+      "estimated_fat_g": 28,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Mutton Seekh Kebab (2pc)",
+      "category": "entree",
+      "estimated_calories": 340,
+      "estimated_protein_g": 26,
+      "estimated_carbs_g": 4,
+      "estimated_fat_g": 22,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Chicken Tikka (half)",
+      "category": "entree",
+      "estimated_calories": 360,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 4,
+      "estimated_fat_g": 22,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Biryani (chicken, half)",
+      "category": "entree",
+      "estimated_calories": 520,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 60,
+      "estimated_fat_g": 20,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    }
+  ]
+}

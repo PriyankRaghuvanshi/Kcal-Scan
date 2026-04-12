@@ -1,0 +1,66 @@
+{
+  "brand_name": "Bademiya",
+  "source_type": "seed_template",
+  "source_url": "https://bademiya.com/menu",
+  "store_name_variants": [
+    "bademiya",
+    "bade miya"
+  ],
+  "items": [
+    {
+      "item_name": "Seekh Kebab (mutton, 2pc)",
+      "category": "entree",
+      "estimated_calories": 340,
+      "estimated_protein_g": 26,
+      "estimated_carbs_g": 4,
+      "estimated_fat_g": 22,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Chicken Tikka Roll",
+      "category": "entree",
+      "estimated_calories": 440,
+      "estimated_protein_g": 26,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 18,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Mutton Masala Roll",
+      "category": "entree",
+      "estimated_calories": 500,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 22,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Chicken Baida Roti",
+      "category": "entree",
+      "estimated_calories": 540,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 24,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Chicken Kebab (boneless, 4pc)",
+      "category": "entree",
+      "estimated_calories": 320,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 6,
+      "estimated_fat_g": 18,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    }
+  ]
+}

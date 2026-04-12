@@ -1,0 +1,67 @@
+{
+  "brand_name": "Dindigul Thalappakatti",
+  "source_type": "seed_template",
+  "source_url": "https://www.thalappakatti.com/menu",
+  "store_name_variants": [
+    "dindigul thalappakatti",
+    "thalappakatti",
+    "dindigul"
+  ],
+  "items": [
+    {
+      "item_name": "Chicken Biryani (regular)",
+      "category": "entree",
+      "estimated_calories": 560,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 64,
+      "estimated_fat_g": 22,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Mutton Biryani (regular)",
+      "category": "entree",
+      "estimated_calories": 620,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 62,
+      "estimated_fat_g": 30,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Chicken 65 (portion)",
+      "category": "entree",
+      "estimated_calories": 360,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 12,
+      "estimated_fat_g": 22,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Boneless Chicken Kola Urundai",
+      "category": "entree",
+      "estimated_calories": 340,
+      "estimated_protein_g": 26,
+      "estimated_carbs_g": 14,
+      "estimated_fat_g": 18,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Prawn Biryani",
+      "category": "entree",
+      "estimated_calories": 540,
+      "estimated_protein_g": 26,
+      "estimated_carbs_g": 62,
+      "estimated_fat_g": 20,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    }
+  ]
+}
