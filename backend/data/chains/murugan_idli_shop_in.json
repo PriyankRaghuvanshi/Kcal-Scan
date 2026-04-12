@@ -18,9 +18,10 @@
       "estimated_fat_g": 1,
       "confidence": 0.82,
       "vegetarian_possible": true,
-      "vegan_possible": true,
+      "vegan_possible": false,
       "halal_possible": true,
-      "gluten_free_possible": true
+      "gluten_free_possible": true,
+      "diet_type": "vegetarian"
     },
     {
       "item_name": "Ghee Pongal",
@@ -33,7 +34,8 @@
       "vegetarian_possible": true,
       "vegan_possible": false,
       "halal_possible": true,
-      "gluten_free_possible": true
+      "gluten_free_possible": true,
+      "diet_type": "vegetarian"
     },
     {
       "item_name": "Kaara Dosa",
@@ -44,9 +46,10 @@
       "estimated_fat_g": 12,
       "confidence": 0.82,
       "vegetarian_possible": true,
-      "vegan_possible": true,
+      "vegan_possible": false,
       "halal_possible": true,
-      "gluten_free_possible": true
+      "gluten_free_possible": true,
+      "diet_type": "vegetarian"
     },
     {
       "item_name": "Ven Pongal + Vada",
@@ -59,7 +62,8 @@
       "vegetarian_possible": true,
       "vegan_possible": false,
       "halal_possible": true,
-      "gluten_free_possible": true
+      "gluten_free_possible": true,
+      "diet_type": "vegetarian"
     },
     {
       "item_name": "Chettinad Chicken Curry + Idiyappam",
@@ -72,7 +76,8 @@
       "vegetarian_possible": false,
       "vegan_possible": false,
       "halal_possible": true,
-      "gluten_free_possible": true
+      "gluten_free_possible": true,
+      "diet_type": "non_veg"
     }
   ]
 }

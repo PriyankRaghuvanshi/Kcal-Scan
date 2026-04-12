@@ -1,0 +1,67 @@
+{
+  "brand_name": "Delhi Zaika",
+  "source_type": "seed_template",
+  "source_url": "https://delhizaika.in/menu",
+  "store_name_variants": [
+    "delhi zaika",
+    "delhizaika"
+  ],
+  "items": [
+    {
+      "item_name": "Chicken Biryani",
+      "category": "entree",
+      "estimated_calories": 580,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 64,
+      "estimated_fat_g": 22,
+      "confidence": 0.8,
+      "vegetarian_possible": false,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true,
+      "diet_type": "non_veg"
+    },
+    {
+      "item_name": "Butter Chicken + 2 Roti",
+      "category": "entree",
+      "estimated_calories": 580,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 44,
+      "estimated_fat_g": 28,
+      "confidence": 0.8,
+      "vegetarian_possible": false,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": false,
+      "diet_type": "non_veg"
+    },
+    {
+      "item_name": "Tandoori Chicken (half)",
+      "category": "entree",
+      "estimated_calories": 420,
+      "estimated_protein_g": 36,
+      "estimated_carbs_g": 6,
+      "estimated_fat_g": 26,
+      "confidence": 0.8,
+      "vegetarian_possible": false,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true,
+      "diet_type": "non_veg"
+    },
+    {
+      "item_name": "Dal Makhani",
+      "category": "entree",
+      "estimated_calories": 340,
+      "estimated_protein_g": 12,
+      "estimated_carbs_g": 30,
+      "estimated_fat_g": 18,
+      "confidence": 0.8,
+      "vegetarian_possible": true,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true,
+      "diet_type": "vegetarian"
+    }
+  ]
+}

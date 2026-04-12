@@ -1,0 +1,56 @@
+{
+  "brand_name": "Natraj Dahi Bhalle Wale",
+  "source_type": "seed_template",
+  "source_url": "https://natrajdahibhalle.in/menu",
+  "store_name_variants": [
+    "natraj",
+    "natraj aliwale",
+    "natraj dahi bhalle",
+    "natrajaliwale",
+    "natrajdahibhalle"
+  ],
+  "items": [
+    {
+      "item_name": "Dahi Bhalla (2pc)",
+      "category": "entree",
+      "estimated_calories": 320,
+      "estimated_protein_g": 10,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 14,
+      "confidence": 0.8,
+      "vegetarian_possible": true,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true,
+      "diet_type": "vegetarian"
+    },
+    {
+      "item_name": "Aloo Tikki Chaat",
+      "category": "entree",
+      "estimated_calories": 380,
+      "estimated_protein_g": 8,
+      "estimated_carbs_g": 52,
+      "estimated_fat_g": 14,
+      "confidence": 0.8,
+      "vegetarian_possible": true,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true,
+      "diet_type": "vegetarian"
+    },
+    {
+      "item_name": "Chole Bhature",
+      "category": "entree",
+      "estimated_calories": 640,
+      "estimated_protein_g": 18,
+      "estimated_carbs_g": 78,
+      "estimated_fat_g": 26,
+      "confidence": 0.8,
+      "vegetarian_possible": true,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": false,
+      "diet_type": "vegetarian"
+    }
+  ]
+}

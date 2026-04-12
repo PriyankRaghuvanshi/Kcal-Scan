@@ -1,0 +1,53 @@
+{
+  "brand_name": "Wah Ji Wah",
+  "source_type": "seed_template",
+  "source_url": "https://wahjiwah.com/menu",
+  "store_name_variants": [
+    "wah ji wah",
+    "wahjiwah"
+  ],
+  "items": [
+    {
+      "item_name": "Chicken Biryani",
+      "category": "entree",
+      "estimated_calories": 580,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 64,
+      "estimated_fat_g": 22,
+      "confidence": 0.8,
+      "vegetarian_possible": false,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true,
+      "diet_type": "non_veg"
+    },
+    {
+      "item_name": "Mutton Biryani",
+      "category": "entree",
+      "estimated_calories": 640,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 62,
+      "estimated_fat_g": 30,
+      "confidence": 0.8,
+      "vegetarian_possible": false,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true,
+      "diet_type": "non_veg"
+    },
+    {
+      "item_name": "Paneer Biryani",
+      "category": "entree",
+      "estimated_calories": 540,
+      "estimated_protein_g": 20,
+      "estimated_carbs_g": 66,
+      "estimated_fat_g": 22,
+      "confidence": 0.8,
+      "vegetarian_possible": true,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true,
+      "diet_type": "vegetarian"
+    }
+  ]
+}

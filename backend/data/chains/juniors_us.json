@@ -10,7 +10,11 @@
     "junior's restaurant and bakery",
     "junior'srestaurant&bakery",
     "juniors restaurant & bakery",
-    "juniorsrestaurant"
+    "juniorsrestaurant",
+    "junior'srestaurant and bakery",
+    "junior'srestaurantandbakery",
+    "juniors restaurant and bakery",
+    "juniorsrestaurant&bakery"
   ],
   "items": [
     {
@@ -24,7 +28,8 @@
       "vegetarian_possible": false,
       "vegan_possible": false,
       "halal_possible": true,
-      "gluten_free_possible": false
+      "gluten_free_possible": false,
+      "diet_type": "non_veg"
     },
     {
       "item_name": "Turkey Club",
@@ -37,7 +42,8 @@
       "vegetarian_possible": false,
       "vegan_possible": false,
       "halal_possible": true,
-      "gluten_free_possible": true
+      "gluten_free_possible": true,
+      "diet_type": "non_veg"
     },
     {
       "item_name": "Junior's Original Cheesecake Slice",
@@ -50,7 +56,8 @@
       "vegetarian_possible": true,
       "vegan_possible": false,
       "halal_possible": true,
-      "gluten_free_possible": false
+      "gluten_free_possible": false,
+      "diet_type": "vegetarian"
     }
   ]
 }

@@ -18,9 +18,10 @@
       "estimated_fat_g": 2,
       "confidence": 0.82,
       "vegetarian_possible": true,
-      "vegan_possible": true,
+      "vegan_possible": false,
       "halal_possible": true,
-      "gluten_free_possible": false
+      "gluten_free_possible": false,
+      "diet_type": "vegetarian"
     },
     {
       "item_name": "Pretzel Dog",
@@ -30,10 +31,11 @@
       "estimated_carbs_g": 52,
       "estimated_fat_g": 18,
       "confidence": 0.82,
-      "vegetarian_possible": false,
+      "vegetarian_possible": true,
       "vegan_possible": false,
       "halal_possible": true,
-      "gluten_free_possible": false
+      "gluten_free_possible": false,
+      "diet_type": "vegetarian"
     },
     {
       "item_name": "Mini Pretzels (10pc)",
@@ -46,7 +48,8 @@
       "vegetarian_possible": true,
       "vegan_possible": true,
       "halal_possible": true,
-      "gluten_free_possible": false
+      "gluten_free_possible": false,
+      "diet_type": "vegan"
     }
   ]
 }

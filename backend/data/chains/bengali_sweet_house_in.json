@@ -1,0 +1,68 @@
+{
+  "brand_name": "Bengali Sweet House",
+  "source_type": "seed_template",
+  "source_url": "https://bengalisweethouse.com/menu",
+  "store_name_variants": [
+    "bengali sweet house",
+    "bsh",
+    "bengalisweethouse"
+  ],
+  "items": [
+    {
+      "item_name": "Rosogolla (2pc)",
+      "category": "dessert",
+      "estimated_calories": 180,
+      "estimated_protein_g": 4,
+      "estimated_carbs_g": 32,
+      "estimated_fat_g": 4,
+      "confidence": 0.8,
+      "vegetarian_possible": true,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true,
+      "diet_type": "vegetarian"
+    },
+    {
+      "item_name": "Sandesh (100g)",
+      "category": "dessert",
+      "estimated_calories": 320,
+      "estimated_protein_g": 10,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 12,
+      "confidence": 0.8,
+      "vegetarian_possible": true,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true,
+      "diet_type": "vegetarian"
+    },
+    {
+      "item_name": "Rasmalai (2pc)",
+      "category": "dessert",
+      "estimated_calories": 240,
+      "estimated_protein_g": 6,
+      "estimated_carbs_g": 32,
+      "estimated_fat_g": 10,
+      "confidence": 0.8,
+      "vegetarian_possible": true,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true,
+      "diet_type": "vegetarian"
+    },
+    {
+      "item_name": "Mishti Doi (small cup)",
+      "category": "dessert",
+      "estimated_calories": 220,
+      "estimated_protein_g": 6,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 4,
+      "confidence": 0.8,
+      "vegetarian_possible": true,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true,
+      "diet_type": "vegetarian"
+    }
+  ]
+}
