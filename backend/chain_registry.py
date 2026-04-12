@@ -148,6 +148,30 @@ def _infer_country_from_latlng(lat: Any, lng: Any) -> str:
         return "HK"
     if 8.0 <= lat_f <= 23.5 and 102.0 <= lng_f <= 110.0:
         return "VN"
+    if 35.5 <= lat_f <= 47.1 and 6.6 <= lng_f <= 18.5:
+        return "IT"
+    if 35.8 <= lat_f <= 43.8 and -9.5 <= lng_f <= 4.3:
+        return "ES"
+    if 50.7 <= lat_f <= 53.7 and 3.2 <= lng_f <= 7.3:
+        return "NL"
+    if 49.0 <= lat_f <= 55.0 and 14.1 <= lng_f <= 24.2:
+        return "PL"
+    if 47.3 <= lat_f <= 55.1 and 5.9 <= lng_f <= 15.0:
+        return "DE"
+    if 41.3 <= lat_f <= 51.1 and -5.2 <= lng_f <= 9.6:
+        return "FR"
+    if 16.0 <= lat_f <= 32.5 and 34.5 <= lng_f <= 55.7:
+        return "SA"
+    if 35.9 <= lat_f <= 42.1 and 25.6 <= lng_f <= 44.8:
+        return "TR"
+    if 22.0 <= lat_f <= 31.7 and 25.0 <= lng_f <= 35.0:
+        return "EG"
+    if 28.5 <= lat_f <= 30.1 and 46.5 <= lng_f <= 48.4:
+        return "KW"
+    if 24.5 <= lat_f <= 26.2 and 50.7 <= lng_f <= 51.7:
+        return "QA"
+    if 14.5 <= lat_f <= 32.7 and -117.3 <= lng_f <= -86.7:
+        return "MX"
     return ""
 
 
@@ -212,6 +236,26 @@ def _infer_country_code(place: Dict[str, Any]) -> str:
         return "PK"
     if "bangladesh" in text:
         return "BD"
+    if "italy" in text or "italia" in text:
+        return "IT"
+    if "spain" in text or "españa" in text or "espana" in text:
+        return "ES"
+    if "netherlands" in text or "holland" in text:
+        return "NL"
+    if "poland" in text or "polska" in text:
+        return "PL"
+    if "belgium" in text or "belgique" in text or "belgie" in text:
+        return "BE"
+    if "saudi arabia" in text or "ksa" in text:
+        return "SA"
+    if "turkey" in text or "türkiye" in text or "turkiye" in text:
+        return "TR"
+    if "egypt" in text or "misr" in text:
+        return "EG"
+    if "kuwait" in text:
+        return "KW"
+    if "qatar" in text:
+        return "QA"
 
     latlng_guess = _infer_country_from_latlng(payload.get("lat"), payload.get("lng"))
     if latlng_guess:

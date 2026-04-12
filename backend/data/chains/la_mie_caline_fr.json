@@ -1,0 +1,44 @@
+{
+  "brand_name": "La Mie Câline",
+  "source_type": "seed_template",
+  "source_url": "https://lamiecaline.com/menu",
+  "store_name_variants": [
+    "la mie caline",
+    "la mie câline"
+  ],
+  "items": [
+    {
+      "item_name": "Jambon Beurre Baguette",
+      "category": "entree",
+      "estimated_calories": 420,
+      "estimated_protein_g": 20,
+      "estimated_carbs_g": 48,
+      "estimated_fat_g": 16,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Sandwich Poulet",
+      "category": "entree",
+      "estimated_calories": 380,
+      "estimated_protein_g": 26,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 12,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Quiche Lorraine",
+      "category": "entree",
+      "estimated_calories": 380,
+      "estimated_protein_g": 16,
+      "estimated_carbs_g": 28,
+      "estimated_fat_g": 22,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    }
+  ]
+}

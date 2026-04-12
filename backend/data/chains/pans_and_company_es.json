@@ -1,0 +1,45 @@
+{
+  "brand_name": "Pans & Company",
+  "source_type": "seed_template",
+  "source_url": "https://www.pansandcompany.com/menu",
+  "store_name_variants": [
+    "pans",
+    "pans and company",
+    "pans & company"
+  ],
+  "items": [
+    {
+      "item_name": "Grilled Chicken Baguette",
+      "category": "entree",
+      "estimated_calories": 420,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 44,
+      "estimated_fat_g": 14,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Serranito Sandwich",
+      "category": "entree",
+      "estimated_calories": 460,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 48,
+      "estimated_fat_g": 18,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Vegetal Sandwich",
+      "category": "entree",
+      "estimated_calories": 340,
+      "estimated_protein_g": 12,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 12,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    }
+  ]
+}

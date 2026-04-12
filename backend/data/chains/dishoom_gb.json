@@ -1,0 +1,65 @@
+{
+  "brand_name": "Dishoom",
+  "source_type": "seed_template",
+  "source_url": "https://www.dishoom.com/menu",
+  "store_name_variants": [
+    "dishoom"
+  ],
+  "items": [
+    {
+      "item_name": "Chicken Ruby",
+      "category": "entree",
+      "estimated_calories": 520,
+      "estimated_protein_g": 36,
+      "estimated_carbs_g": 18,
+      "estimated_fat_g": 32,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "House Black Daal",
+      "category": "entree",
+      "estimated_calories": 420,
+      "estimated_protein_g": 12,
+      "estimated_carbs_g": 32,
+      "estimated_fat_g": 24,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Chicken Biryani (family, share)",
+      "category": "entree",
+      "estimated_calories": 620,
+      "estimated_protein_g": 34,
+      "estimated_carbs_g": 62,
+      "estimated_fat_g": 26,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Lamb Raan Roll",
+      "category": "entree",
+      "estimated_calories": 520,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 44,
+      "estimated_fat_g": 22,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Breakfast Bacon Naan Roll",
+      "category": "entree",
+      "estimated_calories": 480,
+      "estimated_protein_g": 22,
+      "estimated_carbs_g": 48,
+      "estimated_fat_g": 22,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    }
+  ]
+}

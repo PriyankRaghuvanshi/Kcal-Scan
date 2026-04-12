@@ -416,6 +416,42 @@ def _infer_country_from_latlng(lat: Any, lng: Any) -> str:
     # in our bbox list.
     if 8.0 <= lat_f <= 23.5 and 102.0 <= lng_f <= 110.0:
         return "VN"
+    # Italy — mainland + Sicily/Sardinia. Non-overlapping with FR/DE.
+    if 35.5 <= lat_f <= 47.1 and 6.6 <= lng_f <= 18.5:
+        return "IT"
+    # Spain — mainland + Balearics. Careful: PT would overlap, not in list.
+    if 35.8 <= lat_f <= 43.8 and -9.5 <= lng_f <= 4.3:
+        return "ES"
+    # Netherlands — small, fairly tight.
+    if 50.7 <= lat_f <= 53.7 and 3.2 <= lng_f <= 7.3:
+        return "NL"
+    # Poland — central Europe.
+    if 49.0 <= lat_f <= 55.0 and 14.1 <= lng_f <= 24.2:
+        return "PL"
+    # Germany — mostly non-overlapping with NL/PL if ordered correctly.
+    if 47.3 <= lat_f <= 55.1 and 5.9 <= lng_f <= 15.0:
+        return "DE"
+    # France — mainland.
+    if 41.3 <= lat_f <= 51.1 and -5.2 <= lng_f <= 9.6:
+        return "FR"
+    # Saudi Arabia.
+    if 16.0 <= lat_f <= 32.5 and 34.5 <= lng_f <= 55.7:
+        return "SA"
+    # Turkey.
+    if 35.9 <= lat_f <= 42.1 and 25.6 <= lng_f <= 44.8:
+        return "TR"
+    # Egypt.
+    if 22.0 <= lat_f <= 31.7 and 25.0 <= lng_f <= 35.0:
+        return "EG"
+    # Kuwait.
+    if 28.5 <= lat_f <= 30.1 and 46.5 <= lng_f <= 48.4:
+        return "KW"
+    # Qatar.
+    if 24.5 <= lat_f <= 26.2 and 50.7 <= lng_f <= 51.7:
+        return "QA"
+    # Mexico — mostly south of US.
+    if 14.5 <= lat_f <= 32.7 and -117.3 <= lng_f <= -86.7:
+        return "MX"
     # PK and BD deliberately NOT bbox'd — they overlap India too heavily.
     # Rely on address text inference for those markets.
     return ""
@@ -482,6 +518,26 @@ def _infer_country_code(place: Dict[str, Any]) -> str:
         return "PK"
     if "bangladesh" in text:
         return "BD"
+    if "italy" in text or "italia" in text:
+        return "IT"
+    if "spain" in text or "españa" in text or "espana" in text:
+        return "ES"
+    if "netherlands" in text or "holland" in text:
+        return "NL"
+    if "poland" in text or "polska" in text:
+        return "PL"
+    if "belgium" in text or "belgique" in text or "belgie" in text:
+        return "BE"
+    if "saudi arabia" in text or "ksa" in text:
+        return "SA"
+    if "turkey" in text or "türkiye" in text or "turkiye" in text:
+        return "TR"
+    if "egypt" in text or "misr" in text:
+        return "EG"
+    if "kuwait" in text:
+        return "KW"
+    if "qatar" in text:
+        return "QA"
 
     latlng_guess = _infer_country_from_latlng(payload.get("lat"), payload.get("lng"))
     if latlng_guess:

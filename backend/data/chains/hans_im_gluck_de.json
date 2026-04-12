@@ -1,0 +1,44 @@
+{
+  "brand_name": "Hans im Glück",
+  "source_type": "seed_template",
+  "source_url": "https://www.hansimglueck-burgergrill.de/menu",
+  "store_name_variants": [
+    "hans im glueck",
+    "hans im glück"
+  ],
+  "items": [
+    {
+      "item_name": "Grilled Chicken Burger",
+      "category": "entree",
+      "estimated_calories": 520,
+      "estimated_protein_g": 34,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 22,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Classic Burger",
+      "category": "entree",
+      "estimated_calories": 600,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 34,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Veggie Burger",
+      "category": "entree",
+      "estimated_calories": 480,
+      "estimated_protein_g": 18,
+      "estimated_carbs_g": 54,
+      "estimated_fat_g": 22,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    }
+  ]
+}

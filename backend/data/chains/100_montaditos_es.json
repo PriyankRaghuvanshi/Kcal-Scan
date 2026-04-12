@@ -1,0 +1,44 @@
+{
+  "brand_name": "100 Montaditos",
+  "source_type": "seed_template",
+  "source_url": "https://www.100montaditos.com/menu",
+  "store_name_variants": [
+    "100 montaditos",
+    "cien montaditos"
+  ],
+  "items": [
+    {
+      "item_name": "Jamón Serrano Montadito (2pc)",
+      "category": "entree",
+      "estimated_calories": 240,
+      "estimated_protein_g": 14,
+      "estimated_carbs_g": 26,
+      "estimated_fat_g": 10,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Pollo Montadito (chicken, 2pc)",
+      "category": "entree",
+      "estimated_calories": 260,
+      "estimated_protein_g": 16,
+      "estimated_carbs_g": 28,
+      "estimated_fat_g": 10,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Tortilla Española (portion)",
+      "category": "entree",
+      "estimated_calories": 320,
+      "estimated_protein_g": 14,
+      "estimated_carbs_g": 26,
+      "estimated_fat_g": 18,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    }
+  ]
+}

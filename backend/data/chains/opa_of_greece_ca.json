@@ -1,0 +1,45 @@
+{
+  "brand_name": "Opa! Of Greece",
+  "source_type": "seed_template",
+  "source_url": "https://opaofgreece.com/menu",
+  "store_name_variants": [
+    "opa",
+    "opa of greece",
+    "opa! of greece"
+  ],
+  "items": [
+    {
+      "item_name": "Chicken Souvlaki Bowl",
+      "category": "entree",
+      "estimated_calories": 480,
+      "estimated_protein_g": 36,
+      "estimated_carbs_g": 44,
+      "estimated_fat_g": 16,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Beef Souvlaki Wrap",
+      "category": "entree",
+      "estimated_calories": 520,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 46,
+      "estimated_fat_g": 20,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Greek Salad + Chicken",
+      "category": "entree",
+      "estimated_calories": 380,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 18,
+      "estimated_fat_g": 22,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    }
+  ]
+}

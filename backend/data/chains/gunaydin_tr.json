@@ -1,0 +1,45 @@
+{
+  "brand_name": "Günaydın",
+  "source_type": "seed_template",
+  "source_url": "https://gunaydin.com.tr/menu",
+  "store_name_variants": [
+    "gunaydin",
+    "günaydın",
+    "günaydin"
+  ],
+  "items": [
+    {
+      "item_name": "Mixed Grill (share, per portion)",
+      "category": "entree",
+      "estimated_calories": 620,
+      "estimated_protein_g": 48,
+      "estimated_carbs_g": 14,
+      "estimated_fat_g": 42,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Adana Kebab (1 skewer)",
+      "category": "entree",
+      "estimated_calories": 420,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 6,
+      "estimated_fat_g": 28,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Chicken Shish Kebab (1 skewer)",
+      "category": "entree",
+      "estimated_calories": 380,
+      "estimated_protein_g": 34,
+      "estimated_carbs_g": 6,
+      "estimated_fat_g": 22,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    }
+  ]
+}

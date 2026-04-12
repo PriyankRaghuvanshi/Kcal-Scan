@@ -1,0 +1,43 @@
+{
+  "brand_name": "Bobby Burger",
+  "source_type": "seed_template",
+  "source_url": "https://bobbyburger.pl/menu",
+  "store_name_variants": [
+    "bobby burger"
+  ],
+  "items": [
+    {
+      "item_name": "Classic Bobby Burger",
+      "category": "entree",
+      "estimated_calories": 540,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 28,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Chicken Burger",
+      "category": "entree",
+      "estimated_calories": 480,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 20,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Veggie Burger",
+      "category": "entree",
+      "estimated_calories": 440,
+      "estimated_protein_g": 16,
+      "estimated_carbs_g": 52,
+      "estimated_fat_g": 20,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    }
+  ]
+}

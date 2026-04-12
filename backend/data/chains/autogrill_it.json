@@ -1,0 +1,43 @@
+{
+  "brand_name": "Autogrill",
+  "source_type": "seed_template",
+  "source_url": "https://www.autogrill.it/menu",
+  "store_name_variants": [
+    "autogrill"
+  ],
+  "items": [
+    {
+      "item_name": "Panino Prosciutto",
+      "category": "entree",
+      "estimated_calories": 420,
+      "estimated_protein_g": 22,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 16,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Insalata di Pollo (chicken salad)",
+      "category": "entree",
+      "estimated_calories": 360,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 14,
+      "estimated_fat_g": 18,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Primo di Pasta (small)",
+      "category": "entree",
+      "estimated_calories": 420,
+      "estimated_protein_g": 16,
+      "estimated_carbs_g": 58,
+      "estimated_fat_g": 12,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    }
+  ]
+}

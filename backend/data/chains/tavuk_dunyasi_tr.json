@@ -1,0 +1,44 @@
+{
+  "brand_name": "Tavuk Dünyası",
+  "source_type": "seed_template",
+  "source_url": "https://www.tavukdunyasi.com/menu",
+  "store_name_variants": [
+    "tavuk dunyasi",
+    "tavuk dünyası"
+  ],
+  "items": [
+    {
+      "item_name": "Grilled Chicken (half, marinated)",
+      "category": "entree",
+      "estimated_calories": 380,
+      "estimated_protein_g": 40,
+      "estimated_carbs_g": 4,
+      "estimated_fat_g": 22,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Chicken Döner + Rice",
+      "category": "entree",
+      "estimated_calories": 580,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 62,
+      "estimated_fat_g": 20,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Chicken Wings (6pc)",
+      "category": "entree",
+      "estimated_calories": 420,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 6,
+      "estimated_fat_g": 28,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    }
+  ]
+}

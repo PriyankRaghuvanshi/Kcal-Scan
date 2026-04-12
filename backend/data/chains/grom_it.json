@@ -1,0 +1,32 @@
+{
+  "brand_name": "Grom",
+  "source_type": "seed_template",
+  "source_url": "https://www.grom.it/menu",
+  "store_name_variants": [
+    "grom"
+  ],
+  "items": [
+    {
+      "item_name": "Small Gelato Cup (any flavor)",
+      "category": "dessert",
+      "estimated_calories": 180,
+      "estimated_protein_g": 4,
+      "estimated_carbs_g": 22,
+      "estimated_fat_g": 8,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Sorbet Scoop",
+      "category": "dessert",
+      "estimated_calories": 110,
+      "estimated_protein_g": 1,
+      "estimated_carbs_g": 26,
+      "estimated_fat_g": 0,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": true
+    }
+  ]
+}
