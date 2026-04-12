@@ -1,0 +1,65 @@
+{
+  "brand_name": "Chowman",
+  "source_type": "seed_template",
+  "source_url": "https://chowman.com/menu",
+  "store_name_variants": [
+    "chowman"
+  ],
+  "items": [
+    {
+      "item_name": "Hakka Chicken Noodles",
+      "category": "entree",
+      "estimated_calories": 520,
+      "estimated_protein_g": 26,
+      "estimated_carbs_g": 62,
+      "estimated_fat_g": 18,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Kung Pao Chicken",
+      "category": "entree",
+      "estimated_calories": 440,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 22,
+      "estimated_fat_g": 22,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Steamed Chicken Momos (6pc)",
+      "category": "entree",
+      "estimated_calories": 280,
+      "estimated_protein_g": 18,
+      "estimated_carbs_g": 32,
+      "estimated_fat_g": 8,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Hot & Sour Soup Chicken",
+      "category": "entree",
+      "estimated_calories": 180,
+      "estimated_protein_g": 16,
+      "estimated_carbs_g": 14,
+      "estimated_fat_g": 8,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Chilli Paneer",
+      "category": "entree",
+      "estimated_calories": 380,
+      "estimated_protein_g": 18,
+      "estimated_carbs_g": 18,
+      "estimated_fat_g": 26,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    }
+  ]
+}

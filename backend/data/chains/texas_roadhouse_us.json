@@ -1,0 +1,54 @@
+{
+  "brand_name": "Texas Roadhouse",
+  "source_type": "seed_template",
+  "source_url": "https://www.texasroadhouse.com/menu",
+  "store_name_variants": [
+    "texas roadhouse"
+  ],
+  "items": [
+    {
+      "item_name": "8oz Sirloin + Steamed Veg",
+      "category": "entree",
+      "estimated_calories": 540,
+      "estimated_protein_g": 48,
+      "estimated_carbs_g": 22,
+      "estimated_fat_g": 28,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Grilled Chicken Salad (no dressing)",
+      "category": "entree",
+      "estimated_calories": 420,
+      "estimated_protein_g": 38,
+      "estimated_carbs_g": 18,
+      "estimated_fat_g": 22,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Grilled BBQ Chicken",
+      "category": "entree",
+      "estimated_calories": 480,
+      "estimated_protein_g": 42,
+      "estimated_carbs_g": 24,
+      "estimated_fat_g": 22,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Pulled Pork Dinner",
+      "category": "entree",
+      "estimated_calories": 620,
+      "estimated_protein_g": 38,
+      "estimated_carbs_g": 46,
+      "estimated_fat_g": 30,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    }
+  ]
+}

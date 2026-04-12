@@ -1,0 +1,55 @@
+{
+  "brand_name": "SumoSalad",
+  "source_type": "seed_template",
+  "source_url": "https://sumosalad.com/menu",
+  "store_name_variants": [
+    "sumo salad",
+    "sumosalad"
+  ],
+  "items": [
+    {
+      "item_name": "Classic Caesar Salad (grilled chicken)",
+      "category": "entree",
+      "estimated_calories": 420,
+      "estimated_protein_g": 34,
+      "estimated_carbs_g": 18,
+      "estimated_fat_g": 22,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Greek Salad + Grilled Chicken",
+      "category": "entree",
+      "estimated_calories": 380,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 18,
+      "estimated_fat_g": 18,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Mediterranean Chicken Bowl",
+      "category": "entree",
+      "estimated_calories": 460,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 44,
+      "estimated_fat_g": 14,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Vegan Buddha Bowl",
+      "category": "entree",
+      "estimated_calories": 380,
+      "estimated_protein_g": 14,
+      "estimated_carbs_g": 54,
+      "estimated_fat_g": 12,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": true
+    }
+  ]
+}

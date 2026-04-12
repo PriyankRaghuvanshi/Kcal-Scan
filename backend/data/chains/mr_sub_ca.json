@@ -1,0 +1,45 @@
+{
+  "brand_name": "Mr. Sub",
+  "source_type": "seed_template",
+  "source_url": "https://www.mrsub.ca/menu",
+  "store_name_variants": [
+    "mr sub",
+    "mr. sub",
+    "mister sub"
+  ],
+  "items": [
+    {
+      "item_name": "Turkey Sub (6in, no mayo)",
+      "category": "entree",
+      "estimated_calories": 340,
+      "estimated_protein_g": 22,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 6,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Grilled Chicken Sub (6in)",
+      "category": "entree",
+      "estimated_calories": 360,
+      "estimated_protein_g": 26,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 8,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Veggie Sub (6in)",
+      "category": "entree",
+      "estimated_calories": 260,
+      "estimated_protein_g": 10,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 4,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": true
+    }
+  ]
+}

@@ -1,0 +1,54 @@
+{
+  "brand_name": "Monginis",
+  "source_type": "seed_template",
+  "source_url": "https://monginis.net/menu",
+  "store_name_variants": [
+    "monginis"
+  ],
+  "items": [
+    {
+      "item_name": "Chicken Puff (single)",
+      "category": "entree",
+      "estimated_calories": 280,
+      "estimated_protein_g": 12,
+      "estimated_carbs_g": 28,
+      "estimated_fat_g": 14,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Veg Puff",
+      "category": "entree",
+      "estimated_calories": 240,
+      "estimated_protein_g": 6,
+      "estimated_carbs_g": 30,
+      "estimated_fat_g": 12,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Chocolate Cake Slice",
+      "category": "dessert",
+      "estimated_calories": 340,
+      "estimated_protein_g": 4,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 18,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Cream Roll",
+      "category": "dessert",
+      "estimated_calories": 260,
+      "estimated_protein_g": 4,
+      "estimated_carbs_g": 34,
+      "estimated_fat_g": 12,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    }
+  ]
+}

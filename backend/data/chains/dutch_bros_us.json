@@ -1,0 +1,44 @@
+{
+  "brand_name": "Dutch Bros Coffee",
+  "source_type": "seed_template",
+  "source_url": "https://www.dutchbros.com/menu",
+  "store_name_variants": [
+    "dutch bros",
+    "dutch brothers"
+  ],
+  "items": [
+    {
+      "item_name": "Americano (black)",
+      "category": "beverage",
+      "estimated_calories": 5,
+      "estimated_protein_g": 0,
+      "estimated_carbs_g": 1,
+      "estimated_fat_g": 0,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": true
+    },
+    {
+      "item_name": "Sugar-Free Cappuccino",
+      "category": "beverage",
+      "estimated_calories": 90,
+      "estimated_protein_g": 6,
+      "estimated_carbs_g": 8,
+      "estimated_fat_g": 4,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Cold Brew (black)",
+      "category": "beverage",
+      "estimated_calories": 10,
+      "estimated_protein_g": 0,
+      "estimated_carbs_g": 1,
+      "estimated_fat_g": 0,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": true
+    }
+  ]
+}

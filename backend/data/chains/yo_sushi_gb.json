@@ -1,0 +1,56 @@
+{
+  "brand_name": "YO! Sushi",
+  "source_type": "seed_template",
+  "source_url": "https://yosushi.com/menu",
+  "store_name_variants": [
+    "yo sushi",
+    "yo! sushi",
+    "yo"
+  ],
+  "items": [
+    {
+      "item_name": "Salmon Sashimi (6pc)",
+      "category": "entree",
+      "estimated_calories": 140,
+      "estimated_protein_g": 20,
+      "estimated_carbs_g": 0,
+      "estimated_fat_g": 7,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Tuna Nigiri (2pc)",
+      "category": "entree",
+      "estimated_calories": 100,
+      "estimated_protein_g": 10,
+      "estimated_carbs_g": 12,
+      "estimated_fat_g": 2,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Chicken Katsu Curry (small)",
+      "category": "entree",
+      "estimated_calories": 540,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 62,
+      "estimated_fat_g": 20,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Edamame (side)",
+      "category": "side",
+      "estimated_calories": 140,
+      "estimated_protein_g": 12,
+      "estimated_carbs_g": 10,
+      "estimated_fat_g": 6,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": true
+    }
+  ]
+}

@@ -1,0 +1,56 @@
+{
+  "brand_name": "Wetherspoons",
+  "source_type": "seed_template",
+  "source_url": "https://www.jdwetherspoon.com/menu",
+  "store_name_variants": [
+    "wetherspoons",
+    "j d wetherspoon",
+    "jd wetherspoon"
+  ],
+  "items": [
+    {
+      "item_name": "Chicken Breast Salad (no dressing)",
+      "category": "entree",
+      "estimated_calories": 380,
+      "estimated_protein_g": 36,
+      "estimated_carbs_g": 16,
+      "estimated_fat_g": 18,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Gammon Steak + Eggs + Chips",
+      "category": "entree",
+      "estimated_calories": 680,
+      "estimated_protein_g": 42,
+      "estimated_carbs_g": 58,
+      "estimated_fat_g": 28,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "8oz Sirloin Steak (no chips)",
+      "category": "entree",
+      "estimated_calories": 420,
+      "estimated_protein_g": 44,
+      "estimated_carbs_g": 8,
+      "estimated_fat_g": 22,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Vegetarian Curry + Rice",
+      "category": "entree",
+      "estimated_calories": 560,
+      "estimated_protein_g": 16,
+      "estimated_carbs_g": 86,
+      "estimated_fat_g": 14,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    }
+  ]
+}

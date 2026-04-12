@@ -1,0 +1,44 @@
+{
+  "brand_name": "Auntie Anne's",
+  "source_type": "seed_template",
+  "source_url": "https://www.auntieannes.com/menu",
+  "store_name_variants": [
+    "auntie annes",
+    "auntie anne's"
+  ],
+  "items": [
+    {
+      "item_name": "Original Pretzel",
+      "category": "snack",
+      "estimated_calories": 340,
+      "estimated_protein_g": 10,
+      "estimated_carbs_g": 72,
+      "estimated_fat_g": 2,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": true
+    },
+    {
+      "item_name": "Pretzel Dog",
+      "category": "entree",
+      "estimated_calories": 420,
+      "estimated_protein_g": 16,
+      "estimated_carbs_g": 52,
+      "estimated_fat_g": 18,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Mini Pretzels (10pc)",
+      "category": "snack",
+      "estimated_calories": 340,
+      "estimated_protein_g": 10,
+      "estimated_carbs_g": 70,
+      "estimated_fat_g": 3,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": true
+    }
+  ]
+}

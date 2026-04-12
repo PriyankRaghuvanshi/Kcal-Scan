@@ -1,0 +1,56 @@
+{
+  "brand_name": "Roll'd",
+  "source_type": "seed_template",
+  "source_url": "https://www.rolld.com.au/menu",
+  "store_name_variants": [
+    "rolld",
+    "roll'd",
+    "rolld vietnamese"
+  ],
+  "items": [
+    {
+      "item_name": "Chicken Rice Paper Rolls (3pc)",
+      "category": "entree",
+      "estimated_calories": 180,
+      "estimated_protein_g": 14,
+      "estimated_carbs_g": 24,
+      "estimated_fat_g": 2,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Grilled Chicken Vermicelli Bowl",
+      "category": "entree",
+      "estimated_calories": 440,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 52,
+      "estimated_fat_g": 12,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Pho Chicken (regular)",
+      "category": "entree",
+      "estimated_calories": 420,
+      "estimated_protein_g": 26,
+      "estimated_carbs_g": 52,
+      "estimated_fat_g": 10,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Banh Mi Grilled Chicken",
+      "category": "entree",
+      "estimated_calories": 380,
+      "estimated_protein_g": 24,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 12,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    }
+  ]
+}

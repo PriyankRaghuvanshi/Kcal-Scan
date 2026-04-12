@@ -1,0 +1,55 @@
+{
+  "brand_name": "EatSure",
+  "source_type": "seed_template",
+  "source_url": "https://eatsure.com/menu",
+  "store_name_variants": [
+    "eatsure",
+    "eat sure"
+  ],
+  "items": [
+    {
+      "item_name": "Grilled Chicken Rice Bowl",
+      "category": "entree",
+      "estimated_calories": 480,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 58,
+      "estimated_fat_g": 12,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Peri Peri Chicken Wrap",
+      "category": "entree",
+      "estimated_calories": 460,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 44,
+      "estimated_fat_g": 18,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Protein Paneer Bowl",
+      "category": "entree",
+      "estimated_calories": 420,
+      "estimated_protein_g": 26,
+      "estimated_carbs_g": 40,
+      "estimated_fat_g": 18,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Tandoori Chicken Salad",
+      "category": "entree",
+      "estimated_calories": 340,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 16,
+      "estimated_fat_g": 16,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    }
+  ]
+}
