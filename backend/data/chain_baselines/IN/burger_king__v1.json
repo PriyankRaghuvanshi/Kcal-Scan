@@ -1,0 +1,44 @@
+{
+  "snapshot_id": "snap_burger_king_in_v1",
+  "chain_key": "burger_king",
+  "market": "IN",
+  "registry_version": 1,
+  "created_at": "2026-04-12T00:54:52.105094+00:00",
+  "fixture_version": "v1",
+  "generator": {
+    "module": "chain_baseline_runner",
+    "schema_version": "v1"
+  },
+  "cases": [
+    {
+      "case_id": "default_burger_king_IN",
+      "input_signature": {
+        "restaurant_name": "Burger King",
+        "market": "IN"
+      },
+      "outputs": {
+        "matched_chain_key": "burger_king",
+        "chain_menu_store": "supabase",
+        "top_item_names": [
+          "Grilled Chicken Sandwich, no mayo",
+          "Impossible Whopper, no mayo",
+          "8 pc Chicken Nuggets"
+        ],
+        "top_item_scores": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "trust_tiers": {},
+        "fallback_mode_used": "strict",
+        "totals": {
+          "kcal": 470.0,
+          "protein_g": 32.0,
+          "carbs_g": 0.0,
+          "fat_g": 0.0
+        },
+        "no_result": false
+      }
+    }
+  ]
+}

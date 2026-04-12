@@ -1,0 +1,44 @@
+{
+  "snapshot_id": "snap_sweetgreen_us_v1",
+  "chain_key": "sweetgreen",
+  "market": "US",
+  "registry_version": 1,
+  "created_at": "2026-04-12T00:54:48.384330+00:00",
+  "fixture_version": "v1",
+  "generator": {
+    "module": "chain_baseline_runner",
+    "schema_version": "v1"
+  },
+  "cases": [
+    {
+      "case_id": "default_sweetgreen_US",
+      "input_signature": {
+        "restaurant_name": "Sweetgreen",
+        "market": "US"
+      },
+      "outputs": {
+        "matched_chain_key": "sweetgreen",
+        "chain_menu_store": "supabase",
+        "top_item_names": [
+          "Hot Honey Chicken Plate",
+          "Chicken Pesto Parm",
+          "Harvest Bowl"
+        ],
+        "top_item_scores": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "trust_tiers": {},
+        "fallback_mode_used": "strict",
+        "totals": {
+          "kcal": 640.0,
+          "protein_g": 44.0,
+          "carbs_g": 0.0,
+          "fat_g": 0.0
+        },
+        "no_result": false
+      }
+    }
+  ]
+}

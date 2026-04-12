@@ -1,0 +1,44 @@
+{
+  "snapshot_id": "snap_wendys_us_v1",
+  "chain_key": "wendys",
+  "market": "US",
+  "registry_version": 1,
+  "created_at": "2026-04-12T00:54:51.804592+00:00",
+  "fixture_version": "v1",
+  "generator": {
+    "module": "chain_baseline_runner",
+    "schema_version": "v1"
+  },
+  "cases": [
+    {
+      "case_id": "default_wendys_US",
+      "input_signature": {
+        "restaurant_name": "Wendys",
+        "market": "US"
+      },
+      "outputs": {
+        "matched_chain_key": "wendys",
+        "chain_menu_store": "supabase",
+        "top_item_names": [
+          "Grilled Chicken Sandwich, no mayo",
+          "Dave's Single",
+          "Jr. Hamburger"
+        ],
+        "top_item_scores": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "trust_tiers": {},
+        "fallback_mode_used": "strict",
+        "totals": {
+          "kcal": 450.0,
+          "protein_g": 34.0,
+          "carbs_g": 0.0,
+          "fat_g": 0.0
+        },
+        "no_result": false
+      }
+    }
+  ]
+}

@@ -1,0 +1,44 @@
+{
+  "snapshot_id": "snap_subway_us_v1",
+  "chain_key": "subway",
+  "market": "US",
+  "registry_version": 1,
+  "created_at": "2026-04-12T00:54:48.194270+00:00",
+  "fixture_version": "v1",
+  "generator": {
+    "module": "chain_baseline_runner",
+    "schema_version": "v1"
+  },
+  "cases": [
+    {
+      "case_id": "default_subway_US",
+      "input_signature": {
+        "restaurant_name": "Subway",
+        "market": "US"
+      },
+      "outputs": {
+        "matched_chain_key": "subway",
+        "chain_menu_store": "supabase",
+        "top_item_names": [
+          "Footlong Meatball Marinara",
+          "Chicken & Bacon Ranch Sub",
+          "6\" Rotisserie-Style Chicken Sub"
+        ],
+        "top_item_scores": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "trust_tiers": {},
+        "fallback_mode_used": "strict",
+        "totals": {
+          "kcal": 960.0,
+          "protein_g": 36.0,
+          "carbs_g": 0.0,
+          "fat_g": 0.0
+        },
+        "no_result": false
+      }
+    }
+  ]
+}

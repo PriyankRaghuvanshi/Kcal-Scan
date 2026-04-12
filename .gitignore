@@ -29,6 +29,8 @@ backend/*bk*.py
 # Backend runtime data (e.g. user ingredient choices store)
 backend/data/*
 !backend/data/chains/
+!backend/data/chain_baselines/
+!backend/data/chain_baselines/**
 backend/data/chains/*
 !backend/data/chains/panera_us.json
 !backend/data/chains/nandos_au.json
