@@ -1653,7 +1653,19 @@ def recommend_menu_items_for_place(
     _CHAIN_TRUSTED_SOURCES = frozenset({
         "chain_registry", "ingested_chain_item",
     })
-    covered_chain_key = str(chain_bundle.get("chain_key") or "").strip().lower() if chain_bundle else ""
+    # Detect covered chain via multiple signals:
+    # 1. chain_bundle from resolve_chain_menu_for_place (primary)
+    # 2. match_chain_key on the venue name directly (fallback for when bundle is empty)
+    # 3. place['chain_key'] if already set by upstream enrichment
+    _place_chain_key = str(place.get("chain_key") or "").strip().lower()
+    _bundle_chain_key = str(chain_bundle.get("chain_key") or "").strip().lower() if chain_bundle else ""
+    _matched_chain_key = ""
+    try:
+        from chain_menu_registry import match_chain_key as _mck
+        _matched_chain_key = str(_mck(str(place.get("name") or place.get("place_name") or "")) or "").strip().lower()
+    except Exception:
+        _matched_chain_key = ""
+    covered_chain_key = _bundle_chain_key or _matched_chain_key or _place_chain_key
     item_provenance = "none"
     covered_chain_neutral = False
     if covered_chain_key:
