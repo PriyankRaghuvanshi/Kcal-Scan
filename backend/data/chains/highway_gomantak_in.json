@@ -1,0 +1,44 @@
+{
+  "brand_name": "Highway Gomantak",
+  "source_type": "seed_template",
+  "source_url": "https://highwaygomantak.in/menu",
+  "store_name_variants": [
+    "highway gomantak",
+    "gomantak"
+  ],
+  "items": [
+    {
+      "item_name": "Fish Thali (pomfret)",
+      "category": "entree",
+      "estimated_calories": 620,
+      "estimated_protein_g": 38,
+      "estimated_carbs_g": 66,
+      "estimated_fat_g": 22,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Prawn Thali",
+      "category": "entree",
+      "estimated_calories": 640,
+      "estimated_protein_g": 34,
+      "estimated_carbs_g": 64,
+      "estimated_fat_g": 26,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Crab Thali",
+      "category": "entree",
+      "estimated_calories": 680,
+      "estimated_protein_g": 38,
+      "estimated_carbs_g": 60,
+      "estimated_fat_g": 30,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    }
+  ]
+}

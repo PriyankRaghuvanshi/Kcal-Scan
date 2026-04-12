@@ -1,0 +1,43 @@
+{
+  "brand_name": "Noodle Box",
+  "source_type": "seed_template",
+  "source_url": "https://noodlebox.com.au/menu",
+  "store_name_variants": [
+    "noodle box"
+  ],
+  "items": [
+    {
+      "item_name": "Thai Chicken Pad Thai",
+      "category": "entree",
+      "estimated_calories": 560,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 70,
+      "estimated_fat_g": 16,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Singapore Noodles (chicken)",
+      "category": "entree",
+      "estimated_calories": 540,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 68,
+      "estimated_fat_g": 18,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Teriyaki Chicken + Rice",
+      "category": "entree",
+      "estimated_calories": 520,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 60,
+      "estimated_fat_g": 18,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    }
+  ]
+}

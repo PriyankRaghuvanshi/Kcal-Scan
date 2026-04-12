@@ -1,0 +1,45 @@
+{
+  "brand_name": "Shiraz Golden Restaurant",
+  "source_type": "seed_template",
+  "source_url": "https://shirazgoldenrestaurant.com/menu",
+  "store_name_variants": [
+    "shiraz",
+    "shiraz golden",
+    "shiraz restaurant"
+  ],
+  "items": [
+    {
+      "item_name": "Shiraz Chicken Biryani",
+      "category": "entree",
+      "estimated_calories": 580,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 64,
+      "estimated_fat_g": 22,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Mutton Biryani",
+      "category": "entree",
+      "estimated_calories": 640,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 62,
+      "estimated_fat_g": 30,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Chicken Rezala",
+      "category": "entree",
+      "estimated_calories": 420,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 8,
+      "estimated_fat_g": 28,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    }
+  ]
+}

@@ -1,0 +1,43 @@
+{
+  "brand_name": "Tea Post",
+  "source_type": "seed_template",
+  "source_url": "https://teapost.in/menu",
+  "store_name_variants": [
+    "tea post"
+  ],
+  "items": [
+    {
+      "item_name": "Masala Chai (no sugar)",
+      "category": "beverage",
+      "estimated_calories": 110,
+      "estimated_protein_g": 4,
+      "estimated_carbs_g": 10,
+      "estimated_fat_g": 5,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Elaichi Chai (less sugar)",
+      "category": "beverage",
+      "estimated_calories": 130,
+      "estimated_protein_g": 4,
+      "estimated_carbs_g": 14,
+      "estimated_fat_g": 5,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Sandwich (chicken)",
+      "category": "entree",
+      "estimated_calories": 340,
+      "estimated_protein_g": 22,
+      "estimated_carbs_g": 38,
+      "estimated_fat_g": 10,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    }
+  ]
+}

@@ -1,0 +1,44 @@
+{
+  "brand_name": "Corner Bakery Cafe",
+  "source_type": "seed_template",
+  "source_url": "https://www.cornerbakerycafe.com/menu",
+  "store_name_variants": [
+    "corner bakery",
+    "corner bakery cafe"
+  ],
+  "items": [
+    {
+      "item_name": "Bacon Turkey Avocado Sandwich",
+      "category": "entree",
+      "estimated_calories": 520,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 26,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Anaheim Scrambler (scramble)",
+      "category": "breakfast",
+      "estimated_calories": 480,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 22,
+      "estimated_fat_g": 28,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Chicken Pomodori Panini",
+      "category": "entree",
+      "estimated_calories": 440,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 44,
+      "estimated_fat_g": 14,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    }
+  ]
+}

@@ -1,0 +1,43 @@
+{
+  "brand_name": "Swagath",
+  "source_type": "seed_template",
+  "source_url": "https://swagathmumbai.com/menu",
+  "store_name_variants": [
+    "swagath"
+  ],
+  "items": [
+    {
+      "item_name": "Grilled Pomfret",
+      "category": "entree",
+      "estimated_calories": 360,
+      "estimated_protein_g": 34,
+      "estimated_carbs_g": 2,
+      "estimated_fat_g": 22,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Mangalore Chicken Ghee Roast",
+      "category": "entree",
+      "estimated_calories": 420,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 14,
+      "estimated_fat_g": 26,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Prawn Curry + Neer Dosa",
+      "category": "entree",
+      "estimated_calories": 520,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 52,
+      "estimated_fat_g": 20,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    }
+  ]
+}

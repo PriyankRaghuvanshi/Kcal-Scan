@@ -1,0 +1,43 @@
+{
+  "brand_name": "Wawa",
+  "source_type": "seed_template",
+  "source_url": "https://www.wawa.com/menu",
+  "store_name_variants": [
+    "wawa"
+  ],
+  "items": [
+    {
+      "item_name": "Turkey Sandwich (short)",
+      "category": "entree",
+      "estimated_calories": 360,
+      "estimated_protein_g": 22,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 10,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Grilled Chicken Classic Hoagie",
+      "category": "entree",
+      "estimated_calories": 420,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 14,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Classic Garden Salad (chicken)",
+      "category": "entree",
+      "estimated_calories": 340,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 16,
+      "estimated_fat_g": 14,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    }
+  ]
+}

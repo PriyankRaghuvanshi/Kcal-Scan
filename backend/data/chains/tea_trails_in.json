@@ -1,0 +1,54 @@
+{
+  "brand_name": "Tea Trails",
+  "source_type": "seed_template",
+  "source_url": "https://teatrails.in/menu",
+  "store_name_variants": [
+    "tea trails"
+  ],
+  "items": [
+    {
+      "item_name": "Masala Chai (no sugar)",
+      "category": "beverage",
+      "estimated_calories": 110,
+      "estimated_protein_g": 4,
+      "estimated_carbs_g": 10,
+      "estimated_fat_g": 5,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Darjeeling Tea (unsweetened)",
+      "category": "beverage",
+      "estimated_calories": 5,
+      "estimated_protein_g": 0,
+      "estimated_carbs_g": 1,
+      "estimated_fat_g": 0,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": true
+    },
+    {
+      "item_name": "Chicken Roll (tea time)",
+      "category": "entree",
+      "estimated_calories": 340,
+      "estimated_protein_g": 22,
+      "estimated_carbs_g": 38,
+      "estimated_fat_g": 12,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Grilled Veggie Sandwich",
+      "category": "entree",
+      "estimated_calories": 300,
+      "estimated_protein_g": 10,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 10,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    }
+  ]
+}

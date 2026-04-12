@@ -1,0 +1,54 @@
+{
+  "brand_name": "Chutneys",
+  "source_type": "seed_template",
+  "source_url": "https://chutneys.in/menu",
+  "store_name_variants": [
+    "chutneys"
+  ],
+  "items": [
+    {
+      "item_name": "Pesarattu Upma",
+      "category": "entree",
+      "estimated_calories": 420,
+      "estimated_protein_g": 14,
+      "estimated_carbs_g": 58,
+      "estimated_fat_g": 14,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": true
+    },
+    {
+      "item_name": "Special Dosa",
+      "category": "entree",
+      "estimated_calories": 380,
+      "estimated_protein_g": 10,
+      "estimated_carbs_g": 54,
+      "estimated_fat_g": 14,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Idli Vada (3pc idli + 2 vada)",
+      "category": "entree",
+      "estimated_calories": 380,
+      "estimated_protein_g": 14,
+      "estimated_carbs_g": 56,
+      "estimated_fat_g": 12,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Mini Tiffin",
+      "category": "entree",
+      "estimated_calories": 460,
+      "estimated_protein_g": 16,
+      "estimated_carbs_g": 66,
+      "estimated_fat_g": 14,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    }
+  ]
+}
