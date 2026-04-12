@@ -84,6 +84,50 @@ class TestVenueCache(unittest.TestCase):
         self.assertTrue(payload.get("from_venue_cache"))
         self.assertEqual(payload.get("top_item"), "6-inch Sub")
 
+    def test_cache_rejects_stale_version(self):
+        # After deploy, pre-existing cache files written under CACHE_VERSION="v1"
+        # must be ignored by get() so stale fallback items aren't served.
+        import json
+        import time
+        from venue_intelligence_cache import CACHE_VERSION, get as cache_get
+        with _temp_cache_and_queue():
+            # Hand-write a cache file at the prior version with an otherwise-valid entry
+            import os
+            path = os.environ["VENUE_INTELLIGENCE_CACHE_PATH"]
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            stale = {
+                "version": "v1",
+                "entries": {
+                    "stale_place": {
+                        "place_id": "stale_place",
+                        "candidates": [{"item_name": "Old cached item"}],
+                        "last_enriched_at": time.time(),
+                        "ttl_sec": 86400 * 7,
+                    }
+                },
+                "chain_entries": {},
+            }
+            with open(path, "w") as f:
+                json.dump(stale, f)
+            self.assertNotEqual(CACHE_VERSION, "v1", "bump CACHE_VERSION if test asserts v1 rejection")
+            self.assertIsNone(cache_get("stale_place"))
+
+    def test_cache_to_menu_payload_legacy_row_does_not_promote_provenance(self):
+        # Legacy row: no provenance fields persisted. Must NOT surface exact_chain_menu
+        # or can_show_verified_badge. Locks in the conservative fallback.
+        legacy_cached = {
+            "candidates": [
+                {"item_name": "House Salad", "estimated_calories": 420, "estimated_protein_g": 22},
+            ],
+            "source_type": "enriched_local",
+            "confidence": 0.6,
+        }
+        payload = cache_to_menu_payload(legacy_cached, {})
+        self.assertIsNone(payload.get("item_provenance"))
+        self.assertFalse(payload.get("can_show_verified_badge"))
+        self.assertFalse(payload.get("covered_chain_neutral"))
+        self.assertIsNone(payload.get("covered_chain_key"))
+
 
 class TestEnrichmentQueue(unittest.TestCase):
     def test_enqueue_and_list(self):

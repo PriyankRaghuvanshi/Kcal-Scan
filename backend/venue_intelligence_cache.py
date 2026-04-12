@@ -12,7 +12,7 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-CACHE_VERSION = "v1"
+CACHE_VERSION = "v2"  # v2: provenance fields persisted; v1 rows invalidated on read
 DEFAULT_TTL_SEC = 86400 * 7  # 7 days
 
 
@@ -55,6 +55,10 @@ def get(place_id: str) -> Optional[Dict[str, Any]]:
                 data = json.load(f)
         except Exception:
             return None
+    # Reject entries written under an older cache version. Provenance schema changed
+    # in v2; v1 rows lack item_provenance/covered_chain_key and would serve stale fallback.
+    if str(data.get("version") or "") != CACHE_VERSION:
+        return None
     entries = data.get("entries") if isinstance(data.get("entries"), dict) else {}
     entry = entries.get(pid)
     if not isinstance(entry, dict):
@@ -105,6 +109,12 @@ def put(
     chain_key: Optional[str] = None,
     chain_match: bool = False,
     swap_templates: Optional[List[Dict[str, Any]]] = None,
+    item_provenance: Optional[str] = None,
+    covered_chain_key: Optional[str] = None,
+    covered_chain_neutral: bool = False,
+    can_show_verified_badge: bool = False,
+    covered_chain_display_name: Optional[str] = None,
+    covered_chain_menu_url: Optional[str] = None,
 ) -> None:
     """Store venue intelligence for a place. Creates file if missing."""
     pid = str(place_id or "").strip()
@@ -123,6 +133,12 @@ def put(
         "last_enriched_at": _now(),
         "ttl_sec": DEFAULT_TTL_SEC,
         "swap_templates": swap_templates[:5] if swap_templates else [],
+        "item_provenance": str(item_provenance) if item_provenance else None,
+        "covered_chain_key": str(covered_chain_key).strip().lower() if covered_chain_key else None,
+        "covered_chain_neutral": bool(covered_chain_neutral),
+        "can_show_verified_badge": bool(can_show_verified_badge),
+        "covered_chain_display_name": str(covered_chain_display_name) if covered_chain_display_name else None,
+        "covered_chain_menu_url": str(covered_chain_menu_url) if covered_chain_menu_url else None,
     }
     _lock = getattr(put, "_lock", None)
     if _lock is None:
@@ -136,6 +152,9 @@ def put(
                     data = json.load(f)
             except Exception:
                 pass
+        # Reset entries when file version is stale to avoid mixing old/new schemas.
+        if str(data.get("version") or "") != CACHE_VERSION:
+            data = {"version": CACHE_VERSION, "entries": {}, "chain_entries": {}}
         if not isinstance(data.get("entries"), dict):
             data["entries"] = {}
         data["entries"][pid] = entry
@@ -172,6 +191,9 @@ def cache_to_menu_payload(cached: Dict[str, Any], place: Dict[str, Any]) -> Dict
     raw = cached.get("candidates") or []
     items = [_normalize_candidate_to_menu_item(c) for c in raw if isinstance(c, dict)]
     top = items[0] if items else {}
+    # Preserve provenance verbatim. Legacy rows without these fields get conservative defaults —
+    # never auto-promote to exact_chain_menu / verified badge.
+    stored_provenance = cached.get("item_provenance")
     return {
         "menu_item_scoring_available": bool(items),
         "menu_items_source": cached.get("source_type") or "enriched_local",
@@ -187,4 +209,10 @@ def cache_to_menu_payload(cached: Dict[str, Any], place: Dict[str, Any]) -> Dict
         "chain_key": cached.get("chain_key"),
         "chain_match": cached.get("chain_match", False),
         "from_venue_cache": True,
+        "item_provenance": str(stored_provenance) if stored_provenance else None,
+        "covered_chain_key": cached.get("covered_chain_key"),
+        "covered_chain_neutral": bool(cached.get("covered_chain_neutral", False)),
+        "can_show_verified_badge": bool(cached.get("can_show_verified_badge", False)),
+        "covered_chain_display_name": cached.get("covered_chain_display_name") or "",
+        "covered_chain_menu_url": cached.get("covered_chain_menu_url") or "",
     }

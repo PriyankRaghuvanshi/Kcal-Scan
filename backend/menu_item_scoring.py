@@ -259,8 +259,20 @@ _DESSERT_CONTEXT_TOKENS: Tuple[str, ...] = (
     "pastry",
     "bakery",
     "cake",
-    "sweet",
     "ice cream",
+)
+
+# Menu-item sources whose names we trust verbatim. Bypass coarse-name overrides
+# from cuisine-context heuristics (e.g., dessert/cafe token matches). Chain-backed
+# and user-captured items carry their own provenance — don't second-guess them.
+_TRUSTED_NAME_PASSTHROUGH_SOURCES: Tuple[str, ...] = (
+    "real_menu",
+    "user_scan",
+    "ingested_chain_item",
+    "chain_registry",
+    "exact_menu_cache",
+    "structured_menu",
+    "menu_intelligence_store",
 )
 
 _CAFE_CONTEXT_TOKENS: Tuple[str, ...] = (
@@ -533,7 +545,7 @@ def _final_item_name(
     text = str(item_name or "").strip()
     if not text:
         return _coarse_item_name_for_context(cuisine_hint)
-    if source in {"real_menu", "user_scan"}:
+    if source in _TRUSTED_NAME_PASSTHROUGH_SOURCES:
         return text
 
     # LLM reasoning items — tiered by confidence:
@@ -566,7 +578,7 @@ def _final_item_name(
     if _is_cuisine_inappropriate_generic(lower_item, lower_cuisine):
         return _coarse_item_name_for_context(cuisine_hint)
 
-    if any(token in lower_cuisine for token in _DESSERT_CONTEXT_TOKENS) and source != "real_menu":
+    if any(token in lower_cuisine for token in _DESSERT_CONTEXT_TOKENS) and source not in _TRUSTED_NAME_PASSTHROUGH_SOURCES:
         return _coarse_item_name_for_context(cuisine_hint)
 
     # Heuristic-only names remain soft and category-level for trust.
