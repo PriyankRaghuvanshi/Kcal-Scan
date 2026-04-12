@@ -1,1 +1,77 @@
-{"brand_name":"Burger King","source_type":"seed_template","source_url":"https://www.burgerking.co.uk/menu","store_name_variants":["burger king","bk"],"items":[{"item_name":"Chicken Royale","category":"sandwich","estimated_calories":520,"estimated_protein_g":22,"estimated_carbs_g":48,"estimated_fat_g":26,"confidence":0.82,"vegetarian_possible":false,"vegan_possible":false},{"item_name":"Whopper Jr","category":"sandwich","estimated_calories":310,"estimated_protein_g":14,"estimated_carbs_g":26,"estimated_fat_g":16,"confidence":0.84,"vegetarian_possible":false,"vegan_possible":false},{"item_name":"Plant-Based Whopper","category":"sandwich","estimated_calories":540,"estimated_protein_g":18,"estimated_carbs_g":52,"estimated_fat_g":28,"confidence":0.80,"vegetarian_possible":true,"vegan_possible":true},{"item_name":"6 Chicken Nuggets","category":"snack","estimated_calories":260,"estimated_protein_g":14,"estimated_carbs_g":18,"estimated_fat_g":14,"confidence":0.84,"vegetarian_possible":false,"vegan_possible":false},{"item_name":"Garden Side Salad","category":"side","estimated_calories":50,"estimated_protein_g":3,"estimated_carbs_g":6,"estimated_fat_g":2,"confidence":0.86,"vegetarian_possible":true,"vegan_possible":true}]}
+{
+  "brand_name": "Burger King",
+  "source_type": "seed_template",
+  "source_url": "https://www.burgerking.co.uk/menu",
+  "store_name_variants": [
+    "burger king",
+    "bk",
+    "burgerking"
+  ],
+  "items": [
+    {
+      "item_name": "Chicken Royale",
+      "category": "sandwich",
+      "estimated_calories": 520,
+      "estimated_protein_g": 22,
+      "estimated_carbs_g": 48,
+      "estimated_fat_g": 26,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
+    },
+    {
+      "item_name": "Whopper Jr",
+      "category": "sandwich",
+      "estimated_calories": 310,
+      "estimated_protein_g": 14,
+      "estimated_carbs_g": 26,
+      "estimated_fat_g": 16,
+      "confidence": 0.84,
+      "vegetarian_possible": false,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
+    },
+    {
+      "item_name": "Plant-Based Whopper",
+      "category": "sandwich",
+      "estimated_calories": 540,
+      "estimated_protein_g": 18,
+      "estimated_carbs_g": 52,
+      "estimated_fat_g": 28,
+      "confidence": 0.8,
+      "vegetarian_possible": true,
+      "vegan_possible": true,
+      "halal_possible": true,
+      "gluten_free_possible": true
+    },
+    {
+      "item_name": "6 Chicken Nuggets",
+      "category": "snack",
+      "estimated_calories": 260,
+      "estimated_protein_g": 14,
+      "estimated_carbs_g": 18,
+      "estimated_fat_g": 14,
+      "confidence": 0.84,
+      "vegetarian_possible": false,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
+    },
+    {
+      "item_name": "Garden Side Salad",
+      "category": "side",
+      "estimated_calories": 50,
+      "estimated_protein_g": 3,
+      "estimated_carbs_g": 6,
+      "estimated_fat_g": 2,
+      "confidence": 0.86,
+      "vegetarian_possible": true,
+      "vegan_possible": true,
+      "halal_possible": true,
+      "gluten_free_possible": true
+    }
+  ]
+}

@@ -4,7 +4,8 @@
   "source_url": "https://www.pieinthesky.com.pk/menu",
   "store_name_variants": [
     "pie in the sky",
-    "pits"
+    "pits",
+    "pieinthesky"
   ],
   "items": [
     {
@@ -16,7 +17,9 @@
       "estimated_fat_g": 18,
       "confidence": 0.82,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": false
     },
     {
       "item_name": "Chicken Tikka Pie",
@@ -27,7 +30,9 @@
       "estimated_fat_g": 22,
       "confidence": 0.82,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     },
     {
       "item_name": "Beef Pie (small)",
@@ -38,7 +43,9 @@
       "estimated_fat_g": 22,
       "confidence": 0.82,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     },
     {
       "item_name": "Caesar Salad + Grilled Chicken",
@@ -49,7 +56,9 @@
       "estimated_fat_g": 18,
       "confidence": 0.82,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     }
   ]
 }

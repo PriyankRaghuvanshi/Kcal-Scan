@@ -16,7 +16,9 @@
       "estimated_fat_g": 4,
       "confidence": 0.82,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     },
     {
       "item_name": "Tuna Nigiri (2pc)",
@@ -27,7 +29,9 @@
       "estimated_fat_g": 2,
       "confidence": 0.82,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     },
     {
       "item_name": "Shrimp Nigiri (2pc)",
@@ -38,7 +42,9 @@
       "estimated_fat_g": 1,
       "confidence": 0.82,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     },
     {
       "item_name": "Mackerel Nigiri (2pc)",
@@ -49,7 +55,9 @@
       "estimated_fat_g": 6,
       "confidence": 0.82,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     },
     {
       "item_name": "Salmon Roe Gunkan",
@@ -60,7 +68,9 @@
       "estimated_fat_g": 6,
       "confidence": 0.82,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     }
   ]
 }

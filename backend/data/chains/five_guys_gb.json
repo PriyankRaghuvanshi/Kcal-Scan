@@ -1,1 +1,76 @@
-{"brand_name":"Five Guys","source_type":"seed_template","source_url":"https://fiveguys.co.uk/menu","store_name_variants":["five guys"],"items":[{"item_name":"Little Hamburger","category":"sandwich","estimated_calories":480,"estimated_protein_g":26,"estimated_carbs_g":38,"estimated_fat_g":24,"confidence":0.82,"vegetarian_possible":false,"vegan_possible":false},{"item_name":"Little Bacon Cheeseburger","category":"sandwich","estimated_calories":560,"estimated_protein_g":30,"estimated_carbs_g":38,"estimated_fat_g":30,"confidence":0.82,"vegetarian_possible":false,"vegan_possible":false},{"item_name":"Veggie Sandwich","category":"sandwich","estimated_calories":440,"estimated_protein_g":14,"estimated_carbs_g":48,"estimated_fat_g":22,"confidence":0.78,"vegetarian_possible":true,"vegan_possible":false},{"item_name":"Chicken Sandwich (plain)","category":"sandwich","estimated_calories":420,"estimated_protein_g":28,"estimated_carbs_g":42,"estimated_fat_g":14,"confidence":0.80,"vegetarian_possible":false,"vegan_possible":false},{"item_name":"Hot Dog","category":"entree","estimated_calories":520,"estimated_protein_g":18,"estimated_carbs_g":38,"estimated_fat_g":32,"confidence":0.82,"vegetarian_possible":false,"vegan_possible":false}]}
+{
+  "brand_name": "Five Guys",
+  "source_type": "seed_template",
+  "source_url": "https://fiveguys.co.uk/menu",
+  "store_name_variants": [
+    "five guys",
+    "fiveguys"
+  ],
+  "items": [
+    {
+      "item_name": "Little Hamburger",
+      "category": "sandwich",
+      "estimated_calories": 480,
+      "estimated_protein_g": 26,
+      "estimated_carbs_g": 38,
+      "estimated_fat_g": 24,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": false
+    },
+    {
+      "item_name": "Little Bacon Cheeseburger",
+      "category": "sandwich",
+      "estimated_calories": 560,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 38,
+      "estimated_fat_g": 30,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false,
+      "halal_possible": false,
+      "gluten_free_possible": false
+    },
+    {
+      "item_name": "Veggie Sandwich",
+      "category": "sandwich",
+      "estimated_calories": 440,
+      "estimated_protein_g": 14,
+      "estimated_carbs_g": 48,
+      "estimated_fat_g": 22,
+      "confidence": 0.78,
+      "vegetarian_possible": true,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": false
+    },
+    {
+      "item_name": "Chicken Sandwich (plain)",
+      "category": "sandwich",
+      "estimated_calories": 420,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 14,
+      "confidence": 0.8,
+      "vegetarian_possible": false,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": false
+    },
+    {
+      "item_name": "Hot Dog",
+      "category": "entree",
+      "estimated_calories": 520,
+      "estimated_protein_g": 18,
+      "estimated_carbs_g": 38,
+      "estimated_fat_g": 32,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
+    }
+  ]
+}

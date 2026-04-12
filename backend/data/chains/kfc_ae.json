@@ -1,1 +1,63 @@
-{"brand_name":"KFC","source_type":"seed_template","source_url":"https://www.kfc.me/menu","store_name_variants":["kfc"],"items":[{"item_name":"Twister Wrap","category":"wrap","estimated_calories":460,"estimated_protein_g":22,"estimated_carbs_g":40,"estimated_fat_g":22,"confidence":0.82,"vegetarian_possible":false,"vegan_possible":false},{"item_name":"Grilled Chicken (2pc)","category":"entree","estimated_calories":320,"estimated_protein_g":36,"estimated_carbs_g":2,"estimated_fat_g":18,"confidence":0.82,"vegetarian_possible":false,"vegan_possible":false},{"item_name":"Chicken Strips (3pc)","category":"snack","estimated_calories":300,"estimated_protein_g":22,"estimated_carbs_g":18,"estimated_fat_g":16,"confidence":0.82,"vegetarian_possible":false,"vegan_possible":false},{"item_name":"Coleslaw","category":"side","estimated_calories":120,"estimated_protein_g":1,"estimated_carbs_g":12,"estimated_fat_g":8,"confidence":0.86,"vegetarian_possible":true,"vegan_possible":false}]}
+{
+  "brand_name": "KFC",
+  "source_type": "seed_template",
+  "source_url": "https://www.kfc.me/menu",
+  "store_name_variants": [
+    "kfc",
+    "kentucky fried"
+  ],
+  "items": [
+    {
+      "item_name": "Twister Wrap",
+      "category": "wrap",
+      "estimated_calories": 460,
+      "estimated_protein_g": 22,
+      "estimated_carbs_g": 40,
+      "estimated_fat_g": 22,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": false
+    },
+    {
+      "item_name": "Grilled Chicken (2pc)",
+      "category": "entree",
+      "estimated_calories": 320,
+      "estimated_protein_g": 36,
+      "estimated_carbs_g": 2,
+      "estimated_fat_g": 18,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
+    },
+    {
+      "item_name": "Chicken Strips (3pc)",
+      "category": "snack",
+      "estimated_calories": 300,
+      "estimated_protein_g": 22,
+      "estimated_carbs_g": 18,
+      "estimated_fat_g": 16,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
+    },
+    {
+      "item_name": "Coleslaw",
+      "category": "side",
+      "estimated_calories": 120,
+      "estimated_protein_g": 1,
+      "estimated_carbs_g": 12,
+      "estimated_fat_g": 8,
+      "confidence": 0.86,
+      "vegetarian_possible": true,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
+    }
+  ]
+}

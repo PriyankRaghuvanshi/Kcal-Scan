@@ -4,7 +4,8 @@
   "source_url": "https://www.cafedecoral.com/menu",
   "store_name_variants": [
     "cafe de coral",
-    "大家樂"
+    "大家樂",
+    "cafedecoral"
   ],
   "items": [
     {
@@ -16,7 +17,9 @@
       "estimated_fat_g": 14,
       "confidence": 0.82,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     },
     {
       "item_name": "BBQ Pork Rice",
@@ -27,7 +30,9 @@
       "estimated_fat_g": 22,
       "confidence": 0.82,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": false,
+      "gluten_free_possible": true
     },
     {
       "item_name": "Steamed Chicken + Rice",
@@ -38,7 +43,9 @@
       "estimated_fat_g": 10,
       "confidence": 0.82,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     },
     {
       "item_name": "Wonton Noodles",
@@ -49,7 +56,9 @@
       "estimated_fat_g": 10,
       "confidence": 0.82,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": false
     },
     {
       "item_name": "Congee (chicken)",
@@ -60,7 +69,9 @@
       "estimated_fat_g": 4,
       "confidence": 0.82,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     }
   ]
 }

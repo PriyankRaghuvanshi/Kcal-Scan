@@ -4,7 +4,9 @@
   "source_url": "https://www.peiwei.com/menu",
   "store_name_variants": [
     "pei wei",
-    "pei wei asian kitchen"
+    "pei wei asian kitchen",
+    "peiwei",
+    "peiweiasiankitchen"
   ],
   "items": [
     {
@@ -16,7 +18,9 @@
       "estimated_fat_g": 22,
       "confidence": 0.82,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     },
     {
       "item_name": "Korean Steak Bowl",
@@ -27,7 +31,9 @@
       "estimated_fat_g": 22,
       "confidence": 0.82,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     },
     {
       "item_name": "Teriyaki Chicken Bowl",
@@ -38,7 +44,9 @@
       "estimated_fat_g": 12,
       "confidence": 0.82,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     },
     {
       "item_name": "Tofu Stir-Fry (vegan)",
@@ -49,7 +57,9 @@
       "estimated_fat_g": 14,
       "confidence": 0.82,
       "vegetarian_possible": true,
-      "vegan_possible": true
+      "vegan_possible": true,
+      "halal_possible": true,
+      "gluten_free_possible": true
     }
   ]
 }

@@ -6,7 +6,10 @@
     "85c bakery",
     "85 degrees",
     "85 degrees bakery cafe",
-    "85c"
+    "85c",
+    "85cbakery",
+    "85degrees",
+    "85degreesbakerycafe"
   ],
   "items": [
     {
@@ -18,7 +21,9 @@
       "estimated_fat_g": 0,
       "confidence": 0.82,
       "vegetarian_possible": true,
-      "vegan_possible": true
+      "vegan_possible": true,
+      "halal_possible": true,
+      "gluten_free_possible": true
     },
     {
       "item_name": "Cappuccino (no sugar)",
@@ -29,7 +34,9 @@
       "estimated_fat_g": 5,
       "confidence": 0.82,
       "vegetarian_possible": true,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     },
     {
       "item_name": "Ham & Cheese Croissant",
@@ -40,7 +47,9 @@
       "estimated_fat_g": 18,
       "confidence": 0.82,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": false,
+      "gluten_free_possible": false
     },
     {
       "item_name": "Sea Salt Coffee",
@@ -51,7 +60,9 @@
       "estimated_fat_g": 7,
       "confidence": 0.82,
       "vegetarian_possible": true,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     },
     {
       "item_name": "Multigrain Sandwich (chicken)",
@@ -62,7 +73,9 @@
       "estimated_fat_g": 12,
       "confidence": 0.82,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": false
     }
   ]
 }

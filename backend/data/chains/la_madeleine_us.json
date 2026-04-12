@@ -3,7 +3,8 @@
   "source_type": "seed_template",
   "source_url": "https://www.lamadeleine.com/menu",
   "store_name_variants": [
-    "la madeleine"
+    "la madeleine",
+    "lamadeleine"
   ],
   "items": [
     {
@@ -15,7 +16,9 @@
       "estimated_fat_g": 6,
       "confidence": 0.82,
       "vegetarian_possible": true,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     },
     {
       "item_name": "Chicken Caesar Salad",
@@ -26,7 +29,9 @@
       "estimated_fat_g": 24,
       "confidence": 0.82,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     },
     {
       "item_name": "Turkey Croissant Sandwich",
@@ -37,7 +42,9 @@
       "estimated_fat_g": 16,
       "confidence": 0.82,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": false
     }
   ]
 }

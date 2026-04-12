@@ -4,7 +4,9 @@
   "source_url": "https://veerjimalaichaap.com/menu",
   "store_name_variants": [
     "veer ji malai chaap",
-    "veer ji"
+    "veer ji",
+    "veerji",
+    "veerjimalaichaap"
   ],
   "items": [
     {
@@ -16,7 +18,9 @@
       "estimated_fat_g": 24,
       "confidence": 0.82,
       "vegetarian_possible": true,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     },
     {
       "item_name": "Afghani Chaap (half)",
@@ -27,7 +31,9 @@
       "estimated_fat_g": 28,
       "confidence": 0.82,
       "vegetarian_possible": true,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     },
     {
       "item_name": "Chaap Curry + 2 Roti",
@@ -38,7 +44,9 @@
       "estimated_fat_g": 24,
       "confidence": 0.82,
       "vegetarian_possible": true,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": false
     }
   ]
 }

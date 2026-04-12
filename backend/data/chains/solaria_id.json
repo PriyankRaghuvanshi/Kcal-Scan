@@ -15,7 +15,9 @@
       "estimated_fat_g": 16,
       "confidence": 0.82,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     },
     {
       "item_name": "Nasi Goreng Ayam",
@@ -26,7 +28,9 @@
       "estimated_fat_g": 18,
       "confidence": 0.82,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     },
     {
       "item_name": "Cap Cay Goreng",
@@ -37,7 +41,9 @@
       "estimated_fat_g": 10,
       "confidence": 0.82,
       "vegetarian_possible": true,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     },
     {
       "item_name": "Ikan Gurame Bakar",
@@ -48,7 +54,9 @@
       "estimated_fat_g": 24,
       "confidence": 0.82,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     }
   ]
 }

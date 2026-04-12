@@ -3,7 +3,8 @@
   "source_type": "seed_template",
   "source_url": "https://www.pizzapilgrims.co.uk/menu",
   "store_name_variants": [
-    "pizza pilgrims"
+    "pizza pilgrims",
+    "pizzapilgrims"
   ],
   "items": [
     {
@@ -15,7 +16,9 @@
       "estimated_fat_g": 18,
       "confidence": 0.82,
       "vegetarian_possible": true,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": false
     },
     {
       "item_name": "Prosciutto Pizza",
@@ -26,7 +29,9 @@
       "estimated_fat_g": 22,
       "confidence": 0.82,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": false,
+      "gluten_free_possible": false
     },
     {
       "item_name": "Veggie Pizza",
@@ -37,7 +42,9 @@
       "estimated_fat_g": 18,
       "confidence": 0.82,
       "vegetarian_possible": true,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": false
     }
   ]
 }

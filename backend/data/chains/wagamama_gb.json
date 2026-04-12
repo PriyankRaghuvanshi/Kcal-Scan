@@ -1,1 +1,88 @@
-{"brand_name":"Wagamama","source_type":"seed_template","source_url":"https://www.wagamama.com/our-menu","store_name_variants":["wagamama"],"items":[{"item_name":"Chicken Katsu Curry","category":"entree","estimated_calories":740,"estimated_protein_g":36,"estimated_carbs_g":82,"estimated_fat_g":26,"confidence":0.84,"vegetarian_possible":false,"vegan_possible":false},{"item_name":"Grilled Chicken Ramen","category":"entree","estimated_calories":520,"estimated_protein_g":34,"estimated_carbs_g":48,"estimated_fat_g":18,"confidence":0.82,"vegetarian_possible":false,"vegan_possible":false},{"item_name":"Chicken Firecracker","category":"entree","estimated_calories":580,"estimated_protein_g":32,"estimated_carbs_g":56,"estimated_fat_g":22,"confidence":0.80,"vegetarian_possible":false,"vegan_possible":false},{"item_name":"Yasai Pad Thai","category":"entree","estimated_calories":460,"estimated_protein_g":12,"estimated_carbs_g":58,"estimated_fat_g":18,"confidence":0.80,"vegetarian_possible":true,"vegan_possible":true},{"item_name":"Teriyaki Chicken Donburi","category":"bowl","estimated_calories":540,"estimated_protein_g":30,"estimated_carbs_g":62,"estimated_fat_g":16,"confidence":0.82,"vegetarian_possible":false,"vegan_possible":false},{"item_name":"Edamame (side)","category":"side","estimated_calories":120,"estimated_protein_g":10,"estimated_carbs_g":8,"estimated_fat_g":4,"confidence":0.86,"vegetarian_possible":true,"vegan_possible":true}]}
+{
+  "brand_name": "Wagamama",
+  "source_type": "seed_template",
+  "source_url": "https://www.wagamama.com/our-menu",
+  "store_name_variants": [
+    "wagamama"
+  ],
+  "items": [
+    {
+      "item_name": "Chicken Katsu Curry",
+      "category": "entree",
+      "estimated_calories": 740,
+      "estimated_protein_g": 36,
+      "estimated_carbs_g": 82,
+      "estimated_fat_g": 26,
+      "confidence": 0.84,
+      "vegetarian_possible": false,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
+    },
+    {
+      "item_name": "Grilled Chicken Ramen",
+      "category": "entree",
+      "estimated_calories": 520,
+      "estimated_protein_g": 34,
+      "estimated_carbs_g": 48,
+      "estimated_fat_g": 18,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": false
+    },
+    {
+      "item_name": "Chicken Firecracker",
+      "category": "entree",
+      "estimated_calories": 580,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 56,
+      "estimated_fat_g": 22,
+      "confidence": 0.8,
+      "vegetarian_possible": false,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
+    },
+    {
+      "item_name": "Yasai Pad Thai",
+      "category": "entree",
+      "estimated_calories": 460,
+      "estimated_protein_g": 12,
+      "estimated_carbs_g": 58,
+      "estimated_fat_g": 18,
+      "confidence": 0.8,
+      "vegetarian_possible": true,
+      "vegan_possible": true,
+      "halal_possible": true,
+      "gluten_free_possible": false
+    },
+    {
+      "item_name": "Teriyaki Chicken Donburi",
+      "category": "bowl",
+      "estimated_calories": 540,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 62,
+      "estimated_fat_g": 16,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
+    },
+    {
+      "item_name": "Edamame (side)",
+      "category": "side",
+      "estimated_calories": 120,
+      "estimated_protein_g": 10,
+      "estimated_carbs_g": 8,
+      "estimated_fat_g": 4,
+      "confidence": 0.86,
+      "vegetarian_possible": true,
+      "vegan_possible": true,
+      "halal_possible": true,
+      "gluten_free_possible": true
+    }
+  ]
+}

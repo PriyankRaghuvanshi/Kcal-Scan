@@ -4,7 +4,9 @@
   "source_url": "https://www.chick-fil-a.com/menu",
   "store_name_variants": [
     "chick-fil-a",
-    "chick fil a"
+    "chick fil a",
+    "cfa",
+    "chickfila"
   ],
   "items": [
     {
@@ -16,7 +18,9 @@
       "estimated_fat_g": 12,
       "confidence": 0.85,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": false
     },
     {
       "item_name": "Grilled Nuggets (8ct)",
@@ -27,7 +31,9 @@
       "estimated_fat_g": 4,
       "confidence": 0.85,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     },
     {
       "item_name": "Spicy Southwest Salad",
@@ -38,7 +44,9 @@
       "estimated_fat_g": 22,
       "confidence": 0.85,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     },
     {
       "item_name": "Cobb Salad",
@@ -49,7 +57,9 @@
       "estimated_fat_g": 28,
       "confidence": 0.85,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     },
     {
       "item_name": "Egg White Grill",
@@ -60,7 +70,9 @@
       "estimated_fat_g": 8,
       "confidence": 0.85,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     },
     {
       "item_name": "Grilled Cool Wrap",
@@ -71,7 +83,9 @@
       "estimated_fat_g": 14,
       "confidence": 0.85,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": false
     },
     {
       "item_name": "Market Salad",
@@ -82,7 +96,9 @@
       "estimated_fat_g": 18,
       "confidence": 0.85,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     }
   ]
 }

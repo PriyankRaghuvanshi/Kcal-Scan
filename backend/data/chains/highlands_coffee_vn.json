@@ -4,7 +4,8 @@
   "source_url": "https://www.highlandscoffee.com.vn/menu",
   "store_name_variants": [
     "highlands coffee",
-    "highlands"
+    "highlands",
+    "highlandscoffee"
   ],
   "items": [
     {
@@ -16,7 +17,9 @@
       "estimated_fat_g": 0,
       "confidence": 0.82,
       "vegetarian_possible": true,
-      "vegan_possible": true
+      "vegan_possible": true,
+      "halal_possible": true,
+      "gluten_free_possible": true
     },
     {
       "item_name": "Vietnamese Iced Coffee (less sugar)",
@@ -27,7 +30,9 @@
       "estimated_fat_g": 4,
       "confidence": 0.82,
       "vegetarian_possible": true,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     },
     {
       "item_name": "Grilled Chicken Banh Mi",
@@ -38,7 +43,9 @@
       "estimated_fat_g": 12,
       "confidence": 0.82,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     },
     {
       "item_name": "Freeze Chocolate (less sugar)",
@@ -49,7 +56,9 @@
       "estimated_fat_g": 14,
       "confidence": 0.82,
       "vegetarian_possible": true,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     }
   ]
 }

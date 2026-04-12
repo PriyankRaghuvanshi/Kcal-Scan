@@ -3,7 +3,9 @@
   "source_type": "seed_template",
   "source_url": "https://manginasal.com/menu",
   "store_name_variants": [
-    "mang inasal"
+    "mang inasal",
+    "inasal",
+    "manginasal"
   ],
   "items": [
     {
@@ -15,7 +17,9 @@
       "estimated_fat_g": 16,
       "confidence": 0.82,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     },
     {
       "item_name": "Paa Large (chicken leg + rice)",
@@ -26,7 +30,9 @@
       "estimated_fat_g": 24,
       "confidence": 0.82,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     },
     {
       "item_name": "Pecho Regular (breast + rice)",
@@ -37,7 +43,9 @@
       "estimated_fat_g": 14,
       "confidence": 0.82,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     },
     {
       "item_name": "Halo-Halo (regular)",
@@ -48,7 +56,9 @@
       "estimated_fat_g": 6,
       "confidence": 0.82,
       "vegetarian_possible": true,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     }
   ]
 }

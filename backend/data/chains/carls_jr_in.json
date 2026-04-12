@@ -5,7 +5,10 @@
   "store_name_variants": [
     "carls jr",
     "carl's jr",
-    "carls junior"
+    "carls junior",
+    "carl'sjr",
+    "carlsjr",
+    "carlsjunior"
   ],
   "items": [
     {
@@ -17,7 +20,9 @@
       "estimated_fat_g": 14,
       "confidence": 0.82,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": false
     },
     {
       "item_name": "Charbroiled BBQ Chicken",
@@ -28,7 +33,9 @@
       "estimated_fat_g": 16,
       "confidence": 0.82,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     },
     {
       "item_name": "Original Angus Burger (half)",
@@ -39,7 +46,9 @@
       "estimated_fat_g": 20,
       "confidence": 0.82,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": false
     },
     {
       "item_name": "Beyond Famous Star (veg)",
@@ -50,7 +59,9 @@
       "estimated_fat_g": 28,
       "confidence": 0.82,
       "vegetarian_possible": true,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     },
     {
       "item_name": "Grilled Chicken Salad",
@@ -61,7 +72,9 @@
       "estimated_fat_g": 12,
       "confidence": 0.82,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     }
   ]
 }

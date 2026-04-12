@@ -3,7 +3,8 @@
   "source_type": "seed_template",
   "source_url": "https://sagarratna.in/menu",
   "store_name_variants": [
-    "sagar ratna"
+    "sagar ratna",
+    "sagarratna"
   ],
   "items": [
     {
@@ -15,7 +16,9 @@
       "estimated_fat_g": 14,
       "confidence": 0.82,
       "vegetarian_possible": true,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     },
     {
       "item_name": "Idli Sambar (4pc)",
@@ -26,7 +29,9 @@
       "estimated_fat_g": 4,
       "confidence": 0.82,
       "vegetarian_possible": true,
-      "vegan_possible": true
+      "vegan_possible": true,
+      "halal_possible": true,
+      "gluten_free_possible": true
     },
     {
       "item_name": "Rava Dosa",
@@ -37,7 +42,9 @@
       "estimated_fat_g": 12,
       "confidence": 0.82,
       "vegetarian_possible": true,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     },
     {
       "item_name": "Mini Meals (portion)",
@@ -48,7 +55,9 @@
       "estimated_fat_g": 10,
       "confidence": 0.82,
       "vegetarian_possible": true,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     },
     {
       "item_name": "Plain Dosa",
@@ -59,7 +68,9 @@
       "estimated_fat_g": 6,
       "confidence": 0.82,
       "vegetarian_possible": true,
-      "vegan_possible": true
+      "vegan_possible": true,
+      "halal_possible": true,
+      "gluten_free_possible": true
     }
   ]
 }

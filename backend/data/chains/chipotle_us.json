@@ -4,7 +4,8 @@
   "source_url": "https://www.chipotle.com/nutrition-calculator",
   "store_name_variants": [
     "chipotle",
-    "chipotle mexican grill"
+    "chipotle mexican grill",
+    "chipotlemexicangrill"
   ],
   "items": [
     {
@@ -16,7 +17,9 @@
       "estimated_fat_g": 35,
       "confidence": 0.85,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     },
     {
       "item_name": "Chicken Burrito Bowl (no rice)",
@@ -27,7 +30,9 @@
       "estimated_fat_g": 18,
       "confidence": 0.85,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": false
     },
     {
       "item_name": "Chicken Salad",
@@ -38,7 +43,9 @@
       "estimated_fat_g": 24,
       "confidence": 0.85,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     },
     {
       "item_name": "Barbacoa Bowl",
@@ -49,7 +56,9 @@
       "estimated_fat_g": 24,
       "confidence": 0.85,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     },
     {
       "item_name": "Sofritas Bowl",
@@ -60,7 +69,9 @@
       "estimated_fat_g": 22,
       "confidence": 0.85,
       "vegetarian_possible": true,
-      "vegan_possible": true
+      "vegan_possible": true,
+      "halal_possible": true,
+      "gluten_free_possible": true
     },
     {
       "item_name": "Chicken Tacos (3)",
@@ -71,7 +82,9 @@
       "estimated_fat_g": 18,
       "confidence": 0.85,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": false
     }
   ]
 }

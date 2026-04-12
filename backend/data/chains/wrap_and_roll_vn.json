@@ -5,7 +5,10 @@
   "store_name_variants": [
     "wrap and roll",
     "wrap & roll",
-    "wrap roll"
+    "wrap roll",
+    "wrap&roll",
+    "wrapandroll",
+    "wraproll"
   ],
   "items": [
     {
@@ -17,7 +20,9 @@
       "estimated_fat_g": 8,
       "confidence": 0.82,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": false,
+      "gluten_free_possible": false
     },
     {
       "item_name": "Rice Paper Rolls (shrimp, 4pc)",
@@ -28,7 +33,9 @@
       "estimated_fat_g": 2,
       "confidence": 0.82,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": false
     },
     {
       "item_name": "Grilled Beef + Vermicelli Bowl",
@@ -39,7 +46,9 @@
       "estimated_fat_g": 14,
       "confidence": 0.82,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     },
     {
       "item_name": "Veg Summer Rolls (4pc)",
@@ -50,7 +59,9 @@
       "estimated_fat_g": 2,
       "confidence": 0.82,
       "vegetarian_possible": true,
-      "vegan_possible": true
+      "vegan_possible": true,
+      "halal_possible": true,
+      "gluten_free_possible": false
     }
   ]
 }

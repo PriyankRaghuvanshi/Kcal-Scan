@@ -16,7 +16,9 @@
       "estimated_fat_g": 26,
       "confidence": 0.86,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     },
     {
       "item_name": "Rooster Roll, no mayo",
@@ -27,7 +29,9 @@
       "estimated_fat_g": 15,
       "confidence": 0.8,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": false
     },
     {
       "item_name": "Roast Chicken Salad Bowl",
@@ -38,7 +42,9 @@
       "estimated_fat_g": 16,
       "confidence": 0.78,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     }
   ]
 }

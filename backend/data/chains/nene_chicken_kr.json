@@ -5,7 +5,8 @@
   "store_name_variants": [
     "nene chicken",
     "nene",
-    "네네치킨"
+    "네네치킨",
+    "nenechicken"
   ],
   "items": [
     {
@@ -17,7 +18,9 @@
       "estimated_fat_g": 34,
       "confidence": 0.82,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     },
     {
       "item_name": "Snowing Cheese Chicken (half)",
@@ -28,7 +31,9 @@
       "estimated_fat_g": 40,
       "confidence": 0.82,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     },
     {
       "item_name": "Soy Garlic Chicken (half)",
@@ -39,7 +44,9 @@
       "estimated_fat_g": 34,
       "confidence": 0.82,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     }
   ]
 }

@@ -4,7 +4,9 @@
   "source_url": "https://eatsure.com/wow-chicken/menu",
   "store_name_variants": [
     "wow chicken",
-    "wow! chicken"
+    "wow! chicken",
+    "wow!chicken",
+    "wowchicken"
   ],
   "items": [
     {
@@ -16,7 +18,9 @@
       "estimated_fat_g": 12,
       "confidence": 0.82,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     },
     {
       "item_name": "Peri Peri Grilled Chicken Wings (6pc)",
@@ -27,7 +31,9 @@
       "estimated_fat_g": 22,
       "confidence": 0.82,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     },
     {
       "item_name": "Chicken Tikka Rice Bowl",
@@ -38,7 +44,9 @@
       "estimated_fat_g": 16,
       "confidence": 0.82,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     },
     {
       "item_name": "Chicken Shawarma Wrap",
@@ -49,7 +57,9 @@
       "estimated_fat_g": 16,
       "confidence": 0.82,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": false
     },
     {
       "item_name": "Grilled Chicken Caesar Salad",
@@ -60,7 +70,9 @@
       "estimated_fat_g": 18,
       "confidence": 0.82,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     }
   ]
 }

@@ -3,7 +3,8 @@
   "source_type": "seed_template",
   "source_url": "https://pistahouse.com/menu",
   "store_name_variants": [
-    "pista house"
+    "pista house",
+    "pistahouse"
   ],
   "items": [
     {
@@ -15,7 +16,9 @@
       "estimated_fat_g": 22,
       "confidence": 0.82,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     },
     {
       "item_name": "Chicken Biryani (regular)",
@@ -26,7 +29,9 @@
       "estimated_fat_g": 22,
       "confidence": 0.82,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     },
     {
       "item_name": "Mutton Biryani (regular)",
@@ -37,7 +42,9 @@
       "estimated_fat_g": 30,
       "confidence": 0.82,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     },
     {
       "item_name": "Chicken 65",
@@ -48,7 +55,9 @@
       "estimated_fat_g": 22,
       "confidence": 0.82,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     }
   ]
 }

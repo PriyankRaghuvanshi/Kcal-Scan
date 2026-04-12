@@ -16,7 +16,9 @@
       "estimated_fat_g": 36,
       "confidence": 0.85,
       "vegetarian_possible": true,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     },
     {
       "item_name": "Chicken Pesto Parm",
@@ -27,7 +29,9 @@
       "estimated_fat_g": 28,
       "confidence": 0.85,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     },
     {
       "item_name": "Super Green Goddess",
@@ -38,7 +42,9 @@
       "estimated_fat_g": 24,
       "confidence": 0.85,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     },
     {
       "item_name": "Crispy Rice Bowl",
@@ -49,7 +55,9 @@
       "estimated_fat_g": 22,
       "confidence": 0.85,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     },
     {
       "item_name": "Kale Caesar Salad",
@@ -60,7 +68,9 @@
       "estimated_fat_g": 30,
       "confidence": 0.85,
       "vegetarian_possible": true,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     },
     {
       "item_name": "Garden Cobb",
@@ -71,7 +81,9 @@
       "estimated_fat_g": 34,
       "confidence": 0.85,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     }
   ]
 }

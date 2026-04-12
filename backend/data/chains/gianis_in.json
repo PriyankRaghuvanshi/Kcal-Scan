@@ -6,7 +6,10 @@
     "gianis",
     "giani's",
     "giani ice cream",
-    "giani's ice cream"
+    "giani's ice cream",
+    "giani'sicecream",
+    "gianiicecream",
+    "gianis ice cream"
   ],
   "items": [
     {
@@ -18,7 +21,9 @@
       "estimated_fat_g": 8,
       "confidence": 0.82,
       "vegetarian_possible": true,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     },
     {
       "item_name": "Belgian Chocolate Scoop",
@@ -29,7 +34,9 @@
       "estimated_fat_g": 10,
       "confidence": 0.82,
       "vegetarian_possible": true,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     },
     {
       "item_name": "Falooda (regular)",
@@ -40,7 +47,9 @@
       "estimated_fat_g": 14,
       "confidence": 0.82,
       "vegetarian_possible": true,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     },
     {
       "item_name": "Thick Shake (small)",
@@ -51,7 +60,9 @@
       "estimated_fat_g": 12,
       "confidence": 0.82,
       "vegetarian_possible": true,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     }
   ]
 }

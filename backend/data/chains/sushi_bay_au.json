@@ -3,7 +3,8 @@
   "source_type": "seed_template",
   "source_url": "https://sushibay.com.au/menu",
   "store_name_variants": [
-    "sushi bay"
+    "sushi bay",
+    "sushibay"
   ],
   "items": [
     {
@@ -15,7 +16,9 @@
       "estimated_fat_g": 7,
       "confidence": 0.82,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     },
     {
       "item_name": "Chicken Teriyaki Don",
@@ -26,7 +29,9 @@
       "estimated_fat_g": 14,
       "confidence": 0.82,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     },
     {
       "item_name": "Salmon Roll (8pc)",
@@ -37,7 +42,9 @@
       "estimated_fat_g": 6,
       "confidence": 0.82,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": false
     }
   ]
 }

@@ -3,7 +3,8 @@
   "source_type": "seed_template",
   "source_url": "https://www.burgersinghonline.com/menu",
   "store_name_variants": [
-    "burger singh"
+    "burger singh",
+    "burgersingh"
   ],
   "items": [
     {
@@ -15,7 +16,9 @@
       "estimated_fat_g": 16,
       "confidence": 0.82,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": false
     },
     {
       "item_name": "Punjabi Express Grilled Chicken Burger",
@@ -26,7 +29,9 @@
       "estimated_fat_g": 18,
       "confidence": 0.82,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": false
     },
     {
       "item_name": "UP Wala Butter Paneer Burger",
@@ -37,7 +42,9 @@
       "estimated_fat_g": 24,
       "confidence": 0.82,
       "vegetarian_possible": true,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": false
     },
     {
       "item_name": "Peri Peri Grilled Wings (6pc)",
@@ -48,7 +55,9 @@
       "estimated_fat_g": 22,
       "confidence": 0.82,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     }
   ]
 }

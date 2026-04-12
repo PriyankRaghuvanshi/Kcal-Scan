@@ -1,1 +1,63 @@
-{"brand_name":"Hardee's","source_type":"seed_template","source_url":"","store_name_variants":["hardee's","hardees"],"items":[{"item_name":"Charbroiled Chicken Sandwich","category":"sandwich","estimated_calories":380,"estimated_protein_g":28,"estimated_carbs_g":34,"estimated_fat_g":12,"confidence":0.82,"vegetarian_possible":false,"vegan_possible":false},{"item_name":"Grilled Chicken Wrap","category":"wrap","estimated_calories":420,"estimated_protein_g":26,"estimated_carbs_g":38,"estimated_fat_g":16,"confidence":0.80,"vegetarian_possible":false,"vegan_possible":false},{"item_name":"Hand-Breaded Tenders (3pc)","category":"snack","estimated_calories":340,"estimated_protein_g":22,"estimated_carbs_g":20,"estimated_fat_g":18,"confidence":0.80,"vegetarian_possible":false,"vegan_possible":false},{"item_name":"Side Salad","category":"side","estimated_calories":50,"estimated_protein_g":3,"estimated_carbs_g":6,"estimated_fat_g":2,"confidence":0.86,"vegetarian_possible":true,"vegan_possible":true}]}
+{
+  "brand_name": "Hardee's",
+  "source_type": "seed_template",
+  "source_url": "",
+  "store_name_variants": [
+    "hardee's",
+    "hardees"
+  ],
+  "items": [
+    {
+      "item_name": "Charbroiled Chicken Sandwich",
+      "category": "sandwich",
+      "estimated_calories": 380,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 34,
+      "estimated_fat_g": 12,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": false
+    },
+    {
+      "item_name": "Grilled Chicken Wrap",
+      "category": "wrap",
+      "estimated_calories": 420,
+      "estimated_protein_g": 26,
+      "estimated_carbs_g": 38,
+      "estimated_fat_g": 16,
+      "confidence": 0.8,
+      "vegetarian_possible": false,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": false
+    },
+    {
+      "item_name": "Hand-Breaded Tenders (3pc)",
+      "category": "snack",
+      "estimated_calories": 340,
+      "estimated_protein_g": 22,
+      "estimated_carbs_g": 20,
+      "estimated_fat_g": 18,
+      "confidence": 0.8,
+      "vegetarian_possible": false,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": false
+    },
+    {
+      "item_name": "Side Salad",
+      "category": "side",
+      "estimated_calories": 50,
+      "estimated_protein_g": 3,
+      "estimated_carbs_g": 6,
+      "estimated_fat_g": 2,
+      "confidence": 0.86,
+      "vegetarian_possible": true,
+      "vegan_possible": true,
+      "halal_possible": true,
+      "gluten_free_possible": true
+    }
+  ]
+}

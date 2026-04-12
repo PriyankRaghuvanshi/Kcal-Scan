@@ -15,7 +15,9 @@
       "estimated_fat_g": 8,
       "confidence": 0.85,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": false
     },
     {
       "item_name": "6-inch Turkey Breast",
@@ -26,7 +28,9 @@
       "estimated_fat_g": 4,
       "confidence": 0.85,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     },
     {
       "item_name": "6-inch Veggie Delite",
@@ -37,7 +41,9 @@
       "estimated_fat_g": 3,
       "confidence": 0.85,
       "vegetarian_possible": true,
-      "vegan_possible": true
+      "vegan_possible": true,
+      "halal_possible": true,
+      "gluten_free_possible": true
     },
     {
       "item_name": "Protein Bowl (Chicken)",
@@ -48,7 +54,9 @@
       "estimated_fat_g": 8,
       "confidence": 0.85,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     },
     {
       "item_name": "6-inch Italian BMT",
@@ -59,7 +67,9 @@
       "estimated_fat_g": 14,
       "confidence": 0.85,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     },
     {
       "item_name": "6-inch Steak & Cheese",
@@ -70,7 +80,9 @@
       "estimated_fat_g": 12,
       "confidence": 0.85,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     }
   ]
 }
