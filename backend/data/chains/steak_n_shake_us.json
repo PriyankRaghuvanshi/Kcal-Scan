@@ -1,0 +1,54 @@
+{
+  "brand_name": "Steak 'n Shake",
+  "source_type": "seed_template",
+  "source_url": "https://www.steaknshake.com/menu",
+  "store_name_variants": [
+    "steak n shake",
+    "steak 'n shake",
+    "steak and shake",
+    "steak'nshake",
+    "steakandshake",
+    "steaknshake"
+  ],
+  "items": [
+    {
+      "item_name": "Single Steakburger",
+      "category": "entree",
+      "estimated_calories": 380,
+      "estimated_protein_g": 22,
+      "estimated_carbs_g": 28,
+      "estimated_fat_g": 20,
+      "confidence": 0.8,
+      "vegetarian_possible": false,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": false
+    },
+    {
+      "item_name": "Grilled Chicken Sandwich",
+      "category": "entree",
+      "estimated_calories": 420,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 38,
+      "estimated_fat_g": 18,
+      "confidence": 0.8,
+      "vegetarian_possible": false,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": false
+    },
+    {
+      "item_name": "Taco Salad (no shell)",
+      "category": "entree",
+      "estimated_calories": 340,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 20,
+      "estimated_fat_g": 16,
+      "confidence": 0.8,
+      "vegetarian_possible": false,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": false
+    }
+  ]
+}

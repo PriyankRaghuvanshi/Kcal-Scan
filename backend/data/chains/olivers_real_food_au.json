@@ -1,0 +1,53 @@
+{
+  "brand_name": "Oliver's Real Food",
+  "source_type": "seed_template",
+  "source_url": "https://oliversrealfood.com.au/menu",
+  "store_name_variants": [
+    "olivers real food",
+    "oliver's real food",
+    "olivers",
+    "oliver'srealfood",
+    "oliversrealfood"
+  ],
+  "items": [
+    {
+      "item_name": "Organic Grilled Chicken Salad",
+      "category": "entree",
+      "estimated_calories": 380,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 18,
+      "estimated_fat_g": 18,
+      "confidence": 0.8,
+      "vegetarian_possible": false,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
+    },
+    {
+      "item_name": "Vegan Wrap",
+      "category": "entree",
+      "estimated_calories": 360,
+      "estimated_protein_g": 12,
+      "estimated_carbs_g": 44,
+      "estimated_fat_g": 14,
+      "confidence": 0.8,
+      "vegetarian_possible": true,
+      "vegan_possible": true,
+      "halal_possible": true,
+      "gluten_free_possible": false
+    },
+    {
+      "item_name": "Turkey & Cranberry Wrap",
+      "category": "entree",
+      "estimated_calories": 420,
+      "estimated_protein_g": 26,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 16,
+      "confidence": 0.8,
+      "vegetarian_possible": false,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": false
+    }
+  ]
+}

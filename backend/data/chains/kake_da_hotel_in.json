@@ -1,0 +1,52 @@
+{
+  "brand_name": "Kake Da Hotel",
+  "source_type": "seed_template",
+  "source_url": "https://kakedahotel.com/menu",
+  "store_name_variants": [
+    "kake da hotel",
+    "kake da",
+    "kakeda",
+    "kakedahotel"
+  ],
+  "items": [
+    {
+      "item_name": "Chicken Curry + 2 Roti",
+      "category": "entree",
+      "estimated_calories": 580,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 44,
+      "estimated_fat_g": 28,
+      "confidence": 0.8,
+      "vegetarian_possible": false,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": false
+    },
+    {
+      "item_name": "Butter Chicken + Rice",
+      "category": "entree",
+      "estimated_calories": 620,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 62,
+      "estimated_fat_g": 28,
+      "confidence": 0.8,
+      "vegetarian_possible": false,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
+    },
+    {
+      "item_name": "Dal Makhani + Roti",
+      "category": "entree",
+      "estimated_calories": 420,
+      "estimated_protein_g": 14,
+      "estimated_carbs_g": 48,
+      "estimated_fat_g": 18,
+      "confidence": 0.8,
+      "vegetarian_possible": true,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": false
+    }
+  ]
+}

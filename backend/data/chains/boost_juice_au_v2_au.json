@@ -1,0 +1,50 @@
+{
+  "brand_name": "Boost Juice Smoothies",
+  "source_type": "seed_template",
+  "source_url": "https://www.boostjuice.com.au/menu",
+  "store_name_variants": [
+    "boost juice smoothies",
+    "boostjuicesmoothies"
+  ],
+  "items": [
+    {
+      "item_name": "Protein Supreme Smoothie (medium)",
+      "category": "beverage",
+      "estimated_calories": 360,
+      "estimated_protein_g": 26,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 8,
+      "confidence": 0.8,
+      "vegetarian_possible": true,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
+    },
+    {
+      "item_name": "Mango Magic (medium, no sugar add)",
+      "category": "beverage",
+      "estimated_calories": 220,
+      "estimated_protein_g": 2,
+      "estimated_carbs_g": 52,
+      "estimated_fat_g": 1,
+      "confidence": 0.8,
+      "vegetarian_possible": true,
+      "vegan_possible": true,
+      "halal_possible": true,
+      "gluten_free_possible": true
+    },
+    {
+      "item_name": "Berry Bang (medium)",
+      "category": "beverage",
+      "estimated_calories": 200,
+      "estimated_protein_g": 2,
+      "estimated_carbs_g": 46,
+      "estimated_fat_g": 1,
+      "confidence": 0.8,
+      "vegetarian_possible": true,
+      "vegan_possible": true,
+      "halal_possible": true,
+      "gluten_free_possible": true
+    }
+  ]
+}

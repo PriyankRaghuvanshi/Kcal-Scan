@@ -1,0 +1,50 @@
+{
+  "brand_name": "Pollo Tropical",
+  "source_type": "seed_template",
+  "source_url": "https://www.pollotropical.com/menu",
+  "store_name_variants": [
+    "pollo tropical",
+    "pollotropical"
+  ],
+  "items": [
+    {
+      "item_name": "Grilled Chicken Quarter + Veg",
+      "category": "entree",
+      "estimated_calories": 420,
+      "estimated_protein_g": 40,
+      "estimated_carbs_g": 14,
+      "estimated_fat_g": 22,
+      "confidence": 0.8,
+      "vegetarian_possible": false,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
+    },
+    {
+      "item_name": "Tropichops (chicken, small)",
+      "category": "entree",
+      "estimated_calories": 480,
+      "estimated_protein_g": 36,
+      "estimated_carbs_g": 52,
+      "estimated_fat_g": 12,
+      "confidence": 0.8,
+      "vegetarian_possible": false,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
+    },
+    {
+      "item_name": "Black Beans & Rice",
+      "category": "side",
+      "estimated_calories": 180,
+      "estimated_protein_g": 7,
+      "estimated_carbs_g": 32,
+      "estimated_fat_g": 1,
+      "confidence": 0.8,
+      "vegetarian_possible": true,
+      "vegan_possible": true,
+      "halal_possible": true,
+      "gluten_free_possible": true
+    }
+  ]
+}

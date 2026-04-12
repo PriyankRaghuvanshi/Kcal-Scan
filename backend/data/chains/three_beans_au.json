@@ -1,0 +1,52 @@
+{
+  "brand_name": "Three Beans",
+  "source_type": "seed_template",
+  "source_url": "https://threebeans.com.au/menu",
+  "store_name_variants": [
+    "three beans",
+    "3 beans",
+    "3beans",
+    "threebeans"
+  ],
+  "items": [
+    {
+      "item_name": "Americano (black)",
+      "category": "beverage",
+      "estimated_calories": 5,
+      "estimated_protein_g": 0,
+      "estimated_carbs_g": 1,
+      "estimated_fat_g": 0,
+      "confidence": 0.8,
+      "vegetarian_possible": true,
+      "vegan_possible": true,
+      "halal_possible": true,
+      "gluten_free_possible": true
+    },
+    {
+      "item_name": "Cappuccino (no sugar)",
+      "category": "beverage",
+      "estimated_calories": 110,
+      "estimated_protein_g": 6,
+      "estimated_carbs_g": 9,
+      "estimated_fat_g": 5,
+      "confidence": 0.8,
+      "vegetarian_possible": true,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
+    },
+    {
+      "item_name": "Grilled Chicken Wrap",
+      "category": "entree",
+      "estimated_calories": 380,
+      "estimated_protein_g": 26,
+      "estimated_carbs_g": 40,
+      "estimated_fat_g": 12,
+      "confidence": 0.8,
+      "vegetarian_possible": false,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": false
+    }
+  ]
+}
