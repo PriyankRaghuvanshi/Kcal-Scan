@@ -1,0 +1,36 @@
+{
+  "brand_name": "Bembos",
+  "source_type": "seed_template",
+  "source_url": "https://www.bembos.com.pe/menu",
+  "store_name_variants": [
+    "bembos"
+  ],
+  "items": [
+    {
+      "item_name": "Hamburguesa Clásica",
+      "category": "entree",
+      "estimated_calories": 520,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 26,
+      "confidence": 0.8,
+      "vegetarian_possible": false,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
+    },
+    {
+      "item_name": "Pollo Grillado Burger",
+      "category": "entree",
+      "estimated_calories": 460,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 18,
+      "confidence": 0.8,
+      "vegetarian_possible": false,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": false
+    }
+  ]
+}

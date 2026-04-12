@@ -1,0 +1,53 @@
+{
+  "brand_name": "J. Alexander's",
+  "source_type": "seed_template",
+  "source_url": "https://www.jalexanders.com/menu",
+  "store_name_variants": [
+    "j alexanders",
+    "j. alexander's",
+    "j. alexanders",
+    "j.alexander's",
+    "jalexanders"
+  ],
+  "items": [
+    {
+      "item_name": "Grilled Salmon + Vegetables",
+      "category": "entree",
+      "estimated_calories": 460,
+      "estimated_protein_g": 40,
+      "estimated_carbs_g": 10,
+      "estimated_fat_g": 28,
+      "confidence": 0.8,
+      "vegetarian_possible": false,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
+    },
+    {
+      "item_name": "Filet Mignon 6oz + Veg",
+      "category": "entree",
+      "estimated_calories": 420,
+      "estimated_protein_g": 42,
+      "estimated_carbs_g": 10,
+      "estimated_fat_g": 22,
+      "confidence": 0.8,
+      "vegetarian_possible": false,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
+    },
+    {
+      "item_name": "Grilled Chicken Breast",
+      "category": "entree",
+      "estimated_calories": 360,
+      "estimated_protein_g": 44,
+      "estimated_carbs_g": 6,
+      "estimated_fat_g": 16,
+      "confidence": 0.8,
+      "vegetarian_possible": false,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
+    }
+  ]
+}

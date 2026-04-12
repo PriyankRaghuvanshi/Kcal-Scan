@@ -1,0 +1,37 @@
+{
+  "brand_name": "El Corral",
+  "source_type": "seed_template",
+  "source_url": "https://www.elcorral.com/menu",
+  "store_name_variants": [
+    "el corral",
+    "elcorral"
+  ],
+  "items": [
+    {
+      "item_name": "Corral Grilled Chicken",
+      "category": "entree",
+      "estimated_calories": 480,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 22,
+      "confidence": 0.8,
+      "vegetarian_possible": false,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
+    },
+    {
+      "item_name": "Classic Hamburger",
+      "category": "entree",
+      "estimated_calories": 560,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 30,
+      "confidence": 0.8,
+      "vegetarian_possible": false,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": false
+    }
+  ]
+}

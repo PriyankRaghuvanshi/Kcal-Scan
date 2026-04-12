@@ -387,6 +387,13 @@ def _infer_country_from_latlng(lat: Any, lng: Any) -> str:
         return "AU"
     if -47.5 <= lat_f <= -33.5 and 165.5 <= lng_f <= 179.5:
         return "NZ"
+    # Nepal / Sri Lanka / Myanmar carved out before India (overlap).
+    if 26.3 <= lat_f <= 30.5 and 80.1 <= lng_f <= 88.2:
+        return "NP"
+    if 5.9 <= lat_f <= 9.8 and 79.7 <= lng_f <= 81.9:
+        return "LK"
+    if 9.5 <= lat_f <= 28.5 and 92.2 <= lng_f <= 101.2:
+        return "MM"
     if 6.5 <= lat_f <= 37.0 and 68.0 <= lng_f <= 98.0:
         return "IN"
     if 49.0 <= lat_f <= 61.0 and -9.0 <= lng_f <= 2.0:
@@ -452,6 +459,22 @@ def _infer_country_from_latlng(lat: Any, lng: Any) -> str:
     # Mexico — mostly south of US.
     if 14.5 <= lat_f <= 32.7 and -117.3 <= lng_f <= -86.7:
         return "MX"
+    # LatAm (each clean, non-overlapping).
+    if -55.0 <= lat_f <= -21.8 and -73.6 <= lng_f <= -53.6:
+        return "AR"
+    if -4.2 <= lat_f <= 12.5 and -79.0 <= lng_f <= -66.9:
+        return "CO"
+    if -55.9 <= lat_f <= -17.5 and -75.6 <= lng_f <= -66.9:
+        return "CL"
+    if -18.4 <= lat_f <= -0.04 and -81.3 <= lng_f <= -68.7:
+        return "PE"
+    # Africa.
+    if 4.3 <= lat_f <= 13.9 and 2.7 <= lng_f <= 14.7:
+        return "NG"
+    if -4.7 <= lat_f <= 5.0 and 33.9 <= lng_f <= 41.9:
+        return "KE"
+    if 21.4 <= lat_f <= 35.9 and -17.0 <= lng_f <= -1.0:
+        return "MA"
     # PK and BD deliberately NOT bbox'd — they overlap India too heavily.
     # Rely on address text inference for those markets.
     return ""
@@ -538,6 +561,26 @@ def _infer_country_code(place: Dict[str, Any]) -> str:
         return "KW"
     if "qatar" in text:
         return "QA"
+    if "argentina" in text:
+        return "AR"
+    if "colombia" in text:
+        return "CO"
+    if "chile" in text:
+        return "CL"
+    if "peru" in text or "perú" in text:
+        return "PE"
+    if "nigeria" in text:
+        return "NG"
+    if "kenya" in text:
+        return "KE"
+    if "morocco" in text or "maroc" in text:
+        return "MA"
+    if "sri lanka" in text:
+        return "LK"
+    if "nepal" in text:
+        return "NP"
+    if "myanmar" in text or "burma" in text:
+        return "MM"
 
     latlng_guess = _infer_country_from_latlng(payload.get("lat"), payload.get("lng"))
     if latlng_guess:

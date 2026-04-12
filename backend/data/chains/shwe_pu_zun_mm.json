@@ -1,0 +1,37 @@
+{
+  "brand_name": "Shwe Pu Zun",
+  "source_type": "seed_template",
+  "source_url": "https://shwepuzun.com/menu",
+  "store_name_variants": [
+    "shwe pu zun",
+    "shwepuzun"
+  ],
+  "items": [
+    {
+      "item_name": "Mohinga (fish noodle soup)",
+      "category": "entree",
+      "estimated_calories": 440,
+      "estimated_protein_g": 24,
+      "estimated_carbs_g": 52,
+      "estimated_fat_g": 14,
+      "confidence": 0.8,
+      "vegetarian_possible": false,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": false
+    },
+    {
+      "item_name": "Chicken Biryani",
+      "category": "entree",
+      "estimated_calories": 580,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 64,
+      "estimated_fat_g": 22,
+      "confidence": 0.8,
+      "vegetarian_possible": false,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
+    }
+  ]
+}

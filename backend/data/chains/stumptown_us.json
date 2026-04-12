@@ -1,0 +1,38 @@
+{
+  "brand_name": "Stumptown Coffee Roasters",
+  "source_type": "seed_template",
+  "source_url": "https://www.stumptowncoffee.com/menu",
+  "store_name_variants": [
+    "stumptown",
+    "stumptown coffee",
+    "stumptowncoffee"
+  ],
+  "items": [
+    {
+      "item_name": "Americano (black)",
+      "category": "beverage",
+      "estimated_calories": 5,
+      "estimated_protein_g": 0,
+      "estimated_carbs_g": 1,
+      "estimated_fat_g": 0,
+      "confidence": 0.8,
+      "vegetarian_possible": true,
+      "vegan_possible": true,
+      "halal_possible": true,
+      "gluten_free_possible": true
+    },
+    {
+      "item_name": "Cold Brew (unsweetened)",
+      "category": "beverage",
+      "estimated_calories": 10,
+      "estimated_protein_g": 0,
+      "estimated_carbs_g": 1,
+      "estimated_fat_g": 0,
+      "confidence": 0.8,
+      "vegetarian_possible": true,
+      "vegan_possible": true,
+      "halal_possible": true,
+      "gluten_free_possible": true
+    }
+  ]
+}
