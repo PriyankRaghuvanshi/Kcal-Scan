@@ -1,0 +1,41 @@
+{
+  "brand_name": "La Lucha Sanguchería",
+  "source_type": "seed_template",
+  "source_url": "https://www.lalucha.com.pe/menu",
+  "store_name_variants": [
+    "la lucha",
+    "la lucha sangucheria",
+    "la lucha sanguchería",
+    "lalucha",
+    "laluchasangucheria",
+    "laluchasanguchería"
+  ],
+  "items": [
+    {
+      "item_name": "Chicharrón Sandwich",
+      "category": "entree",
+      "estimated_calories": 620,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 48,
+      "estimated_fat_g": 32,
+      "confidence": 0.8,
+      "vegetarian_possible": false,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": false
+    },
+    {
+      "item_name": "Pavo Sandwich (turkey)",
+      "category": "entree",
+      "estimated_calories": 440,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 44,
+      "estimated_fat_g": 18,
+      "confidence": 0.8,
+      "vegetarian_possible": false,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": false
+    }
+  ]
+}

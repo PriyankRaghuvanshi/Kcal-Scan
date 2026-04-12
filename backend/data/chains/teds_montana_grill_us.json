@@ -1,0 +1,52 @@
+{
+  "brand_name": "Ted's Montana Grill",
+  "source_type": "seed_template",
+  "source_url": "https://www.tedsmontanagrill.com/menu",
+  "store_name_variants": [
+    "teds montana grill",
+    "ted's montana grill",
+    "ted'smontanagrill",
+    "tedsmontanagrill"
+  ],
+  "items": [
+    {
+      "item_name": "Bison Sirloin 6oz + Veg",
+      "category": "entree",
+      "estimated_calories": 380,
+      "estimated_protein_g": 42,
+      "estimated_carbs_g": 14,
+      "estimated_fat_g": 18,
+      "confidence": 0.8,
+      "vegetarian_possible": false,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
+    },
+    {
+      "item_name": "Grilled Chicken Salad",
+      "category": "entree",
+      "estimated_calories": 440,
+      "estimated_protein_g": 34,
+      "estimated_carbs_g": 18,
+      "estimated_fat_g": 24,
+      "confidence": 0.8,
+      "vegetarian_possible": false,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
+    },
+    {
+      "item_name": "Grilled Salmon",
+      "category": "entree",
+      "estimated_calories": 420,
+      "estimated_protein_g": 40,
+      "estimated_carbs_g": 6,
+      "estimated_fat_g": 24,
+      "confidence": 0.8,
+      "vegetarian_possible": false,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
+    }
+  ]
+}

@@ -1,0 +1,36 @@
+{
+  "brand_name": "Doggis",
+  "source_type": "seed_template",
+  "source_url": "https://www.doggis.cl/menu",
+  "store_name_variants": [
+    "doggis"
+  ],
+  "items": [
+    {
+      "item_name": "Completo Italiano",
+      "category": "entree",
+      "estimated_calories": 540,
+      "estimated_protein_g": 18,
+      "estimated_carbs_g": 58,
+      "estimated_fat_g": 24,
+      "confidence": 0.8,
+      "vegetarian_possible": false,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
+    },
+    {
+      "item_name": "Chacarero (beef)",
+      "category": "entree",
+      "estimated_calories": 620,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 62,
+      "estimated_fat_g": 26,
+      "confidence": 0.8,
+      "vegetarian_possible": false,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
+    }
+  ]
+}

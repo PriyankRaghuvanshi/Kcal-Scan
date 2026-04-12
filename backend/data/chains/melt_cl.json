@@ -1,0 +1,38 @@
+{
+  "brand_name": "Melt Burger",
+  "source_type": "seed_template",
+  "source_url": "https://www.meltburger.cl/menu",
+  "store_name_variants": [
+    "melt",
+    "melt burger",
+    "meltburger"
+  ],
+  "items": [
+    {
+      "item_name": "Classic Melt Burger",
+      "category": "entree",
+      "estimated_calories": 560,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 30,
+      "confidence": 0.8,
+      "vegetarian_possible": false,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": false
+    },
+    {
+      "item_name": "Grilled Chicken Burger",
+      "category": "entree",
+      "estimated_calories": 480,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 20,
+      "confidence": 0.8,
+      "vegetarian_possible": false,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": false
+    }
+  ]
+}

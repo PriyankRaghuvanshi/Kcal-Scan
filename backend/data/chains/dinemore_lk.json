@@ -1,0 +1,49 @@
+{
+  "brand_name": "Dinemore",
+  "source_type": "seed_template",
+  "source_url": "https://dinemore.lk/menu",
+  "store_name_variants": [
+    "dinemore"
+  ],
+  "items": [
+    {
+      "item_name": "Grilled Chicken + Rice",
+      "category": "entree",
+      "estimated_calories": 520,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 58,
+      "estimated_fat_g": 16,
+      "confidence": 0.8,
+      "vegetarian_possible": false,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
+    },
+    {
+      "item_name": "Chicken Fried Rice",
+      "category": "entree",
+      "estimated_calories": 560,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 68,
+      "estimated_fat_g": 18,
+      "confidence": 0.8,
+      "vegetarian_possible": false,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
+    },
+    {
+      "item_name": "Chicken Kottu",
+      "category": "entree",
+      "estimated_calories": 640,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 74,
+      "estimated_fat_g": 22,
+      "confidence": 0.8,
+      "vegetarian_possible": false,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
+    }
+  ]
+}

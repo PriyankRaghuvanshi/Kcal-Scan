@@ -1,0 +1,50 @@
+{
+  "brand_name": "Chicken Republic",
+  "source_type": "seed_template",
+  "source_url": "https://chicken-republic.com/menu",
+  "store_name_variants": [
+    "chicken republic",
+    "chickenrepublic"
+  ],
+  "items": [
+    {
+      "item_name": "Refuel Max (chicken + rice)",
+      "category": "entree",
+      "estimated_calories": 620,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 68,
+      "estimated_fat_g": 24,
+      "confidence": 0.8,
+      "vegetarian_possible": false,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
+    },
+    {
+      "item_name": "Grilled Chicken + Rice",
+      "category": "entree",
+      "estimated_calories": 520,
+      "estimated_protein_g": 34,
+      "estimated_carbs_g": 58,
+      "estimated_fat_g": 16,
+      "confidence": 0.8,
+      "vegetarian_possible": false,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
+    },
+    {
+      "item_name": "Jollof Rice + Chicken",
+      "category": "entree",
+      "estimated_calories": 560,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 62,
+      "estimated_fat_g": 20,
+      "confidence": 0.8,
+      "vegetarian_possible": false,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
+    }
+  ]
+}

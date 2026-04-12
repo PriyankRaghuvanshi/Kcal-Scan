@@ -1,0 +1,51 @@
+{
+  "brand_name": "Dakshin",
+  "source_type": "seed_template",
+  "source_url": "https://www.itchotels.com/dakshin-chennai/menu",
+  "store_name_variants": [
+    "dakshin",
+    "itc dakshin",
+    "itcdakshin"
+  ],
+  "items": [
+    {
+      "item_name": "Chettinad Chicken Curry + Appam",
+      "category": "entree",
+      "estimated_calories": 520,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 52,
+      "estimated_fat_g": 20,
+      "confidence": 0.8,
+      "vegetarian_possible": false,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
+    },
+    {
+      "item_name": "Kozhi Milagu Varuval",
+      "category": "entree",
+      "estimated_calories": 380,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 10,
+      "estimated_fat_g": 22,
+      "confidence": 0.8,
+      "vegetarian_possible": false,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
+    },
+    {
+      "item_name": "Mini Tiffin (veg)",
+      "category": "entree",
+      "estimated_calories": 480,
+      "estimated_protein_g": 16,
+      "estimated_carbs_g": 72,
+      "estimated_fat_g": 14,
+      "confidence": 0.8,
+      "vegetarian_possible": true,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
+    }
+  ]
+}

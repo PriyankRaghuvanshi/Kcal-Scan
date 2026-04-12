@@ -1,0 +1,54 @@
+{
+  "brand_name": "Social (Koramangala variant)",
+  "source_type": "seed_template",
+  "source_url": "https://socialoffline.in/menu",
+  "store_name_variants": [
+    "koramangala social",
+    "indiranagar social",
+    "social offline",
+    "indiranagarsocial",
+    "koramangalasocial",
+    "socialoffline"
+  ],
+  "items": [
+    {
+      "item_name": "Chicken Wings Peri Peri (6pc)",
+      "category": "entree",
+      "estimated_calories": 340,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 6,
+      "estimated_fat_g": 22,
+      "confidence": 0.8,
+      "vegetarian_possible": false,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
+    },
+    {
+      "item_name": "Grilled Chicken Bao (2pc)",
+      "category": "entree",
+      "estimated_calories": 320,
+      "estimated_protein_g": 22,
+      "estimated_carbs_g": 30,
+      "estimated_fat_g": 12,
+      "confidence": 0.8,
+      "vegetarian_possible": false,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": false
+    },
+    {
+      "item_name": "Keema Pav",
+      "category": "entree",
+      "estimated_calories": 460,
+      "estimated_protein_g": 26,
+      "estimated_carbs_g": 40,
+      "estimated_fat_g": 22,
+      "confidence": 0.8,
+      "vegetarian_possible": false,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": false
+    }
+  ]
+}

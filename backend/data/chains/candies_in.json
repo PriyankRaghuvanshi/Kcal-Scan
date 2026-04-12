@@ -1,0 +1,49 @@
+{
+  "brand_name": "Candies",
+  "source_type": "seed_template",
+  "source_url": "https://candies.in/menu",
+  "store_name_variants": [
+    "candies"
+  ],
+  "items": [
+    {
+      "item_name": "Chicken Pesto Sandwich",
+      "category": "entree",
+      "estimated_calories": 420,
+      "estimated_protein_g": 26,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 16,
+      "confidence": 0.8,
+      "vegetarian_possible": false,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": false
+    },
+    {
+      "item_name": "Grilled Veg Sandwich",
+      "category": "entree",
+      "estimated_calories": 320,
+      "estimated_protein_g": 10,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 12,
+      "confidence": 0.8,
+      "vegetarian_possible": true,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": false
+    },
+    {
+      "item_name": "Chicken Tikka Wrap",
+      "category": "entree",
+      "estimated_calories": 440,
+      "estimated_protein_g": 26,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 18,
+      "confidence": 0.8,
+      "vegetarian_possible": false,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": false
+    }
+  ]
+}
