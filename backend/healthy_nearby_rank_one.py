@@ -442,15 +442,16 @@ def rank_one_healthy_nearby_place(p: Dict[str, Any], ctx: HealthyNearbyRankConte
     item_provenance = str(menu_recommendations.get("item_provenance") or "").strip().lower() or None
     if not item_provenance and covered_chain_key:
         _trusted_sources = {"chain_registry", "ingested_chain_item"}
-        _source_hint = str(
-            top_menu_source
-            or menu_recommendations.get("menu_source_resolved")
-            or menu_recommendations.get("menu_items_source_resolved")
-            or menu_recommendations.get("menu_source")
-            or menu_recommendations.get("menu_items_source")
-            or ""
-        ).strip().lower()
-        if _source_hint in _trusted_sources:
+        _source_hint = str(top_menu_item.get("menu_item_source") or "").strip().lower()
+        if not _source_hint:
+            _source_hint = str(
+                menu_recommendations.get("menu_source_resolved")
+                or menu_recommendations.get("menu_items_source_resolved")
+                or menu_recommendations.get("menu_source")
+                or menu_recommendations.get("menu_items_source")
+                or ""
+            ).strip().lower()
+        if _source_hint in _trusted_sources and str(top_menu_item.get("item_name") or "").strip():
             item_provenance = "exact_chain_menu"
         else:
             item_provenance = "heuristic_suggestion"
