@@ -30,7 +30,7 @@
     },
     "android": {
       "package": "com.priyank.calorieclick",
-      "versionCode": 187,
+      "versionCode": 188,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
