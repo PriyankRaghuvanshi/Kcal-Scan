@@ -1,0 +1,54 @@
+{
+  "brand_name": "Mang Inasal",
+  "source_type": "seed_template",
+  "source_url": "https://manginasal.com/menu",
+  "store_name_variants": [
+    "mang inasal"
+  ],
+  "items": [
+    {
+      "item_name": "Chicken Inasal (regular) + Rice",
+      "category": "entree",
+      "estimated_calories": 540,
+      "estimated_protein_g": 36,
+      "estimated_carbs_g": 62,
+      "estimated_fat_g": 16,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Paa Large (chicken leg + rice)",
+      "category": "entree",
+      "estimated_calories": 620,
+      "estimated_protein_g": 38,
+      "estimated_carbs_g": 64,
+      "estimated_fat_g": 24,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Pecho Regular (breast + rice)",
+      "category": "entree",
+      "estimated_calories": 520,
+      "estimated_protein_g": 40,
+      "estimated_carbs_g": 58,
+      "estimated_fat_g": 14,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Halo-Halo (regular)",
+      "category": "dessert",
+      "estimated_calories": 320,
+      "estimated_protein_g": 6,
+      "estimated_carbs_g": 62,
+      "estimated_fat_g": 6,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    }
+  ]
+}

@@ -1,0 +1,55 @@
+{
+  "brand_name": "Pho 24",
+  "source_type": "seed_template",
+  "source_url": "https://www.pho24.com.vn/menu",
+  "store_name_variants": [
+    "pho 24",
+    "phở 24"
+  ],
+  "items": [
+    {
+      "item_name": "Pho Bo (beef noodle soup)",
+      "category": "entree",
+      "estimated_calories": 420,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 52,
+      "estimated_fat_g": 10,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Pho Ga (chicken noodle soup)",
+      "category": "entree",
+      "estimated_calories": 380,
+      "estimated_protein_g": 26,
+      "estimated_carbs_g": 52,
+      "estimated_fat_g": 8,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Pho Tai (rare beef)",
+      "category": "entree",
+      "estimated_calories": 400,
+      "estimated_protein_g": 26,
+      "estimated_carbs_g": 50,
+      "estimated_fat_g": 10,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Rice Noodles + Grilled Chicken",
+      "category": "entree",
+      "estimated_calories": 440,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 54,
+      "estimated_fat_g": 10,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    }
+  ]
+}

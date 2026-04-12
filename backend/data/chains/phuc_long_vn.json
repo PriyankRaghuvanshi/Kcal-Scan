@@ -1,0 +1,44 @@
+{
+  "brand_name": "Phuc Long",
+  "source_type": "seed_template",
+  "source_url": "https://phuclong.com.vn/menu",
+  "store_name_variants": [
+    "phuc long",
+    "phúc long"
+  ],
+  "items": [
+    {
+      "item_name": "Oolong Milk Tea (less sugar)",
+      "category": "beverage",
+      "estimated_calories": 280,
+      "estimated_protein_g": 2,
+      "estimated_carbs_g": 52,
+      "estimated_fat_g": 6,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Peach Tea (unsweetened)",
+      "category": "beverage",
+      "estimated_calories": 20,
+      "estimated_protein_g": 0,
+      "estimated_carbs_g": 4,
+      "estimated_fat_g": 0,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": true
+    },
+    {
+      "item_name": "Lotus Seed Tea",
+      "category": "beverage",
+      "estimated_calories": 120,
+      "estimated_protein_g": 1,
+      "estimated_carbs_g": 28,
+      "estimated_fat_g": 0,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": true
+    }
+  ]
+}

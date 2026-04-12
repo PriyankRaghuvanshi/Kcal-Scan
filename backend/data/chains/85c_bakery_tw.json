@@ -1,0 +1,68 @@
+{
+  "brand_name": "85°C Bakery Cafe",
+  "source_type": "seed_template",
+  "source_url": "https://www.85cafe.com/menu",
+  "store_name_variants": [
+    "85c bakery",
+    "85 degrees",
+    "85 degrees bakery cafe",
+    "85c"
+  ],
+  "items": [
+    {
+      "item_name": "Americano (black)",
+      "category": "beverage",
+      "estimated_calories": 5,
+      "estimated_protein_g": 0,
+      "estimated_carbs_g": 1,
+      "estimated_fat_g": 0,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": true
+    },
+    {
+      "item_name": "Cappuccino (no sugar)",
+      "category": "beverage",
+      "estimated_calories": 110,
+      "estimated_protein_g": 6,
+      "estimated_carbs_g": 9,
+      "estimated_fat_g": 5,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Ham & Cheese Croissant",
+      "category": "entree",
+      "estimated_calories": 380,
+      "estimated_protein_g": 14,
+      "estimated_carbs_g": 40,
+      "estimated_fat_g": 18,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Sea Salt Coffee",
+      "category": "beverage",
+      "estimated_calories": 160,
+      "estimated_protein_g": 3,
+      "estimated_carbs_g": 20,
+      "estimated_fat_g": 7,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Multigrain Sandwich (chicken)",
+      "category": "entree",
+      "estimated_calories": 340,
+      "estimated_protein_g": 24,
+      "estimated_carbs_g": 36,
+      "estimated_fat_g": 12,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    }
+  ]
+}

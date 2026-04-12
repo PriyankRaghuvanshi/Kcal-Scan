@@ -1,0 +1,66 @@
+{
+  "brand_name": "Sushiro",
+  "source_type": "seed_template",
+  "source_url": "https://www.akindo-sushiro.co.jp/menu",
+  "store_name_variants": [
+    "sushiro",
+    "スシロー"
+  ],
+  "items": [
+    {
+      "item_name": "Salmon Nigiri (2pc)",
+      "category": "entree",
+      "estimated_calories": 120,
+      "estimated_protein_g": 8,
+      "estimated_carbs_g": 12,
+      "estimated_fat_g": 4,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Tuna Nigiri (2pc)",
+      "category": "entree",
+      "estimated_calories": 100,
+      "estimated_protein_g": 10,
+      "estimated_carbs_g": 12,
+      "estimated_fat_g": 2,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Shrimp Nigiri (2pc)",
+      "category": "entree",
+      "estimated_calories": 100,
+      "estimated_protein_g": 9,
+      "estimated_carbs_g": 14,
+      "estimated_fat_g": 1,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Mackerel Nigiri (2pc)",
+      "category": "entree",
+      "estimated_calories": 140,
+      "estimated_protein_g": 10,
+      "estimated_carbs_g": 12,
+      "estimated_fat_g": 6,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Salmon Roe Gunkan",
+      "category": "entree",
+      "estimated_calories": 140,
+      "estimated_protein_g": 8,
+      "estimated_carbs_g": 12,
+      "estimated_fat_g": 6,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    }
+  ]
+}

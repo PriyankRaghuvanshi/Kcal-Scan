@@ -406,6 +406,18 @@ def _infer_country_from_latlng(lat: Any, lng: Any) -> str:
     # Philippines
     if 4.5 <= lat_f <= 21.0 and 116.0 <= lng_f <= 127.0:
         return "PH"
+    # Taiwan
+    if 21.5 <= lat_f <= 25.5 and 119.5 <= lng_f <= 122.1:
+        return "TW"
+    # Hong Kong (tiny, carve before any future China box)
+    if 22.15 <= lat_f <= 22.6 and 113.8 <= lng_f <= 114.45:
+        return "HK"
+    # Vietnam — south/central/north. Careful of Laos/Cambodia overlap but those aren't
+    # in our bbox list.
+    if 8.0 <= lat_f <= 23.5 and 102.0 <= lng_f <= 110.0:
+        return "VN"
+    # PK and BD deliberately NOT bbox'd — they overlap India too heavily.
+    # Rely on address text inference for those markets.
     return ""
 
 
@@ -460,6 +472,16 @@ def _infer_country_code(place: Dict[str, Any]) -> str:
         return "AE"
     if "south korea" in text or "republic of korea" in text:
         return "KR"
+    if "taiwan" in text:
+        return "TW"
+    if "hong kong" in text:
+        return "HK"
+    if "vietnam" in text or "viet nam" in text:
+        return "VN"
+    if "pakistan" in text:
+        return "PK"
+    if "bangladesh" in text:
+        return "BD"
 
     latlng_guess = _infer_country_from_latlng(payload.get("lat"), payload.get("lng"))
     if latlng_guess:

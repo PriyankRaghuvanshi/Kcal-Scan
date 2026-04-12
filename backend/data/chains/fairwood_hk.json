@@ -1,0 +1,55 @@
+{
+  "brand_name": "Fairwood",
+  "source_type": "seed_template",
+  "source_url": "https://www.fairwood.com.hk/menu",
+  "store_name_variants": [
+    "fairwood",
+    "大快活"
+  ],
+  "items": [
+    {
+      "item_name": "Soy Sauce Chicken Rice",
+      "category": "entree",
+      "estimated_calories": 520,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 62,
+      "estimated_fat_g": 18,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Roast Pork Rice",
+      "category": "entree",
+      "estimated_calories": 580,
+      "estimated_protein_g": 26,
+      "estimated_carbs_g": 64,
+      "estimated_fat_g": 24,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Steamed Beef + Rice",
+      "category": "entree",
+      "estimated_calories": 480,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 56,
+      "estimated_fat_g": 16,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Wonton Soup",
+      "category": "entree",
+      "estimated_calories": 180,
+      "estimated_protein_g": 14,
+      "estimated_carbs_g": 20,
+      "estimated_fat_g": 6,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    }
+  ]
+}

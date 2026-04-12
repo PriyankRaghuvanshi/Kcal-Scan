@@ -1,0 +1,56 @@
+{
+  "brand_name": "TKK Fried Chicken",
+  "source_type": "seed_template",
+  "source_url": "https://www.tkkinc.com/menu",
+  "store_name_variants": [
+    "tkk",
+    "tkk fried chicken",
+    "台塑"
+  ],
+  "items": [
+    {
+      "item_name": "Grilled Chicken Meal",
+      "category": "entree",
+      "estimated_calories": 460,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 18,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Fried Chicken (1pc) + Rice",
+      "category": "entree",
+      "estimated_calories": 520,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 56,
+      "estimated_fat_g": 22,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Chicken Sandwich",
+      "category": "entree",
+      "estimated_calories": 400,
+      "estimated_protein_g": 24,
+      "estimated_carbs_g": 40,
+      "estimated_fat_g": 16,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Side Salad",
+      "category": "side",
+      "estimated_calories": 60,
+      "estimated_protein_g": 2,
+      "estimated_carbs_g": 8,
+      "estimated_fat_g": 2,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": true
+    }
+  ]
+}

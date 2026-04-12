@@ -1,0 +1,45 @@
+{
+  "brand_name": "Nene Chicken",
+  "source_type": "seed_template",
+  "source_url": "https://www.nenechicken.com/menu",
+  "store_name_variants": [
+    "nene chicken",
+    "nene",
+    "네네치킨"
+  ],
+  "items": [
+    {
+      "item_name": "Fried Chicken Half (original)",
+      "category": "entree",
+      "estimated_calories": 540,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 20,
+      "estimated_fat_g": 34,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Snowing Cheese Chicken (half)",
+      "category": "entree",
+      "estimated_calories": 620,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 28,
+      "estimated_fat_g": 40,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Soy Garlic Chicken (half)",
+      "category": "entree",
+      "estimated_calories": 560,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 24,
+      "estimated_fat_g": 34,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    }
+  ]
+}
