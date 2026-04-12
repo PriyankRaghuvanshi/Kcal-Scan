@@ -17132,6 +17132,8 @@ async def healthy_places(
     poor_sleep_flag: bool = False,
     high_craving_risk_flag: bool = False,
     diet_preference: str = "",
+    dietary_restrictions: str = "",
+    allergen_exclude: str = "",
     limit: Optional[int] = None,
 ):
     sort_mode_val = (sort_mode or "").strip().lower()
@@ -17192,6 +17194,17 @@ async def healthy_places(
             feedback_events_prefetch = None
             decision_events_prefetch = None
     t_rank_start = time.perf_counter()
+    # Parse comma-separated dietary restrictions and allergen exclusions. Normalize to
+    # lowercase, strip, de-dupe. Only known values are passed through.
+    _ALLOWED_DIETARY = {"halal", "gluten_free", "vegan", "vegetarian"}
+    _ALLOWED_ALLERGENS = {"nuts", "dairy", "gluten", "soy", "shellfish", "egg", "sesame"}
+    dr_tuple = tuple(sorted({
+        v.strip().lower() for v in (dietary_restrictions or "").split(",") if v.strip()
+    } & _ALLOWED_DIETARY))
+    ae_tuple = tuple(sorted({
+        v.strip().lower() for v in (allergen_exclude or "").split(",") if v.strip()
+    } & _ALLOWED_ALLERGENS))
+
     rank_ctx = build_rank_context_from_request(
         lat=float(lat),
         lng=float(lng),
@@ -17212,6 +17225,8 @@ async def healthy_places(
         user_id=uid_clean,
         feedback_events_prefetch=feedback_events_prefetch,
         decision_events_prefetch=decision_events_prefetch,
+        dietary_restrictions=dr_tuple,
+        allergen_exclude=ae_tuple,
     )
     parallel_rank = str(os.getenv("HEALTHY_NEARBY_PARALLEL_RANK", "1")).strip().lower() in ("1", "true", "yes")
     if parallel_rank and len(places_to_rank) > 1:

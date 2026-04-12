@@ -20,7 +20,14 @@
       "vegan_possible": false,
       "halal_possible": true,
       "gluten_free_possible": true,
-      "diet_type": "non_veg"
+      "diet_type": "non_veg",
+      "contains_nuts": false,
+      "contains_dairy": false,
+      "contains_gluten": false,
+      "contains_soy": false,
+      "contains_shellfish": false,
+      "contains_egg": false,
+      "contains_sesame": false
     },
     {
       "item_name": "Chicken 65 (half)",
@@ -34,7 +41,14 @@
       "vegan_possible": false,
       "halal_possible": true,
       "gluten_free_possible": true,
-      "diet_type": "non_veg"
+      "diet_type": "non_veg",
+      "contains_nuts": false,
+      "contains_dairy": false,
+      "contains_gluten": false,
+      "contains_soy": false,
+      "contains_shellfish": false,
+      "contains_egg": false,
+      "contains_sesame": false
     },
     {
       "item_name": "Mutton Sukka (portion)",
@@ -48,7 +62,14 @@
       "vegan_possible": false,
       "halal_possible": true,
       "gluten_free_possible": true,
-      "diet_type": "non_veg"
+      "diet_type": "non_veg",
+      "contains_nuts": false,
+      "contains_dairy": false,
+      "contains_gluten": false,
+      "contains_soy": false,
+      "contains_shellfish": false,
+      "contains_egg": false,
+      "contains_sesame": false
     },
     {
       "item_name": "Kothu Parotta (chicken)",
@@ -62,7 +83,14 @@
       "vegan_possible": false,
       "halal_possible": true,
       "gluten_free_possible": true,
-      "diet_type": "non_veg"
+      "diet_type": "non_veg",
+      "contains_nuts": false,
+      "contains_dairy": false,
+      "contains_gluten": false,
+      "contains_soy": false,
+      "contains_shellfish": false,
+      "contains_egg": false,
+      "contains_sesame": false
     },
     {
       "item_name": "Idiyappam + Chicken Salna",
@@ -76,7 +104,14 @@
       "vegan_possible": false,
       "halal_possible": true,
       "gluten_free_possible": true,
-      "diet_type": "non_veg"
+      "diet_type": "non_veg",
+      "contains_nuts": false,
+      "contains_dairy": false,
+      "contains_gluten": false,
+      "contains_soy": false,
+      "contains_shellfish": false,
+      "contains_egg": false,
+      "contains_sesame": false
     }
   ]
 }

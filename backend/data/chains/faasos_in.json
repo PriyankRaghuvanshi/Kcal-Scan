@@ -20,7 +20,14 @@
       "gluten_free_possible": false,
       "diet_type": "non_veg",
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "contains_nuts": false,
+      "contains_dairy": false,
+      "contains_gluten": true,
+      "contains_soy": false,
+      "contains_shellfish": false,
+      "contains_egg": false,
+      "contains_sesame": false
     },
     {
       "item_name": "Cheese, Spinach & Corn Wrap",
@@ -34,7 +41,14 @@
       "gluten_free_possible": false,
       "diet_type": "vegetarian",
       "vegetarian_possible": true,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "contains_nuts": false,
+      "contains_dairy": true,
+      "contains_gluten": true,
+      "contains_soy": false,
+      "contains_shellfish": false,
+      "contains_egg": false,
+      "contains_sesame": false
     }
   ]
 }
