@@ -4,7 +4,7 @@
  */
 
 import React, { useState } from "react";
-import { View, Text, TouchableOpacity, Modal, StyleSheet, ScrollView, TextInput } from "react-native";
+import { View, Text, TouchableOpacity, Modal, StyleSheet, ScrollView, TextInput, KeyboardAvoidingView, Platform } from "react-native";
 import { colors, spacing, radius, typography } from "../designTokens";
 import { GOAL_TYPES, PACE_MODES } from "../utils/goalCoachUtils";
 
@@ -57,7 +57,10 @@ export function LetsGoSetupModal({ visible, onClose, onSubmit, loading = false }
 
   return (
     <Modal visible={visible} animationType="slide" transparent>
-      <View style={styles.overlay}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={styles.overlay}
+      >
         <View style={styles.sheet}>
           <View style={styles.header}>
             <Text style={styles.title}>Let's Go Goal Coach</Text>
@@ -67,7 +70,12 @@ export function LetsGoSetupModal({ visible, onClose, onSubmit, loading = false }
             </TouchableOpacity>
           </View>
 
-          <ScrollView style={styles.body} showsVerticalScrollIndicator={false}>
+          <ScrollView
+            style={styles.body}
+            contentContainerStyle={styles.bodyContent}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+          >
             <Text style={styles.label}>Quick presets</Text>
             <View style={styles.chipRow}>
               {GOAL_PRESETS.map((p) => (
@@ -173,7 +181,7 @@ export function LetsGoSetupModal({ visible, onClose, onSubmit, loading = false }
             </TouchableOpacity>
           </ScrollView>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -217,6 +225,13 @@ const styles = StyleSheet.create({
     color: colors.accent.primary,
   },
   body: {
+    // ScrollView style only controls the scroll viewport layout.
+    flexGrow: 0,
+  },
+  bodyContent: {
+    // ScrollView content must get padding via contentContainerStyle, not style,
+    // otherwise paddingBottom is silently ignored and the last button sits flush
+    // against the keyboard.
     padding: spacing.xl,
     paddingBottom: spacing.xxl * 2,
   },

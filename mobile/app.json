@@ -16,7 +16,7 @@
     "ios": {
       "icon": "./assets/CalorieClick.png",
       "bundleIdentifier": "com.priyank.calorieclick",
-      "buildNumber": "16",
+      "buildNumber": "183",
       "supportsTablet": true,
       "infoPlist": {
         "NSCameraUsageDescription": "We need camera access to scan meals and barcodes.",
