@@ -1,0 +1,44 @@
+{
+  "snapshot_id": "snap_freshmenu_in_v1",
+  "chain_key": "freshmenu",
+  "market": "IN",
+  "registry_version": 1,
+  "created_at": "2026-04-12T00:54:49.348980+00:00",
+  "fixture_version": "v1",
+  "generator": {
+    "module": "chain_baseline_runner",
+    "schema_version": "v1"
+  },
+  "cases": [
+    {
+      "case_id": "default_freshmenu_IN",
+      "input_signature": {
+        "restaurant_name": "Freshmenu",
+        "market": "IN"
+      },
+      "outputs": {
+        "matched_chain_key": "freshmenu",
+        "chain_menu_store": "supabase",
+        "top_item_names": [
+          "Grilled Chicken Protein Salad",
+          "Chicken Tikka Quinoa Bowl",
+          "Penne Arrabbiata with Grilled Chicken"
+        ],
+        "top_item_scores": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "trust_tiers": {},
+        "fallback_mode_used": "strict",
+        "totals": {
+          "kcal": 440.0,
+          "protein_g": 44.0,
+          "carbs_g": 0.0,
+          "fat_g": 0.0
+        },
+        "no_result": false
+      }
+    }
+  ]
+}

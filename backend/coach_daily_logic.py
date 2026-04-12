@@ -140,6 +140,14 @@ def normalize_daily_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
         "poor_sleep_flag": bool(health_src.get("poor_sleep_flag")),
         "low_hydration_flag": bool(health_src.get("low_hydration_flag")),
         "low_steps_flag": bool(health_src.get("low_steps_flag")),
+        "low_hrv_flag": bool(health_src.get("low_hrv_flag")),
+        "elevated_resting_hr_flag": bool(health_src.get("elevated_resting_hr_flag")),
+        "resting_heart_rate_bpm": max(0.0, _safe_float(health_src.get("resting_heart_rate_bpm"), 0.0)),
+        "hrv_rmssd_ms_avg": max(0.0, _safe_float(health_src.get("hrv_rmssd_ms_avg"), 0.0)),
+        "heart_rate_avg_bpm": max(0.0, _safe_float(health_src.get("heart_rate_avg_bpm"), 0.0)),
+        "active_energy_kcal": max(0.0, _safe_float(health_src.get("active_energy_kcal"), 0.0)),
+        "distance_walking_running_km": max(0.0, _safe_float(health_src.get("distance_walking_running_km"), 0.0)),
+        "floors_climbed": max(0.0, _safe_float(health_src.get("floors_climbed"), 0.0)),
     }
 
     date_raw = str(src.get("date") or "").strip()
@@ -668,6 +676,28 @@ def build_fallback_coach_response(
         diagnosis.append(f"Hydration context: about {round1(hyd_l)}L logged—light fluids can stack with cravings later.")
     if bool(health.get("low_steps_flag")) or (steps_n and steps_n < 4500 and steps_n > 0):
         diagnosis.append(f"Movement context: ~{int(round(steps_n))} steps so far—short walks often blunt mindless snacking.")
+    rhr = _safe_float(health.get("resting_heart_rate_bpm"), 0.0)
+    hrv_ms = _safe_float(health.get("hrv_rmssd_ms_avg"), 0.0)
+    act_kcal = _safe_float(health.get("active_energy_kcal"), 0.0)
+    dist_km = _safe_float(health.get("distance_walking_running_km"), 0.0)
+    if rhr > 0:
+        if bool(health.get("elevated_resting_hr_flag")) or rhr >= 80:
+            diagnosis.append(
+                f"Cardio context: resting HR around {int(round(rhr))} bpm is elevated—prioritize sleep, hydration, and steady recovery this week."
+            )
+        else:
+            diagnosis.append(f"Cardio context: resting HR near {int(round(rhr))} bpm from your tracker.")
+    if hrv_ms > 0:
+        if bool(health.get("low_hrv_flag")) or hrv_ms < 30:
+            diagnosis.append(
+                f"Recovery context: HRV (RMSSD) near {int(round(hrv_ms))} ms looks stressed—lighter training and consistent sleep help."
+            )
+        else:
+            diagnosis.append(f"Recovery context: HRV (RMSSD) near {int(round(hrv_ms))} ms from your tracker.")
+    if act_kcal > 0:
+        diagnosis.append(f"Activity burn from tracker: about {int(round(act_kcal))} kcal active energy today.")
+    if dist_km > 0:
+        diagnosis.append(f"Distance from tracker: about {round1(dist_km)} km walked/run today.")
     if gl >= 25:
         diagnosis.append(f"Average glycemic load is elevated at {round1(gl)}, which may increase hunger swings.")
     if upf >= 6.5:

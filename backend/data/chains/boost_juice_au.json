@@ -1,0 +1,55 @@
+{
+  "brand_name": "Boost Juice",
+  "source_type": "seed_template",
+  "source_url": "https://www.boostjuice.com.au/menu",
+  "store_name_variants": [
+    "boost juice",
+    "boost"
+  ],
+  "items": [
+    {
+      "item_name": "Protein Supreme Smoothie",
+      "category": "drink",
+      "estimated_calories": 340,
+      "estimated_protein_g": 22,
+      "estimated_carbs_g": 40,
+      "estimated_fat_g": 8,
+      "confidence": 0.85,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "All Berry Bang Smoothie",
+      "category": "drink",
+      "estimated_calories": 220,
+      "estimated_protein_g": 4,
+      "estimated_carbs_g": 48,
+      "estimated_fat_g": 1,
+      "confidence": 0.85,
+      "vegetarian_possible": true,
+      "vegan_possible": true
+    },
+    {
+      "item_name": "Green Goddess Smoothie",
+      "category": "drink",
+      "estimated_calories": 180,
+      "estimated_protein_g": 4,
+      "estimated_carbs_g": 38,
+      "estimated_fat_g": 1,
+      "confidence": 0.85,
+      "vegetarian_possible": true,
+      "vegan_possible": true
+    },
+    {
+      "item_name": "Mango Magic Smoothie",
+      "category": "drink",
+      "estimated_calories": 240,
+      "estimated_protein_g": 4,
+      "estimated_carbs_g": 52,
+      "estimated_fat_g": 1,
+      "confidence": 0.85,
+      "vegetarian_possible": true,
+      "vegan_possible": true
+    }
+  ]
+}

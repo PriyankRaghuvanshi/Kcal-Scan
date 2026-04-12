@@ -1,63 +1,66 @@
 {
-  "brand_name": "Wow! Momo",
+  "brand_name": "Wow Momo",
   "source_type": "seed_template",
-  "source_url": "",
-  "store_name_variants": ["wow momo", "wow! momo", "wowmomo"],
+  "source_url": "https://www.wowmomo.in/menu",
+  "store_name_variants": [
+    "wow momo",
+    "wow! momo"
+  ],
   "items": [
     {
-      "item_name": "Steamed Chicken Momo Bowl",
-      "category": "momo_bowl",
-      "estimated_calories": 520,
-      "estimated_protein_g": 38,
-      "estimated_carbs_g": 45,
-      "estimated_fat_g": 18,
-      "confidence": 0.86,
-      "vegetarian_possible": false,
-      "vegan_possible": false
-    },
-    {
-      "item_name": "Grilled Chicken Momo Plate",
-      "category": "momo_plate",
-      "estimated_calories": 540,
-      "estimated_protein_g": 34,
-      "estimated_carbs_g": 40,
-      "estimated_fat_g": 20,
-      "confidence": 0.82,
-      "vegetarian_possible": false,
-      "vegan_possible": false
-    },
-    {
-      "item_name": "Chicken Momo (Steamed)",
-      "category": "momo",
-      "estimated_calories": 500,
-      "estimated_protein_g": 32,
-      "estimated_carbs_g": 42,
-      "estimated_fat_g": 16,
-      "confidence": 0.8,
-      "vegetarian_possible": false,
-      "vegan_possible": false
-    },
-    {
-      "item_name": "Momo Bowl (Mixed Veg)",
-      "category": "momo_bowl",
-      "estimated_calories": 450,
+      "item_name": "Steamed Chicken Momos (6pc)",
+      "category": "entree",
+      "estimated_calories": 280,
       "estimated_protein_g": 18,
-      "estimated_carbs_g": 52,
-      "estimated_fat_g": 14,
-      "confidence": 0.75,
+      "estimated_carbs_g": 30,
+      "estimated_fat_g": 8,
+      "confidence": 0.85,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Chicken Darjeeling Momos (6pc)",
+      "category": "entree",
+      "estimated_calories": 320,
+      "estimated_protein_g": 20,
+      "estimated_carbs_g": 32,
+      "estimated_fat_g": 10,
+      "confidence": 0.85,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Veg Steamed Momos (6pc)",
+      "category": "entree",
+      "estimated_calories": 240,
+      "estimated_protein_g": 8,
+      "estimated_carbs_g": 34,
+      "estimated_fat_g": 6,
+      "confidence": 0.85,
       "vegetarian_possible": true,
       "vegan_possible": true
     },
     {
-      "item_name": "Mixed Momo Bowl",
-      "category": "momo_bowl",
-      "estimated_calories": 480,
-      "estimated_protein_g": 26,
-      "estimated_carbs_g": 48,
+      "item_name": "Chicken Momo Burger",
+      "category": "entree",
+      "estimated_calories": 380,
+      "estimated_protein_g": 18,
+      "estimated_carbs_g": 38,
       "estimated_fat_g": 16,
-      "confidence": 0.76,
+      "confidence": 0.85,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Paneer Steamed Momos (6pc)",
+      "category": "entree",
+      "estimated_calories": 300,
+      "estimated_protein_g": 12,
+      "estimated_carbs_g": 32,
+      "estimated_fat_g": 12,
+      "confidence": 0.85,
       "vegetarian_possible": true,
-      "vegan_possible": true
+      "vegan_possible": false
     }
   ]
 }

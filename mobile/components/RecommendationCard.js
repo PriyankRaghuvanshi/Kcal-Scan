@@ -4,7 +4,7 @@
  */
 
 import React from "react";
-import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
+import { View, Text, TouchableOpacity, Linking, StyleSheet } from "react-native";
 import { colors, spacing, radius, typography } from "../designTokens";
 import { premium } from "../ui/premiumSystem";
 import { ConfidenceBadge, inferConfidenceTier } from "./ConfidenceBadge";
@@ -134,11 +134,33 @@ export function RecommendationCard({
         <ConfidenceBadge place={place} />
       </View>
 
-      {/* C. Best item */}
+      {/* C. Best item + heuristic suggestion disclaimer for covered chains */}
       {bestItem ? (
-        <Text style={[styles.bestItem, { color: textPrimary }]} numberOfLines={2}>
-          {bestItem}
-        </Text>
+        <View>
+          <Text style={[styles.bestItem, { color: textPrimary }]} numberOfLines={2}>
+            {bestItem}
+          </Text>
+          {place.item_provenance === "heuristic_suggestion" && place.covered_chain_key ? (
+            <View style={{ marginTop: 4 }}>
+              <Text style={{ color: textMuted, fontSize: 11, fontStyle: "italic" }} numberOfLines={1}>
+                Suggested pick — not from official menu
+              </Text>
+              {String(place.covered_chain_menu_url || "").trim() ? (
+                <TouchableOpacity
+                  onPress={() => {
+                    const url = String(place.covered_chain_menu_url).trim();
+                    if (url.startsWith("http")) Linking.openURL(url).catch(() => {});
+                  }}
+                  style={{ marginTop: 3 }}
+                >
+                  <Text style={{ color: colors.success.text, fontSize: 11, fontWeight: "600" }}>
+                    View {String(place.covered_chain_display_name || "official").trim()} menu
+                  </Text>
+                </TouchableOpacity>
+              ) : null}
+            </View>
+          ) : null}
+        </View>
       ) : null}
 
       {/* C2. Evidence-backed best order trust (additive) */}

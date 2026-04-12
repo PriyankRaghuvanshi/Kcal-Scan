@@ -1,0 +1,44 @@
+{
+  "snapshot_id": "snap_panera_us_v1",
+  "chain_key": "panera",
+  "market": "US",
+  "registry_version": 1,
+  "created_at": "2026-04-12T00:54:47.801910+00:00",
+  "fixture_version": "v1",
+  "generator": {
+    "module": "chain_baseline_runner",
+    "schema_version": "v1"
+  },
+  "cases": [
+    {
+      "case_id": "default_panera_US",
+      "input_signature": {
+        "restaurant_name": "Panera",
+        "market": "US"
+      },
+      "outputs": {
+        "matched_chain_key": "panera",
+        "chain_menu_store": "supabase",
+        "top_item_names": [
+          "Green Goddess Salad with Chicken",
+          "Frontega Chicken Panini",
+          "Caesar Salad with Grilled Chicken"
+        ],
+        "top_item_scores": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "trust_tiers": {},
+        "fallback_mode_used": "strict",
+        "totals": {
+          "kcal": 400.0,
+          "protein_g": 42.0,
+          "carbs_g": 0.0,
+          "fat_g": 0.0
+        },
+        "no_result": false
+      }
+    }
+  ]
+}

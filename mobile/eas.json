@@ -18,10 +18,10 @@
       }
     },
     "production": {
-      "autoIncrement": false,
+      "autoIncrement": true,
       "cache": {
         "disabled": false,
-        "key": "production-v13-cfbundle-182-coach-health-20260411"
+        "key": "production-v10-20260411-vc185"
       },
       "env": {
         "EXPO_PUBLIC_SUPABASE_URL": "https://mgrwrthvhjpmbrvmvkeo.supabase.co",

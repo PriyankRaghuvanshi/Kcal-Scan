@@ -1,82 +1,76 @@
 {
   "brand_name": "Subway",
-  "source_type": "official_website_menu",
+  "source_type": "seed_template",
   "source_url": "https://www.subway.com/en-AU/MenuNutrition/Menu",
-  "store_name_variants": ["subway", "subway australia", "sub way", "sub-way"],
+  "store_name_variants": [
+    "subway"
+  ],
   "items": [
     {
-      "item_name": "6\" Chicken Teriyaki Sub",
-      "category": "sub",
-      "estimated_calories": 430,
+      "item_name": "6-inch Grilled Chicken",
+      "category": "entree",
+      "estimated_calories": 390,
       "estimated_protein_g": 30,
-      "estimated_carbs_g": 54,
+      "estimated_carbs_g": 40,
       "estimated_fat_g": 8,
-      "confidence": 0.94
+      "confidence": 0.85,
+      "vegetarian_possible": false,
+      "vegan_possible": false
     },
     {
-      "item_name": "6\" Grilled Chicken Sub, extra salad, light sauce",
-      "category": "sub",
-      "estimated_calories": 370,
-      "estimated_protein_g": 32,
-      "estimated_carbs_g": 42,
-      "estimated_fat_g": 7,
-      "confidence": 0.93
+      "item_name": "6-inch Turkey Breast",
+      "category": "entree",
+      "estimated_calories": 280,
+      "estimated_protein_g": 18,
+      "estimated_carbs_g": 40,
+      "estimated_fat_g": 4,
+      "confidence": 0.85,
+      "vegetarian_possible": false,
+      "vegan_possible": false
     },
     {
-      "item_name": "6\" Chicken Classic Sub, no mayo, extra salad",
-      "category": "sub",
-      "estimated_calories": 380,
-      "estimated_protein_g": 32,
-      "estimated_carbs_g": 43,
-      "estimated_fat_g": 8,
-      "confidence": 0.92
-    },
-    {
-      "item_name": "6\" Turkey Sub, extra salad",
-      "category": "sub",
-      "estimated_calories": 350,
-      "estimated_protein_g": 26,
-      "estimated_carbs_g": 44,
-      "estimated_fat_g": 6,
-      "confidence": 0.91
-    },
-    {
-      "item_name": "Roast Chicken Protein Bowl",
-      "category": "salad",
-      "estimated_calories": 310,
-      "estimated_protein_g": 34,
-      "estimated_carbs_g": 14,
-      "estimated_fat_g": 11,
-      "confidence": 0.9
-    },
-    {
-      "item_name": "6\" Veggie Delite Sub",
-      "category": "sub",
-      "estimated_calories": 200,
-      "estimated_protein_g": 9,
-      "estimated_carbs_g": 39,
+      "item_name": "6-inch Veggie Delite",
+      "category": "entree",
+      "estimated_calories": 230,
+      "estimated_protein_g": 8,
+      "estimated_carbs_g": 40,
       "estimated_fat_g": 3,
-      "confidence": 0.92,
+      "confidence": 0.85,
       "vegetarian_possible": true,
       "vegan_possible": true
     },
     {
-      "item_name": "6\" Steak & Cheese Sub",
-      "category": "sub",
-      "estimated_calories": 460,
-      "estimated_protein_g": 35,
-      "estimated_carbs_g": 45,
-      "estimated_fat_g": 14,
-      "confidence": 0.88
+      "item_name": "6-inch Steak & Cheese",
+      "category": "entree",
+      "estimated_calories": 380,
+      "estimated_protein_g": 26,
+      "estimated_carbs_g": 40,
+      "estimated_fat_g": 10,
+      "confidence": 0.85,
+      "vegetarian_possible": false,
+      "vegan_possible": false
     },
     {
-      "item_name": "Footlong Meatball Marinara",
-      "category": "sub",
-      "estimated_calories": 890,
-      "estimated_protein_g": 38,
-      "estimated_carbs_g": 108,
-      "estimated_fat_g": 32,
-      "confidence": 0.93
+      "item_name": "Chicken & Bacon Ranch Wrap",
+      "category": "entree",
+      "estimated_calories": 530,
+      "estimated_protein_g": 34,
+      "estimated_carbs_g": 44,
+      "estimated_fat_g": 22,
+      "confidence": 0.85,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "6-inch Tuna",
+      "category": "entree",
+      "estimated_calories": 420,
+      "estimated_protein_g": 18,
+      "estimated_carbs_g": 40,
+      "estimated_fat_g": 20,
+      "confidence": 0.85,
+      "vegetarian_possible": false,
+      "vegan_possible": false
     }
   ]
 }

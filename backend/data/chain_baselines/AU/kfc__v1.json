@@ -1,0 +1,44 @@
+{
+  "snapshot_id": "snap_kfc_au_v1",
+  "chain_key": "kfc",
+  "market": "AU",
+  "registry_version": 1,
+  "created_at": "2026-04-12T00:54:45.767139+00:00",
+  "fixture_version": "v1",
+  "generator": {
+    "module": "chain_baseline_runner",
+    "schema_version": "v1"
+  },
+  "cases": [
+    {
+      "case_id": "default_kfc_AU",
+      "input_signature": {
+        "restaurant_name": "Kfc",
+        "market": "AU"
+      },
+      "outputs": {
+        "matched_chain_key": "kfc",
+        "chain_menu_store": "supabase",
+        "top_item_names": [
+          "Original Tenders (3) + Side Salad",
+          "Original Fillet Burger, no mayo",
+          "Zinger Burger, no mayo"
+        ],
+        "top_item_scores": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "trust_tiers": {},
+        "fallback_mode_used": "strict",
+        "totals": {
+          "kcal": 470.0,
+          "protein_g": 35.0,
+          "carbs_g": 0.0,
+          "fat_g": 0.0
+        },
+        "no_result": false
+      }
+    }
+  ]
+}

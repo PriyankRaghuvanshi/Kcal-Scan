@@ -1,50 +1,76 @@
 {
   "brand_name": "KFC",
-  "source_type": "seed_ingestion",
-  "source_url": "",
-  "store_name_variants": ["kfc", "kentucky fried chicken"],
+  "source_type": "seed_template",
+  "source_url": "https://www.kfc.com.au/menu",
+  "store_name_variants": [
+    "kfc",
+    "kentucky fried chicken"
+  ],
   "items": [
     {
-      "item_name": "Original Tenders (3) + Side Salad",
-      "category": "chicken",
-      "estimated_calories": 470,
-      "estimated_protein_g": 35,
-      "estimated_carbs_g": 24,
-      "estimated_fat_g": 22,
-      "confidence": 0.80,
-      "vegetarian_possible": false,
-      "vegan_possible": false
-    },
-    {
-      "item_name": "Original Fillet Burger, no mayo",
-      "category": "burger",
-      "estimated_calories": 460,
-      "estimated_protein_g": 30,
-      "estimated_carbs_g": 36,
-      "estimated_fat_g": 18,
-      "confidence": 0.76,
-      "vegetarian_possible": false,
-      "vegan_possible": false
-    },
-    {
-      "item_name": "Zinger Burger, no mayo",
-      "category": "burger",
-      "estimated_calories": 500,
-      "estimated_protein_g": 29,
-      "estimated_carbs_g": 40,
-      "estimated_fat_g": 22,
-      "confidence": 0.74,
-      "vegetarian_possible": false,
-      "vegan_possible": false
-    },
-    {
-      "item_name": "Twister Wrap (Grilled)",
+      "item_name": "Original Tender (3pc) with Slaw",
+      "category": "entree",
       "estimated_calories": 420,
-      "estimated_protein_g": 28,
-      "estimated_carbs_g": 38,
-      "estimated_fat_g": 18,
-      "confidence": 0.72,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 22,
+      "estimated_fat_g": 22,
+      "confidence": 0.85,
       "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Grilled Chicken Piece",
+      "category": "entree",
+      "estimated_calories": 160,
+      "estimated_protein_g": 22,
+      "estimated_carbs_g": 1,
+      "estimated_fat_g": 8,
+      "confidence": 0.85,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Zinger Burger",
+      "category": "entree",
+      "estimated_calories": 480,
+      "estimated_protein_g": 24,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 22,
+      "confidence": 0.85,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Popcorn Chicken (regular)",
+      "category": "entree",
+      "estimated_calories": 310,
+      "estimated_protein_g": 18,
+      "estimated_carbs_g": 20,
+      "estimated_fat_g": 18,
+      "confidence": 0.85,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Supercharged Slider",
+      "category": "entree",
+      "estimated_calories": 310,
+      "estimated_protein_g": 14,
+      "estimated_carbs_g": 28,
+      "estimated_fat_g": 16,
+      "confidence": 0.85,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Coleslaw (regular)",
+      "category": "side",
+      "estimated_calories": 130,
+      "estimated_protein_g": 1,
+      "estimated_carbs_g": 14,
+      "estimated_fat_g": 8,
+      "confidence": 0.85,
+      "vegetarian_possible": true,
       "vegan_possible": false
     }
   ]

@@ -16,6 +16,7 @@
 import { Platform } from "react-native";
 
 const isIOS = Platform.OS === "ios";
+/** Must stay true for iOS: coach + recovery UI use HealthKit context (steps, sleep, water). Android uses Health Connect separately. */
 const APPLE_HEALTH_ENABLED = true;
 
 let AppleHealthKit = null;

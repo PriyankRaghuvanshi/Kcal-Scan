@@ -1,0 +1,77 @@
+{
+  "brand_name": "Domino's",
+  "source_type": "seed_template",
+  "source_url": "https://www.dominos.com/en/pages/content/nutritional/nutrition.jsp",
+  "store_name_variants": [
+    "dominos",
+    "domino's"
+  ],
+  "items": [
+    {
+      "item_name": "Grilled Chicken Tacos (2)",
+      "category": "entree",
+      "estimated_calories": 440,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 36,
+      "estimated_fat_g": 18,
+      "confidence": 0.85,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Pacific Veggie Pizza (2 slices, thin)",
+      "category": "entree",
+      "estimated_calories": 380,
+      "estimated_protein_g": 16,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 16,
+      "confidence": 0.85,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Chicken & Spinach (2 slices, thin)",
+      "category": "entree",
+      "estimated_calories": 400,
+      "estimated_protein_g": 22,
+      "estimated_carbs_g": 36,
+      "estimated_fat_g": 18,
+      "confidence": 0.85,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Grilled Chicken Caesar Salad",
+      "category": "side",
+      "estimated_calories": 340,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 12,
+      "estimated_fat_g": 20,
+      "confidence": 0.85,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Specialty Chicken (plain)",
+      "category": "entree",
+      "estimated_calories": 280,
+      "estimated_protein_g": 24,
+      "estimated_carbs_g": 16,
+      "estimated_fat_g": 14,
+      "confidence": 0.85,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Boneless Wings (8pc, plain)",
+      "category": "entree",
+      "estimated_calories": 370,
+      "estimated_protein_g": 22,
+      "estimated_carbs_g": 22,
+      "estimated_fat_g": 20,
+      "confidence": 0.85,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    }
+  ]
+}

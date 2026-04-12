@@ -3,7 +3,7 @@
     "scheme": "calorieclickai",
     "name": "CalorieClick AI",
     "slug": "calorieclick-ai",
-    "version": "1.0.13",
+    "version": "1.0.12",
     "orientation": "portrait",
     "icon": "./assets/CalorieClick.png",
     "userInterfaceStyle": "light",
@@ -16,20 +16,21 @@
     "ios": {
       "icon": "./assets/CalorieClick.png",
       "bundleIdentifier": "com.priyank.calorieclick",
-      "buildNumber": "182",
+      "buildNumber": "15",
       "supportsTablet": true,
       "infoPlist": {
         "NSCameraUsageDescription": "We need camera access to scan meals and barcodes.",
         "NSPhotoLibraryUsageDescription": "We need access to your photos if you choose an existing image to analyze.",
         "NSPhotoLibraryAddUsageDescription": "We need permission to save images if you export or save results.",
         "NSLocationWhenInUseUsageDescription": "We use your location to find healthy food places near you.",
-        "NSHealthShareUsageDescription": "CalorieClick reads your sleep, steps, heart rate, and HRV from Apple Health to give you personalized recovery and coaching insights.",
-        "NSHealthUpdateUsageDescription": "CalorieClick saves calories, protein, and other nutrients from your scans, and weight from your journey, to Apple Health.",
+        "NSHealthShareUsageDescription": "CalorieClick can write your meal nutrition and weight to Apple Health so your data stays in one place.",
+        "NSHealthUpdateUsageDescription": "CalorieClick saves calories, protein, and other nutrients from your scans, and weight from your journey, to Health.",
         "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
       "package": "com.priyank.calorieclick",
+      "versionCode": 186,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
@@ -43,7 +44,18 @@
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.ACCESS_COARSE_LOCATION",
-        "android.permission.ACCESS_FINE_LOCATION"
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.health.READ_STEPS",
+        "android.permission.health.READ_SLEEP",
+        "android.permission.health.READ_HYDRATION",
+        "android.permission.health.READ_RESTING_HEART_RATE",
+        "android.permission.health.READ_HEART_RATE",
+        "android.permission.health.READ_HEART_RATE_VARIABILITY_RMSSD",
+        "android.permission.health.READ_ACTIVE_CALORIES_BURNED",
+        "android.permission.health.READ_DISTANCE",
+        "android.permission.health.READ_FLOORS_CLIMBED",
+        "android.permission.health.WRITE_NUTRITION",
+        "android.permission.health.WRITE_WEIGHT"
       ]
     },
     "web": {
@@ -60,9 +72,21 @@
       "USAGE_URL": "https://kcal-scan-production.up.railway.app/usage",
       "REVENUECAT_OFFERING": "main",
       "REVENUECAT_IOS_API_KEY": "appl_SoteCFCeVzvTTQWIpwbClzFnBdq",
-      "REVENUECAT_ANDROID_API_KEY": "goog_prIetTCSFiELCySmPqvheMMqbqi"
+      "REVENUECAT_ANDROID_API_KEY": "goog_prIetTCSFiELCySmPqvheMMqbqi",
+      "GOOGLE_MAPS_API_KEY": "AIzaSyDLta_em4OgP5E7h59rOtqQw_344j1vnFQ"
     },
     "plugins": [
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "compileSdkVersion": 35,
+            "targetSdkVersion": 35,
+            "minSdkVersion": 26
+          }
+        }
+      ],
+      "expo-health-connect",
       [
         "expo-camera",
         {
@@ -78,8 +102,8 @@
       [
         "react-native-health",
         {
-          "healthSharePermission": "CalorieClick reads your sleep, steps, heart rate, and HRV from Apple Health to give you personalized recovery and coaching insights.",
-          "healthUpdatePermission": "CalorieClick saves calories, protein, and other nutrients from your scans, and weight from your journey, to Apple Health."
+          "healthSharePermission": "CalorieClick can write your meal nutrition and weight to Apple Health so your data stays in one place.",
+          "healthUpdatePermission": "CalorieClick saves calories, protein, and other nutrients from your scans, and weight from your journey, to Health."
         }
       ],
       "expo-web-browser",
