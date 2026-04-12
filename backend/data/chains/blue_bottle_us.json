@@ -1,0 +1,44 @@
+{
+  "brand_name": "Blue Bottle Coffee",
+  "source_type": "seed_template",
+  "source_url": "https://bluebottlecoffee.com/menu",
+  "store_name_variants": [
+    "blue bottle",
+    "blue bottle coffee"
+  ],
+  "items": [
+    {
+      "item_name": "Espresso (no sugar)",
+      "category": "beverage",
+      "estimated_calories": 5,
+      "estimated_protein_g": 0,
+      "estimated_carbs_g": 1,
+      "estimated_fat_g": 0,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": true
+    },
+    {
+      "item_name": "Cortado (no sugar)",
+      "category": "beverage",
+      "estimated_calories": 80,
+      "estimated_protein_g": 4,
+      "estimated_carbs_g": 6,
+      "estimated_fat_g": 4,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Cold Brew (unsweetened)",
+      "category": "beverage",
+      "estimated_calories": 10,
+      "estimated_protein_g": 0,
+      "estimated_carbs_g": 1,
+      "estimated_fat_g": 0,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": true
+    }
+  ]
+}

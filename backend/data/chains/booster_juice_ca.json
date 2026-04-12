@@ -1,0 +1,43 @@
+{
+  "brand_name": "Booster Juice",
+  "source_type": "seed_template",
+  "source_url": "https://boosterjuice.com/menu",
+  "store_name_variants": [
+    "booster juice"
+  ],
+  "items": [
+    {
+      "item_name": "Protein Smoothie (chocolate, small)",
+      "category": "beverage",
+      "estimated_calories": 280,
+      "estimated_protein_g": 22,
+      "estimated_carbs_g": 30,
+      "estimated_fat_g": 6,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Funky Monkey Smoothie (small)",
+      "category": "beverage",
+      "estimated_calories": 240,
+      "estimated_protein_g": 5,
+      "estimated_carbs_g": 48,
+      "estimated_fat_g": 4,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": true
+    },
+    {
+      "item_name": "Matcha Mania Smoothie",
+      "category": "beverage",
+      "estimated_calories": 260,
+      "estimated_protein_g": 4,
+      "estimated_carbs_g": 52,
+      "estimated_fat_g": 4,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": true
+    }
+  ]
+}

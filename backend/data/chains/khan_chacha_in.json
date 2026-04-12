@@ -1,0 +1,54 @@
+{
+  "brand_name": "Khan Chacha",
+  "source_type": "seed_template",
+  "source_url": "https://khanchacha.com/menu",
+  "store_name_variants": [
+    "khan chacha"
+  ],
+  "items": [
+    {
+      "item_name": "Chicken Tikka Kathi Roll",
+      "category": "entree",
+      "estimated_calories": 440,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 18,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Mutton Seekh Roll",
+      "category": "entree",
+      "estimated_calories": 520,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 44,
+      "estimated_fat_g": 22,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Chicken Malai Tikka Roll",
+      "category": "entree",
+      "estimated_calories": 480,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 22,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Paneer Tikka Roll",
+      "category": "entree",
+      "estimated_calories": 460,
+      "estimated_protein_g": 20,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 24,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    }
+  ]
+}

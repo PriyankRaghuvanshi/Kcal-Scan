@@ -1,0 +1,55 @@
+{
+  "brand_name": "Oven Story Pizza",
+  "source_type": "seed_template",
+  "source_url": "https://eatsure.com/oven-story/menu",
+  "store_name_variants": [
+    "oven story",
+    "oven story pizza"
+  ],
+  "items": [
+    {
+      "item_name": "Grilled Chicken Personal Pizza",
+      "category": "entree",
+      "estimated_calories": 520,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 62,
+      "estimated_fat_g": 18,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Peri Peri Chicken Personal",
+      "category": "entree",
+      "estimated_calories": 540,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 60,
+      "estimated_fat_g": 22,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Veggie Supreme Personal",
+      "category": "entree",
+      "estimated_calories": 480,
+      "estimated_protein_g": 16,
+      "estimated_carbs_g": 66,
+      "estimated_fat_g": 14,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Margherita Personal",
+      "category": "entree",
+      "estimated_calories": 440,
+      "estimated_protein_g": 16,
+      "estimated_carbs_g": 60,
+      "estimated_fat_g": 14,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    }
+  ]
+}

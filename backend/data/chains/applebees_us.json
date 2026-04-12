@@ -1,0 +1,55 @@
+{
+  "brand_name": "Applebee's",
+  "source_type": "seed_template",
+  "source_url": "https://www.applebees.com/menu",
+  "store_name_variants": [
+    "applebees",
+    "applebee's"
+  ],
+  "items": [
+    {
+      "item_name": "Grilled Chicken Caesar Salad",
+      "category": "entree",
+      "estimated_calories": 520,
+      "estimated_protein_g": 38,
+      "estimated_carbs_g": 24,
+      "estimated_fat_g": 30,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "6oz Sirloin + Vegetables",
+      "category": "entree",
+      "estimated_calories": 480,
+      "estimated_protein_g": 44,
+      "estimated_carbs_g": 20,
+      "estimated_fat_g": 24,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Classic Grilled Chicken Burger",
+      "category": "entree",
+      "estimated_calories": 540,
+      "estimated_protein_g": 34,
+      "estimated_carbs_g": 46,
+      "estimated_fat_g": 22,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Fiesta Lime Chicken + Rice",
+      "category": "entree",
+      "estimated_calories": 620,
+      "estimated_protein_g": 38,
+      "estimated_carbs_g": 54,
+      "estimated_fat_g": 24,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    }
+  ]
+}

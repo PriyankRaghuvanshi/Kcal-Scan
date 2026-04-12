@@ -1,0 +1,55 @@
+{
+  "brand_name": "Buffalo Wild Wings",
+  "source_type": "seed_template",
+  "source_url": "https://www.buffalowildwings.com/menu",
+  "store_name_variants": [
+    "buffalo wild wings",
+    "bww"
+  ],
+  "items": [
+    {
+      "item_name": "Naked Tenders (6pc)",
+      "category": "entree",
+      "estimated_calories": 280,
+      "estimated_protein_g": 42,
+      "estimated_carbs_g": 4,
+      "estimated_fat_g": 8,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Traditional Wings (6pc, no sauce)",
+      "category": "entree",
+      "estimated_calories": 440,
+      "estimated_protein_g": 38,
+      "estimated_carbs_g": 2,
+      "estimated_fat_g": 30,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Grilled Chicken Caesar Salad",
+      "category": "entree",
+      "estimated_calories": 420,
+      "estimated_protein_g": 34,
+      "estimated_carbs_g": 16,
+      "estimated_fat_g": 24,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Bunless Burger + Side Salad",
+      "category": "entree",
+      "estimated_calories": 420,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 12,
+      "estimated_fat_g": 26,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    }
+  ]
+}

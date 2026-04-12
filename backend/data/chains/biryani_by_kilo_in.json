@@ -1,0 +1,55 @@
+{
+  "brand_name": "Biryani By Kilo",
+  "source_type": "seed_template",
+  "source_url": "https://biryanibykilo.com/menu",
+  "store_name_variants": [
+    "biryani by kilo",
+    "bbk"
+  ],
+  "items": [
+    {
+      "item_name": "Chicken Biryani (half kg)",
+      "category": "entree",
+      "estimated_calories": 620,
+      "estimated_protein_g": 34,
+      "estimated_carbs_g": 66,
+      "estimated_fat_g": 24,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Mutton Biryani (half kg)",
+      "category": "entree",
+      "estimated_calories": 680,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 64,
+      "estimated_fat_g": 32,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Paneer Biryani (half kg)",
+      "category": "entree",
+      "estimated_calories": 560,
+      "estimated_protein_g": 22,
+      "estimated_carbs_g": 66,
+      "estimated_fat_g": 22,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Veg Biryani",
+      "category": "entree",
+      "estimated_calories": 480,
+      "estimated_protein_g": 14,
+      "estimated_carbs_g": 66,
+      "estimated_fat_g": 16,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": true
+    }
+  ]
+}

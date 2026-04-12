@@ -1,0 +1,43 @@
+{
+  "brand_name": "Chatime",
+  "source_type": "seed_template",
+  "source_url": "https://chatime.com.au/menu",
+  "store_name_variants": [
+    "chatime"
+  ],
+  "items": [
+    {
+      "item_name": "Classic Milk Tea (less sugar)",
+      "category": "beverage",
+      "estimated_calories": 280,
+      "estimated_protein_g": 2,
+      "estimated_carbs_g": 52,
+      "estimated_fat_g": 6,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Taro Milk Tea (less sugar)",
+      "category": "beverage",
+      "estimated_calories": 320,
+      "estimated_protein_g": 4,
+      "estimated_carbs_g": 58,
+      "estimated_fat_g": 8,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Jasmine Tea (unsweetened)",
+      "category": "beverage",
+      "estimated_calories": 5,
+      "estimated_protein_g": 0,
+      "estimated_carbs_g": 1,
+      "estimated_fat_g": 0,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": true
+    }
+  ]
+}

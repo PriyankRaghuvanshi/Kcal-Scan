@@ -1,0 +1,56 @@
+{
+  "brand_name": "Chili's",
+  "source_type": "seed_template",
+  "source_url": "https://www.chilis.com/menu",
+  "store_name_variants": [
+    "chilis",
+    "chili's",
+    "chilis grill and bar"
+  ],
+  "items": [
+    {
+      "item_name": "Grilled Chicken Salad (no dressing)",
+      "category": "entree",
+      "estimated_calories": 420,
+      "estimated_protein_g": 38,
+      "estimated_carbs_g": 18,
+      "estimated_fat_g": 22,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "6oz Sirloin + Broccoli",
+      "category": "entree",
+      "estimated_calories": 460,
+      "estimated_protein_g": 42,
+      "estimated_carbs_g": 18,
+      "estimated_fat_g": 24,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Margarita Grilled Chicken + Rice",
+      "category": "entree",
+      "estimated_calories": 580,
+      "estimated_protein_g": 40,
+      "estimated_carbs_g": 50,
+      "estimated_fat_g": 22,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Classic Bacon Burger (half)",
+      "category": "entree",
+      "estimated_calories": 520,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 28,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    }
+  ]
+}

@@ -1,0 +1,55 @@
+{
+  "brand_name": "Jimmy John's",
+  "source_type": "seed_template",
+  "source_url": "https://www.jimmyjohns.com/menu",
+  "store_name_variants": [
+    "jimmy johns",
+    "jimmy john's"
+  ],
+  "items": [
+    {
+      "item_name": "Turkey Tom (8in)",
+      "category": "entree",
+      "estimated_calories": 520,
+      "estimated_protein_g": 24,
+      "estimated_carbs_g": 50,
+      "estimated_fat_g": 22,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Slim 1 (Ham Only)",
+      "category": "entree",
+      "estimated_calories": 360,
+      "estimated_protein_g": 18,
+      "estimated_carbs_g": 48,
+      "estimated_fat_g": 10,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Unwich Turkey Tom (no bread)",
+      "category": "entree",
+      "estimated_calories": 280,
+      "estimated_protein_g": 22,
+      "estimated_carbs_g": 10,
+      "estimated_fat_g": 18,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Roast Beef (8in)",
+      "category": "entree",
+      "estimated_calories": 540,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 52,
+      "estimated_fat_g": 22,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    }
+  ]
+}
