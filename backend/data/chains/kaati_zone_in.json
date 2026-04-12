@@ -6,7 +6,11 @@
     "kaati zone",
     "kaati junction",
     "kaati roll",
-    "kati zone"
+    "kati zone",
+    "kaatijunction",
+    "kaatiroll",
+    "kaatizone",
+    "katizone"
   ],
   "items": [
     {
@@ -18,7 +22,9 @@
       "estimated_fat_g": 14,
       "confidence": 0.82,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": false
     },
     {
       "item_name": "Paneer Tikka Kaati Roll",
@@ -29,7 +35,9 @@
       "estimated_fat_g": 22,
       "confidence": 0.82,
       "vegetarian_possible": true,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": false
     },
     {
       "item_name": "Egg Chicken Roll",
@@ -40,7 +48,9 @@
       "estimated_fat_g": 18,
       "confidence": 0.82,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": false
     },
     {
       "item_name": "Veg Roll",
@@ -51,7 +61,9 @@
       "estimated_fat_g": 12,
       "confidence": 0.82,
       "vegetarian_possible": true,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": false
     },
     {
       "item_name": "Mutton Seekh Roll",
@@ -62,7 +74,9 @@
       "estimated_fat_g": 24,
       "confidence": 0.82,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": false
     }
   ]
 }

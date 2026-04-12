@@ -4,7 +4,8 @@
   "source_url": "https://www.bk.com/menu",
   "store_name_variants": [
     "burger king",
-    "bk"
+    "bk",
+    "burgerking"
   ],
   "items": [
     {
@@ -16,7 +17,9 @@
       "estimated_fat_g": 18,
       "confidence": 0.85,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     },
     {
       "item_name": "Grilled Chicken Sandwich",
@@ -27,7 +30,9 @@
       "estimated_fat_g": 16,
       "confidence": 0.85,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": false
     },
     {
       "item_name": "4pc Chicken Nuggets",
@@ -38,7 +43,9 @@
       "estimated_fat_g": 10,
       "confidence": 0.85,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     },
     {
       "item_name": "Impossible Whopper",
@@ -49,7 +56,9 @@
       "estimated_fat_g": 34,
       "confidence": 0.85,
       "vegetarian_possible": true,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     },
     {
       "item_name": "BK Royal Crispy Chicken",
@@ -60,7 +69,9 @@
       "estimated_fat_g": 30,
       "confidence": 0.85,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     },
     {
       "item_name": "Garden Side Salad",
@@ -71,7 +82,9 @@
       "estimated_fat_g": 2,
       "confidence": 0.85,
       "vegetarian_possible": true,
-      "vegan_possible": true
+      "vegan_possible": true,
+      "halal_possible": true,
+      "gluten_free_possible": true
     }
   ]
 }

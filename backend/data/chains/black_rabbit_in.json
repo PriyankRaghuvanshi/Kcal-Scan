@@ -4,7 +4,9 @@
   "source_url": "https://blackrabbit.in/menu",
   "store_name_variants": [
     "the black rabbit",
-    "black rabbit"
+    "black rabbit",
+    "blackrabbit",
+    "theblackrabbit"
   ],
   "items": [
     {
@@ -16,7 +18,9 @@
       "estimated_fat_g": 28,
       "confidence": 0.82,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     },
     {
       "item_name": "BBQ Chicken Burger",
@@ -27,7 +31,9 @@
       "estimated_fat_g": 24,
       "confidence": 0.82,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": false
     },
     {
       "item_name": "Chicken Caesar",
@@ -38,7 +44,9 @@
       "estimated_fat_g": 24,
       "confidence": 0.82,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     }
   ]
 }

@@ -4,7 +4,8 @@
   "source_url": "https://hotelshadab.in/menu",
   "store_name_variants": [
     "hotel shadab",
-    "shadab"
+    "shadab",
+    "hotelshadab"
   ],
   "items": [
     {
@@ -16,7 +17,9 @@
       "estimated_fat_g": 22,
       "confidence": 0.82,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     },
     {
       "item_name": "Mutton Dum Biryani",
@@ -27,7 +30,9 @@
       "estimated_fat_g": 30,
       "confidence": 0.82,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     },
     {
       "item_name": "Haleem (mutton, 1 bowl)",
@@ -38,7 +43,9 @@
       "estimated_fat_g": 22,
       "confidence": 0.82,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     },
     {
       "item_name": "Chicken Mandi + Rice",
@@ -49,7 +56,9 @@
       "estimated_fat_g": 20,
       "confidence": 0.82,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     }
   ]
 }

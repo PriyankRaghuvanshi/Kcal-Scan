@@ -5,7 +5,10 @@
   "store_name_variants": [
     "belgian waffle co",
     "the belgian waffle",
-    "belgian waffle"
+    "belgian waffle",
+    "belgianwaffle",
+    "belgianwaffleco",
+    "thebelgianwaffle"
   ],
   "items": [
     {
@@ -17,7 +20,9 @@
       "estimated_fat_g": 26,
       "confidence": 0.82,
       "vegetarian_possible": true,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": false
     },
     {
       "item_name": "Nutella Waffle",
@@ -28,7 +33,9 @@
       "estimated_fat_g": 22,
       "confidence": 0.82,
       "vegetarian_possible": true,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": false
     },
     {
       "item_name": "Cheese Waffle",
@@ -39,7 +46,9 @@
       "estimated_fat_g": 20,
       "confidence": 0.82,
       "vegetarian_possible": true,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": false
     }
   ]
 }

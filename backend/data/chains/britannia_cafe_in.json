@@ -5,7 +5,10 @@
   "store_name_variants": [
     "britannia cafe",
     "britannia and co",
-    "britannia & co"
+    "britannia & co",
+    "britannia&co",
+    "britanniaandco",
+    "britanniacafe"
   ],
   "items": [
     {
@@ -17,7 +20,9 @@
       "estimated_fat_g": 22,
       "confidence": 0.82,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     },
     {
       "item_name": "Chicken Dhansak + Rice",
@@ -28,7 +33,9 @@
       "estimated_fat_g": 26,
       "confidence": 0.82,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     },
     {
       "item_name": "Mutton Berry Pulao",
@@ -39,7 +46,9 @@
       "estimated_fat_g": 28,
       "confidence": 0.82,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     },
     {
       "item_name": "Salli Boti",
@@ -50,7 +59,9 @@
       "estimated_fat_g": 30,
       "confidence": 0.82,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     },
     {
       "item_name": "Caramel Custard (small)",
@@ -61,7 +72,9 @@
       "estimated_fat_g": 10,
       "confidence": 0.82,
       "vegetarian_possible": true,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     }
   ]
 }

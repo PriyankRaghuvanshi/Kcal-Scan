@@ -1,1 +1,75 @@
-{"brand_name":"Dennys","source_type":"seed_template","source_url":"","store_name_variants":["dennys"],"items":[{"item_name":"Grilled Chicken Sandwich","category":"sandwich","estimated_calories":420,"estimated_protein_g":28,"estimated_carbs_g":36,"estimated_fat_g":14,"confidence":0.80,"vegetarian_possible":false,"vegan_possible":false},{"item_name":"Chicken Salad","category":"salad","estimated_calories":340,"estimated_protein_g":26,"estimated_carbs_g":16,"estimated_fat_g":18,"confidence":0.78,"vegetarian_possible":false,"vegan_possible":false},{"item_name":"Grilled Chicken Wrap","category":"wrap","estimated_calories":440,"estimated_protein_g":30,"estimated_carbs_g":38,"estimated_fat_g":16,"confidence":0.78,"vegetarian_possible":false,"vegan_possible":false},{"item_name":"Side Salad","category":"side","estimated_calories":50,"estimated_protein_g":3,"estimated_carbs_g":8,"estimated_fat_g":1,"confidence":0.84,"vegetarian_possible":true,"vegan_possible":true},{"item_name":"Veggie Option","category":"entree","estimated_calories":380,"estimated_protein_g":14,"estimated_carbs_g":44,"estimated_fat_g":16,"confidence":0.76,"vegetarian_possible":true,"vegan_possible":false}]}
+{
+  "brand_name": "Dennys",
+  "source_type": "seed_template",
+  "source_url": "",
+  "store_name_variants": [
+    "dennys"
+  ],
+  "items": [
+    {
+      "item_name": "Grilled Chicken Sandwich",
+      "category": "sandwich",
+      "estimated_calories": 420,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 36,
+      "estimated_fat_g": 14,
+      "confidence": 0.8,
+      "vegetarian_possible": false,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": false
+    },
+    {
+      "item_name": "Chicken Salad",
+      "category": "salad",
+      "estimated_calories": 340,
+      "estimated_protein_g": 26,
+      "estimated_carbs_g": 16,
+      "estimated_fat_g": 18,
+      "confidence": 0.78,
+      "vegetarian_possible": false,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
+    },
+    {
+      "item_name": "Grilled Chicken Wrap",
+      "category": "wrap",
+      "estimated_calories": 440,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 38,
+      "estimated_fat_g": 16,
+      "confidence": 0.78,
+      "vegetarian_possible": false,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": false
+    },
+    {
+      "item_name": "Side Salad",
+      "category": "side",
+      "estimated_calories": 50,
+      "estimated_protein_g": 3,
+      "estimated_carbs_g": 8,
+      "estimated_fat_g": 1,
+      "confidence": 0.84,
+      "vegetarian_possible": true,
+      "vegan_possible": true,
+      "halal_possible": true,
+      "gluten_free_possible": true
+    },
+    {
+      "item_name": "Veggie Option",
+      "category": "entree",
+      "estimated_calories": 380,
+      "estimated_protein_g": 14,
+      "estimated_carbs_g": 44,
+      "estimated_fat_g": 16,
+      "confidence": 0.76,
+      "vegetarian_possible": true,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
+    }
+  ]
+}

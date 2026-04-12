@@ -4,7 +4,9 @@
   "source_url": "https://www.buffalowildwings.com/menu",
   "store_name_variants": [
     "buffalo wild wings",
-    "bww"
+    "bww",
+    "b-dubs",
+    "buffalowildwings"
   ],
   "items": [
     {
@@ -16,7 +18,9 @@
       "estimated_fat_g": 8,
       "confidence": 0.82,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     },
     {
       "item_name": "Traditional Wings (6pc, no sauce)",
@@ -27,7 +31,9 @@
       "estimated_fat_g": 30,
       "confidence": 0.82,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     },
     {
       "item_name": "Grilled Chicken Caesar Salad",
@@ -38,7 +44,9 @@
       "estimated_fat_g": 24,
       "confidence": 0.82,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     },
     {
       "item_name": "Bunless Burger + Side Salad",
@@ -49,7 +57,9 @@
       "estimated_fat_g": 26,
       "confidence": 0.82,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": false
     }
   ]
 }

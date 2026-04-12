@@ -4,7 +4,9 @@
   "source_url": "https://afteryoudessertcafe.com/menu",
   "store_name_variants": [
     "after you",
-    "after you dessert cafe"
+    "after you dessert cafe",
+    "afteryou",
+    "afteryoudessertcafe"
   ],
   "items": [
     {
@@ -16,7 +18,9 @@
       "estimated_fat_g": 24,
       "confidence": 0.82,
       "vegetarian_possible": true,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     },
     {
       "item_name": "Matcha Latte (less sweet)",
@@ -27,7 +31,9 @@
       "estimated_fat_g": 8,
       "confidence": 0.82,
       "vegetarian_possible": true,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     },
     {
       "item_name": "Mango Sticky Rice",
@@ -38,7 +44,9 @@
       "estimated_fat_g": 12,
       "confidence": 0.82,
       "vegetarian_possible": true,
-      "vegan_possible": true
+      "vegan_possible": true,
+      "halal_possible": true,
+      "gluten_free_possible": true
     }
   ]
 }

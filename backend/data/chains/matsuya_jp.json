@@ -1,1 +1,62 @@
-{"brand_name":"Matsuya","source_type":"seed_template","source_url":"","store_name_variants":["matsuya"],"items":[{"item_name":"Gyumeshi (Regular)","category":"bowl","estimated_calories":560,"estimated_protein_g":20,"estimated_carbs_g":70,"estimated_fat_g":16,"confidence":0.82,"vegetarian_possible":false,"vegan_possible":false},{"item_name":"Chicken Teriyaki Set","category":"entree","estimated_calories":520,"estimated_protein_g":28,"estimated_carbs_g":56,"estimated_fat_g":16,"confidence":0.80,"vegetarian_possible":false,"vegan_possible":false},{"item_name":"Curry Rice","category":"bowl","estimated_calories":580,"estimated_protein_g":14,"estimated_carbs_g":74,"estimated_fat_g":18,"confidence":0.80,"vegetarian_possible":false,"vegan_possible":false},{"item_name":"Miso Soup","category":"side","estimated_calories":40,"estimated_protein_g":3,"estimated_carbs_g":4,"estimated_fat_g":1,"confidence":0.86,"vegetarian_possible":true,"vegan_possible":false}]}
+{
+  "brand_name": "Matsuya",
+  "source_type": "seed_template",
+  "source_url": "",
+  "store_name_variants": [
+    "matsuya"
+  ],
+  "items": [
+    {
+      "item_name": "Gyumeshi (Regular)",
+      "category": "bowl",
+      "estimated_calories": 560,
+      "estimated_protein_g": 20,
+      "estimated_carbs_g": 70,
+      "estimated_fat_g": 16,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
+    },
+    {
+      "item_name": "Chicken Teriyaki Set",
+      "category": "entree",
+      "estimated_calories": 520,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 56,
+      "estimated_fat_g": 16,
+      "confidence": 0.8,
+      "vegetarian_possible": false,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
+    },
+    {
+      "item_name": "Curry Rice",
+      "category": "bowl",
+      "estimated_calories": 580,
+      "estimated_protein_g": 14,
+      "estimated_carbs_g": 74,
+      "estimated_fat_g": 18,
+      "confidence": 0.8,
+      "vegetarian_possible": false,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
+    },
+    {
+      "item_name": "Miso Soup",
+      "category": "side",
+      "estimated_calories": 40,
+      "estimated_protein_g": 3,
+      "estimated_carbs_g": 4,
+      "estimated_fat_g": 1,
+      "confidence": 0.86,
+      "vegetarian_possible": true,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
+    }
+  ]
+}

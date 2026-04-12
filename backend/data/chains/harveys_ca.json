@@ -1,1 +1,76 @@
-{"brand_name":"Harvey's","source_type":"seed_template","source_url":"https://www.harveys.ca/en/menu","store_name_variants":["harvey's","harveys"],"items":[{"item_name":"Original Burger","category":"sandwich","estimated_calories":380,"estimated_protein_g":22,"estimated_carbs_g":32,"estimated_fat_g":18,"confidence":0.82,"vegetarian_possible":false,"vegan_possible":false},{"item_name":"Grilled Chicken Sandwich","category":"sandwich","estimated_calories":360,"estimated_protein_g":28,"estimated_carbs_g":34,"estimated_fat_g":10,"confidence":0.82,"vegetarian_possible":false,"vegan_possible":false},{"item_name":"Veggie Burger","category":"sandwich","estimated_calories":340,"estimated_protein_g":14,"estimated_carbs_g":42,"estimated_fat_g":12,"confidence":0.80,"vegetarian_possible":true,"vegan_possible":false},{"item_name":"Poutine (Small)","category":"side","estimated_calories":440,"estimated_protein_g":12,"estimated_carbs_g":48,"estimated_fat_g":22,"confidence":0.82,"vegetarian_possible":true,"vegan_possible":false},{"item_name":"Side Salad","category":"side","estimated_calories":50,"estimated_protein_g":3,"estimated_carbs_g":6,"estimated_fat_g":2,"confidence":0.86,"vegetarian_possible":true,"vegan_possible":true}]}
+{
+  "brand_name": "Harvey's",
+  "source_type": "seed_template",
+  "source_url": "https://www.harveys.ca/en/menu",
+  "store_name_variants": [
+    "harvey's",
+    "harveys"
+  ],
+  "items": [
+    {
+      "item_name": "Original Burger",
+      "category": "sandwich",
+      "estimated_calories": 380,
+      "estimated_protein_g": 22,
+      "estimated_carbs_g": 32,
+      "estimated_fat_g": 18,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": false
+    },
+    {
+      "item_name": "Grilled Chicken Sandwich",
+      "category": "sandwich",
+      "estimated_calories": 360,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 34,
+      "estimated_fat_g": 10,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": false
+    },
+    {
+      "item_name": "Veggie Burger",
+      "category": "sandwich",
+      "estimated_calories": 340,
+      "estimated_protein_g": 14,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 12,
+      "confidence": 0.8,
+      "vegetarian_possible": true,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": false
+    },
+    {
+      "item_name": "Poutine (Small)",
+      "category": "side",
+      "estimated_calories": 440,
+      "estimated_protein_g": 12,
+      "estimated_carbs_g": 48,
+      "estimated_fat_g": 22,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
+    },
+    {
+      "item_name": "Side Salad",
+      "category": "side",
+      "estimated_calories": 50,
+      "estimated_protein_g": 3,
+      "estimated_carbs_g": 6,
+      "estimated_fat_g": 2,
+      "confidence": 0.86,
+      "vegetarian_possible": true,
+      "vegan_possible": true,
+      "halal_possible": true,
+      "gluten_free_possible": true
+    }
+  ]
+}

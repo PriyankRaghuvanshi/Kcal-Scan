@@ -1,1 +1,63 @@
-{"brand_name":"Franco Manca","source_type":"seed_template","source_url":"https://www.francomanca.co.uk/our-menu","store_name_variants":["franco manca"],"items":[{"item_name":"No.4 Chicken & Roast Pepper","category":"entree","estimated_calories":580,"estimated_protein_g":28,"estimated_carbs_g":56,"estimated_fat_g":24,"confidence":0.80,"vegetarian_possible":false,"vegan_possible":false},{"item_name":"No.3 Organic Mozzarella & Tomato","category":"entree","estimated_calories":520,"estimated_protein_g":18,"estimated_carbs_g":58,"estimated_fat_g":22,"confidence":0.80,"vegetarian_possible":true,"vegan_possible":false},{"item_name":"No.6 Goat's Cheese & Roast Veg","category":"entree","estimated_calories":540,"estimated_protein_g":16,"estimated_carbs_g":56,"estimated_fat_g":26,"confidence":0.78,"vegetarian_possible":true,"vegan_possible":false},{"item_name":"Mixed Salad (side)","category":"side","estimated_calories":80,"estimated_protein_g":2,"estimated_carbs_g":8,"estimated_fat_g":4,"confidence":0.84,"vegetarian_possible":true,"vegan_possible":true}]}
+{
+  "brand_name": "Franco Manca",
+  "source_type": "seed_template",
+  "source_url": "https://www.francomanca.co.uk/our-menu",
+  "store_name_variants": [
+    "franco manca",
+    "francomanca"
+  ],
+  "items": [
+    {
+      "item_name": "No.4 Chicken & Roast Pepper",
+      "category": "entree",
+      "estimated_calories": 580,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 56,
+      "estimated_fat_g": 24,
+      "confidence": 0.8,
+      "vegetarian_possible": false,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
+    },
+    {
+      "item_name": "No.3 Organic Mozzarella & Tomato",
+      "category": "entree",
+      "estimated_calories": 520,
+      "estimated_protein_g": 18,
+      "estimated_carbs_g": 58,
+      "estimated_fat_g": 22,
+      "confidence": 0.8,
+      "vegetarian_possible": true,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
+    },
+    {
+      "item_name": "No.6 Goat's Cheese & Roast Veg",
+      "category": "entree",
+      "estimated_calories": 540,
+      "estimated_protein_g": 16,
+      "estimated_carbs_g": 56,
+      "estimated_fat_g": 26,
+      "confidence": 0.78,
+      "vegetarian_possible": true,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
+    },
+    {
+      "item_name": "Mixed Salad (side)",
+      "category": "side",
+      "estimated_calories": 80,
+      "estimated_protein_g": 2,
+      "estimated_carbs_g": 8,
+      "estimated_fat_g": 4,
+      "confidence": 0.84,
+      "vegetarian_possible": true,
+      "vegan_possible": true,
+      "halal_possible": true,
+      "gluten_free_possible": true
+    }
+  ]
+}

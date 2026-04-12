@@ -4,7 +4,8 @@
   "source_url": "https://afc.com.pk/menu",
   "store_name_variants": [
     "afc",
-    "american fried chicken"
+    "american fried chicken",
+    "americanfriedchicken"
   ],
   "items": [
     {
@@ -16,7 +17,9 @@
       "estimated_fat_g": 20,
       "confidence": 0.82,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     },
     {
       "item_name": "Crispy Chicken (2pc) + Rice",
@@ -27,7 +30,9 @@
       "estimated_fat_g": 24,
       "confidence": 0.82,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     },
     {
       "item_name": "Zinger Burger",
@@ -38,7 +43,9 @@
       "estimated_fat_g": 22,
       "confidence": 0.82,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": false
     },
     {
       "item_name": "Chicken Roll",
@@ -49,7 +56,9 @@
       "estimated_fat_g": 20,
       "confidence": 0.82,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": false
     }
   ]
 }

@@ -4,7 +4,9 @@
   "source_url": "https://www.wowmomo.in/menu",
   "store_name_variants": [
     "wow momo",
-    "wow! momo"
+    "wow! momo",
+    "wow!momo",
+    "wowmomo"
   ],
   "items": [
     {
@@ -16,7 +18,9 @@
       "estimated_fat_g": 8,
       "confidence": 0.85,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": false
     },
     {
       "item_name": "Chicken Darjeeling Momos (6pc)",
@@ -27,7 +31,9 @@
       "estimated_fat_g": 10,
       "confidence": 0.85,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": false
     },
     {
       "item_name": "Veg Steamed Momos (6pc)",
@@ -38,7 +44,9 @@
       "estimated_fat_g": 6,
       "confidence": 0.85,
       "vegetarian_possible": true,
-      "vegan_possible": true
+      "vegan_possible": true,
+      "halal_possible": true,
+      "gluten_free_possible": false
     },
     {
       "item_name": "Chicken Momo Burger",
@@ -49,7 +57,9 @@
       "estimated_fat_g": 16,
       "confidence": 0.85,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": false
     },
     {
       "item_name": "Paneer Steamed Momos (6pc)",
@@ -60,7 +70,9 @@
       "estimated_fat_g": 12,
       "confidence": 0.85,
       "vegetarian_possible": true,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": false
     }
   ]
 }

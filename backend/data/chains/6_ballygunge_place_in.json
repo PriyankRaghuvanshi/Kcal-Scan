@@ -5,7 +5,9 @@
   "store_name_variants": [
     "6 ballygunge place",
     "6bp",
-    "ballygunge place"
+    "ballygunge place",
+    "6ballygungeplace",
+    "ballygungeplace"
   ],
   "items": [
     {
@@ -17,7 +19,9 @@
       "estimated_fat_g": 32,
       "confidence": 0.82,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     },
     {
       "item_name": "Chicken Kosha",
@@ -28,7 +32,9 @@
       "estimated_fat_g": 22,
       "confidence": 0.82,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     },
     {
       "item_name": "Bhetki Paturi",
@@ -39,7 +45,9 @@
       "estimated_fat_g": 20,
       "confidence": 0.82,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     },
     {
       "item_name": "Daab Chingri",
@@ -50,7 +58,9 @@
       "estimated_fat_g": 26,
       "confidence": 0.82,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     }
   ]
 }

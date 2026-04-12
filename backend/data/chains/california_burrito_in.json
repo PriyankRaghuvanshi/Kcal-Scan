@@ -3,7 +3,8 @@
   "source_type": "seed_template",
   "source_url": "https://californiaburrito.in/menu",
   "store_name_variants": [
-    "california burrito"
+    "california burrito",
+    "californiaburrito"
   ],
   "items": [
     {
@@ -15,7 +16,9 @@
       "estimated_fat_g": 16,
       "confidence": 0.82,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": false
     },
     {
       "item_name": "Carnitas Burrito Bowl",
@@ -26,7 +29,9 @@
       "estimated_fat_g": 22,
       "confidence": 0.82,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": false,
+      "gluten_free_possible": false
     },
     {
       "item_name": "Veggie Burrito Bowl",
@@ -37,7 +42,9 @@
       "estimated_fat_g": 12,
       "confidence": 0.82,
       "vegetarian_possible": true,
-      "vegan_possible": true
+      "vegan_possible": true,
+      "halal_possible": true,
+      "gluten_free_possible": false
     },
     {
       "item_name": "Chicken Quesadilla",
@@ -48,7 +55,9 @@
       "estimated_fat_g": 34,
       "confidence": 0.82,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": false
     }
   ]
 }

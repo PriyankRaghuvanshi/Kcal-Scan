@@ -6,7 +6,11 @@
     "maxs restaurant",
     "max's restaurant",
     "max's",
-    "maxs fried chicken"
+    "maxs fried chicken",
+    "max'srestaurant",
+    "maxs",
+    "maxsfriedchicken",
+    "maxsrestaurant"
   ],
   "items": [
     {
@@ -18,7 +22,9 @@
       "estimated_fat_g": 22,
       "confidence": 0.82,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     },
     {
       "item_name": "Chicken Sisig + Rice",
@@ -29,7 +35,9 @@
       "estimated_fat_g": 22,
       "confidence": 0.82,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     },
     {
       "item_name": "Sinigang na Baboy",
@@ -40,7 +48,9 @@
       "estimated_fat_g": 20,
       "confidence": 0.82,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     },
     {
       "item_name": "Grilled Chicken + Rice",
@@ -51,7 +61,9 @@
       "estimated_fat_g": 14,
       "confidence": 0.82,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     }
   ]
 }

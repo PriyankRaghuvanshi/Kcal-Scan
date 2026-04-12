@@ -3,7 +3,8 @@
   "source_type": "seed_template",
   "source_url": "https://justsalad.com/menu",
   "store_name_variants": [
-    "just salad"
+    "just salad",
+    "justsalad"
   ],
   "items": [
     {
@@ -15,7 +16,9 @@
       "estimated_fat_g": 24,
       "confidence": 0.82,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     },
     {
       "item_name": "Mediterranean Bowl (chicken)",
@@ -26,7 +29,9 @@
       "estimated_fat_g": 14,
       "confidence": 0.82,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     },
     {
       "item_name": "Grain Bowl with Grilled Chicken",
@@ -37,7 +42,9 @@
       "estimated_fat_g": 12,
       "confidence": 0.82,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     },
     {
       "item_name": "Vegan Power Bowl",
@@ -48,7 +55,9 @@
       "estimated_fat_g": 14,
       "confidence": 0.82,
       "vegetarian_possible": true,
-      "vegan_possible": true
+      "vegan_possible": true,
+      "halal_possible": true,
+      "gluten_free_possible": true
     }
   ]
 }

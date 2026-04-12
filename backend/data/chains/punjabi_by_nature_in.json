@@ -4,7 +4,8 @@
   "source_url": "https://www.punjabibynature.in/menu",
   "store_name_variants": [
     "punjabi by nature",
-    "pbn"
+    "pbn",
+    "punjabibynature"
   ],
   "items": [
     {
@@ -16,7 +17,9 @@
       "estimated_fat_g": 26,
       "confidence": 0.82,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     },
     {
       "item_name": "Dal Makhani",
@@ -27,7 +30,9 @@
       "estimated_fat_g": 18,
       "confidence": 0.82,
       "vegetarian_possible": true,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     },
     {
       "item_name": "Murgh Tikka Masala",
@@ -38,7 +43,9 @@
       "estimated_fat_g": 28,
       "confidence": 0.82,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     },
     {
       "item_name": "Sarson Ka Saag + Makki Roti",
@@ -49,7 +56,9 @@
       "estimated_fat_g": 16,
       "confidence": 0.82,
       "vegetarian_possible": true,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": false
     },
     {
       "item_name": "Seekh Kebab (mutton, 2pc)",
@@ -60,7 +69,9 @@
       "estimated_fat_g": 22,
       "confidence": 0.82,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     }
   ]
 }

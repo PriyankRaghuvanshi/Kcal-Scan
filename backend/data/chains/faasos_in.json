@@ -2,7 +2,11 @@
   "brand_name": "Faasos",
   "source_type": "seed_template",
   "source_url": "",
-  "store_name_variants": ["faasos", "faasos by eatsure"],
+  "store_name_variants": [
+    "faasos",
+    "faasos by eatsure",
+    "faasosbyeatsure"
+  ],
   "items": [
     {
       "item_name": "High Protein Chicken Wrap",
@@ -11,7 +15,9 @@
       "estimated_protein_g": 35,
       "estimated_carbs_g": 40,
       "estimated_fat_g": 20,
-      "confidence": 0.76
+      "confidence": 0.76,
+      "halal_possible": true,
+      "gluten_free_possible": false
     },
     {
       "item_name": "Cheese, Spinach & Corn Wrap",
@@ -20,7 +26,9 @@
       "estimated_protein_g": 18,
       "estimated_carbs_g": 50,
       "estimated_fat_g": 26,
-      "confidence": 0.72
+      "confidence": 0.72,
+      "halal_possible": true,
+      "gluten_free_possible": false
     }
   ]
 }

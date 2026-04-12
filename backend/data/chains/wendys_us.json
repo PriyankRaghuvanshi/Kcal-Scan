@@ -16,7 +16,9 @@
       "estimated_fat_g": 10,
       "confidence": 0.85,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": false
     },
     {
       "item_name": "Apple Pecan Chicken Salad (Half)",
@@ -27,7 +29,9 @@
       "estimated_fat_g": 18,
       "confidence": 0.85,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     },
     {
       "item_name": "Jr. Hamburger",
@@ -38,7 +42,9 @@
       "estimated_fat_g": 10,
       "confidence": 0.85,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": false
     },
     {
       "item_name": "4pc Grilled Chicken Nuggets",
@@ -49,7 +55,9 @@
       "estimated_fat_g": 8,
       "confidence": 0.85,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     },
     {
       "item_name": "Power Mediterranean Chicken Salad",
@@ -60,7 +68,9 @@
       "estimated_fat_g": 26,
       "confidence": 0.85,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     },
     {
       "item_name": "Parmesan Caesar Chicken Salad",
@@ -71,7 +81,9 @@
       "estimated_fat_g": 32,
       "confidence": 0.85,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     }
   ]
 }

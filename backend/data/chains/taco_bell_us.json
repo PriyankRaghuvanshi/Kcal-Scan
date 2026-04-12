@@ -2,7 +2,10 @@
   "brand_name": "Taco Bell",
   "source_type": "seed_template",
   "source_url": "",
-  "store_name_variants": ["taco bell"],
+  "store_name_variants": [
+    "taco bell",
+    "tacobell"
+  ],
   "items": [
     {
       "item_name": "Power Menu Bowl with Chicken",
@@ -11,7 +14,9 @@
       "estimated_protein_g": 32,
       "estimated_carbs_g": 42,
       "estimated_fat_g": 18,
-      "confidence": 0.82
+      "confidence": 0.82,
+      "halal_possible": true,
+      "gluten_free_possible": true
     },
     {
       "item_name": "Power Menu Bowl with Steak",
@@ -20,7 +25,9 @@
       "estimated_protein_g": 30,
       "estimated_carbs_g": 42,
       "estimated_fat_g": 20,
-      "confidence": 0.80
+      "confidence": 0.8,
+      "halal_possible": true,
+      "gluten_free_possible": true
     },
     {
       "item_name": "Fresco Soft Taco with Chicken",
@@ -29,7 +36,9 @@
       "estimated_protein_g": 10,
       "estimated_carbs_g": 16,
       "estimated_fat_g": 5,
-      "confidence": 0.78
+      "confidence": 0.78,
+      "halal_possible": true,
+      "gluten_free_possible": false
     },
     {
       "item_name": "Crunchy Taco",
@@ -38,7 +47,9 @@
       "estimated_protein_g": 8,
       "estimated_carbs_g": 13,
       "estimated_fat_g": 9,
-      "confidence": 0.85
+      "confidence": 0.85,
+      "halal_possible": true,
+      "gluten_free_possible": false
     },
     {
       "item_name": "Beefy 5-Layer Burrito",
@@ -47,7 +58,9 @@
       "estimated_protein_g": 22,
       "estimated_carbs_g": 52,
       "estimated_fat_g": 22,
-      "confidence": 0.78
+      "confidence": 0.78,
+      "halal_possible": true,
+      "gluten_free_possible": false
     }
   ]
 }

@@ -3,7 +3,8 @@
   "source_type": "seed_template",
   "source_url": "https://karachibakery.com/menu",
   "store_name_variants": [
-    "karachi bakery"
+    "karachi bakery",
+    "karachibakery"
   ],
   "items": [
     {
@@ -15,7 +16,9 @@
       "estimated_fat_g": 18,
       "confidence": 0.82,
       "vegetarian_possible": true,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": false
     },
     {
       "item_name": "Cashew Badam Biscuit (100g)",
@@ -26,7 +29,9 @@
       "estimated_fat_g": 28,
       "confidence": 0.82,
       "vegetarian_possible": true,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": false
     },
     {
       "item_name": "Plum Cake Slice",
@@ -37,7 +42,9 @@
       "estimated_fat_g": 10,
       "confidence": 0.82,
       "vegetarian_possible": true,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": false
     }
   ]
 }

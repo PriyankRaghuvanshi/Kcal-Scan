@@ -1,1 +1,62 @@
-{"brand_name":"Subway","source_type":"seed_template","source_url":"https://www.subway.com/en-CA/MenuNutrition/Menu","store_name_variants":["subway"],"items":[{"item_name":"6-inch Rotisserie Chicken","category":"sandwich","estimated_calories":350,"estimated_protein_g":28,"estimated_carbs_g":38,"estimated_fat_g":8,"confidence":0.86,"vegetarian_possible":false,"vegan_possible":false},{"item_name":"6-inch Turkey Breast","category":"sandwich","estimated_calories":270,"estimated_protein_g":18,"estimated_carbs_g":40,"estimated_fat_g":4,"confidence":0.86,"vegetarian_possible":false,"vegan_possible":false},{"item_name":"Protein Bowl (Chicken)","category":"bowl","estimated_calories":240,"estimated_protein_g":28,"estimated_carbs_g":12,"estimated_fat_g":8,"confidence":0.82,"vegetarian_possible":false,"vegan_possible":false},{"item_name":"6-inch Veggie Delite","category":"sandwich","estimated_calories":230,"estimated_protein_g":8,"estimated_carbs_g":40,"estimated_fat_g":3,"confidence":0.86,"vegetarian_possible":true,"vegan_possible":true}]}
+{
+  "brand_name": "Subway",
+  "source_type": "seed_template",
+  "source_url": "https://www.subway.com/en-CA/MenuNutrition/Menu",
+  "store_name_variants": [
+    "subway"
+  ],
+  "items": [
+    {
+      "item_name": "6-inch Rotisserie Chicken",
+      "category": "sandwich",
+      "estimated_calories": 350,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 38,
+      "estimated_fat_g": 8,
+      "confidence": 0.86,
+      "vegetarian_possible": false,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": false
+    },
+    {
+      "item_name": "6-inch Turkey Breast",
+      "category": "sandwich",
+      "estimated_calories": 270,
+      "estimated_protein_g": 18,
+      "estimated_carbs_g": 40,
+      "estimated_fat_g": 4,
+      "confidence": 0.86,
+      "vegetarian_possible": false,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
+    },
+    {
+      "item_name": "Protein Bowl (Chicken)",
+      "category": "bowl",
+      "estimated_calories": 240,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 12,
+      "estimated_fat_g": 8,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
+    },
+    {
+      "item_name": "6-inch Veggie Delite",
+      "category": "sandwich",
+      "estimated_calories": 230,
+      "estimated_protein_g": 8,
+      "estimated_carbs_g": 40,
+      "estimated_fat_g": 3,
+      "confidence": 0.86,
+      "vegetarian_possible": true,
+      "vegan_possible": true,
+      "halal_possible": true,
+      "gluten_free_possible": true
+    }
+  ]
+}

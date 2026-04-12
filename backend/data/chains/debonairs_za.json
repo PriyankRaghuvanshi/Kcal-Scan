@@ -1,1 +1,62 @@
-{"brand_name":"Debonairs","source_type":"seed_template","source_url":"","store_name_variants":["debonairs"],"items":[{"item_name":"Grilled Chicken Breast","category":"entree","estimated_calories":340,"estimated_protein_g":36,"estimated_carbs_g":4,"estimated_fat_g":16,"confidence":0.80,"vegetarian_possible":false,"vegan_possible":false},{"item_name":"Chicken Wrap","category":"wrap","estimated_calories":420,"estimated_protein_g":26,"estimated_carbs_g":38,"estimated_fat_g":16,"confidence":0.78,"vegetarian_possible":false,"vegan_possible":false},{"item_name":"Veggie Burger","category":"sandwich","estimated_calories":360,"estimated_protein_g":12,"estimated_carbs_g":42,"estimated_fat_g":14,"confidence":0.76,"vegetarian_possible":true,"vegan_possible":false},{"item_name":"Garden Salad","category":"side","estimated_calories":60,"estimated_protein_g":3,"estimated_carbs_g":8,"estimated_fat_g":2,"confidence":0.84,"vegetarian_possible":true,"vegan_possible":true}]}
+{
+  "brand_name": "Debonairs",
+  "source_type": "seed_template",
+  "source_url": "",
+  "store_name_variants": [
+    "debonairs"
+  ],
+  "items": [
+    {
+      "item_name": "Grilled Chicken Breast",
+      "category": "entree",
+      "estimated_calories": 340,
+      "estimated_protein_g": 36,
+      "estimated_carbs_g": 4,
+      "estimated_fat_g": 16,
+      "confidence": 0.8,
+      "vegetarian_possible": false,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
+    },
+    {
+      "item_name": "Chicken Wrap",
+      "category": "wrap",
+      "estimated_calories": 420,
+      "estimated_protein_g": 26,
+      "estimated_carbs_g": 38,
+      "estimated_fat_g": 16,
+      "confidence": 0.78,
+      "vegetarian_possible": false,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": false
+    },
+    {
+      "item_name": "Veggie Burger",
+      "category": "sandwich",
+      "estimated_calories": 360,
+      "estimated_protein_g": 12,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 14,
+      "confidence": 0.76,
+      "vegetarian_possible": true,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": false
+    },
+    {
+      "item_name": "Garden Salad",
+      "category": "side",
+      "estimated_calories": 60,
+      "estimated_protein_g": 3,
+      "estimated_carbs_g": 8,
+      "estimated_fat_g": 2,
+      "confidence": 0.84,
+      "vegetarian_possible": true,
+      "vegan_possible": true,
+      "halal_possible": true,
+      "gluten_free_possible": true
+    }
+  ]
+}

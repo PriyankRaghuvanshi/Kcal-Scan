@@ -5,7 +5,9 @@
   "store_name_variants": [
     "daves hot chicken",
     "dave's hot chicken",
-    "daves"
+    "daves",
+    "dave'shotchicken",
+    "daveshotchicken"
   ],
   "items": [
     {
@@ -17,7 +19,9 @@
       "estimated_fat_g": 22,
       "confidence": 0.82,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     },
     {
       "item_name": "Mild Chicken Slider",
@@ -28,7 +32,9 @@
       "estimated_fat_g": 20,
       "confidence": 0.82,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": false
     },
     {
       "item_name": "Chicken Tenders (3pc) + Slaw",
@@ -39,7 +45,9 @@
       "estimated_fat_g": 28,
       "confidence": 0.82,
       "vegetarian_possible": false,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     }
   ]
 }

@@ -4,7 +4,9 @@
   "source_url": "https://www.kwalitywalls.in/menu",
   "store_name_variants": [
     "kwality walls",
-    "kwality wall's"
+    "kwality wall's",
+    "kwalitywall's",
+    "kwalitywalls"
   ],
   "items": [
     {
@@ -16,7 +18,9 @@
       "estimated_fat_g": 9,
       "confidence": 0.82,
       "vegetarian_possible": true,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     },
     {
       "item_name": "Cornetto (single)",
@@ -27,7 +31,9 @@
       "estimated_fat_g": 12,
       "confidence": 0.82,
       "vegetarian_possible": true,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     },
     {
       "item_name": "Paddle Pop",
@@ -38,7 +44,9 @@
       "estimated_fat_g": 2,
       "confidence": 0.82,
       "vegetarian_possible": true,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     }
   ]
 }

@@ -1,1 +1,63 @@
-{"brand_name":"Texas Chicken","source_type":"seed_template","source_url":"","store_name_variants":["texas chicken"],"items":[{"item_name":"Grilled Chicken Wrap","category":"wrap","estimated_calories":420,"estimated_protein_g":28,"estimated_carbs_g":36,"estimated_fat_g":14,"confidence":0.80,"vegetarian_possible":false,"vegan_possible":false},{"item_name":"Chicken Sandwich","category":"sandwich","estimated_calories":460,"estimated_protein_g":26,"estimated_carbs_g":40,"estimated_fat_g":18,"confidence":0.80,"vegetarian_possible":false,"vegan_possible":false},{"item_name":"Side Salad","category":"side","estimated_calories":60,"estimated_protein_g":3,"estimated_carbs_g":8,"estimated_fat_g":2,"confidence":0.82,"vegetarian_possible":true,"vegan_possible":true},{"item_name":"Grilled Chicken Bowl","category":"bowl","estimated_calories":480,"estimated_protein_g":32,"estimated_carbs_g":42,"estimated_fat_g":14,"confidence":0.78,"vegetarian_possible":false,"vegan_possible":false}]}
+{
+  "brand_name": "Texas Chicken",
+  "source_type": "seed_template",
+  "source_url": "",
+  "store_name_variants": [
+    "texas chicken",
+    "texaschicken"
+  ],
+  "items": [
+    {
+      "item_name": "Grilled Chicken Wrap",
+      "category": "wrap",
+      "estimated_calories": 420,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 36,
+      "estimated_fat_g": 14,
+      "confidence": 0.8,
+      "vegetarian_possible": false,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": false
+    },
+    {
+      "item_name": "Chicken Sandwich",
+      "category": "sandwich",
+      "estimated_calories": 460,
+      "estimated_protein_g": 26,
+      "estimated_carbs_g": 40,
+      "estimated_fat_g": 18,
+      "confidence": 0.8,
+      "vegetarian_possible": false,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": false
+    },
+    {
+      "item_name": "Side Salad",
+      "category": "side",
+      "estimated_calories": 60,
+      "estimated_protein_g": 3,
+      "estimated_carbs_g": 8,
+      "estimated_fat_g": 2,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": true,
+      "halal_possible": true,
+      "gluten_free_possible": true
+    },
+    {
+      "item_name": "Grilled Chicken Bowl",
+      "category": "bowl",
+      "estimated_calories": 480,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 14,
+      "confidence": 0.78,
+      "vegetarian_possible": false,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
+    }
+  ]
+}

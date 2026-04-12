@@ -4,7 +4,8 @@
   "source_url": "https://lordofthefries.com.au/menu",
   "store_name_variants": [
     "lord of the fries",
-    "lotf"
+    "lotf",
+    "lordofthefries"
   ],
   "items": [
     {
@@ -16,7 +17,9 @@
       "estimated_fat_g": 20,
       "confidence": 0.82,
       "vegetarian_possible": true,
-      "vegan_possible": true
+      "vegan_possible": true,
+      "halal_possible": true,
+      "gluten_free_possible": false
     },
     {
       "item_name": "Mushroom Burger (vegan)",
@@ -27,7 +30,9 @@
       "estimated_fat_g": 22,
       "confidence": 0.82,
       "vegetarian_possible": true,
-      "vegan_possible": true
+      "vegan_possible": true,
+      "halal_possible": true,
+      "gluten_free_possible": false
     },
     {
       "item_name": "Beer Battered Fries (small)",
@@ -38,7 +43,9 @@
       "estimated_fat_g": 16,
       "confidence": 0.82,
       "vegetarian_possible": true,
-      "vegan_possible": true
+      "vegan_possible": true,
+      "halal_possible": true,
+      "gluten_free_possible": true
     }
   ]
 }

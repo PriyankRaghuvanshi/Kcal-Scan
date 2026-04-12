@@ -4,7 +4,8 @@
   "source_url": "https://www.jamba.com/menu",
   "store_name_variants": [
     "jamba",
-    "jamba juice"
+    "jamba juice",
+    "jambajuice"
   ],
   "items": [
     {
@@ -16,7 +17,9 @@
       "estimated_fat_g": 2,
       "confidence": 0.82,
       "vegetarian_possible": true,
-      "vegan_possible": false
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
     },
     {
       "item_name": "Greens 'n Ginger Smoothie (16oz)",
@@ -27,7 +30,9 @@
       "estimated_fat_g": 1,
       "confidence": 0.82,
       "vegetarian_possible": true,
-      "vegan_possible": true
+      "vegan_possible": true,
+      "halal_possible": true,
+      "gluten_free_possible": true
     },
     {
       "item_name": "Acai Super-Antioxidant (16oz)",
@@ -38,7 +43,9 @@
       "estimated_fat_g": 7,
       "confidence": 0.82,
       "vegetarian_possible": true,
-      "vegan_possible": true
+      "vegan_possible": true,
+      "halal_possible": true,
+      "gluten_free_possible": true
     }
   ]
 }

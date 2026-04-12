@@ -4,7 +4,8 @@
   "source_url": "https://panaorganic.com/menu",
   "store_name_variants": [
     "pana organic",
-    "pana"
+    "pana",
+    "panaorganic"
   ],
   "items": [
     {
@@ -16,7 +17,9 @@
       "estimated_fat_g": 18,
       "confidence": 0.82,
       "vegetarian_possible": true,
-      "vegan_possible": true
+      "vegan_possible": true,
+      "halal_possible": true,
+      "gluten_free_possible": true
     },
     {
       "item_name": "Coconut Ice Cream Scoop",
@@ -27,7 +30,9 @@
       "estimated_fat_g": 8,
       "confidence": 0.82,
       "vegetarian_possible": true,
-      "vegan_possible": true
+      "vegan_possible": true,
+      "halal_possible": true,
+      "gluten_free_possible": true
     }
   ]
 }
