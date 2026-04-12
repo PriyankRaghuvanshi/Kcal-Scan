@@ -1,0 +1,77 @@
+{
+  "brand_name": "Grill'd",
+  "source_type": "seed_template",
+  "source_url": "https://www.grilld.com.au/menu",
+  "store_name_variants": [
+    "grilld",
+    "grill'd"
+  ],
+  "items": [
+    {
+      "item_name": "Simply Grill'd Chicken Burger",
+      "category": "entree",
+      "estimated_calories": 420,
+      "estimated_protein_g": 34,
+      "estimated_carbs_g": 32,
+      "estimated_fat_g": 14,
+      "confidence": 0.85,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Garden Goodness Burger",
+      "category": "entree",
+      "estimated_calories": 380,
+      "estimated_protein_g": 12,
+      "estimated_carbs_g": 40,
+      "estimated_fat_g": 18,
+      "confidence": 0.85,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Mighty Melbourne Burger",
+      "category": "entree",
+      "estimated_calories": 520,
+      "estimated_protein_g": 36,
+      "estimated_carbs_g": 38,
+      "estimated_fat_g": 22,
+      "confidence": 0.85,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Beefy Patty Burger (Low Carb)",
+      "category": "entree",
+      "estimated_calories": 380,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 12,
+      "estimated_fat_g": 24,
+      "confidence": 0.85,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Sweet Chilli Chicken Burger",
+      "category": "entree",
+      "estimated_calories": 460,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 38,
+      "estimated_fat_g": 18,
+      "confidence": 0.85,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Healthy Chips (small)",
+      "category": "side",
+      "estimated_calories": 280,
+      "estimated_protein_g": 4,
+      "estimated_carbs_g": 36,
+      "estimated_fat_g": 14,
+      "confidence": 0.85,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    }
+  ]
+}

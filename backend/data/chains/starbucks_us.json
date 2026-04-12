@@ -1,0 +1,65 @@
+{
+  "brand_name": "Starbucks",
+  "source_type": "seed_template",
+  "source_url": "https://www.starbucks.com/menu",
+  "store_name_variants": [
+    "starbucks"
+  ],
+  "items": [
+    {
+      "item_name": "Egg & Cheese Protein Box",
+      "category": "snack",
+      "estimated_calories": 470,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 38,
+      "estimated_fat_g": 22,
+      "confidence": 0.85,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Turkey & Pesto Panini",
+      "category": "entree",
+      "estimated_calories": 480,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 40,
+      "estimated_fat_g": 20,
+      "confidence": 0.85,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Spinach Feta Wrap",
+      "category": "entree",
+      "estimated_calories": 290,
+      "estimated_protein_g": 20,
+      "estimated_carbs_g": 34,
+      "estimated_fat_g": 10,
+      "confidence": 0.85,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Chicken & Quinoa Bowl",
+      "category": "entree",
+      "estimated_calories": 420,
+      "estimated_protein_g": 26,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 14,
+      "confidence": 0.85,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Impossible Breakfast Sandwich",
+      "category": "entree",
+      "estimated_calories": 420,
+      "estimated_protein_g": 22,
+      "estimated_carbs_g": 34,
+      "estimated_fat_g": 22,
+      "confidence": 0.85,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    }
+  ]
+}

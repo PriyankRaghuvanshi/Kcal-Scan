@@ -1,0 +1,88 @@
+{
+  "brand_name": "Chick-fil-A",
+  "source_type": "seed_template",
+  "source_url": "https://www.chick-fil-a.com/menu",
+  "store_name_variants": [
+    "chick-fil-a",
+    "chick fil a"
+  ],
+  "items": [
+    {
+      "item_name": "Grilled Chicken Sandwich",
+      "category": "entree",
+      "estimated_calories": 390,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 40,
+      "estimated_fat_g": 12,
+      "confidence": 0.85,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Grilled Nuggets (8ct)",
+      "category": "entree",
+      "estimated_calories": 140,
+      "estimated_protein_g": 25,
+      "estimated_carbs_g": 2,
+      "estimated_fat_g": 4,
+      "confidence": 0.85,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Spicy Southwest Salad",
+      "category": "entree",
+      "estimated_calories": 450,
+      "estimated_protein_g": 33,
+      "estimated_carbs_g": 26,
+      "estimated_fat_g": 22,
+      "confidence": 0.85,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Cobb Salad",
+      "category": "entree",
+      "estimated_calories": 510,
+      "estimated_protein_g": 38,
+      "estimated_carbs_g": 22,
+      "estimated_fat_g": 28,
+      "confidence": 0.85,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Egg White Grill",
+      "category": "entree",
+      "estimated_calories": 300,
+      "estimated_protein_g": 25,
+      "estimated_carbs_g": 30,
+      "estimated_fat_g": 8,
+      "confidence": 0.85,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Grilled Cool Wrap",
+      "category": "entree",
+      "estimated_calories": 350,
+      "estimated_protein_g": 37,
+      "estimated_carbs_g": 29,
+      "estimated_fat_g": 14,
+      "confidence": 0.85,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Market Salad",
+      "category": "entree",
+      "estimated_calories": 330,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 14,
+      "estimated_fat_g": 18,
+      "confidence": 0.85,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    }
+  ]
+}

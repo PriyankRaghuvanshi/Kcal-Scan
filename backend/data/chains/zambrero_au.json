@@ -1,0 +1,65 @@
+{
+  "brand_name": "Zambrero",
+  "source_type": "seed_template",
+  "source_url": "https://www.zambrero.com.au/menu",
+  "store_name_variants": [
+    "zambrero"
+  ],
+  "items": [
+    {
+      "item_name": "Grilled Chicken Power Bowl",
+      "category": "entree",
+      "estimated_calories": 480,
+      "estimated_protein_g": 36,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 14,
+      "confidence": 0.85,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Pulled Pork Burrito",
+      "category": "entree",
+      "estimated_calories": 540,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 52,
+      "estimated_fat_g": 20,
+      "confidence": 0.85,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Veggie Bowl",
+      "category": "entree",
+      "estimated_calories": 400,
+      "estimated_protein_g": 12,
+      "estimated_carbs_g": 52,
+      "estimated_fat_g": 14,
+      "confidence": 0.85,
+      "vegetarian_possible": true,
+      "vegan_possible": true
+    },
+    {
+      "item_name": "Chicken Quesadilla",
+      "category": "entree",
+      "estimated_calories": 460,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 34,
+      "estimated_fat_g": 22,
+      "confidence": 0.85,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Grilled Chicken Burrito",
+      "category": "entree",
+      "estimated_calories": 520,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 50,
+      "estimated_fat_g": 16,
+      "confidence": 0.85,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    }
+  ]
+}

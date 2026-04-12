@@ -1,0 +1,65 @@
+{
+  "brand_name": "Starbucks",
+  "source_type": "seed_template",
+  "source_url": "https://www.starbucks.in/menu",
+  "store_name_variants": [
+    "starbucks"
+  ],
+  "items": [
+    {
+      "item_name": "Chicken Kathi Roll",
+      "category": "entree",
+      "estimated_calories": 360,
+      "estimated_protein_g": 20,
+      "estimated_carbs_g": 32,
+      "estimated_fat_g": 14,
+      "confidence": 0.85,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Paneer Tikka Sandwich",
+      "category": "entree",
+      "estimated_calories": 340,
+      "estimated_protein_g": 14,
+      "estimated_carbs_g": 36,
+      "estimated_fat_g": 14,
+      "confidence": 0.85,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Egg & Cheese Croissant",
+      "category": "entree",
+      "estimated_calories": 380,
+      "estimated_protein_g": 16,
+      "estimated_carbs_g": 30,
+      "estimated_fat_g": 22,
+      "confidence": 0.85,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Banana Walnut Loaf",
+      "category": "snack",
+      "estimated_calories": 340,
+      "estimated_protein_g": 6,
+      "estimated_carbs_g": 46,
+      "estimated_fat_g": 14,
+      "confidence": 0.85,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Classic Chicken Sandwich",
+      "category": "entree",
+      "estimated_calories": 380,
+      "estimated_protein_g": 22,
+      "estimated_carbs_g": 34,
+      "estimated_fat_g": 16,
+      "confidence": 0.85,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    }
+  ]
+}

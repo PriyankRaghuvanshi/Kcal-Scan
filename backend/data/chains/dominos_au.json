@@ -1,0 +1,77 @@
+{
+  "brand_name": "Domino's",
+  "source_type": "seed_template",
+  "source_url": "https://www.dominos.com.au/menu",
+  "store_name_variants": [
+    "dominos",
+    "domino's"
+  ],
+  "items": [
+    {
+      "item_name": "Chicken Dominator (Medium, Thin Crust)",
+      "category": "entree",
+      "estimated_calories": 680,
+      "estimated_protein_g": 42,
+      "estimated_carbs_g": 54,
+      "estimated_fat_g": 28,
+      "confidence": 0.85,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Chicken & Feta (Medium, Thin Crust)",
+      "category": "entree",
+      "estimated_calories": 600,
+      "estimated_protein_g": 36,
+      "estimated_carbs_g": 50,
+      "estimated_fat_g": 24,
+      "confidence": 0.85,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "BBQ Chicken & Bacon (Medium, Classic)",
+      "category": "entree",
+      "estimated_calories": 720,
+      "estimated_protein_g": 38,
+      "estimated_carbs_g": 68,
+      "estimated_fat_g": 28,
+      "confidence": 0.85,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Loaded Pepperoni (Medium, Thin Crust)",
+      "category": "entree",
+      "estimated_calories": 660,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 52,
+      "estimated_fat_g": 32,
+      "confidence": 0.85,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Veg Trio (Medium, Classic)",
+      "category": "entree",
+      "estimated_calories": 580,
+      "estimated_protein_g": 22,
+      "estimated_carbs_g": 66,
+      "estimated_fat_g": 22,
+      "confidence": 0.85,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Chicken Caesar Salad",
+      "category": "side",
+      "estimated_calories": 340,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 12,
+      "estimated_fat_g": 20,
+      "confidence": 0.85,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    }
+  ]
+}

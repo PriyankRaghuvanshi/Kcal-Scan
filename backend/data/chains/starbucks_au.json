@@ -1,0 +1,65 @@
+{
+  "brand_name": "Starbucks",
+  "source_type": "seed_template",
+  "source_url": "https://www.starbucks.com.au/menu",
+  "store_name_variants": [
+    "starbucks"
+  ],
+  "items": [
+    {
+      "item_name": "Protein Box (Eggs & Cheese)",
+      "category": "snack",
+      "estimated_calories": 380,
+      "estimated_protein_g": 24,
+      "estimated_carbs_g": 30,
+      "estimated_fat_g": 18,
+      "confidence": 0.85,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Turkey & Pesto Sandwich",
+      "category": "entree",
+      "estimated_calories": 420,
+      "estimated_protein_g": 26,
+      "estimated_carbs_g": 38,
+      "estimated_fat_g": 16,
+      "confidence": 0.85,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Spinach & Feta Wrap",
+      "category": "entree",
+      "estimated_calories": 300,
+      "estimated_protein_g": 14,
+      "estimated_carbs_g": 34,
+      "estimated_fat_g": 12,
+      "confidence": 0.85,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Almond Latte (Grande, no sugar)",
+      "category": "drink",
+      "estimated_calories": 100,
+      "estimated_protein_g": 4,
+      "estimated_carbs_g": 8,
+      "estimated_fat_g": 6,
+      "confidence": 0.85,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Banana (whole)",
+      "category": "snack",
+      "estimated_calories": 105,
+      "estimated_protein_g": 1,
+      "estimated_carbs_g": 27,
+      "estimated_fat_g": 0,
+      "confidence": 0.85,
+      "vegetarian_possible": true,
+      "vegan_possible": true
+    }
+  ]
+}

@@ -1,0 +1,77 @@
+{
+  "brand_name": "Barbeque Nation",
+  "source_type": "seed_template",
+  "source_url": "https://www.barbequenation.com",
+  "store_name_variants": [
+    "barbeque nation",
+    "bbq nation"
+  ],
+  "items": [
+    {
+      "item_name": "Grilled Chicken Tikka",
+      "category": "entree",
+      "estimated_calories": 280,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 6,
+      "estimated_fat_g": 14,
+      "confidence": 0.85,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Paneer Tikka",
+      "category": "entree",
+      "estimated_calories": 240,
+      "estimated_protein_g": 14,
+      "estimated_carbs_g": 8,
+      "estimated_fat_g": 16,
+      "confidence": 0.85,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Grilled Fish",
+      "category": "entree",
+      "estimated_calories": 260,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 4,
+      "estimated_fat_g": 14,
+      "confidence": 0.85,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Tandoori Chicken Leg",
+      "category": "entree",
+      "estimated_calories": 320,
+      "estimated_protein_g": 34,
+      "estimated_carbs_g": 4,
+      "estimated_fat_g": 18,
+      "confidence": 0.85,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Grilled Prawns",
+      "category": "entree",
+      "estimated_calories": 180,
+      "estimated_protein_g": 22,
+      "estimated_carbs_g": 4,
+      "estimated_fat_g": 8,
+      "confidence": 0.85,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Veg Seekh Kebab",
+      "category": "entree",
+      "estimated_calories": 200,
+      "estimated_protein_g": 8,
+      "estimated_carbs_g": 18,
+      "estimated_fat_g": 10,
+      "confidence": 0.85,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    }
+  ]
+}

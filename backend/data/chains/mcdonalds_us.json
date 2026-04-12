@@ -1,0 +1,88 @@
+{
+  "brand_name": "McDonald's",
+  "source_type": "seed_template",
+  "source_url": "https://www.mcdonalds.com/us/en-us/full-menu.html",
+  "store_name_variants": [
+    "mcdonalds",
+    "mcdonald's"
+  ],
+  "items": [
+    {
+      "item_name": "McChicken",
+      "category": "entree",
+      "estimated_calories": 400,
+      "estimated_protein_g": 14,
+      "estimated_carbs_g": 40,
+      "estimated_fat_g": 21,
+      "confidence": 0.85,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Grilled Chicken Sandwich",
+      "category": "entree",
+      "estimated_calories": 380,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 38,
+      "estimated_fat_g": 12,
+      "confidence": 0.85,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Egg McMuffin",
+      "category": "entree",
+      "estimated_calories": 310,
+      "estimated_protein_g": 17,
+      "estimated_carbs_g": 30,
+      "estimated_fat_g": 13,
+      "confidence": 0.85,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "6pc Chicken McNuggets",
+      "category": "entree",
+      "estimated_calories": 250,
+      "estimated_protein_g": 15,
+      "estimated_carbs_g": 15,
+      "estimated_fat_g": 15,
+      "confidence": 0.85,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Big Mac",
+      "category": "entree",
+      "estimated_calories": 550,
+      "estimated_protein_g": 25,
+      "estimated_carbs_g": 45,
+      "estimated_fat_g": 30,
+      "confidence": 0.85,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Southwest Grilled Chicken Salad",
+      "category": "entree",
+      "estimated_calories": 350,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 22,
+      "estimated_fat_g": 14,
+      "confidence": 0.85,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Fruit & Yogurt Parfait",
+      "category": "snack",
+      "estimated_calories": 150,
+      "estimated_protein_g": 4,
+      "estimated_carbs_g": 30,
+      "estimated_fat_g": 2,
+      "confidence": 0.85,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    }
+  ]
+}

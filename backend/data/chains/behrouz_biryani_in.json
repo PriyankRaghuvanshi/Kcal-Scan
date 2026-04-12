@@ -1,0 +1,66 @@
+{
+  "brand_name": "Behrouz Biryani",
+  "source_type": "seed_template",
+  "source_url": "https://www.behrouzbiryani.com",
+  "store_name_variants": [
+    "behrouz biryani",
+    "behrouz"
+  ],
+  "items": [
+    {
+      "item_name": "Chicken Biryani (Regular)",
+      "category": "entree",
+      "estimated_calories": 560,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 62,
+      "estimated_fat_g": 18,
+      "confidence": 0.85,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Mutton Biryani (Regular)",
+      "category": "entree",
+      "estimated_calories": 620,
+      "estimated_protein_g": 26,
+      "estimated_carbs_g": 60,
+      "estimated_fat_g": 24,
+      "confidence": 0.85,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Paneer Biryani (Regular)",
+      "category": "entree",
+      "estimated_calories": 520,
+      "estimated_protein_g": 16,
+      "estimated_carbs_g": 64,
+      "estimated_fat_g": 18,
+      "confidence": 0.85,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Egg Biryani (Regular)",
+      "category": "entree",
+      "estimated_calories": 480,
+      "estimated_protein_g": 18,
+      "estimated_carbs_g": 58,
+      "estimated_fat_g": 16,
+      "confidence": 0.85,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Chicken Tikka Biryani (Regular)",
+      "category": "entree",
+      "estimated_calories": 540,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 58,
+      "estimated_fat_g": 18,
+      "confidence": 0.85,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    }
+  ]
+}

@@ -1,0 +1,77 @@
+{
+  "brand_name": "Wendy's",
+  "source_type": "seed_template",
+  "source_url": "https://www.wendys.com/menu",
+  "store_name_variants": [
+    "wendys",
+    "wendy's"
+  ],
+  "items": [
+    {
+      "item_name": "Grilled Chicken Sandwich",
+      "category": "entree",
+      "estimated_calories": 370,
+      "estimated_protein_g": 34,
+      "estimated_carbs_g": 36,
+      "estimated_fat_g": 10,
+      "confidence": 0.85,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Apple Pecan Chicken Salad (Half)",
+      "category": "entree",
+      "estimated_calories": 340,
+      "estimated_protein_g": 20,
+      "estimated_carbs_g": 24,
+      "estimated_fat_g": 18,
+      "confidence": 0.85,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Jr. Hamburger",
+      "category": "entree",
+      "estimated_calories": 260,
+      "estimated_protein_g": 14,
+      "estimated_carbs_g": 26,
+      "estimated_fat_g": 10,
+      "confidence": 0.85,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "4pc Grilled Chicken Nuggets",
+      "category": "entree",
+      "estimated_calories": 190,
+      "estimated_protein_g": 24,
+      "estimated_carbs_g": 4,
+      "estimated_fat_g": 8,
+      "confidence": 0.85,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Power Mediterranean Chicken Salad",
+      "category": "entree",
+      "estimated_calories": 480,
+      "estimated_protein_g": 38,
+      "estimated_carbs_g": 22,
+      "estimated_fat_g": 26,
+      "confidence": 0.85,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Parmesan Caesar Chicken Salad",
+      "category": "entree",
+      "estimated_calories": 520,
+      "estimated_protein_g": 36,
+      "estimated_carbs_g": 18,
+      "estimated_fat_g": 32,
+      "confidence": 0.85,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    }
+  ]
+}
