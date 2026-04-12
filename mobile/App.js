@@ -390,7 +390,15 @@ const DEFAULT_COACH_PROFILE = {
   tone_preference: "supportive",
   food_preferences: [],
   goal_reminders: [],
+  // Extra dietary + allergen filters applied to restaurant item recommendations.
+  //   dietary_restrictions: subset of ["halal", "gluten_free"] (vegetarian/vegan
+  //     live in diet_style already — no need to duplicate here).
+  //   allergen_exclude: subset of ["nuts","dairy","gluten","soy","shellfish","egg","sesame"].
+  dietary_restrictions: [],
+  allergen_exclude: [],
 };
+const DIETARY_RESTRICTION_OPTIONS = ["halal", "gluten_free"];
+const ALLERGEN_EXCLUDE_OPTIONS = ["nuts", "dairy", "gluten", "soy", "shellfish", "egg", "sesame"];
 const SUPPLEMENT_TOTAL_STEPS = 4;
 const SUPPLEMENT_PROCESSING_CHECKS = [
   "Checking barcode registry",
@@ -586,6 +594,14 @@ function normalizeCoachProfile(raw) {
     goal_reminders.push(s);
     if (goal_reminders.length >= 8) break;
   }
+  const rawRestrict = Array.isArray(src.dietary_restrictions) ? src.dietary_restrictions : [];
+  const rawAllergens = Array.isArray(src.allergen_exclude) ? src.allergen_exclude : [];
+  const dietary_restrictions = Array.from(
+    new Set(rawRestrict.map((v) => String(v || "").trim().toLowerCase()).filter((v) => DIETARY_RESTRICTION_OPTIONS.includes(v)))
+  );
+  const allergen_exclude = Array.from(
+    new Set(rawAllergens.map((v) => String(v || "").trim().toLowerCase()).filter((v) => ALLERGEN_EXCLUDE_OPTIONS.includes(v)))
+  );
   const out = {
     goal_type: ["fat_loss", "recomposition", "lean_gain"].includes(goalType) ? goalType : DEFAULT_COACH_PROFILE.goal_type,
     diet_style: ["veg", "non-veg", "vegan"].includes(dietStyle) ? dietStyle : DEFAULT_COACH_PROFILE.diet_style,
@@ -598,6 +614,8 @@ function normalizeCoachProfile(raw) {
       : DEFAULT_COACH_PROFILE.tone_preference,
     food_preferences,
     goal_reminders,
+    dietary_restrictions,
+    allergen_exclude,
   };
   return out;
 }
@@ -5554,6 +5572,14 @@ async function openCamera(mode = "meal") {
       }
       if (dietQ) {
         params.push("diet_preference=" + encodeURIComponent(dietQ));
+      }
+      const drList = Array.isArray(coachProfile?.dietary_restrictions) ? coachProfile.dietary_restrictions : [];
+      if (drList.length) {
+        params.push("dietary_restrictions=" + encodeURIComponent(drList.join(",")));
+      }
+      const aeList = Array.isArray(coachProfile?.allergen_exclude) ? coachProfile.allergen_exclude : [];
+      if (aeList.length) {
+        params.push("allergen_exclude=" + encodeURIComponent(aeList.join(",")));
       }
 
       const url = withTimezoneQuery(`${API_BASE}/places/healthy?${params.join("&")}`);
@@ -10834,6 +10860,50 @@ async function openCamera(mode = "meal") {
                       <Text style={styles.chipText}>{d}</Text>
                     </TouchableOpacity>
                   ))}
+                </View>
+
+                <Text style={styles.label}>Dietary restrictions (optional)</Text>
+                <View style={styles.rowWrap}>
+                  {DIETARY_RESTRICTION_OPTIONS.map((r) => {
+                    const selected = (coachProfileDraft?.dietary_restrictions || []).includes(r);
+                    return (
+                      <TouchableOpacity
+                        key={r}
+                        style={[styles.chip, selected && styles.chipActive]}
+                        onPress={() =>
+                          setCoachProfileDraft((p) => {
+                            const cur = Array.isArray(p?.dietary_restrictions) ? p.dietary_restrictions : [];
+                            const next = selected ? cur.filter((x) => x !== r) : [...cur, r];
+                            return { ...p, dietary_restrictions: next };
+                          })
+                        }
+                      >
+                        <Text style={styles.chipText}>{r.replace("_", " ")}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+
+                <Text style={styles.label}>Allergies / exclude (optional)</Text>
+                <View style={styles.rowWrap}>
+                  {ALLERGEN_EXCLUDE_OPTIONS.map((a) => {
+                    const selected = (coachProfileDraft?.allergen_exclude || []).includes(a);
+                    return (
+                      <TouchableOpacity
+                        key={a}
+                        style={[styles.chip, selected && styles.chipActive]}
+                        onPress={() =>
+                          setCoachProfileDraft((p) => {
+                            const cur = Array.isArray(p?.allergen_exclude) ? p.allergen_exclude : [];
+                            const next = selected ? cur.filter((x) => x !== a) : [...cur, a];
+                            return { ...p, allergen_exclude: next };
+                          })
+                        }
+                      >
+                        <Text style={styles.chipText}>{a}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
                 </View>
 
                 <Text style={styles.label}>Training days/week</Text>
