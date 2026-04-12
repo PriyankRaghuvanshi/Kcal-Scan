@@ -1,0 +1,66 @@
+{
+  "brand_name": "Shah Ghouse",
+  "source_type": "seed_template",
+  "source_url": "https://shahghouse.com/menu",
+  "store_name_variants": [
+    "shah ghouse",
+    "shahghouse"
+  ],
+  "items": [
+    {
+      "item_name": "Shah Ghouse Chicken Biryani",
+      "category": "entree",
+      "estimated_calories": 580,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 64,
+      "estimated_fat_g": 22,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Mutton Dum Biryani",
+      "category": "entree",
+      "estimated_calories": 640,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 62,
+      "estimated_fat_g": 30,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Haleem (mutton, 1 bowl)",
+      "category": "entree",
+      "estimated_calories": 440,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 28,
+      "estimated_fat_g": 22,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Chicken Kebab (4pc)",
+      "category": "entree",
+      "estimated_calories": 320,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 6,
+      "estimated_fat_g": 20,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Prawn Biryani",
+      "category": "entree",
+      "estimated_calories": 560,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 60,
+      "estimated_fat_g": 22,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    }
+  ]
+}
