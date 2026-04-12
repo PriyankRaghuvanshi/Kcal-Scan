@@ -21510,7 +21510,8 @@
         "chilis grill & bar",
         "chili'sgrill and bar",
         "chili'sgrillandbar",
-        "chilisgrill&bar"
+        "chilisgrill&bar",
+        "chilisgrill and bar"
       ],
       "items": [
         {
@@ -43638,6 +43639,1627 @@
           "estimated_carbs_g": 46,
           "estimated_fat_g": 22,
           "estimated_satiety": "high",
+          "menu_item_confidence": 0.8,
+          "halal_possible": true,
+          "gluten_free_possible": false
+        }
+      ]
+    },
+    {
+      "chain_id": "5_and_dime_bagel_au",
+      "chain_key": "5_and_dime_bagel",
+      "chain_name": "5 & Dime Bagel",
+      "country_code": "AU",
+      "source_type": "official_website_menu",
+      "official_menu_source_url": "https://5anddime.com.au/menu",
+      "menu_last_updated": "2026-04-12",
+      "chain_aliases": [
+        "5 and dime",
+        "5 & dime",
+        "five and dime bagel",
+        "5&dime",
+        "5anddime",
+        "fiveanddimebagel"
+      ],
+      "items": [
+        {
+          "item_name": "Smoked Salmon Bagel",
+          "category": "entree",
+          "estimated_calories": 420,
+          "estimated_protein_g": 24,
+          "estimated_carbs_g": 44,
+          "estimated_fat_g": 14,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.8,
+          "halal_possible": true,
+          "gluten_free_possible": false
+        },
+        {
+          "item_name": "Grilled Chicken Bagel",
+          "category": "entree",
+          "estimated_calories": 380,
+          "estimated_protein_g": 26,
+          "estimated_carbs_g": 42,
+          "estimated_fat_g": 12,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.8,
+          "halal_possible": true,
+          "gluten_free_possible": false
+        },
+        {
+          "item_name": "Plain Bagel + Cream Cheese",
+          "category": "breakfast",
+          "estimated_calories": 340,
+          "estimated_protein_g": 12,
+          "estimated_carbs_g": 52,
+          "estimated_fat_g": 10,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.8,
+          "halal_possible": true,
+          "gluten_free_possible": false
+        }
+      ]
+    },
+    {
+      "chain_id": "5_napkin_burger_us",
+      "chain_key": "5_napkin_burger",
+      "chain_name": "5 Napkin Burger",
+      "country_code": "US",
+      "source_type": "official_website_menu",
+      "official_menu_source_url": "https://5napkinburger.com/menu",
+      "menu_last_updated": "2026-04-12",
+      "chain_aliases": [
+        "5 napkin burger",
+        "five napkin burger",
+        "5napkinburger",
+        "fivenapkinburger"
+      ],
+      "items": [
+        {
+          "item_name": "Original 5 Napkin Burger (half)",
+          "category": "entree",
+          "estimated_calories": 540,
+          "estimated_protein_g": 30,
+          "estimated_carbs_g": 34,
+          "estimated_fat_g": 28,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.8,
+          "halal_possible": true,
+          "gluten_free_possible": false
+        },
+        {
+          "item_name": "Grilled Chicken Burger",
+          "category": "entree",
+          "estimated_calories": 480,
+          "estimated_protein_g": 34,
+          "estimated_carbs_g": 42,
+          "estimated_fat_g": 20,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.8,
+          "halal_possible": true,
+          "gluten_free_possible": false
+        },
+        {
+          "item_name": "Caesar Salad (chicken)",
+          "category": "entree",
+          "estimated_calories": 420,
+          "estimated_protein_g": 30,
+          "estimated_carbs_g": 18,
+          "estimated_fat_g": 24,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.8,
+          "halal_possible": true,
+          "gluten_free_possible": true
+        }
+      ]
+    },
+    {
+      "chain_id": "bombay_duck_in",
+      "chain_key": "bombay_duck",
+      "chain_name": "Bombay Duck Bistro",
+      "country_code": "IN",
+      "source_type": "official_website_menu",
+      "official_menu_source_url": "https://bombayduckbistro.com/menu",
+      "menu_last_updated": "2026-04-12",
+      "chain_aliases": [
+        "bombay duck",
+        "bombay duck bistro",
+        "bombayduck",
+        "bombayduckbistro"
+      ],
+      "items": [
+        {
+          "item_name": "Bombay Duck Fry (6pc)",
+          "category": "entree",
+          "estimated_calories": 320,
+          "estimated_protein_g": 26,
+          "estimated_carbs_g": 10,
+          "estimated_fat_g": 18,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.8,
+          "halal_possible": true,
+          "gluten_free_possible": true
+        },
+        {
+          "item_name": "Grilled Pomfret",
+          "category": "entree",
+          "estimated_calories": 360,
+          "estimated_protein_g": 34,
+          "estimated_carbs_g": 2,
+          "estimated_fat_g": 22,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.8,
+          "halal_possible": true,
+          "gluten_free_possible": true
+        },
+        {
+          "item_name": "Prawn Koliwada",
+          "category": "entree",
+          "estimated_calories": 380,
+          "estimated_protein_g": 30,
+          "estimated_carbs_g": 14,
+          "estimated_fat_g": 22,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.8,
+          "halal_possible": true,
+          "gluten_free_possible": true
+        }
+      ]
+    },
+    {
+      "chain_id": "bourke_street_bakery_au",
+      "chain_key": "bourke_street_bakery",
+      "chain_name": "Bourke Street Bakery",
+      "country_code": "AU",
+      "source_type": "official_website_menu",
+      "official_menu_source_url": "https://bourkestreetbakery.com.au/menu",
+      "menu_last_updated": "2026-04-12",
+      "chain_aliases": [
+        "bourke street bakery",
+        "bourke st bakery",
+        "bourkestbakery",
+        "bourkestreetbakery"
+      ],
+      "items": [
+        {
+          "item_name": "Grilled Chicken Sandwich",
+          "category": "entree",
+          "estimated_calories": 380,
+          "estimated_protein_g": 24,
+          "estimated_carbs_g": 40,
+          "estimated_fat_g": 14,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.8,
+          "halal_possible": true,
+          "gluten_free_possible": false
+        },
+        {
+          "item_name": "Sourdough + Butter",
+          "category": "entree",
+          "estimated_calories": 240,
+          "estimated_protein_g": 7,
+          "estimated_carbs_g": 40,
+          "estimated_fat_g": 6,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.8,
+          "halal_possible": true,
+          "gluten_free_possible": true
+        },
+        {
+          "item_name": "Beef Pie (regular)",
+          "category": "entree",
+          "estimated_calories": 460,
+          "estimated_protein_g": 22,
+          "estimated_carbs_g": 40,
+          "estimated_fat_g": 24,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.8,
+          "halal_possible": true,
+          "gluten_free_possible": true
+        }
+      ]
+    },
+    {
+      "chain_id": "bravo_us",
+      "chain_key": "bravo",
+      "chain_name": "Bravo Italian Kitchen",
+      "country_code": "US",
+      "source_type": "official_website_menu",
+      "official_menu_source_url": "https://bravoitalian.com/menu",
+      "menu_last_updated": "2026-04-12",
+      "chain_aliases": [
+        "bravo",
+        "bravo italian",
+        "bravo italian kitchen",
+        "bravoitalian",
+        "bravoitaliankitchen"
+      ],
+      "items": [
+        {
+          "item_name": "Grilled Chicken Piccata",
+          "category": "entree",
+          "estimated_calories": 540,
+          "estimated_protein_g": 42,
+          "estimated_carbs_g": 38,
+          "estimated_fat_g": 26,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.8,
+          "halal_possible": true,
+          "gluten_free_possible": true
+        },
+        {
+          "item_name": "Grilled Salmon + Vegetables",
+          "category": "entree",
+          "estimated_calories": 480,
+          "estimated_protein_g": 42,
+          "estimated_carbs_g": 10,
+          "estimated_fat_g": 28,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.8,
+          "halal_possible": true,
+          "gluten_free_possible": true
+        }
+      ]
+    },
+    {
+      "chain_id": "brio_us",
+      "chain_key": "brio",
+      "chain_name": "Brio Italian Grille",
+      "country_code": "US",
+      "source_type": "official_website_menu",
+      "official_menu_source_url": "https://brioitalian.com/menu",
+      "menu_last_updated": "2026-04-12",
+      "chain_aliases": [
+        "brio",
+        "brio tuscan grille",
+        "brio italian grille",
+        "brioitaliangrille",
+        "briotuscangrille"
+      ],
+      "items": [
+        {
+          "item_name": "Grilled Chicken Milanese",
+          "category": "entree",
+          "estimated_calories": 480,
+          "estimated_protein_g": 42,
+          "estimated_carbs_g": 24,
+          "estimated_fat_g": 22,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.8,
+          "halal_possible": true,
+          "gluten_free_possible": true
+        },
+        {
+          "item_name": "Grilled Salmon",
+          "category": "entree",
+          "estimated_calories": 460,
+          "estimated_protein_g": 42,
+          "estimated_carbs_g": 8,
+          "estimated_fat_g": 28,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.8,
+          "halal_possible": true,
+          "gluten_free_possible": true
+        },
+        {
+          "item_name": "Caesar Salad + Chicken",
+          "category": "entree",
+          "estimated_calories": 440,
+          "estimated_protein_g": 32,
+          "estimated_carbs_g": 18,
+          "estimated_fat_g": 26,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.8,
+          "halal_possible": true,
+          "gluten_free_possible": true
+        }
+      ]
+    },
+    {
+      "chain_id": "caribou_coffee_us_us",
+      "chain_key": "caribou_coffee_us",
+      "chain_name": "Caribou Coffee",
+      "country_code": "US",
+      "source_type": "official_website_menu",
+      "official_menu_source_url": "https://www.cariboucoffee.com/menu",
+      "menu_last_updated": "2026-04-12",
+      "chain_aliases": [
+        "caribou coffee",
+        "caribou",
+        "cariboucoffee"
+      ],
+      "items": [
+        {
+          "item_name": "Americano (black)",
+          "category": "beverage",
+          "estimated_calories": 5,
+          "estimated_protein_g": 0,
+          "estimated_carbs_g": 1,
+          "estimated_fat_g": 0,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.8,
+          "halal_possible": true,
+          "gluten_free_possible": true
+        },
+        {
+          "item_name": "Cappuccino (no sugar)",
+          "category": "beverage",
+          "estimated_calories": 110,
+          "estimated_protein_g": 6,
+          "estimated_carbs_g": 9,
+          "estimated_fat_g": 5,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.8,
+          "halal_possible": true,
+          "gluten_free_possible": true
+        },
+        {
+          "item_name": "Turkey Bacon Breakfast Sandwich",
+          "category": "breakfast",
+          "estimated_calories": 380,
+          "estimated_protein_g": 22,
+          "estimated_carbs_g": 36,
+          "estimated_fat_g": 16,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.8,
+          "halal_possible": false,
+          "gluten_free_possible": false
+        }
+      ]
+    },
+    {
+      "chain_id": "chaina_ram_in",
+      "chain_key": "chaina_ram",
+      "chain_name": "Chaina Ram",
+      "country_code": "IN",
+      "source_type": "official_website_menu",
+      "official_menu_source_url": "https://chainaram.com/menu",
+      "menu_last_updated": "2026-04-12",
+      "chain_aliases": [
+        "chaina ram",
+        "chaina ram sindhi",
+        "chainaram",
+        "chainaramsindhi"
+      ],
+      "items": [
+        {
+          "item_name": "Karachi Halwa (100g)",
+          "category": "dessert",
+          "estimated_calories": 420,
+          "estimated_protein_g": 4,
+          "estimated_carbs_g": 60,
+          "estimated_fat_g": 18,
+          "estimated_satiety": "low",
+          "menu_item_confidence": 0.8,
+          "halal_possible": true,
+          "gluten_free_possible": true
+        },
+        {
+          "item_name": "Gulab Jamun (2pc)",
+          "category": "dessert",
+          "estimated_calories": 260,
+          "estimated_protein_g": 4,
+          "estimated_carbs_g": 42,
+          "estimated_fat_g": 10,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.8,
+          "halal_possible": true,
+          "gluten_free_possible": true
+        },
+        {
+          "item_name": "Motichoor Ladoo (2pc)",
+          "category": "dessert",
+          "estimated_calories": 320,
+          "estimated_protein_g": 6,
+          "estimated_carbs_g": 44,
+          "estimated_fat_g": 14,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.8,
+          "halal_possible": true,
+          "gluten_free_possible": true
+        }
+      ]
+    },
+    {
+      "chain_id": "checkers_rallys_us",
+      "chain_key": "checkers_rallys",
+      "chain_name": "Checkers / Rally's",
+      "country_code": "US",
+      "source_type": "official_website_menu",
+      "official_menu_source_url": "https://www.checkers.com/menu",
+      "menu_last_updated": "2026-04-12",
+      "chain_aliases": [
+        "checkers",
+        "rallys",
+        "rally's"
+      ],
+      "items": [
+        {
+          "item_name": "Big Buford Burger (half)",
+          "category": "entree",
+          "estimated_calories": 460,
+          "estimated_protein_g": 24,
+          "estimated_carbs_g": 32,
+          "estimated_fat_g": 22,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.8,
+          "halal_possible": true,
+          "gluten_free_possible": false
+        },
+        {
+          "item_name": "Grilled Chicken Sandwich",
+          "category": "entree",
+          "estimated_calories": 420,
+          "estimated_protein_g": 28,
+          "estimated_carbs_g": 40,
+          "estimated_fat_g": 16,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.8,
+          "halal_possible": true,
+          "gluten_free_possible": false
+        },
+        {
+          "item_name": "Baja Chicken Club",
+          "category": "entree",
+          "estimated_calories": 540,
+          "estimated_protein_g": 30,
+          "estimated_carbs_g": 42,
+          "estimated_fat_g": 22,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.8,
+          "halal_possible": true,
+          "gluten_free_possible": true
+        }
+      ]
+    },
+    {
+      "chain_id": "chicken_treat_au",
+      "chain_key": "chicken_treat",
+      "chain_name": "Chicken Treat",
+      "country_code": "AU",
+      "source_type": "official_website_menu",
+      "official_menu_source_url": "https://chickentreat.com.au/menu",
+      "menu_last_updated": "2026-04-12",
+      "chain_aliases": [
+        "chicken treat",
+        "chickentreat"
+      ],
+      "items": [
+        {
+          "item_name": "Quarter Chicken + Salad",
+          "category": "entree",
+          "estimated_calories": 420,
+          "estimated_protein_g": 34,
+          "estimated_carbs_g": 14,
+          "estimated_fat_g": 24,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.8,
+          "halal_possible": true,
+          "gluten_free_possible": true
+        },
+        {
+          "item_name": "Chicken Treat Classic Burger",
+          "category": "entree",
+          "estimated_calories": 480,
+          "estimated_protein_g": 32,
+          "estimated_carbs_g": 42,
+          "estimated_fat_g": 20,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.8,
+          "halal_possible": true,
+          "gluten_free_possible": false
+        },
+        {
+          "item_name": "Grilled Chicken Breast",
+          "category": "entree",
+          "estimated_calories": 340,
+          "estimated_protein_g": 42,
+          "estimated_carbs_g": 4,
+          "estimated_fat_g": 14,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.8,
+          "halal_possible": true,
+          "gluten_free_possible": true
+        }
+      ]
+    },
+    {
+      "chain_id": "fingerlix_in",
+      "chain_key": "fingerlix",
+      "chain_name": "Fingerlix",
+      "country_code": "IN",
+      "source_type": "official_website_menu",
+      "official_menu_source_url": "https://fingerlix.com/menu",
+      "menu_last_updated": "2026-04-12",
+      "chain_aliases": [
+        "fingerlix"
+      ],
+      "items": [
+        {
+          "item_name": "Chicken Curry Ready Meal",
+          "category": "entree",
+          "estimated_calories": 420,
+          "estimated_protein_g": 30,
+          "estimated_carbs_g": 18,
+          "estimated_fat_g": 24,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.8,
+          "halal_possible": true,
+          "gluten_free_possible": true
+        },
+        {
+          "item_name": "Dal Makhani Ready Meal",
+          "category": "entree",
+          "estimated_calories": 340,
+          "estimated_protein_g": 12,
+          "estimated_carbs_g": 30,
+          "estimated_fat_g": 18,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.8,
+          "halal_possible": true,
+          "gluten_free_possible": true
+        },
+        {
+          "item_name": "Paneer Butter Masala Ready Meal",
+          "category": "entree",
+          "estimated_calories": 420,
+          "estimated_protein_g": 18,
+          "estimated_carbs_g": 22,
+          "estimated_fat_g": 28,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.8,
+          "halal_possible": true,
+          "gluten_free_possible": true
+        }
+      ]
+    },
+    {
+      "chain_id": "fonda_mexican_au",
+      "chain_key": "fonda_mexican",
+      "chain_name": "Fonda Mexican",
+      "country_code": "AU",
+      "source_type": "official_website_menu",
+      "official_menu_source_url": "https://fondamexican.com.au/menu",
+      "menu_last_updated": "2026-04-12",
+      "chain_aliases": [
+        "fonda",
+        "fonda mexican",
+        "fondamexican"
+      ],
+      "items": [
+        {
+          "item_name": "Chicken Burrito Bowl",
+          "category": "entree",
+          "estimated_calories": 540,
+          "estimated_protein_g": 34,
+          "estimated_carbs_g": 58,
+          "estimated_fat_g": 18,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.8,
+          "halal_possible": true,
+          "gluten_free_possible": false
+        },
+        {
+          "item_name": "Beef Taco (1pc)",
+          "category": "entree",
+          "estimated_calories": 240,
+          "estimated_protein_g": 16,
+          "estimated_carbs_g": 22,
+          "estimated_fat_g": 10,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.8,
+          "halal_possible": true,
+          "gluten_free_possible": false
+        },
+        {
+          "item_name": "Veg Quesadilla",
+          "category": "entree",
+          "estimated_calories": 480,
+          "estimated_protein_g": 18,
+          "estimated_carbs_g": 52,
+          "estimated_fat_g": 22,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.8,
+          "halal_possible": true,
+          "gluten_free_possible": false
+        }
+      ]
+    },
+    {
+      "chain_id": "french_loaf_in",
+      "chain_key": "french_loaf",
+      "chain_name": "French Loaf",
+      "country_code": "IN",
+      "source_type": "official_website_menu",
+      "official_menu_source_url": "https://frenchloaf.co.in/menu",
+      "menu_last_updated": "2026-04-12",
+      "chain_aliases": [
+        "french loaf",
+        "frenchloaf"
+      ],
+      "items": [
+        {
+          "item_name": "Chicken Croissant",
+          "category": "entree",
+          "estimated_calories": 380,
+          "estimated_protein_g": 18,
+          "estimated_carbs_g": 36,
+          "estimated_fat_g": 18,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.8,
+          "halal_possible": true,
+          "gluten_free_possible": false
+        },
+        {
+          "item_name": "Plain Croissant",
+          "category": "breakfast",
+          "estimated_calories": 260,
+          "estimated_protein_g": 6,
+          "estimated_carbs_g": 26,
+          "estimated_fat_g": 14,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.8,
+          "halal_possible": true,
+          "gluten_free_possible": false
+        },
+        {
+          "item_name": "Chocolate Slice",
+          "category": "dessert",
+          "estimated_calories": 340,
+          "estimated_protein_g": 4,
+          "estimated_carbs_g": 42,
+          "estimated_fat_g": 18,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.8,
+          "halal_possible": true,
+          "gluten_free_possible": true
+        }
+      ]
+    },
+    {
+      "chain_id": "freshii_us_us",
+      "chain_key": "freshii_us",
+      "chain_name": "Freshii",
+      "country_code": "US",
+      "source_type": "official_website_menu",
+      "official_menu_source_url": "https://www.freshii.com/menu",
+      "menu_last_updated": "2026-04-12",
+      "chain_aliases": [
+        "freshii"
+      ],
+      "items": [
+        {
+          "item_name": "Pangoa Bowl (chicken)",
+          "category": "entree",
+          "estimated_calories": 460,
+          "estimated_protein_g": 32,
+          "estimated_carbs_g": 54,
+          "estimated_fat_g": 12,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.8,
+          "halal_possible": true,
+          "gluten_free_possible": true
+        },
+        {
+          "item_name": "Oaxaca Wrap (chicken)",
+          "category": "entree",
+          "estimated_calories": 480,
+          "estimated_protein_g": 30,
+          "estimated_carbs_g": 46,
+          "estimated_fat_g": 18,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.8,
+          "halal_possible": true,
+          "gluten_free_possible": false
+        },
+        {
+          "item_name": "Buddha's Satay (vegan)",
+          "category": "entree",
+          "estimated_calories": 420,
+          "estimated_protein_g": 14,
+          "estimated_carbs_g": 62,
+          "estimated_fat_g": 12,
+          "estimated_satiety": "low",
+          "menu_item_confidence": 0.8,
+          "halal_possible": true,
+          "gluten_free_possible": true
+        }
+      ]
+    },
+    {
+      "chain_id": "fuddruckers_us",
+      "chain_key": "fuddruckers",
+      "chain_name": "Fuddruckers",
+      "country_code": "US",
+      "source_type": "official_website_menu",
+      "official_menu_source_url": "https://www.fuddruckers.com/menu",
+      "menu_last_updated": "2026-04-12",
+      "chain_aliases": [
+        "fuddruckers"
+      ],
+      "items": [
+        {
+          "item_name": "1/3 lb Original Burger",
+          "category": "entree",
+          "estimated_calories": 520,
+          "estimated_protein_g": 32,
+          "estimated_carbs_g": 36,
+          "estimated_fat_g": 28,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.8,
+          "halal_possible": true,
+          "gluten_free_possible": false
+        },
+        {
+          "item_name": "Grilled Chicken Breast Sandwich",
+          "category": "entree",
+          "estimated_calories": 440,
+          "estimated_protein_g": 32,
+          "estimated_carbs_g": 38,
+          "estimated_fat_g": 18,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.8,
+          "halal_possible": true,
+          "gluten_free_possible": false
+        },
+        {
+          "item_name": "Veggie Burger",
+          "category": "entree",
+          "estimated_calories": 440,
+          "estimated_protein_g": 18,
+          "estimated_carbs_g": 54,
+          "estimated_fat_g": 16,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.8,
+          "halal_possible": true,
+          "gluten_free_possible": false
+        }
+      ]
+    },
+    {
+      "chain_id": "iggys_au",
+      "chain_key": "iggys",
+      "chain_name": "Iggy's Bread",
+      "country_code": "AU",
+      "source_type": "official_website_menu",
+      "official_menu_source_url": "https://iggysbread.com.au/menu",
+      "menu_last_updated": "2026-04-12",
+      "chain_aliases": [
+        "iggys",
+        "iggy's",
+        "iggys bread",
+        "iggysbread"
+      ],
+      "items": [
+        {
+          "item_name": "Sourdough Sandwich (chicken)",
+          "category": "entree",
+          "estimated_calories": 380,
+          "estimated_protein_g": 24,
+          "estimated_carbs_g": 42,
+          "estimated_fat_g": 12,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.8,
+          "halal_possible": true,
+          "gluten_free_possible": false
+        },
+        {
+          "item_name": "Veg Sandwich",
+          "category": "entree",
+          "estimated_calories": 320,
+          "estimated_protein_g": 10,
+          "estimated_carbs_g": 42,
+          "estimated_fat_g": 12,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.8,
+          "halal_possible": true,
+          "gluten_free_possible": false
+        }
+      ]
+    },
+    {
+      "chain_id": "jimmy_boy_in",
+      "chain_key": "jimmy_boy",
+      "chain_name": "Jimmy Boy",
+      "country_code": "IN",
+      "source_type": "official_website_menu",
+      "official_menu_source_url": "https://jimmyboycafe.com/menu",
+      "menu_last_updated": "2026-04-12",
+      "chain_aliases": [
+        "jimmy boy",
+        "jimmy boy cafe",
+        "jimmyboy",
+        "jimmyboycafe"
+      ],
+      "items": [
+        {
+          "item_name": "Berry Pulao Chicken",
+          "category": "entree",
+          "estimated_calories": 580,
+          "estimated_protein_g": 28,
+          "estimated_carbs_g": 72,
+          "estimated_fat_g": 22,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.8,
+          "halal_possible": true,
+          "gluten_free_possible": true
+        },
+        {
+          "item_name": "Chicken Dhansak + Rice",
+          "category": "entree",
+          "estimated_calories": 620,
+          "estimated_protein_g": 32,
+          "estimated_carbs_g": 64,
+          "estimated_fat_g": 26,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.8,
+          "halal_possible": true,
+          "gluten_free_possible": true
+        },
+        {
+          "item_name": "Salli Boti",
+          "category": "entree",
+          "estimated_calories": 480,
+          "estimated_protein_g": 30,
+          "estimated_carbs_g": 24,
+          "estimated_fat_g": 30,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.8,
+          "halal_possible": true,
+          "gluten_free_possible": true
+        },
+        {
+          "item_name": "Caramel Custard",
+          "category": "dessert",
+          "estimated_calories": 220,
+          "estimated_protein_g": 4,
+          "estimated_carbs_g": 28,
+          "estimated_fat_g": 10,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.8,
+          "halal_possible": true,
+          "gluten_free_possible": true
+        }
+      ]
+    },
+    {
+      "chain_id": "kareems_in",
+      "chain_key": "kareems",
+      "chain_name": "Kareem's",
+      "country_code": "IN",
+      "source_type": "official_website_menu",
+      "official_menu_source_url": "https://kareemsrestaurant.com/menu",
+      "menu_last_updated": "2026-04-12",
+      "chain_aliases": [
+        "kareems",
+        "kareem's"
+      ],
+      "items": [
+        {
+          "item_name": "Mutton Burra (half)",
+          "category": "entree",
+          "estimated_calories": 420,
+          "estimated_protein_g": 34,
+          "estimated_carbs_g": 4,
+          "estimated_fat_g": 30,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.8,
+          "halal_possible": true,
+          "gluten_free_possible": true
+        },
+        {
+          "item_name": "Chicken Jahangiri",
+          "category": "entree",
+          "estimated_calories": 440,
+          "estimated_protein_g": 32,
+          "estimated_carbs_g": 12,
+          "estimated_fat_g": 28,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.8,
+          "halal_possible": true,
+          "gluten_free_possible": true
+        },
+        {
+          "item_name": "Mutton Biryani (half)",
+          "category": "entree",
+          "estimated_calories": 620,
+          "estimated_protein_g": 28,
+          "estimated_carbs_g": 60,
+          "estimated_fat_g": 30,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.8,
+          "halal_possible": true,
+          "gluten_free_possible": true
+        }
+      ]
+    },
+    {
+      "chain_id": "kream_kastle_in",
+      "chain_key": "kream_kastle",
+      "chain_name": "Kream Kastle",
+      "country_code": "IN",
+      "source_type": "official_website_menu",
+      "official_menu_source_url": "https://kreamkastle.com/menu",
+      "menu_last_updated": "2026-04-12",
+      "chain_aliases": [
+        "kream kastle",
+        "kreamkastle"
+      ],
+      "items": [
+        {
+          "item_name": "Malabar Chicken Biryani",
+          "category": "entree",
+          "estimated_calories": 580,
+          "estimated_protein_g": 32,
+          "estimated_carbs_g": 64,
+          "estimated_fat_g": 22,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.8,
+          "halal_possible": true,
+          "gluten_free_possible": true
+        },
+        {
+          "item_name": "Fish Pollichathu",
+          "category": "entree",
+          "estimated_calories": 380,
+          "estimated_protein_g": 32,
+          "estimated_carbs_g": 6,
+          "estimated_fat_g": 24,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.8,
+          "halal_possible": true,
+          "gluten_free_possible": true
+        }
+      ]
+    },
+    {
+      "chain_id": "kyani_and_co_in",
+      "chain_key": "kyani_and_co",
+      "chain_name": "Kyani & Co.",
+      "country_code": "IN",
+      "source_type": "official_website_menu",
+      "official_menu_source_url": "https://kyaniandco.com/menu",
+      "menu_last_updated": "2026-04-12",
+      "chain_aliases": [
+        "kyani",
+        "kyani and co",
+        "kyani & co",
+        "kyani&co",
+        "kyaniandco"
+      ],
+      "items": [
+        {
+          "item_name": "Keema Pav (half)",
+          "category": "entree",
+          "estimated_calories": 420,
+          "estimated_protein_g": 24,
+          "estimated_carbs_g": 38,
+          "estimated_fat_g": 20,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.8,
+          "halal_possible": true,
+          "gluten_free_possible": false
+        },
+        {
+          "item_name": "Omelette Pav",
+          "category": "breakfast",
+          "estimated_calories": 380,
+          "estimated_protein_g": 18,
+          "estimated_carbs_g": 30,
+          "estimated_fat_g": 22,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.8,
+          "halal_possible": true,
+          "gluten_free_possible": false
+        },
+        {
+          "item_name": "Mutton Cutlet (2pc)",
+          "category": "entree",
+          "estimated_calories": 320,
+          "estimated_protein_g": 24,
+          "estimated_carbs_g": 8,
+          "estimated_fat_g": 22,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.8,
+          "halal_possible": true,
+          "gluten_free_possible": true
+        }
+      ]
+    },
+    {
+      "chain_id": "lot_burger_au",
+      "chain_key": "lot_burger",
+      "chain_name": "Lot Burger",
+      "country_code": "AU",
+      "source_type": "official_website_menu",
+      "official_menu_source_url": "https://lotburger.com.au/menu",
+      "menu_last_updated": "2026-04-12",
+      "chain_aliases": [
+        "lot burger",
+        "lot",
+        "lotburger"
+      ],
+      "items": [
+        {
+          "item_name": "Classic Burger",
+          "category": "entree",
+          "estimated_calories": 560,
+          "estimated_protein_g": 32,
+          "estimated_carbs_g": 42,
+          "estimated_fat_g": 28,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.8,
+          "halal_possible": true,
+          "gluten_free_possible": false
+        },
+        {
+          "item_name": "Grilled Chicken Burger",
+          "category": "entree",
+          "estimated_calories": 480,
+          "estimated_protein_g": 34,
+          "estimated_carbs_g": 42,
+          "estimated_fat_g": 20,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.8,
+          "halal_possible": true,
+          "gluten_free_possible": false
+        },
+        {
+          "item_name": "Veggie Burger",
+          "category": "entree",
+          "estimated_calories": 460,
+          "estimated_protein_g": 16,
+          "estimated_carbs_g": 54,
+          "estimated_fat_g": 20,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.8,
+          "halal_possible": true,
+          "gluten_free_possible": false
+        }
+      ]
+    },
+    {
+      "chain_id": "mecca_coffee_au",
+      "chain_key": "mecca_coffee",
+      "chain_name": "Mecca Coffee",
+      "country_code": "AU",
+      "source_type": "official_website_menu",
+      "official_menu_source_url": "https://mecca.coffee/menu",
+      "menu_last_updated": "2026-04-12",
+      "chain_aliases": [
+        "mecca coffee",
+        "mecca",
+        "meccacoffee"
+      ],
+      "items": [
+        {
+          "item_name": "Americano (black)",
+          "category": "beverage",
+          "estimated_calories": 5,
+          "estimated_protein_g": 0,
+          "estimated_carbs_g": 1,
+          "estimated_fat_g": 0,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.8,
+          "halal_possible": true,
+          "gluten_free_possible": true
+        },
+        {
+          "item_name": "Flat White (no sugar)",
+          "category": "beverage",
+          "estimated_calories": 110,
+          "estimated_protein_g": 6,
+          "estimated_carbs_g": 8,
+          "estimated_fat_g": 6,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.8,
+          "halal_possible": true,
+          "gluten_free_possible": true
+        },
+        {
+          "item_name": "Cold Brew (unsweetened)",
+          "category": "beverage",
+          "estimated_calories": 10,
+          "estimated_protein_g": 0,
+          "estimated_carbs_g": 1,
+          "estimated_fat_g": 0,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.8,
+          "halal_possible": true,
+          "gluten_free_possible": true
+        }
+      ]
+    },
+    {
+      "chain_id": "messina_au",
+      "chain_key": "messina",
+      "chain_name": "Gelato Messina",
+      "country_code": "AU",
+      "source_type": "official_website_menu",
+      "official_menu_source_url": "https://gelatomessina.com/menu",
+      "menu_last_updated": "2026-04-12",
+      "chain_aliases": [
+        "messina",
+        "gelato messina",
+        "gelatomessina"
+      ],
+      "items": [
+        {
+          "item_name": "Single Scoop Gelato",
+          "category": "dessert",
+          "estimated_calories": 160,
+          "estimated_protein_g": 4,
+          "estimated_carbs_g": 20,
+          "estimated_fat_g": 7,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.8,
+          "halal_possible": true,
+          "gluten_free_possible": true
+        },
+        {
+          "item_name": "Sorbet Scoop",
+          "category": "dessert",
+          "estimated_calories": 120,
+          "estimated_protein_g": 1,
+          "estimated_carbs_g": 28,
+          "estimated_fat_g": 0,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.8,
+          "halal_possible": true,
+          "gluten_free_possible": true
+        }
+      ]
+    },
+    {
+      "chain_id": "ministry_of_kebabs_in",
+      "chain_key": "ministry_of_kebabs",
+      "chain_name": "Ministry Of Kebabs",
+      "country_code": "IN",
+      "source_type": "official_website_menu",
+      "official_menu_source_url": "https://ministryofkebabs.com/menu",
+      "menu_last_updated": "2026-04-12",
+      "chain_aliases": [
+        "ministry of kebabs",
+        "ministryofkebabs"
+      ],
+      "items": [
+        {
+          "item_name": "Chicken Seekh Kebab (6pc)",
+          "category": "entree",
+          "estimated_calories": 340,
+          "estimated_protein_g": 28,
+          "estimated_carbs_g": 6,
+          "estimated_fat_g": 22,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.8,
+          "halal_possible": true,
+          "gluten_free_possible": true
+        },
+        {
+          "item_name": "Mutton Kebab Platter",
+          "category": "entree",
+          "estimated_calories": 480,
+          "estimated_protein_g": 32,
+          "estimated_carbs_g": 12,
+          "estimated_fat_g": 32,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.8,
+          "halal_possible": true,
+          "gluten_free_possible": true
+        },
+        {
+          "item_name": "Paneer Tikka Kebab",
+          "category": "entree",
+          "estimated_calories": 320,
+          "estimated_protein_g": 18,
+          "estimated_carbs_g": 10,
+          "estimated_fat_g": 22,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.8,
+          "halal_possible": true,
+          "gluten_free_possible": true
+        }
+      ]
+    },
+    {
+      "chain_id": "mojo_pizza_in",
+      "chain_key": "mojo_pizza",
+      "chain_name": "Mojo Pizza",
+      "country_code": "IN",
+      "source_type": "official_website_menu",
+      "official_menu_source_url": "https://mojopizza.in/menu",
+      "menu_last_updated": "2026-04-12",
+      "chain_aliases": [
+        "mojo pizza",
+        "mojo",
+        "mojopizza"
+      ],
+      "items": [
+        {
+          "item_name": "Grilled Chicken Personal",
+          "category": "entree",
+          "estimated_calories": 540,
+          "estimated_protein_g": 28,
+          "estimated_carbs_g": 62,
+          "estimated_fat_g": 18,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.8,
+          "halal_possible": true,
+          "gluten_free_possible": true
+        },
+        {
+          "item_name": "BBQ Chicken Personal",
+          "category": "entree",
+          "estimated_calories": 560,
+          "estimated_protein_g": 28,
+          "estimated_carbs_g": 60,
+          "estimated_fat_g": 22,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.8,
+          "halal_possible": true,
+          "gluten_free_possible": true
+        },
+        {
+          "item_name": "Margherita Personal",
+          "category": "entree",
+          "estimated_calories": 460,
+          "estimated_protein_g": 18,
+          "estimated_carbs_g": 60,
+          "estimated_fat_g": 14,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.8,
+          "halal_possible": true,
+          "gluten_free_possible": true
+        }
+      ]
+    },
+    {
+      "chain_id": "mooyah_us",
+      "chain_key": "mooyah",
+      "chain_name": "Mooyah Burgers",
+      "country_code": "US",
+      "source_type": "official_website_menu",
+      "official_menu_source_url": "https://mooyah.com/menu",
+      "menu_last_updated": "2026-04-12",
+      "chain_aliases": [
+        "mooyah",
+        "mooyah burgers",
+        "mooyahburgers"
+      ],
+      "items": [
+        {
+          "item_name": "Classic Beef Burger (1 patty)",
+          "category": "entree",
+          "estimated_calories": 460,
+          "estimated_protein_g": 26,
+          "estimated_carbs_g": 30,
+          "estimated_fat_g": 24,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.8,
+          "halal_possible": true,
+          "gluten_free_possible": false
+        },
+        {
+          "item_name": "Grilled Chicken Burger",
+          "category": "entree",
+          "estimated_calories": 420,
+          "estimated_protein_g": 32,
+          "estimated_carbs_g": 40,
+          "estimated_fat_g": 16,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.8,
+          "halal_possible": true,
+          "gluten_free_possible": false
+        },
+        {
+          "item_name": "Veggie Burger",
+          "category": "entree",
+          "estimated_calories": 480,
+          "estimated_protein_g": 18,
+          "estimated_carbs_g": 56,
+          "estimated_fat_g": 20,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.8,
+          "halal_possible": true,
+          "gluten_free_possible": false
+        }
+      ]
+    },
+    {
+      "chain_id": "mrs_bakeshop_in",
+      "chain_key": "mrs_bakeshop",
+      "chain_name": "Mrs. Bakeshop",
+      "country_code": "IN",
+      "source_type": "official_website_menu",
+      "official_menu_source_url": "https://mrsbakeshop.in/menu",
+      "menu_last_updated": "2026-04-12",
+      "chain_aliases": [
+        "mrs bakeshop",
+        "mrs. bakeshop",
+        "mrs.bakeshop",
+        "mrsbakeshop"
+      ],
+      "items": [
+        {
+          "item_name": "Chocolate Brownie",
+          "category": "dessert",
+          "estimated_calories": 340,
+          "estimated_protein_g": 5,
+          "estimated_carbs_g": 42,
+          "estimated_fat_g": 18,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.8,
+          "halal_possible": true,
+          "gluten_free_possible": false
+        },
+        {
+          "item_name": "Red Velvet Slice",
+          "category": "dessert",
+          "estimated_calories": 360,
+          "estimated_protein_g": 4,
+          "estimated_carbs_g": 44,
+          "estimated_fat_g": 20,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.8,
+          "halal_possible": true,
+          "gluten_free_possible": true
+        }
+      ]
+    },
+    {
+      "chain_id": "natraj_daribari_in",
+      "chain_key": "natraj_daribari",
+      "chain_name": "Natraj Daribari",
+      "country_code": "IN",
+      "source_type": "official_website_menu",
+      "official_menu_source_url": "https://natrajdaribari.com/menu",
+      "menu_last_updated": "2026-04-12",
+      "chain_aliases": [
+        "natraj daribari",
+        "natraj dariba",
+        "natrajdariba",
+        "natrajdaribari"
+      ],
+      "items": [
+        {
+          "item_name": "Dahi Bhalla (2pc)",
+          "category": "entree",
+          "estimated_calories": 320,
+          "estimated_protein_g": 10,
+          "estimated_carbs_g": 42,
+          "estimated_fat_g": 14,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.8,
+          "halal_possible": true,
+          "gluten_free_possible": true
+        },
+        {
+          "item_name": "Aloo Tikki Chaat",
+          "category": "entree",
+          "estimated_calories": 380,
+          "estimated_protein_g": 8,
+          "estimated_carbs_g": 52,
+          "estimated_fat_g": 14,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.8,
+          "halal_possible": true,
+          "gluten_free_possible": true
+        }
+      ]
+    },
+    {
+      "chain_id": "paragon_in",
+      "chain_key": "paragon",
+      "chain_name": "Paragon Restaurant",
+      "country_code": "IN",
+      "source_type": "official_website_menu",
+      "official_menu_source_url": "https://paragonrestaurant.net/menu",
+      "menu_last_updated": "2026-04-12",
+      "chain_aliases": [
+        "paragon",
+        "paragon restaurant",
+        "paragon calicut",
+        "paragoncalicut",
+        "paragonrestaurant"
+      ],
+      "items": [
+        {
+          "item_name": "Malabar Chicken Biryani",
+          "category": "entree",
+          "estimated_calories": 580,
+          "estimated_protein_g": 32,
+          "estimated_carbs_g": 64,
+          "estimated_fat_g": 22,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.8,
+          "halal_possible": true,
+          "gluten_free_possible": true
+        },
+        {
+          "item_name": "Appam + Chicken Stew",
+          "category": "entree",
+          "estimated_calories": 520,
+          "estimated_protein_g": 28,
+          "estimated_carbs_g": 52,
+          "estimated_fat_g": 20,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.8,
+          "halal_possible": true,
+          "gluten_free_possible": true
+        },
+        {
+          "item_name": "Fish Curry + Rice (Malabar)",
+          "category": "entree",
+          "estimated_calories": 520,
+          "estimated_protein_g": 30,
+          "estimated_carbs_g": 54,
+          "estimated_fat_g": 20,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.8,
+          "halal_possible": true,
+          "gluten_free_possible": true
+        }
+      ]
+    },
+    {
+      "chain_id": "romanos_macaroni_grill_us",
+      "chain_key": "romanos_macaroni_grill",
+      "chain_name": "Romano's Macaroni Grill",
+      "country_code": "US",
+      "source_type": "official_website_menu",
+      "official_menu_source_url": "https://www.macaronigrill.com/menu",
+      "menu_last_updated": "2026-04-12",
+      "chain_aliases": [
+        "romanos macaroni grill",
+        "romano's macaroni grill",
+        "macaroni grill",
+        "macaronigrill",
+        "romano'smacaronigrill",
+        "romanosmacaronigrill"
+      ],
+      "items": [
+        {
+          "item_name": "Chicken Marsala",
+          "category": "entree",
+          "estimated_calories": 540,
+          "estimated_protein_g": 42,
+          "estimated_carbs_g": 38,
+          "estimated_fat_g": 26,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.8,
+          "halal_possible": true,
+          "gluten_free_possible": true
+        },
+        {
+          "item_name": "Grilled Salmon",
+          "category": "entree",
+          "estimated_calories": 460,
+          "estimated_protein_g": 42,
+          "estimated_carbs_g": 8,
+          "estimated_fat_g": 28,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.8,
+          "halal_possible": true,
+          "gluten_free_possible": true
+        }
+      ]
+    },
+    {
+      "chain_id": "sub_zero_nitrogen_us",
+      "chain_key": "sub_zero_nitrogen",
+      "chain_name": "Sub Zero Nitrogen Ice Cream",
+      "country_code": "US",
+      "source_type": "official_website_menu",
+      "official_menu_source_url": "https://subzeroicecream.com/menu",
+      "menu_last_updated": "2026-04-12",
+      "chain_aliases": [
+        "sub zero nitrogen",
+        "subzero ice cream",
+        "subzeroicecream",
+        "subzeronitrogen"
+      ],
+      "items": [
+        {
+          "item_name": "Single Scoop (any flavor)",
+          "category": "dessert",
+          "estimated_calories": 240,
+          "estimated_protein_g": 4,
+          "estimated_carbs_g": 28,
+          "estimated_fat_g": 14,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.8,
+          "halal_possible": true,
+          "gluten_free_possible": true
+        }
+      ]
+    },
+    {
+      "chain_id": "yazdani_bakery_in",
+      "chain_key": "yazdani_bakery",
+      "chain_name": "Yazdani Bakery",
+      "country_code": "IN",
+      "source_type": "official_website_menu",
+      "official_menu_source_url": "https://yazdanibakery.com/menu",
+      "menu_last_updated": "2026-04-12",
+      "chain_aliases": [
+        "yazdani",
+        "yazdani bakery",
+        "yazdanibakery"
+      ],
+      "items": [
+        {
+          "item_name": "Bun Maska (no jam)",
+          "category": "breakfast",
+          "estimated_calories": 280,
+          "estimated_protein_g": 8,
+          "estimated_carbs_g": 32,
+          "estimated_fat_g": 14,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.8,
+          "halal_possible": true,
+          "gluten_free_possible": false
+        },
+        {
+          "item_name": "Mawa Cake Slice",
+          "category": "dessert",
+          "estimated_calories": 360,
+          "estimated_protein_g": 6,
+          "estimated_carbs_g": 42,
+          "estimated_fat_g": 16,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.8,
+          "halal_possible": true,
+          "gluten_free_possible": false
+        },
+        {
+          "item_name": "Cheese Omelette",
+          "category": "breakfast",
+          "estimated_calories": 320,
+          "estimated_protein_g": 18,
+          "estimated_carbs_g": 4,
+          "estimated_fat_g": 26,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.8,
+          "halal_possible": true,
+          "gluten_free_possible": true
+        }
+      ]
+    },
+    {
+      "chain_id": "yazdani_cafe_in",
+      "chain_key": "yazdani_cafe",
+      "chain_name": "Yazdani Restaurant & Bakery",
+      "country_code": "IN",
+      "source_type": "official_website_menu",
+      "official_menu_source_url": "https://yazdanibakeryrestaurant.com/menu",
+      "menu_last_updated": "2026-04-12",
+      "chain_aliases": [
+        "yazdani cafe",
+        "yazdani restaurant",
+        "yazdanicafe",
+        "yazdanirestaurant"
+      ],
+      "items": [
+        {
+          "item_name": "Bun Maska + Chai",
+          "category": "breakfast",
+          "estimated_calories": 320,
+          "estimated_protein_g": 8,
+          "estimated_carbs_g": 42,
+          "estimated_fat_g": 14,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.8,
+          "halal_possible": true,
+          "gluten_free_possible": false
+        },
+        {
+          "item_name": "Mawa Cake",
+          "category": "dessert",
+          "estimated_calories": 360,
+          "estimated_protein_g": 6,
+          "estimated_carbs_g": 42,
+          "estimated_fat_g": 16,
+          "estimated_satiety": "medium",
           "menu_item_confidence": 0.8,
           "halal_possible": true,
           "gluten_free_possible": false

@@ -1,0 +1,52 @@
+{
+  "brand_name": "Bourke Street Bakery",
+  "source_type": "seed_template",
+  "source_url": "https://bourkestreetbakery.com.au/menu",
+  "store_name_variants": [
+    "bourke street bakery",
+    "bourke st bakery",
+    "bourkestbakery",
+    "bourkestreetbakery"
+  ],
+  "items": [
+    {
+      "item_name": "Grilled Chicken Sandwich",
+      "category": "entree",
+      "estimated_calories": 380,
+      "estimated_protein_g": 24,
+      "estimated_carbs_g": 40,
+      "estimated_fat_g": 14,
+      "confidence": 0.8,
+      "vegetarian_possible": false,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": false
+    },
+    {
+      "item_name": "Sourdough + Butter",
+      "category": "entree",
+      "estimated_calories": 240,
+      "estimated_protein_g": 7,
+      "estimated_carbs_g": 40,
+      "estimated_fat_g": 6,
+      "confidence": 0.8,
+      "vegetarian_possible": true,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
+    },
+    {
+      "item_name": "Beef Pie (regular)",
+      "category": "entree",
+      "estimated_calories": 460,
+      "estimated_protein_g": 22,
+      "estimated_carbs_g": 40,
+      "estimated_fat_g": 24,
+      "confidence": 0.8,
+      "vegetarian_possible": false,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
+    }
+  ]
+}

@@ -1,0 +1,51 @@
+{
+  "brand_name": "Yazdani Bakery",
+  "source_type": "seed_template",
+  "source_url": "https://yazdanibakery.com/menu",
+  "store_name_variants": [
+    "yazdani",
+    "yazdani bakery",
+    "yazdanibakery"
+  ],
+  "items": [
+    {
+      "item_name": "Bun Maska (no jam)",
+      "category": "breakfast",
+      "estimated_calories": 280,
+      "estimated_protein_g": 8,
+      "estimated_carbs_g": 32,
+      "estimated_fat_g": 14,
+      "confidence": 0.8,
+      "vegetarian_possible": true,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": false
+    },
+    {
+      "item_name": "Mawa Cake Slice",
+      "category": "dessert",
+      "estimated_calories": 360,
+      "estimated_protein_g": 6,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 16,
+      "confidence": 0.8,
+      "vegetarian_possible": true,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": false
+    },
+    {
+      "item_name": "Cheese Omelette",
+      "category": "breakfast",
+      "estimated_calories": 320,
+      "estimated_protein_g": 18,
+      "estimated_carbs_g": 4,
+      "estimated_fat_g": 26,
+      "confidence": 0.8,
+      "vegetarian_possible": true,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
+    }
+  ]
+}
