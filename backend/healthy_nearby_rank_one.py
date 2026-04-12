@@ -261,8 +261,15 @@ def rank_one_healthy_nearby_place(p: Dict[str, Any], ctx: HealthyNearbyRankConte
         else:
             top_menu_order_type = "estimated"
     top_menu_name = str(top_menu_item.get("item_name") or "").strip()
+    # Provenance-first gate: item_provenance is the canonical "this is a real menu item" signal
+    # (computed in menu_item_scoring). Source whitelist stays as legacy fallback for paths where
+    # provenance is absent (older cache rows).
+    top_item_provenance = str(menu_recommendations.get("item_provenance") or "").strip().lower()
+    provenance_trusted = top_item_provenance in {"exact_chain_menu", "exact_menu"}
+    provenance_rejected = top_item_provenance in {"heuristic_suggestion", "heuristic", "generic_fallback"}
     strong_real_menu = bool(
         top_menu_name
+        and not provenance_rejected
         and top_menu_source in {
             "real_menu",
             "menu_intelligence_store",
@@ -278,6 +285,7 @@ def rank_one_healthy_nearby_place(p: Dict[str, Any], ctx: HealthyNearbyRankConte
     )
     strong_inferred_menu = bool(
         top_menu_name
+        and not provenance_rejected
         and top_menu_source == "llm_inferred"
         and top_menu_conf >= 0.76
         and top_menu_order_type in {"likely", "exact"}
@@ -285,7 +293,8 @@ def rank_one_healthy_nearby_place(p: Dict[str, Any], ctx: HealthyNearbyRankConte
     use_menu_order = bool(
         top_menu_name
         and (
-            strong_real_menu
+            provenance_trusted
+            or strong_real_menu
             or strong_inferred_menu
         )
     )
@@ -489,6 +498,12 @@ def rank_one_healthy_nearby_place(p: Dict[str, Any], ctx: HealthyNearbyRankConte
         "chain_key": menu_recommendations.get("chain_key"),
         "chain_id": menu_recommendations.get("chain_id"),
         "chain_name": menu_recommendations.get("chain_name"),
+        "item_provenance": menu_recommendations.get("item_provenance"),
+        "covered_chain_key": menu_recommendations.get("covered_chain_key"),
+        "covered_chain_neutral": menu_recommendations.get("covered_chain_neutral"),
+        "can_show_verified_badge": menu_recommendations.get("can_show_verified_badge"),
+        "covered_chain_display_name": menu_recommendations.get("covered_chain_display_name"),
+        "covered_chain_menu_url": menu_recommendations.get("covered_chain_menu_url"),
     }
     context_info_raw = {
         "remaining_calories": remaining_calories,

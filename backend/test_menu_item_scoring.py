@@ -667,5 +667,41 @@ class MenuItemScoringTests(unittest.TestCase):
         self.assertNotIn("chicken", name, f"Vegetarian should not get chicken: {name}")
 
 
+    def test_sweetgreen_chain_items_preserved_despite_sweet_in_name(self):
+        # Prior bug: "sweet" was in _DESSERT_CONTEXT_TOKENS so Sweetgreen matched
+        # as dessert context and chain items were overridden with coarse placeholder.
+        # Fix: drop "sweet" token + trust ingested_chain_item source.
+        place = {
+            "place_id": "sweetgreen_test",
+            "name": "Sweetgreen",
+            "types": ["restaurant"],
+            "lat": 37.77,
+            "lng": -122.41,
+        }
+        out = recommend_menu_items_for_place(place, use_llm_place_context=False)
+        top = out.get("top_menu_item") or {}
+        item_name = str(top.get("item_name") or "")
+        self.assertNotIn("Needs menu check", item_name)
+        self.assertNotIn("lighter savory", item_name)
+        self.assertEqual(out.get("covered_chain_key"), "sweetgreen")
+        self.assertEqual(out.get("item_provenance"), "exact_chain_menu")
+        # Must be a real Sweetgreen item (any of the seeded names)
+        self.assertTrue(len(item_name) > 5, f"item_name too short: {item_name!r}")
+
+    def test_ingested_chain_item_source_is_trusted(self):
+        from menu_item_scoring import _final_item_name, _TRUSTED_NAME_PASSTHROUGH_SOURCES
+        # ingested_chain_item is trusted → names pass through even with dessert-adjacent cuisine
+        self.assertIn("ingested_chain_item", _TRUSTED_NAME_PASSTHROUGH_SOURCES)
+        self.assertIn("chain_registry", _TRUSTED_NAME_PASSTHROUGH_SOURCES)
+        # Real item name must not be mangled by dessert context for trusted sources
+        name = _final_item_name(
+            item_name="Harvest Bowl",
+            source="ingested_chain_item",
+            confidence=0.85,
+            cuisine_hint="bakery dessert",
+        )
+        self.assertEqual(name, "Harvest Bowl")
+
+
 if __name__ == "__main__":
     unittest.main()

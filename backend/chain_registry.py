@@ -11,7 +11,7 @@ from typing import Any, Dict, List, Tuple
 
 
 CHAIN_REGISTRY_VERSION = "v1"
-DEFAULT_COUNTRY_CODE = "AU"
+DEFAULT_COUNTRY_CODE = ""
 
 _TRUE_VALUES = {"1", "true", "yes", "y", "on"}
 _WORD_RE = re.compile(r"[a-z0-9]+")
@@ -110,6 +110,31 @@ def _normalize_country_code(value: Any) -> str:
     return ""
 
 
+def _infer_country_from_latlng(lat: Any, lng: Any) -> str:
+    try:
+        lat_f = float(lat)
+        lng_f = float(lng)
+    except (TypeError, ValueError):
+        return ""
+    if lat_f == 0.0 and lng_f == 0.0:
+        return ""
+    if 24.0 <= lat_f <= 49.5 and -125.0 <= lng_f <= -66.0:
+        return "US"
+    if 18.0 <= lat_f <= 23.0 and -161.0 <= lng_f <= -154.0:
+        return "US"
+    if 51.0 <= lat_f <= 72.0 and -169.0 <= lng_f <= -129.0:
+        return "US"
+    if -44.0 <= lat_f <= -10.0 and 113.0 <= lng_f <= 154.0:
+        return "AU"
+    if -47.5 <= lat_f <= -33.5 and 165.5 <= lng_f <= 179.5:
+        return "NZ"
+    if 6.5 <= lat_f <= 37.0 and 68.0 <= lng_f <= 98.0:
+        return "IN"
+    if 49.0 <= lat_f <= 61.0 and -9.0 <= lng_f <= 2.0:
+        return "GB"
+    return ""
+
+
 def _infer_country_code(place: Dict[str, Any]) -> str:
     payload = place if isinstance(place, dict) else {}
     for key in ("country_code", "countryCode", "country", "region", "locale_country"):
@@ -133,6 +158,10 @@ def _infer_country_code(place: Dict[str, Any]) -> str:
         return "NZ"
     if "united kingdom" in text or " uk" in f" {text} ":
         return "GB"
+
+    latlng_guess = _infer_country_from_latlng(payload.get("lat"), payload.get("lng"))
+    if latlng_guess:
+        return latlng_guess
     return ""
 
 

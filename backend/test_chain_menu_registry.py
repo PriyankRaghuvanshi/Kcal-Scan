@@ -1,6 +1,10 @@
 import unittest
 
-from chain_menu_registry import resolve_chain_menu_for_place
+from chain_menu_registry import (
+    _infer_country_code,
+    _infer_country_from_latlng,
+    resolve_chain_menu_for_place,
+)
 
 
 class ChainMenuRegistryTests(unittest.TestCase):
@@ -156,6 +160,61 @@ class ChainMenuRegistryTests(unittest.TestCase):
         self.assertEqual(indian, {})
         self.assertEqual(cafe, {})
         self.assertEqual(unknown, {})
+
+    def test_latlng_country_inference(self):
+        self.assertEqual(_infer_country_from_latlng(37.77, -122.41), "US")  # San Francisco
+        self.assertEqual(_infer_country_from_latlng(-33.87, 151.21), "AU")  # Sydney
+        self.assertEqual(_infer_country_from_latlng(19.08, 72.88), "IN")    # Mumbai
+        self.assertEqual(_infer_country_from_latlng(51.50, -0.12), "GB")    # London
+        self.assertEqual(_infer_country_from_latlng(-36.85, 174.76), "NZ")  # Auckland
+        self.assertEqual(_infer_country_from_latlng(None, None), "")
+        self.assertEqual(_infer_country_from_latlng(0.0, 0.0), "")
+
+    def test_no_country_does_not_silently_default_to_au(self):
+        # Previously DEFAULT_COUNTRY_CODE="AU" silently routed all unknown-country
+        # places to AU menus. Chipotle has no AU entry, so Chipotle requests without
+        # explicit country but with US coords must now resolve via lat/lng, not AU.
+        bundle = resolve_chain_menu_for_place(
+            {"name": "Chipotle Mexican Grill", "lat": 37.77, "lng": -122.41},
+            max_items=4,
+        )
+        self.assertTrue(bundle.get("chain_match"))
+        self.assertEqual(bundle.get("chain_key"), "chipotle")
+        self.assertEqual(bundle.get("country_code"), "US")
+
+    def test_burger_king_us_resolves_via_latlng_not_hungry_jacks(self):
+        # Prior bug: missing country_code + AU default → Burger King US coords
+        # resolved as hungry_jacks (AU alias). After fix, lat/lng → US → burger_king.
+        bundle = resolve_chain_menu_for_place(
+            {"name": "Burger King", "lat": 40.71, "lng": -74.00},
+            max_items=4,
+        )
+        self.assertTrue(bundle.get("chain_match"))
+        self.assertEqual(bundle.get("chain_key"), "burger_king")
+        self.assertNotEqual(bundle.get("chain_key"), "hungry_jacks")
+
+    def test_covered_us_chains_resolve_from_latlng_only(self):
+        # Smoke test for all US-only chains: with only name + SF coords, each should
+        # return a real chain match. Locks in the end-to-end flow for the
+        # "no address, no country_code" path common in test/dev.
+        us_chains = [
+            ("Chipotle Mexican Grill", "chipotle"),
+            ("Taco Bell", "taco_bell"),
+            ("Wendy's", "wendys"),
+            ("Panera Bread", "panera"),
+            ("Chick-fil-A", "chick_fil_a"),
+            ("Cava", "cava"),
+            ("Sweetgreen", "sweetgreen"),
+        ]
+        for name, expected_key in us_chains:
+            with self.subTest(name=name):
+                bundle = resolve_chain_menu_for_place(
+                    {"name": name, "lat": 37.77, "lng": -122.41},
+                    max_items=4,
+                )
+                self.assertTrue(bundle.get("chain_match"), f"{name} should match")
+                self.assertEqual(bundle.get("chain_key"), expected_key)
+                self.assertGreaterEqual(len(bundle.get("menu_items") or []), 1)
 
 
 if __name__ == "__main__":
