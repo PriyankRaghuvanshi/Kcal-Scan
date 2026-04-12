@@ -1,0 +1,56 @@
+{
+  "brand_name": "Laxmi Mishthan Bhandar (LMB)",
+  "source_type": "seed_template",
+  "source_url": "https://lmb.co.in/menu",
+  "store_name_variants": [
+    "lmb",
+    "laxmi mishthan bhandar",
+    "laxmi misthan"
+  ],
+  "items": [
+    {
+      "item_name": "Rajasthani Thali",
+      "category": "entree",
+      "estimated_calories": 680,
+      "estimated_protein_g": 22,
+      "estimated_carbs_g": 92,
+      "estimated_fat_g": 24,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Dal Bati Churma (set)",
+      "category": "entree",
+      "estimated_calories": 620,
+      "estimated_protein_g": 18,
+      "estimated_carbs_g": 78,
+      "estimated_fat_g": 26,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Mawa Kachori (2pc)",
+      "category": "dessert",
+      "estimated_calories": 380,
+      "estimated_protein_g": 8,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 18,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Ghevar (100g)",
+      "category": "dessert",
+      "estimated_calories": 420,
+      "estimated_protein_g": 6,
+      "estimated_carbs_g": 48,
+      "estimated_fat_g": 22,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    }
+  ]
+}

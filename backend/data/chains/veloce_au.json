@@ -1,0 +1,43 @@
+{
+  "brand_name": "Veloce",
+  "source_type": "seed_template",
+  "source_url": "https://veloce.com.au/menu",
+  "store_name_variants": [
+    "veloce"
+  ],
+  "items": [
+    {
+      "item_name": "Margherita Personal",
+      "category": "entree",
+      "estimated_calories": 520,
+      "estimated_protein_g": 22,
+      "estimated_carbs_g": 58,
+      "estimated_fat_g": 20,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Prosciutto Personal",
+      "category": "entree",
+      "estimated_calories": 540,
+      "estimated_protein_g": 26,
+      "estimated_carbs_g": 58,
+      "estimated_fat_g": 22,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Quattro Formaggi (veg)",
+      "category": "entree",
+      "estimated_calories": 560,
+      "estimated_protein_g": 24,
+      "estimated_carbs_g": 58,
+      "estimated_fat_g": 26,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    }
+  ]
+}

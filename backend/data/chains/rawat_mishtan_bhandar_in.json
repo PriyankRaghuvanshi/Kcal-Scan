@@ -1,0 +1,45 @@
+{
+  "brand_name": "Rawat Mishtan Bhandar",
+  "source_type": "seed_template",
+  "source_url": "https://rawatmishtanbhandar.com/menu",
+  "store_name_variants": [
+    "rawat",
+    "rawat mishtan bhandar",
+    "rawat mistan"
+  ],
+  "items": [
+    {
+      "item_name": "Rajasthani Thali",
+      "category": "entree",
+      "estimated_calories": 660,
+      "estimated_protein_g": 20,
+      "estimated_carbs_g": 92,
+      "estimated_fat_g": 22,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Pyaaz Kachori (2pc)",
+      "category": "entree",
+      "estimated_calories": 360,
+      "estimated_protein_g": 7,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 16,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Dal Baati (set)",
+      "category": "entree",
+      "estimated_calories": 540,
+      "estimated_protein_g": 16,
+      "estimated_carbs_g": 68,
+      "estimated_fat_g": 22,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    }
+  ]
+}

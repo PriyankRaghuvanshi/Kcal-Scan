@@ -1,0 +1,43 @@
+{
+  "brand_name": "Fatburger",
+  "source_type": "seed_template",
+  "source_url": "https://www.fatburger.com/menu",
+  "store_name_variants": [
+    "fatburger"
+  ],
+  "items": [
+    {
+      "item_name": "Original Fatburger",
+      "category": "entree",
+      "estimated_calories": 560,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 28,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Grilled Chicken Sandwich",
+      "category": "entree",
+      "estimated_calories": 460,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 18,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Turkey Burger",
+      "category": "entree",
+      "estimated_calories": 440,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 40,
+      "estimated_fat_g": 18,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    }
+  ]
+}

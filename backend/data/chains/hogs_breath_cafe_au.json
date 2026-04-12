@@ -1,0 +1,45 @@
+{
+  "brand_name": "Hog's Breath Cafe",
+  "source_type": "seed_template",
+  "source_url": "https://www.hogsbreath.com.au/menu",
+  "store_name_variants": [
+    "hogs breath",
+    "hog's breath",
+    "hogs breath cafe"
+  ],
+  "items": [
+    {
+      "item_name": "Prime Rib (small cut)",
+      "category": "entree",
+      "estimated_calories": 440,
+      "estimated_protein_g": 42,
+      "estimated_carbs_g": 8,
+      "estimated_fat_g": 28,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Grilled Chicken Breast + Veg",
+      "category": "entree",
+      "estimated_calories": 380,
+      "estimated_protein_g": 42,
+      "estimated_carbs_g": 12,
+      "estimated_fat_g": 18,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Caesar Salad (chicken)",
+      "category": "entree",
+      "estimated_calories": 440,
+      "estimated_protein_g": 34,
+      "estimated_carbs_g": 18,
+      "estimated_fat_g": 26,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    }
+  ]
+}
