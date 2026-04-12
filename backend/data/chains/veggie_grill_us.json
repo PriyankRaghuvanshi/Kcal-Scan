@@ -1,0 +1,50 @@
+{
+  "brand_name": "Veggie Grill",
+  "source_type": "seed_template",
+  "source_url": "https://www.veggiegrill.com/menu",
+  "store_name_variants": [
+    "veggie grill",
+    "veggiegrill"
+  ],
+  "items": [
+    {
+      "item_name": "Kale Caesar Salad (vegan)",
+      "category": "entree",
+      "estimated_calories": 380,
+      "estimated_protein_g": 16,
+      "estimated_carbs_g": 22,
+      "estimated_fat_g": 24,
+      "confidence": 0.78,
+      "vegetarian_possible": true,
+      "vegan_possible": true,
+      "halal_possible": true,
+      "gluten_free_possible": true
+    },
+    {
+      "item_name": "All Hail Kale Bowl",
+      "category": "entree",
+      "estimated_calories": 480,
+      "estimated_protein_g": 18,
+      "estimated_carbs_g": 54,
+      "estimated_fat_g": 18,
+      "confidence": 0.78,
+      "vegetarian_possible": true,
+      "vegan_possible": true,
+      "halal_possible": true,
+      "gluten_free_possible": true
+    },
+    {
+      "item_name": "Buffalo Wings (vegan)",
+      "category": "entree",
+      "estimated_calories": 360,
+      "estimated_protein_g": 22,
+      "estimated_carbs_g": 36,
+      "estimated_fat_g": 14,
+      "confidence": 0.78,
+      "vegetarian_possible": true,
+      "vegan_possible": true,
+      "halal_possible": true,
+      "gluten_free_possible": true
+    }
+  ]
+}

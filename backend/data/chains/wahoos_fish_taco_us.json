@@ -1,0 +1,52 @@
+{
+  "brand_name": "Wahoo's Fish Taco",
+  "source_type": "seed_template",
+  "source_url": "https://wahoos.com/menu",
+  "store_name_variants": [
+    "wahoos",
+    "wahoo's fish taco",
+    "wahoo'sfishtaco",
+    "wahoos fish taco"
+  ],
+  "items": [
+    {
+      "item_name": "Grilled Fish Taco (1pc)",
+      "category": "entree",
+      "estimated_calories": 220,
+      "estimated_protein_g": 18,
+      "estimated_carbs_g": 22,
+      "estimated_fat_g": 8,
+      "confidence": 0.78,
+      "vegetarian_possible": false,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": false
+    },
+    {
+      "item_name": "Chicken Bowl (small)",
+      "category": "entree",
+      "estimated_calories": 440,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 44,
+      "estimated_fat_g": 14,
+      "confidence": 0.78,
+      "vegetarian_possible": false,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true
+    },
+    {
+      "item_name": "Carne Asada Taco",
+      "category": "entree",
+      "estimated_calories": 240,
+      "estimated_protein_g": 18,
+      "estimated_carbs_g": 22,
+      "estimated_fat_g": 10,
+      "confidence": 0.78,
+      "vegetarian_possible": false,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": false
+    }
+  ]
+}
