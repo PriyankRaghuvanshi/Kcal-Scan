@@ -1,0 +1,32 @@
+{
+  "brand_name": "16 Handles",
+  "source_type": "seed_template",
+  "source_url": "https://16handles.com/menu",
+  "store_name_variants": [
+    "16 handles"
+  ],
+  "items": [
+    {
+      "item_name": "Small Frozen Yogurt (plain + fruit)",
+      "category": "dessert",
+      "estimated_calories": 200,
+      "estimated_protein_g": 8,
+      "estimated_carbs_g": 32,
+      "estimated_fat_g": 4,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Medium Froyo with Toppings",
+      "category": "dessert",
+      "estimated_calories": 320,
+      "estimated_protein_g": 10,
+      "estimated_carbs_g": 48,
+      "estimated_fat_g": 8,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    }
+  ]
+}

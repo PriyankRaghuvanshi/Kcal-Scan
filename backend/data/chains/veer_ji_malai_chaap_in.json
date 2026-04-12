@@ -1,0 +1,44 @@
+{
+  "brand_name": "Veer Ji Malai Chaap Wale",
+  "source_type": "seed_template",
+  "source_url": "https://veerjimalaichaap.com/menu",
+  "store_name_variants": [
+    "veer ji malai chaap",
+    "veer ji"
+  ],
+  "items": [
+    {
+      "item_name": "Malai Chaap (half, veg)",
+      "category": "entree",
+      "estimated_calories": 380,
+      "estimated_protein_g": 22,
+      "estimated_carbs_g": 14,
+      "estimated_fat_g": 24,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Afghani Chaap (half)",
+      "category": "entree",
+      "estimated_calories": 420,
+      "estimated_protein_g": 24,
+      "estimated_carbs_g": 12,
+      "estimated_fat_g": 28,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Chaap Curry + 2 Roti",
+      "category": "entree",
+      "estimated_calories": 520,
+      "estimated_protein_g": 24,
+      "estimated_carbs_g": 56,
+      "estimated_fat_g": 24,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    }
+  ]
+}

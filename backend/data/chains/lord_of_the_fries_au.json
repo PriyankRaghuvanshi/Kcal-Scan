@@ -1,0 +1,44 @@
+{
+  "brand_name": "Lord of the Fries",
+  "source_type": "seed_template",
+  "source_url": "https://lordofthefries.com.au/menu",
+  "store_name_variants": [
+    "lord of the fries",
+    "lotf"
+  ],
+  "items": [
+    {
+      "item_name": "Classic Burger (vegan)",
+      "category": "entree",
+      "estimated_calories": 460,
+      "estimated_protein_g": 18,
+      "estimated_carbs_g": 48,
+      "estimated_fat_g": 20,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": true
+    },
+    {
+      "item_name": "Mushroom Burger (vegan)",
+      "category": "entree",
+      "estimated_calories": 480,
+      "estimated_protein_g": 16,
+      "estimated_carbs_g": 50,
+      "estimated_fat_g": 22,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": true
+    },
+    {
+      "item_name": "Beer Battered Fries (small)",
+      "category": "side",
+      "estimated_calories": 340,
+      "estimated_protein_g": 4,
+      "estimated_carbs_g": 44,
+      "estimated_fat_g": 16,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": true
+    }
+  ]
+}

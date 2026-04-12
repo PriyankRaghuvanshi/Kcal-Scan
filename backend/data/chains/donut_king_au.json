@@ -1,0 +1,43 @@
+{
+  "brand_name": "Donut King",
+  "source_type": "seed_template",
+  "source_url": "https://www.donutking.com.au/menu",
+  "store_name_variants": [
+    "donut king"
+  ],
+  "items": [
+    {
+      "item_name": "Original Glazed Donut",
+      "category": "dessert",
+      "estimated_calories": 220,
+      "estimated_protein_g": 3,
+      "estimated_carbs_g": 26,
+      "estimated_fat_g": 12,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Cappuccino (no sugar)",
+      "category": "beverage",
+      "estimated_calories": 110,
+      "estimated_protein_g": 6,
+      "estimated_carbs_g": 9,
+      "estimated_fat_g": 5,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Hot Dog",
+      "category": "entree",
+      "estimated_calories": 320,
+      "estimated_protein_g": 14,
+      "estimated_carbs_g": 32,
+      "estimated_fat_g": 16,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    }
+  ]
+}

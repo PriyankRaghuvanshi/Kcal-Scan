@@ -1,0 +1,44 @@
+{
+  "brand_name": "Friendly's",
+  "source_type": "seed_template",
+  "source_url": "https://www.friendlys.com/menu",
+  "store_name_variants": [
+    "friendlys",
+    "friendly's"
+  ],
+  "items": [
+    {
+      "item_name": "Grilled Chicken Club",
+      "category": "entree",
+      "estimated_calories": 540,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 46,
+      "estimated_fat_g": 22,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Super Melts (grilled chicken)",
+      "category": "entree",
+      "estimated_calories": 620,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 48,
+      "estimated_fat_g": 32,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Single Scoop Ice Cream",
+      "category": "dessert",
+      "estimated_calories": 170,
+      "estimated_protein_g": 3,
+      "estimated_carbs_g": 22,
+      "estimated_fat_g": 8,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    }
+  ]
+}

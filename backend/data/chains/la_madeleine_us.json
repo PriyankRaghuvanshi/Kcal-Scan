@@ -1,0 +1,43 @@
+{
+  "brand_name": "La Madeleine",
+  "source_type": "seed_template",
+  "source_url": "https://www.lamadeleine.com/menu",
+  "store_name_variants": [
+    "la madeleine"
+  ],
+  "items": [
+    {
+      "item_name": "Cafe Latte (no sugar)",
+      "category": "beverage",
+      "estimated_calories": 120,
+      "estimated_protein_g": 7,
+      "estimated_carbs_g": 10,
+      "estimated_fat_g": 6,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Chicken Caesar Salad",
+      "category": "entree",
+      "estimated_calories": 440,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 18,
+      "estimated_fat_g": 24,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Turkey Croissant Sandwich",
+      "category": "entree",
+      "estimated_calories": 420,
+      "estimated_protein_g": 26,
+      "estimated_carbs_g": 44,
+      "estimated_fat_g": 16,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    }
+  ]
+}

@@ -1,0 +1,54 @@
+{
+  "brand_name": "Gajalee",
+  "source_type": "seed_template",
+  "source_url": "https://gajalee.com/menu",
+  "store_name_variants": [
+    "gajalee"
+  ],
+  "items": [
+    {
+      "item_name": "Bombay Duck Fry (6pc)",
+      "category": "entree",
+      "estimated_calories": 320,
+      "estimated_protein_g": 26,
+      "estimated_carbs_g": 10,
+      "estimated_fat_g": 18,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Prawn Koliwada",
+      "category": "entree",
+      "estimated_calories": 380,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 14,
+      "estimated_fat_g": 22,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Grilled Pomfret",
+      "category": "entree",
+      "estimated_calories": 360,
+      "estimated_protein_g": 34,
+      "estimated_carbs_g": 2,
+      "estimated_fat_g": 22,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Crab Masala (small)",
+      "category": "entree",
+      "estimated_calories": 440,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 14,
+      "estimated_fat_g": 26,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    }
+  ]
+}

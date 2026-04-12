@@ -1,0 +1,43 @@
+{
+  "brand_name": "Karachi Bakery",
+  "source_type": "seed_template",
+  "source_url": "https://karachibakery.com/menu",
+  "store_name_variants": [
+    "karachi bakery"
+  ],
+  "items": [
+    {
+      "item_name": "Fruit Biscuit (100g)",
+      "category": "snack",
+      "estimated_calories": 440,
+      "estimated_protein_g": 8,
+      "estimated_carbs_g": 60,
+      "estimated_fat_g": 18,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Cashew Badam Biscuit (100g)",
+      "category": "snack",
+      "estimated_calories": 520,
+      "estimated_protein_g": 10,
+      "estimated_carbs_g": 54,
+      "estimated_fat_g": 28,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Plum Cake Slice",
+      "category": "dessert",
+      "estimated_calories": 320,
+      "estimated_protein_g": 5,
+      "estimated_carbs_g": 48,
+      "estimated_fat_g": 10,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    }
+  ]
+}

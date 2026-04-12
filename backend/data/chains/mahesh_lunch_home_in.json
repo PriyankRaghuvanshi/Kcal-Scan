@@ -1,0 +1,55 @@
+{
+  "brand_name": "Mahesh Lunch Home",
+  "source_type": "seed_template",
+  "source_url": "https://maheshlunchhome.com/menu",
+  "store_name_variants": [
+    "mahesh lunch home",
+    "mahesh"
+  ],
+  "items": [
+    {
+      "item_name": "Grilled Pomfret",
+      "category": "entree",
+      "estimated_calories": 360,
+      "estimated_protein_g": 34,
+      "estimated_carbs_g": 2,
+      "estimated_fat_g": 22,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Prawn Gassi + Rice",
+      "category": "entree",
+      "estimated_calories": 520,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 54,
+      "estimated_fat_g": 20,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Bombil Fry (6pc)",
+      "category": "entree",
+      "estimated_calories": 320,
+      "estimated_protein_g": 26,
+      "estimated_carbs_g": 10,
+      "estimated_fat_g": 18,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Crab Curry + Rice",
+      "category": "entree",
+      "estimated_calories": 540,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 54,
+      "estimated_fat_g": 24,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    }
+  ]
+}

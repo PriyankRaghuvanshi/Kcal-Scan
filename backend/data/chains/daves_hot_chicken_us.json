@@ -1,0 +1,45 @@
+{
+  "brand_name": "Dave's Hot Chicken",
+  "source_type": "seed_template",
+  "source_url": "https://www.daveshotchicken.com/menu",
+  "store_name_variants": [
+    "daves hot chicken",
+    "dave's hot chicken",
+    "daves"
+  ],
+  "items": [
+    {
+      "item_name": "No Heat Chicken Tenders (2pc)",
+      "category": "entree",
+      "estimated_calories": 380,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 18,
+      "estimated_fat_g": 22,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Mild Chicken Slider",
+      "category": "entree",
+      "estimated_calories": 420,
+      "estimated_protein_g": 24,
+      "estimated_carbs_g": 38,
+      "estimated_fat_g": 20,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Chicken Tenders (3pc) + Slaw",
+      "category": "entree",
+      "estimated_calories": 520,
+      "estimated_protein_g": 36,
+      "estimated_carbs_g": 24,
+      "estimated_fat_g": 28,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    }
+  ]
+}
