@@ -1,0 +1,77 @@
+{
+  "brand_name": "Burger King",
+  "source_type": "seed_template",
+  "source_url": "https://www.bk.com/menu",
+  "store_name_variants": [
+    "burger king",
+    "bk"
+  ],
+  "items": [
+    {
+      "item_name": "Flame-Grilled Whopper Jr.",
+      "category": "entree",
+      "estimated_calories": 310,
+      "estimated_protein_g": 13,
+      "estimated_carbs_g": 26,
+      "estimated_fat_g": 18,
+      "confidence": 0.85,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Grilled Chicken Sandwich",
+      "category": "entree",
+      "estimated_calories": 430,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 40,
+      "estimated_fat_g": 16,
+      "confidence": 0.85,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "4pc Chicken Nuggets",
+      "category": "entree",
+      "estimated_calories": 170,
+      "estimated_protein_g": 8,
+      "estimated_carbs_g": 11,
+      "estimated_fat_g": 10,
+      "confidence": 0.85,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Impossible Whopper",
+      "category": "entree",
+      "estimated_calories": 630,
+      "estimated_protein_g": 25,
+      "estimated_carbs_g": 58,
+      "estimated_fat_g": 34,
+      "confidence": 0.85,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "BK Royal Crispy Chicken",
+      "category": "entree",
+      "estimated_calories": 580,
+      "estimated_protein_g": 26,
+      "estimated_carbs_g": 48,
+      "estimated_fat_g": 30,
+      "confidence": 0.85,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Garden Side Salad",
+      "category": "side",
+      "estimated_calories": 60,
+      "estimated_protein_g": 4,
+      "estimated_carbs_g": 8,
+      "estimated_fat_g": 2,
+      "confidence": 0.85,
+      "vegetarian_possible": true,
+      "vegan_possible": true
+    }
+  ]
+}

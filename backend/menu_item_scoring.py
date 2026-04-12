@@ -1645,6 +1645,63 @@ def recommend_menu_items_for_place(
         scored_items = preferred + [row for row in scored_items if row not in preferred]
     top_items = scored_items[:3]
     top_item = top_items[0] if top_items else None
+
+    # ── HARD GATE: Covered chains must ONLY show exact chain menu items ──
+    # If this venue is a recognized covered chain, reject any item that is not
+    # from an authoritative chain source.  This prevents generic/heuristic
+    # fallback items from leaking onto chain-backed cards.
+    _CHAIN_TRUSTED_SOURCES = frozenset({
+        "chain_registry", "ingested_chain_item",
+    })
+    covered_chain_key = str(chain_bundle.get("chain_key") or "").strip().lower() if chain_bundle else ""
+    item_provenance = "none"
+    covered_chain_neutral = False
+    if covered_chain_key:
+        chain_only = [
+            row for row in scored_items
+            if str(row.get("menu_item_source") or "").strip().lower() in _CHAIN_TRUSTED_SOURCES
+        ]
+        if chain_only:
+            top_items = chain_only[:3]
+            top_item = top_items[0]
+            item_provenance = "exact_chain_menu"
+        else:
+            # No exact chain items — keep best heuristic as a suggestion
+            # but downgrade provenance so badge never says Chain-backed/Verified.
+            item_provenance = "heuristic_suggestion"
+            covered_chain_neutral = False
+            # Auto-queue this chain+market for priority enrichment so real items replace the suggestion
+            try:
+                area = get_area_for_place(place)
+                area_key = str(area.get("area_key") or "").strip() if area else None
+                enqueue_place_for_enrichment(
+                    place,
+                    reason="covered_chain_no_items",
+                    area_key=area_key,
+                    chain_key=covered_chain_key,
+                )
+                place["_enqueued_for_enrichment"] = True
+                place["_enrichment_enqueue_reason"] = "covered_chain_no_items"
+            except Exception:
+                pass
+    elif top_item:
+        top_src = str(top_item.get("menu_item_source") or "").strip().lower()
+        if top_src in {"real_menu", "user_scan", "exact_menu_cache", "structured_menu", "menu_intelligence_store"}:
+            item_provenance = "exact_menu"
+        elif top_src in {"enriched_local_profile", "local_venue_profile", "exact_local_profile"}:
+            item_provenance = "local_profile"
+        elif top_src in {"llm_inferred", "llm_reasoning"}:
+            item_provenance = "llm_inferred"
+        elif top_src == "heuristic" or any(
+            tok in str(top_item.get("item_name") or "").strip().lower()
+            for tok in _GENERIC_FALLBACK_NAME_TOKENS
+        ):
+            item_provenance = "generic_fallback"
+        else:
+            item_provenance = "heuristic"
+
+    can_show_verified_badge = item_provenance == "exact_chain_menu" or item_provenance == "exact_menu"
+
     resolved_source = str(menu_source or "").strip().lower()
     if top_item and isinstance(top_item, dict):
         top_source = str(top_item.get("menu_item_source") or "").strip().lower()
@@ -1926,4 +1983,15 @@ def recommend_menu_items_for_place(
         "cut_mode_active": cut_mode_active,
         "personalization_goal": goal_value,
         "llm_reasoning_candidates": llm_reasoning_candidates,
+        # Item-level provenance for covered-chain trust gating
+        "item_provenance": item_provenance,
+        "can_show_verified_badge": can_show_verified_badge,
+        "covered_chain_key": covered_chain_key,
+        "covered_chain_neutral": covered_chain_neutral,
+        "covered_chain_display_name": str(
+            chain_bundle.get("canonical_name") or chain_bundle.get("chain_name_resolved") or chain_bundle.get("chain_name") or ""
+        ).strip() if covered_chain_key and chain_bundle else "",
+        "covered_chain_menu_url": str(
+            chain_bundle.get("official_menu_source_url") or ""
+        ).strip() if covered_chain_key and chain_bundle else "",
     }

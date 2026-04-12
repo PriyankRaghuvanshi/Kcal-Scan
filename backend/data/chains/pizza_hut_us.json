@@ -1,0 +1,76 @@
+{
+  "brand_name": "Pizza Hut",
+  "source_type": "seed_template",
+  "source_url": "https://www.pizzahut.com/menu",
+  "store_name_variants": [
+    "pizza hut"
+  ],
+  "items": [
+    {
+      "item_name": "Chicken Supreme (2 slices, thin)",
+      "category": "entree",
+      "estimated_calories": 400,
+      "estimated_protein_g": 22,
+      "estimated_carbs_g": 38,
+      "estimated_fat_g": 18,
+      "confidence": 0.85,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Veggie Lover (2 slices, thin)",
+      "category": "entree",
+      "estimated_calories": 360,
+      "estimated_protein_g": 14,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 14,
+      "confidence": 0.85,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Grilled Chicken Alfredo Pasta",
+      "category": "entree",
+      "estimated_calories": 530,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 52,
+      "estimated_fat_g": 22,
+      "confidence": 0.85,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Tuscani Chicken Pasta",
+      "category": "entree",
+      "estimated_calories": 520,
+      "estimated_protein_g": 26,
+      "estimated_carbs_g": 48,
+      "estimated_fat_g": 24,
+      "confidence": 0.85,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Caesar Side Salad",
+      "category": "side",
+      "estimated_calories": 130,
+      "estimated_protein_g": 8,
+      "estimated_carbs_g": 8,
+      "estimated_fat_g": 8,
+      "confidence": 0.85,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "8 Boneless Wings (plain)",
+      "category": "entree",
+      "estimated_calories": 380,
+      "estimated_protein_g": 24,
+      "estimated_carbs_g": 20,
+      "estimated_fat_g": 22,
+      "confidence": 0.85,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    }
+  ]
+}

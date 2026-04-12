@@ -87,6 +87,13 @@ def build_ranked_place_profile(
 
     Returns only ranking-related keys to merge into the place.
     """
+    # Item-level provenance: tracks whether the displayed item comes from
+    # an exact chain menu, a heuristic suggestion, or something else.
+    covered_chain_neutral = bool(place.get("covered_chain_neutral"))
+    item_provenance = str(place.get("item_provenance") or "").strip() or None
+    covered_chain_key = str(place.get("covered_chain_key") or "").strip() or None
+    can_show_verified = bool(place.get("can_show_verified_badge"))
+
     best_order = str(place.get("recommended_order") or place.get("best_order") or "").strip() or "Lighter menu option"
     place_profile = {
         "name": str(place.get("name") or "").strip(),
@@ -133,6 +140,9 @@ def build_ranked_place_profile(
         rec_label = LABEL_SUGGESTED_HEALTHIER
     if is_generic and rec_label == LABEL_STRONG_OPTION:
         rec_label = LABEL_NEEDS_MENU_CHECK
+    # Covered chain with heuristic suggestion: downgrade from Best pick
+    if item_provenance == "heuristic_suggestion" and rec_label == LABEL_BEST_PICK:
+        rec_label = LABEL_SUGGESTED_HEALTHIER
 
     display_rank_score_100 = round(meal_result["meal_fitness_score_100"], 1)
     venue_prior_score_100 = int(round(_safe_float(place.get("health_score"), 5.0) * 10.0))
@@ -141,6 +151,9 @@ def build_ranked_place_profile(
 
     diet_pref = str(user_context.get("diet_preference") or "").strip() or ""
     confidence_lbl = _confidence_label(place_profile["menu_item_source"], place_profile["menu_item_confidence"], diet_preference=diet_pref)
+    # Override confidence label for heuristic suggestion on covered chain
+    if item_provenance == "heuristic_suggestion":
+        confidence_lbl = "Estimated"
     fit_today_100 = _safe_float(place.get("fit_today_score_100") or ctx.get("fit_today_score_100"), 50.0)
     rank_reason = _rank_reason_short(
         display_rank_score_100,
@@ -232,6 +245,12 @@ def build_ranked_place_profile(
         "best_item_source": place_profile["menu_item_source"],
         "best_item_is_generic_fallback": is_generic,
         "best_item_needs_menu_check": confidence_lbl == "Needs menu check" or rec_label == LABEL_NEEDS_MENU_CHECK,
+        "item_provenance": item_provenance,
+        "can_show_verified_badge": can_show_verified,
+        "covered_chain_key": covered_chain_key,
+        "covered_chain_neutral": covered_chain_neutral,
+        "covered_chain_display_name": str(place.get("covered_chain_display_name") or "").strip(),
+        "covered_chain_menu_url": str(place.get("covered_chain_menu_url") or "").strip(),
         "food_quality_score_100": round(food_quality_100, 1),
         "protein_density_score_100": round(protein_density_100, 1),
         "context_bonus_100": context_mod.get("context_bonus_100"),

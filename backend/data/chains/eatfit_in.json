@@ -1,0 +1,77 @@
+{
+  "brand_name": "EatFit",
+  "source_type": "seed_template",
+  "source_url": "https://www.eatfit.in",
+  "store_name_variants": [
+    "eatfit",
+    "eat fit"
+  ],
+  "items": [
+    {
+      "item_name": "Grilled Chicken Meal Box",
+      "category": "entree",
+      "estimated_calories": 440,
+      "estimated_protein_g": 34,
+      "estimated_carbs_g": 40,
+      "estimated_fat_g": 12,
+      "confidence": 0.85,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Paneer Bhurji Meal Box",
+      "category": "entree",
+      "estimated_calories": 420,
+      "estimated_protein_g": 18,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 18,
+      "confidence": 0.85,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Chicken Tikka Bowl",
+      "category": "entree",
+      "estimated_calories": 380,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 32,
+      "estimated_fat_g": 12,
+      "confidence": 0.85,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Egg Bhurji Meal Box",
+      "category": "entree",
+      "estimated_calories": 400,
+      "estimated_protein_g": 22,
+      "estimated_carbs_g": 38,
+      "estimated_fat_g": 16,
+      "confidence": 0.85,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Dal Khichdi Bowl",
+      "category": "entree",
+      "estimated_calories": 340,
+      "estimated_protein_g": 12,
+      "estimated_carbs_g": 48,
+      "estimated_fat_g": 8,
+      "confidence": 0.85,
+      "vegetarian_possible": true,
+      "vegan_possible": true
+    },
+    {
+      "item_name": "Ragi Roti Meal",
+      "category": "entree",
+      "estimated_calories": 360,
+      "estimated_protein_g": 14,
+      "estimated_carbs_g": 46,
+      "estimated_fat_g": 10,
+      "confidence": 0.85,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    }
+  ]
+}

@@ -1,0 +1,44 @@
+{
+  "snapshot_id": "snap_dominos_us_v1",
+  "chain_key": "dominos",
+  "market": "US",
+  "registry_version": 1,
+  "created_at": "2026-04-12T00:54:50.831672+00:00",
+  "fixture_version": "v1",
+  "generator": {
+    "module": "chain_baseline_runner",
+    "schema_version": "v1"
+  },
+  "cases": [
+    {
+      "case_id": "default_dominos_US",
+      "input_signature": {
+        "restaurant_name": "Dominos",
+        "market": "US"
+      },
+      "outputs": {
+        "matched_chain_key": "dominos",
+        "chain_menu_store": "supabase",
+        "top_item_names": [
+          "Thin Crust Chicken Supreme (2 slices)",
+          "Mini Pizza + Side Garden Salad",
+          "Thin Crust Margherita (2 slices)"
+        ],
+        "top_item_scores": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "trust_tiers": {},
+        "fallback_mode_used": "strict",
+        "totals": {
+          "kcal": 520.0,
+          "protein_g": 26.0,
+          "carbs_g": 0.0,
+          "fat_g": 0.0
+        },
+        "no_result": false
+      }
+    }
+  ]
+}

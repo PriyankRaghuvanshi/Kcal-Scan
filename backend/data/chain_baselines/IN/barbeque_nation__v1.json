@@ -1,0 +1,44 @@
+{
+  "snapshot_id": "snap_barbeque_nation_in_v1",
+  "chain_key": "barbeque_nation",
+  "market": "IN",
+  "registry_version": 1,
+  "created_at": "2026-04-12T00:54:47.195373+00:00",
+  "fixture_version": "v1",
+  "generator": {
+    "module": "chain_baseline_runner",
+    "schema_version": "v1"
+  },
+  "cases": [
+    {
+      "case_id": "default_barbeque_nation_IN",
+      "input_signature": {
+        "restaurant_name": "Barbeque Nation",
+        "market": "IN"
+      },
+      "outputs": {
+        "matched_chain_key": "barbeque_nation",
+        "chain_menu_store": "supabase",
+        "top_item_names": [
+          "Tandoori Chicken Skewer Platter",
+          "Grilled Fish (Herb Marinade)",
+          "Grilled Chicken Sizzler"
+        ],
+        "top_item_scores": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "trust_tiers": {},
+        "fallback_mode_used": "strict",
+        "totals": {
+          "kcal": 520.0,
+          "protein_g": 48.0,
+          "carbs_g": 0.0,
+          "fat_g": 0.0
+        },
+        "no_result": false
+      }
+    }
+  ]
+}

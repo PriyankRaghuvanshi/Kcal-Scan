@@ -1,0 +1,77 @@
+{
+  "brand_name": "Burger King",
+  "source_type": "seed_template",
+  "source_url": "https://www.burgerking.in/menu",
+  "store_name_variants": [
+    "burger king",
+    "bk"
+  ],
+  "items": [
+    {
+      "item_name": "Chicken Whopper",
+      "category": "entree",
+      "estimated_calories": 520,
+      "estimated_protein_g": 22,
+      "estimated_carbs_g": 44,
+      "estimated_fat_g": 26,
+      "confidence": 0.85,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "BK Chicken Burger",
+      "category": "entree",
+      "estimated_calories": 340,
+      "estimated_protein_g": 16,
+      "estimated_carbs_g": 34,
+      "estimated_fat_g": 14,
+      "confidence": 0.85,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Paneer Royale",
+      "category": "entree",
+      "estimated_calories": 460,
+      "estimated_protein_g": 14,
+      "estimated_carbs_g": 44,
+      "estimated_fat_g": 24,
+      "confidence": 0.85,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Crispy Veg Burger",
+      "category": "entree",
+      "estimated_calories": 320,
+      "estimated_protein_g": 8,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 12,
+      "confidence": 0.85,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "4pc Chicken Nuggets",
+      "category": "entree",
+      "estimated_calories": 180,
+      "estimated_protein_g": 10,
+      "estimated_carbs_g": 12,
+      "estimated_fat_g": 10,
+      "confidence": 0.85,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "BK Veggie Strips",
+      "category": "side",
+      "estimated_calories": 240,
+      "estimated_protein_g": 6,
+      "estimated_carbs_g": 28,
+      "estimated_fat_g": 12,
+      "confidence": 0.85,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    }
+  ]
+}

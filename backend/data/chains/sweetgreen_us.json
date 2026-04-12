@@ -1,0 +1,77 @@
+{
+  "brand_name": "Sweetgreen",
+  "source_type": "seed_template",
+  "source_url": "https://www.sweetgreen.com/menu",
+  "store_name_variants": [
+    "sweetgreen",
+    "sweet green"
+  ],
+  "items": [
+    {
+      "item_name": "Harvest Bowl",
+      "category": "entree",
+      "estimated_calories": 640,
+      "estimated_protein_g": 22,
+      "estimated_carbs_g": 56,
+      "estimated_fat_g": 36,
+      "confidence": 0.85,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Chicken Pesto Parm",
+      "category": "entree",
+      "estimated_calories": 620,
+      "estimated_protein_g": 38,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 28,
+      "confidence": 0.85,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Super Green Goddess",
+      "category": "entree",
+      "estimated_calories": 460,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 32,
+      "estimated_fat_g": 24,
+      "confidence": 0.85,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Crispy Rice Bowl",
+      "category": "entree",
+      "estimated_calories": 580,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 52,
+      "estimated_fat_g": 22,
+      "confidence": 0.85,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Kale Caesar Salad",
+      "category": "entree",
+      "estimated_calories": 440,
+      "estimated_protein_g": 18,
+      "estimated_carbs_g": 26,
+      "estimated_fat_g": 30,
+      "confidence": 0.85,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Garden Cobb",
+      "category": "entree",
+      "estimated_calories": 520,
+      "estimated_protein_g": 36,
+      "estimated_carbs_g": 18,
+      "estimated_fat_g": 34,
+      "confidence": 0.85,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    }
+  ]
+}

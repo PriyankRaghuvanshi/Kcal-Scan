@@ -1,0 +1,44 @@
+{
+  "snapshot_id": "snap_haldirams_in_v1",
+  "chain_key": "haldirams",
+  "market": "IN",
+  "registry_version": 1,
+  "created_at": "2026-04-12T00:54:47.011305+00:00",
+  "fixture_version": "v1",
+  "generator": {
+    "module": "chain_baseline_runner",
+    "schema_version": "v1"
+  },
+  "cases": [
+    {
+      "case_id": "default_haldirams_IN",
+      "input_signature": {
+        "restaurant_name": "Haldirams",
+        "market": "IN"
+      },
+      "outputs": {
+        "matched_chain_key": "haldirams",
+        "chain_menu_store": "supabase",
+        "top_item_names": [
+          "Tandoori Chicken",
+          "Paneer Tikka",
+          "Tandoori Chicken Bowl"
+        ],
+        "top_item_scores": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "trust_tiers": {},
+        "fallback_mode_used": "strict",
+        "totals": {
+          "kcal": 420.0,
+          "protein_g": 46.0,
+          "carbs_g": 0.0,
+          "fat_g": 0.0
+        },
+        "no_result": false
+      }
+    }
+  ]
+}

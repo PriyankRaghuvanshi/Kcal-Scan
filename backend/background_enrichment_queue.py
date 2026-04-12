@@ -29,6 +29,7 @@ REASONS = (
     "vegetarian_option_repeated",
     "better_order_repeated",
     "conflict_needs_review",
+    "covered_chain_no_items",
 )
 STATUSES = ("pending", "processing", "processed", "failed")
 

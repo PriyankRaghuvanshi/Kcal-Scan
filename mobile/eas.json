@@ -1,7 +1,7 @@
 {
   "cli": {
     "version": ">= 16.28.0",
-    "appVersionSource": "remote"
+    "appVersionSource": "local"
   },
   "build": {
     "development": {
@@ -21,7 +21,7 @@
       "autoIncrement": true,
       "cache": {
         "disabled": false,
-        "key": "production-v7-20260409-rc-key-fix"
+        "key": "production-v10-20260411-vc185"
       },
       "env": {
         "EXPO_PUBLIC_SUPABASE_URL": "https://mgrwrthvhjpmbrvmvkeo.supabase.co",

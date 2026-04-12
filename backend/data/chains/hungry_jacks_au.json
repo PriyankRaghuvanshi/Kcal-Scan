@@ -1,48 +1,77 @@
 {
   "brand_name": "Hungry Jack's",
-  "source_type": "official_website_menu",
+  "source_type": "seed_template",
   "source_url": "https://www.hungryjacks.com.au/menu",
   "store_name_variants": [
-    "hungry jack's",
     "hungry jacks",
-    "hungryjacks",
-    "hj",
-    "burger king",
-    "burger king australia"
+    "hungry jack's"
   ],
   "items": [
     {
-      "item_name": "Whopper Jr, no mayo",
-      "category": "burger",
+      "item_name": "Grilled Chicken Burger",
+      "category": "entree",
       "estimated_calories": 420,
-      "estimated_protein_g": 21,
-      "estimated_carbs_g": 41,
-      "estimated_fat_g": 18,
-      "confidence": 0.84,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 38,
+      "estimated_fat_g": 16,
+      "confidence": 0.85,
       "vegetarian_possible": false,
       "vegan_possible": false
     },
     {
-      "item_name": "Grilled Chicken Burger, no mayo",
-      "category": "burger",
-      "estimated_calories": 430,
-      "estimated_protein_g": 24,
-      "estimated_carbs_g": 39,
-      "estimated_fat_g": 18,
-      "confidence": 0.8,
-      "vegetarian_possible": false,
-      "vegan_possible": false
-    },
-    {
-      "item_name": "Garden Salad + Grilled Chicken Patty",
-      "category": "salad",
+      "item_name": "Whopper Junior",
+      "category": "entree",
       "estimated_calories": 340,
-      "estimated_protein_g": 26,
-      "estimated_carbs_g": 16,
-      "estimated_fat_g": 17,
-      "confidence": 0.76,
+      "estimated_protein_g": 16,
+      "estimated_carbs_g": 28,
+      "estimated_fat_g": 18,
+      "confidence": 0.85,
       "vegetarian_possible": false,
       "vegan_possible": false
+    },
+    {
+      "item_name": "Chicken Royale",
+      "category": "entree",
+      "estimated_calories": 480,
+      "estimated_protein_g": 22,
+      "estimated_carbs_g": 44,
+      "estimated_fat_g": 24,
+      "confidence": 0.85,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Veggie Burger",
+      "category": "entree",
+      "estimated_calories": 390,
+      "estimated_protein_g": 14,
+      "estimated_carbs_g": 46,
+      "estimated_fat_g": 16,
+      "confidence": 0.85,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "6 Nuggets",
+      "category": "entree",
+      "estimated_calories": 260,
+      "estimated_protein_g": 14,
+      "estimated_carbs_g": 18,
+      "estimated_fat_g": 14,
+      "confidence": 0.85,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Garden Salad",
+      "category": "side",
+      "estimated_calories": 40,
+      "estimated_protein_g": 2,
+      "estimated_carbs_g": 6,
+      "estimated_fat_g": 1,
+      "confidence": 0.85,
+      "vegetarian_possible": true,
+      "vegan_possible": true
     }
   ]
 }
