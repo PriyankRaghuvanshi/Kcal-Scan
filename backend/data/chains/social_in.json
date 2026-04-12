@@ -1,0 +1,56 @@
+{
+  "brand_name": "Social",
+  "source_type": "seed_template",
+  "source_url": "https://socialoffline.in/menu",
+  "store_name_variants": [
+    "social",
+    "social restaurant",
+    "social cafe"
+  ],
+  "items": [
+    {
+      "item_name": "Grilled Chicken Bao",
+      "category": "entree",
+      "estimated_calories": 280,
+      "estimated_protein_g": 20,
+      "estimated_carbs_g": 30,
+      "estimated_fat_g": 10,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Keema Pav (half)",
+      "category": "entree",
+      "estimated_calories": 420,
+      "estimated_protein_g": 24,
+      "estimated_carbs_g": 38,
+      "estimated_fat_g": 20,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Peri Peri Chicken Salad",
+      "category": "entree",
+      "estimated_calories": 340,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 18,
+      "estimated_fat_g": 16,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Chicken Tikka Roll",
+      "category": "entree",
+      "estimated_calories": 440,
+      "estimated_protein_g": 26,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 18,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    }
+  ]
+}

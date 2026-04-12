@@ -375,7 +375,8 @@ def _infer_country_from_latlng(lat: Any, lng: Any) -> str:
     if lat_f == 0.0 and lng_f == 0.0:
         return ""
     # Rough bounding boxes. Address-based inference runs first; this is the fallback.
-    # Ordered so overlapping boxes (US/CA, AU/NZ) resolve the more populous box first.
+    # Ordered so overlapping regions (SG carve-out before MY; TH before MY; MY before ID)
+    # resolve correctly.
     if 24.0 <= lat_f <= 49.5 and -125.0 <= lng_f <= -66.0:
         return "US"  # continental US
     if 18.0 <= lat_f <= 23.0 and -161.0 <= lng_f <= -154.0:
@@ -390,6 +391,21 @@ def _infer_country_from_latlng(lat: Any, lng: Any) -> str:
         return "IN"
     if 49.0 <= lat_f <= 61.0 and -9.0 <= lng_f <= 2.0:
         return "GB"
+    # Singapore carve-out before Malaysia (SG is ~1.15-1.5°N, 103.5-104.1°E)
+    if 1.15 <= lat_f <= 1.5 and 103.5 <= lng_f <= 104.1:
+        return "SG"
+    # Thailand (lat 5.5-20.5, lng 97.3-105.6); carve before MY to handle southern TH
+    if 5.5 <= lat_f <= 20.5 and 97.3 <= lng_f <= 105.6:
+        return "TH"
+    # Malaysia peninsular + east (Sabah/Sarawak). Keep before Indonesia.
+    if 0.8 <= lat_f <= 7.5 and 99.5 <= lng_f <= 119.3:
+        return "MY"
+    # Indonesia — catches most of archipelago south of equator
+    if -11.0 <= lat_f <= 6.1 and 95.0 <= lng_f <= 141.0:
+        return "ID"
+    # Philippines
+    if 4.5 <= lat_f <= 21.0 and 116.0 <= lng_f <= 127.0:
+        return "PH"
     return ""
 
 
@@ -416,6 +432,34 @@ def _infer_country_code(place: Dict[str, Any]) -> str:
         return "NZ"
     if "united kingdom" in text or " uk" in f" {text} ":
         return "GB"
+    if "singapore" in text:
+        return "SG"
+    if "malaysia" in text:
+        return "MY"
+    if "thailand" in text:
+        return "TH"
+    if "indonesia" in text:
+        return "ID"
+    if "philippines" in text:
+        return "PH"
+    if "japan" in text:
+        return "JP"
+    if "canada" in text:
+        return "CA"
+    if "brazil" in text or "brasil" in text:
+        return "BR"
+    if "mexico" in text or "méxico" in text:
+        return "MX"
+    if "germany" in text or "deutschland" in text:
+        return "DE"
+    if "france" in text:
+        return "FR"
+    if "south africa" in text:
+        return "ZA"
+    if "united arab emirates" in text or " uae" in f" {text} ":
+        return "AE"
+    if "south korea" in text or "republic of korea" in text:
+        return "KR"
 
     latlng_guess = _infer_country_from_latlng(payload.get("lat"), payload.get("lng"))
     if latlng_guess:

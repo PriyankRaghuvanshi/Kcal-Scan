@@ -1,0 +1,45 @@
+{
+  "brand_name": "Carl's Jr.",
+  "source_type": "seed_template",
+  "source_url": "https://www.carlsjr.co.nz/menu",
+  "store_name_variants": [
+    "carls jr",
+    "carl's jr",
+    "carls junior"
+  ],
+  "items": [
+    {
+      "item_name": "Grilled Chicken Burger",
+      "category": "entree",
+      "estimated_calories": 420,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 40,
+      "estimated_fat_g": 16,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Charbroiled BBQ Chicken Sandwich",
+      "category": "entree",
+      "estimated_calories": 440,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 16,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Side Salad",
+      "category": "side",
+      "estimated_calories": 60,
+      "estimated_protein_g": 2,
+      "estimated_carbs_g": 8,
+      "estimated_fat_g": 2,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": true
+    }
+  ]
+}

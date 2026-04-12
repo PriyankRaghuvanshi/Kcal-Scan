@@ -1,0 +1,54 @@
+{
+  "brand_name": "Burger Singh",
+  "source_type": "seed_template",
+  "source_url": "https://www.burgersinghonline.com/menu",
+  "store_name_variants": [
+    "burger singh"
+  ],
+  "items": [
+    {
+      "item_name": "Doon Valley Grilled Chicken Burger",
+      "category": "entree",
+      "estimated_calories": 460,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 48,
+      "estimated_fat_g": 16,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Punjabi Express Grilled Chicken Burger",
+      "category": "entree",
+      "estimated_calories": 480,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 46,
+      "estimated_fat_g": 18,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "UP Wala Butter Paneer Burger",
+      "category": "entree",
+      "estimated_calories": 520,
+      "estimated_protein_g": 22,
+      "estimated_carbs_g": 52,
+      "estimated_fat_g": 24,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Peri Peri Grilled Wings (6pc)",
+      "category": "entree",
+      "estimated_calories": 320,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 4,
+      "estimated_fat_g": 22,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    }
+  ]
+}

@@ -10630,6 +10630,2322 @@
           "menu_item_confidence": 0.76
         }
       ]
+    },
+    {
+      "chain_id": "a2b_in",
+      "chain_key": "a2b",
+      "chain_name": "Adyar Ananda Bhavan (A2B)",
+      "country_code": "IN",
+      "source_type": "official_website_menu",
+      "official_menu_source_url": "https://www.aabsweets.com/menu",
+      "menu_last_updated": "2026-04-12",
+      "chain_aliases": [
+        "a2b",
+        "adyar ananda bhavan",
+        "adyar anandha bhavan"
+      ],
+      "items": [
+        {
+          "item_name": "Ghee Roast Dosa",
+          "category": "entree",
+          "estimated_calories": 420,
+          "estimated_protein_g": 10,
+          "estimated_carbs_g": 58,
+          "estimated_fat_g": 18,
+          "estimated_satiety": "low",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Idli Sambar (4pc)",
+          "category": "entree",
+          "estimated_calories": 280,
+          "estimated_protein_g": 10,
+          "estimated_carbs_g": 52,
+          "estimated_fat_g": 4,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Curd Rice",
+          "category": "entree",
+          "estimated_calories": 320,
+          "estimated_protein_g": 10,
+          "estimated_carbs_g": 42,
+          "estimated_fat_g": 12,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Chicken Biryani (half)",
+          "category": "entree",
+          "estimated_calories": 560,
+          "estimated_protein_g": 28,
+          "estimated_carbs_g": 62,
+          "estimated_fat_g": 22,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.82
+        }
+      ]
+    },
+    {
+      "chain_id": "after_you_th",
+      "chain_key": "after_you",
+      "chain_name": "After You",
+      "country_code": "TH",
+      "source_type": "official_website_menu",
+      "official_menu_source_url": "https://afteryoudessertcafe.com/menu",
+      "menu_last_updated": "2026-04-12",
+      "chain_aliases": [
+        "after you",
+        "after you dessert cafe"
+      ],
+      "items": [
+        {
+          "item_name": "Shibuya Honey Toast (share)",
+          "category": "dessert",
+          "estimated_calories": 720,
+          "estimated_protein_g": 10,
+          "estimated_carbs_g": 110,
+          "estimated_fat_g": 24,
+          "estimated_satiety": "low",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Matcha Latte (less sweet)",
+          "category": "beverage",
+          "estimated_calories": 220,
+          "estimated_protein_g": 6,
+          "estimated_carbs_g": 30,
+          "estimated_fat_g": 8,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Mango Sticky Rice",
+          "category": "dessert",
+          "estimated_calories": 420,
+          "estimated_protein_g": 6,
+          "estimated_carbs_g": 78,
+          "estimated_fat_g": 12,
+          "estimated_satiety": "low",
+          "menu_item_confidence": 0.82
+        }
+      ]
+    },
+    {
+      "chain_id": "ayam_geprek_bensu_id",
+      "chain_key": "ayam_geprek_bensu",
+      "chain_name": "Ayam Geprek Bensu",
+      "country_code": "ID",
+      "source_type": "official_website_menu",
+      "official_menu_source_url": "https://ayamgeprekbensu.co.id/menu",
+      "menu_last_updated": "2026-04-12",
+      "chain_aliases": [
+        "ayam geprek bensu",
+        "geprek bensu",
+        "bensu"
+      ],
+      "items": [
+        {
+          "item_name": "Ayam Geprek + Rice (level 1)",
+          "category": "entree",
+          "estimated_calories": 580,
+          "estimated_protein_g": 34,
+          "estimated_carbs_g": 66,
+          "estimated_fat_g": 18,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Ayam Bakar + Rice",
+          "category": "entree",
+          "estimated_calories": 520,
+          "estimated_protein_g": 32,
+          "estimated_carbs_g": 58,
+          "estimated_fat_g": 14,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Tahu Tempe Side",
+          "category": "side",
+          "estimated_calories": 180,
+          "estimated_protein_g": 12,
+          "estimated_carbs_g": 12,
+          "estimated_fat_g": 10,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.82
+        }
+      ]
+    },
+    {
+      "chain_id": "barista_in",
+      "chain_key": "barista",
+      "chain_name": "Barista",
+      "country_code": "IN",
+      "source_type": "official_website_menu",
+      "official_menu_source_url": "https://www.barista.co.in/menu",
+      "menu_last_updated": "2026-04-12",
+      "chain_aliases": [
+        "barista",
+        "barista coffee"
+      ],
+      "items": [
+        {
+          "item_name": "Americano (black)",
+          "category": "beverage",
+          "estimated_calories": 10,
+          "estimated_protein_g": 0,
+          "estimated_carbs_g": 1,
+          "estimated_fat_g": 0,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Cappuccino (no sugar)",
+          "category": "beverage",
+          "estimated_calories": 120,
+          "estimated_protein_g": 7,
+          "estimated_carbs_g": 10,
+          "estimated_fat_g": 6,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Chicken Panini",
+          "category": "entree",
+          "estimated_calories": 380,
+          "estimated_protein_g": 24,
+          "estimated_carbs_g": 38,
+          "estimated_fat_g": 14,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.82
+        }
+      ]
+    },
+    {
+      "chain_id": "burger_singh_in",
+      "chain_key": "burger_singh",
+      "chain_name": "Burger Singh",
+      "country_code": "IN",
+      "source_type": "official_website_menu",
+      "official_menu_source_url": "https://www.burgersinghonline.com/menu",
+      "menu_last_updated": "2026-04-12",
+      "chain_aliases": [
+        "burger singh"
+      ],
+      "items": [
+        {
+          "item_name": "Doon Valley Grilled Chicken Burger",
+          "category": "entree",
+          "estimated_calories": 460,
+          "estimated_protein_g": 28,
+          "estimated_carbs_g": 48,
+          "estimated_fat_g": 16,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Punjabi Express Grilled Chicken Burger",
+          "category": "entree",
+          "estimated_calories": 480,
+          "estimated_protein_g": 30,
+          "estimated_carbs_g": 46,
+          "estimated_fat_g": 18,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "UP Wala Butter Paneer Burger",
+          "category": "entree",
+          "estimated_calories": 520,
+          "estimated_protein_g": 22,
+          "estimated_carbs_g": 52,
+          "estimated_fat_g": 24,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Peri Peri Grilled Wings (6pc)",
+          "category": "entree",
+          "estimated_calories": 320,
+          "estimated_protein_g": 28,
+          "estimated_carbs_g": 4,
+          "estimated_fat_g": 22,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.82
+        }
+      ]
+    },
+    {
+      "chain_id": "burgerfuel_nz",
+      "chain_key": "burgerfuel",
+      "chain_name": "BurgerFuel",
+      "country_code": "NZ",
+      "source_type": "official_website_menu",
+      "official_menu_source_url": "https://burgerfuel.com/nz/menu",
+      "menu_last_updated": "2026-04-12",
+      "chain_aliases": [
+        "burgerfuel",
+        "burger fuel"
+      ],
+      "items": [
+        {
+          "item_name": "Combustion Grilled Chicken",
+          "category": "entree",
+          "estimated_calories": 620,
+          "estimated_protein_g": 36,
+          "estimated_carbs_g": 52,
+          "estimated_fat_g": 28,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Bastard Grilled Chicken",
+          "category": "entree",
+          "estimated_calories": 580,
+          "estimated_protein_g": 34,
+          "estimated_carbs_g": 48,
+          "estimated_fat_g": 26,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Garden Salad",
+          "category": "side",
+          "estimated_calories": 60,
+          "estimated_protein_g": 2,
+          "estimated_carbs_g": 8,
+          "estimated_fat_g": 2,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Kumara Fries (small)",
+          "category": "side",
+          "estimated_calories": 260,
+          "estimated_protein_g": 3,
+          "estimated_carbs_g": 34,
+          "estimated_fat_g": 12,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.82
+        }
+      ]
+    },
+    {
+      "chain_id": "cafe_coffee_day_in",
+      "chain_key": "cafe_coffee_day",
+      "chain_name": "Café Coffee Day",
+      "country_code": "IN",
+      "source_type": "official_website_menu",
+      "official_menu_source_url": "https://www.cafecoffeeday.com/menu",
+      "menu_last_updated": "2026-04-12",
+      "chain_aliases": [
+        "ccd",
+        "cafe coffee day",
+        "café coffee day"
+      ],
+      "items": [
+        {
+          "item_name": "Cappuccino (no sugar)",
+          "category": "beverage",
+          "estimated_calories": 110,
+          "estimated_protein_g": 6,
+          "estimated_carbs_g": 9,
+          "estimated_fat_g": 5,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Chicken Tikka Sandwich",
+          "category": "entree",
+          "estimated_calories": 360,
+          "estimated_protein_g": 22,
+          "estimated_carbs_g": 38,
+          "estimated_fat_g": 14,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Veg Sandwich (grilled)",
+          "category": "entree",
+          "estimated_calories": 280,
+          "estimated_protein_g": 10,
+          "estimated_carbs_g": 40,
+          "estimated_fat_g": 8,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Masala Chai (less sugar)",
+          "category": "beverage",
+          "estimated_calories": 140,
+          "estimated_protein_g": 4,
+          "estimated_carbs_g": 18,
+          "estimated_fat_g": 5,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.82
+        }
+      ]
+    },
+    {
+      "chain_id": "carls_jr_nz",
+      "chain_key": "carls_jr",
+      "chain_name": "Carl's Jr.",
+      "country_code": "NZ",
+      "source_type": "official_website_menu",
+      "official_menu_source_url": "https://www.carlsjr.co.nz/menu",
+      "menu_last_updated": "2026-04-12",
+      "chain_aliases": [
+        "carls jr",
+        "carl's jr",
+        "carls junior"
+      ],
+      "items": [
+        {
+          "item_name": "Grilled Chicken Burger",
+          "category": "entree",
+          "estimated_calories": 420,
+          "estimated_protein_g": 30,
+          "estimated_carbs_g": 40,
+          "estimated_fat_g": 16,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Charbroiled BBQ Chicken Sandwich",
+          "category": "entree",
+          "estimated_calories": 440,
+          "estimated_protein_g": 32,
+          "estimated_carbs_g": 42,
+          "estimated_fat_g": 16,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Side Salad",
+          "category": "side",
+          "estimated_calories": 60,
+          "estimated_protein_g": 2,
+          "estimated_carbs_g": 8,
+          "estimated_fat_g": 2,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.82
+        }
+      ]
+    },
+    {
+      "chain_id": "chaayos_in",
+      "chain_key": "chaayos",
+      "chain_name": "Chaayos",
+      "country_code": "IN",
+      "source_type": "official_website_menu",
+      "official_menu_source_url": "https://chaayos.com/menu",
+      "menu_last_updated": "2026-04-12",
+      "chain_aliases": [
+        "chaayos"
+      ],
+      "items": [
+        {
+          "item_name": "Masala Chai (no sugar)",
+          "category": "beverage",
+          "estimated_calories": 110,
+          "estimated_protein_g": 4,
+          "estimated_carbs_g": 10,
+          "estimated_fat_g": 5,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Kulhad Chai (less sugar)",
+          "category": "beverage",
+          "estimated_calories": 130,
+          "estimated_protein_g": 4,
+          "estimated_carbs_g": 14,
+          "estimated_fat_g": 5,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Chicken Tikka Wrap",
+          "category": "entree",
+          "estimated_calories": 420,
+          "estimated_protein_g": 26,
+          "estimated_carbs_g": 42,
+          "estimated_fat_g": 16,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Paneer Tikka Wrap",
+          "category": "entree",
+          "estimated_calories": 460,
+          "estimated_protein_g": 20,
+          "estimated_carbs_g": 44,
+          "estimated_fat_g": 22,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.82
+        }
+      ]
+    },
+    {
+      "chain_id": "dominos_nz",
+      "chain_key": "dominos",
+      "chain_name": "Domino's Pizza",
+      "country_code": "NZ",
+      "source_type": "official_website_menu",
+      "official_menu_source_url": "https://www.dominos.co.nz/menu",
+      "menu_last_updated": "2026-04-12",
+      "chain_aliases": [
+        "dominos",
+        "domino's",
+        "dominos pizza"
+      ],
+      "items": [
+        {
+          "item_name": "Chef's Best Chicken (personal)",
+          "category": "entree",
+          "estimated_calories": 540,
+          "estimated_protein_g": 28,
+          "estimated_carbs_g": 64,
+          "estimated_fat_g": 18,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Hawaiian (personal)",
+          "category": "entree",
+          "estimated_calories": 580,
+          "estimated_protein_g": 24,
+          "estimated_carbs_g": 72,
+          "estimated_fat_g": 20,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Veg Supreme (personal)",
+          "category": "entree",
+          "estimated_calories": 480,
+          "estimated_protein_g": 18,
+          "estimated_carbs_g": 66,
+          "estimated_fat_g": 16,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.82
+        }
+      ]
+    },
+    {
+      "chain_id": "es_teler_77_id",
+      "chain_key": "es_teler_77",
+      "chain_name": "Es Teler 77",
+      "country_code": "ID",
+      "source_type": "official_website_menu",
+      "official_menu_source_url": "https://esteler77.com/menu",
+      "menu_last_updated": "2026-04-12",
+      "chain_aliases": [
+        "es teler 77",
+        "es teler"
+      ],
+      "items": [
+        {
+          "item_name": "Gado-Gado",
+          "category": "entree",
+          "estimated_calories": 380,
+          "estimated_protein_g": 16,
+          "estimated_carbs_g": 38,
+          "estimated_fat_g": 20,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Nasi Goreng Ayam",
+          "category": "entree",
+          "estimated_calories": 540,
+          "estimated_protein_g": 24,
+          "estimated_carbs_g": 72,
+          "estimated_fat_g": 16,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Mie Ayam",
+          "category": "entree",
+          "estimated_calories": 420,
+          "estimated_protein_g": 22,
+          "estimated_carbs_g": 56,
+          "estimated_fat_g": 12,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Ayam Bakar + Rice",
+          "category": "entree",
+          "estimated_calories": 520,
+          "estimated_protein_g": 32,
+          "estimated_carbs_g": 58,
+          "estimated_fat_g": 16,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.82
+        }
+      ]
+    },
+    {
+      "chain_id": "goli_vada_pav_in",
+      "chain_key": "goli_vada_pav",
+      "chain_name": "Goli Vada Pav",
+      "country_code": "IN",
+      "source_type": "official_website_menu",
+      "official_menu_source_url": "https://www.golivadapav.com/menu",
+      "menu_last_updated": "2026-04-12",
+      "chain_aliases": [
+        "goli vada pav",
+        "goli"
+      ],
+      "items": [
+        {
+          "item_name": "Vada Pav (single)",
+          "category": "entree",
+          "estimated_calories": 290,
+          "estimated_protein_g": 7,
+          "estimated_carbs_g": 38,
+          "estimated_fat_g": 12,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Schezwan Vada Pav",
+          "category": "entree",
+          "estimated_calories": 310,
+          "estimated_protein_g": 7,
+          "estimated_carbs_g": 38,
+          "estimated_fat_g": 14,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Samosa Pav",
+          "category": "entree",
+          "estimated_calories": 320,
+          "estimated_protein_g": 8,
+          "estimated_carbs_g": 44,
+          "estimated_fat_g": 12,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.82
+        }
+      ]
+    },
+    {
+      "chain_id": "hell_pizza_nz",
+      "chain_key": "hell_pizza",
+      "chain_name": "Hell Pizza",
+      "country_code": "NZ",
+      "source_type": "official_website_menu",
+      "official_menu_source_url": "https://hell.co.nz/menu",
+      "menu_last_updated": "2026-04-12",
+      "chain_aliases": [
+        "hell pizza",
+        "hell"
+      ],
+      "items": [
+        {
+          "item_name": "Sloth (personal, chicken)",
+          "category": "entree",
+          "estimated_calories": 540,
+          "estimated_protein_g": 28,
+          "estimated_carbs_g": 62,
+          "estimated_fat_g": 20,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Greed (personal, ham/bacon/chicken)",
+          "category": "entree",
+          "estimated_calories": 620,
+          "estimated_protein_g": 34,
+          "estimated_carbs_g": 60,
+          "estimated_fat_g": 26,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Mischief (personal, veg)",
+          "category": "entree",
+          "estimated_calories": 480,
+          "estimated_protein_g": 18,
+          "estimated_carbs_g": 66,
+          "estimated_fat_g": 16,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.82
+        }
+      ]
+    },
+    {
+      "chain_id": "hoka_bento_id",
+      "chain_key": "hoka_bento",
+      "chain_name": "HokBen",
+      "country_code": "ID",
+      "source_type": "official_website_menu",
+      "official_menu_source_url": "https://www.hokben.co.id/menu",
+      "menu_last_updated": "2026-04-12",
+      "chain_aliases": [
+        "hokben",
+        "hoka bento",
+        "hoka-hoka bento"
+      ],
+      "items": [
+        {
+          "item_name": "Chicken Teriyaki Bento",
+          "category": "entree",
+          "estimated_calories": 540,
+          "estimated_protein_g": 32,
+          "estimated_carbs_g": 62,
+          "estimated_fat_g": 16,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Beef Yakiniku Bento",
+          "category": "entree",
+          "estimated_calories": 620,
+          "estimated_protein_g": 30,
+          "estimated_carbs_g": 62,
+          "estimated_fat_g": 26,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Salmon Bento",
+          "category": "entree",
+          "estimated_calories": 520,
+          "estimated_protein_g": 34,
+          "estimated_carbs_g": 58,
+          "estimated_fat_g": 16,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Salad Bowl Chicken",
+          "category": "entree",
+          "estimated_calories": 280,
+          "estimated_protein_g": 26,
+          "estimated_carbs_g": 18,
+          "estimated_fat_g": 10,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.82
+        }
+      ]
+    },
+    {
+      "chain_id": "j_co_donuts_id",
+      "chain_key": "j_co_donuts",
+      "chain_name": "J.CO Donuts & Coffee",
+      "country_code": "ID",
+      "source_type": "official_website_menu",
+      "official_menu_source_url": "https://www.jcodonuts.com/menu",
+      "menu_last_updated": "2026-04-12",
+      "chain_aliases": [
+        "j.co",
+        "jco",
+        "j.co donuts"
+      ],
+      "items": [
+        {
+          "item_name": "Coffee (black, no sugar)",
+          "category": "beverage",
+          "estimated_calories": 10,
+          "estimated_protein_g": 0,
+          "estimated_carbs_g": 1,
+          "estimated_fat_g": 0,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Single Donut (glazed)",
+          "category": "dessert",
+          "estimated_calories": 280,
+          "estimated_protein_g": 4,
+          "estimated_carbs_g": 34,
+          "estimated_fat_g": 14,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Cappuccino (no sugar)",
+          "category": "beverage",
+          "estimated_calories": 120,
+          "estimated_protein_g": 8,
+          "estimated_carbs_g": 10,
+          "estimated_fat_g": 6,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.82
+        }
+      ]
+    },
+    {
+      "chain_id": "keventers_in",
+      "chain_key": "keventers",
+      "chain_name": "Keventers",
+      "country_code": "IN",
+      "source_type": "official_website_menu",
+      "official_menu_source_url": "https://keventers.com/menu",
+      "menu_last_updated": "2026-04-12",
+      "chain_aliases": [
+        "keventers"
+      ],
+      "items": [
+        {
+          "item_name": "Classic Milkshake (regular, less sugar)",
+          "category": "beverage",
+          "estimated_calories": 320,
+          "estimated_protein_g": 8,
+          "estimated_carbs_g": 48,
+          "estimated_fat_g": 10,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Dark Chocolate Milkshake",
+          "category": "beverage",
+          "estimated_calories": 420,
+          "estimated_protein_g": 9,
+          "estimated_carbs_g": 58,
+          "estimated_fat_g": 16,
+          "estimated_satiety": "low",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Coffee Shake (less sugar)",
+          "category": "beverage",
+          "estimated_calories": 260,
+          "estimated_protein_g": 7,
+          "estimated_carbs_g": 38,
+          "estimated_fat_g": 8,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.82
+        }
+      ]
+    },
+    {
+      "chain_id": "kfc_id",
+      "chain_key": "kfc",
+      "chain_name": "KFC",
+      "country_code": "ID",
+      "source_type": "official_website_menu",
+      "official_menu_source_url": "https://www.kfcku.com/menu",
+      "menu_last_updated": "2026-04-12",
+      "chain_aliases": [
+        "kfc",
+        "kfcku"
+      ],
+      "items": [
+        {
+          "item_name": "Chicken + Nasi (1pc grilled)",
+          "category": "entree",
+          "estimated_calories": 520,
+          "estimated_protein_g": 30,
+          "estimated_carbs_g": 64,
+          "estimated_fat_g": 14,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Original Recipe (1pc breast)",
+          "category": "entree",
+          "estimated_calories": 340,
+          "estimated_protein_g": 32,
+          "estimated_carbs_g": 10,
+          "estimated_fat_g": 20,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Kol Slaw (regular)",
+          "category": "side",
+          "estimated_calories": 120,
+          "estimated_protein_g": 1,
+          "estimated_carbs_g": 12,
+          "estimated_fat_g": 8,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Fish Fillet Rice Bowl",
+          "category": "entree",
+          "estimated_calories": 480,
+          "estimated_protein_g": 26,
+          "estimated_carbs_g": 62,
+          "estimated_fat_g": 14,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.82
+        }
+      ]
+    },
+    {
+      "chain_id": "kfc_my",
+      "chain_key": "kfc",
+      "chain_name": "KFC",
+      "country_code": "MY",
+      "source_type": "official_website_menu",
+      "official_menu_source_url": "https://www.kfc.com.my/menu",
+      "menu_last_updated": "2026-04-12",
+      "chain_aliases": [
+        "kfc",
+        "kentucky fried chicken"
+      ],
+      "items": [
+        {
+          "item_name": "Grilled Chicken (1pc)",
+          "category": "entree",
+          "estimated_calories": 180,
+          "estimated_protein_g": 24,
+          "estimated_carbs_g": 2,
+          "estimated_fat_g": 9,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Original Recipe Chicken (1pc)",
+          "category": "entree",
+          "estimated_calories": 240,
+          "estimated_protein_g": 22,
+          "estimated_carbs_g": 8,
+          "estimated_fat_g": 14,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Cheezy Wedges (regular)",
+          "category": "side",
+          "estimated_calories": 260,
+          "estimated_protein_g": 5,
+          "estimated_carbs_g": 28,
+          "estimated_fat_g": 14,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Nasi Rice Bowl Chicken Chop",
+          "category": "entree",
+          "estimated_calories": 520,
+          "estimated_protein_g": 28,
+          "estimated_carbs_g": 66,
+          "estimated_fat_g": 16,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Colonel Burger Grilled",
+          "category": "entree",
+          "estimated_calories": 340,
+          "estimated_protein_g": 22,
+          "estimated_carbs_g": 34,
+          "estimated_fat_g": 12,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.82
+        }
+      ]
+    },
+    {
+      "chain_id": "kfc_nz",
+      "chain_key": "kfc",
+      "chain_name": "KFC",
+      "country_code": "NZ",
+      "source_type": "official_website_menu",
+      "official_menu_source_url": "https://www.kfc.co.nz/menu",
+      "menu_last_updated": "2026-04-12",
+      "chain_aliases": [
+        "kfc",
+        "kentucky fried chicken"
+      ],
+      "items": [
+        {
+          "item_name": "Original Tender (3pc) + Salad",
+          "category": "entree",
+          "estimated_calories": 380,
+          "estimated_protein_g": 32,
+          "estimated_carbs_g": 18,
+          "estimated_fat_g": 20,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Grilled Chicken Fillet",
+          "category": "entree",
+          "estimated_calories": 160,
+          "estimated_protein_g": 22,
+          "estimated_carbs_g": 2,
+          "estimated_fat_g": 8,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Zinger Burger",
+          "category": "entree",
+          "estimated_calories": 470,
+          "estimated_protein_g": 24,
+          "estimated_carbs_g": 44,
+          "estimated_fat_g": 22,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Coleslaw (small)",
+          "category": "side",
+          "estimated_calories": 100,
+          "estimated_protein_g": 1,
+          "estimated_carbs_g": 10,
+          "estimated_fat_g": 6,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.82
+        }
+      ]
+    },
+    {
+      "chain_id": "kfc_th",
+      "chain_key": "kfc",
+      "chain_name": "KFC",
+      "country_code": "TH",
+      "source_type": "official_website_menu",
+      "official_menu_source_url": "https://www.kfc.co.th/menu",
+      "menu_last_updated": "2026-04-12",
+      "chain_aliases": [
+        "kfc",
+        "kentucky fried chicken"
+      ],
+      "items": [
+        {
+          "item_name": "Grilled Chicken (1pc)",
+          "category": "entree",
+          "estimated_calories": 190,
+          "estimated_protein_g": 26,
+          "estimated_carbs_g": 2,
+          "estimated_fat_g": 9,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Original Recipe (1pc breast)",
+          "category": "entree",
+          "estimated_calories": 340,
+          "estimated_protein_g": 32,
+          "estimated_carbs_g": 10,
+          "estimated_fat_g": 20,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Rice Bowl Chicken Kra Pao",
+          "category": "entree",
+          "estimated_calories": 540,
+          "estimated_protein_g": 28,
+          "estimated_carbs_g": 70,
+          "estimated_fat_g": 16,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Coleslaw",
+          "category": "side",
+          "estimated_calories": 120,
+          "estimated_protein_g": 1,
+          "estimated_carbs_g": 12,
+          "estimated_fat_g": 8,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.82
+        }
+      ]
+    },
+    {
+      "chain_id": "mainland_china_in",
+      "chain_key": "mainland_china",
+      "chain_name": "Mainland China",
+      "country_code": "IN",
+      "source_type": "official_website_menu",
+      "official_menu_source_url": "https://www.mainlandchinarestaurants.com/menu",
+      "menu_last_updated": "2026-04-12",
+      "chain_aliases": [
+        "mainland china"
+      ],
+      "items": [
+        {
+          "item_name": "Kung Pao Chicken",
+          "category": "entree",
+          "estimated_calories": 420,
+          "estimated_protein_g": 30,
+          "estimated_carbs_g": 22,
+          "estimated_fat_g": 22,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Steamed Chicken Dumplings (6pc)",
+          "category": "entree",
+          "estimated_calories": 280,
+          "estimated_protein_g": 18,
+          "estimated_carbs_g": 32,
+          "estimated_fat_g": 8,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Burnt Garlic Rice + Chicken",
+          "category": "entree",
+          "estimated_calories": 540,
+          "estimated_protein_g": 28,
+          "estimated_carbs_g": 68,
+          "estimated_fat_g": 18,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Hot & Sour Soup Chicken",
+          "category": "entree",
+          "estimated_calories": 180,
+          "estimated_protein_g": 16,
+          "estimated_carbs_g": 14,
+          "estimated_fat_g": 8,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.82
+        }
+      ]
+    },
+    {
+      "chain_id": "marrybrown_my",
+      "chain_key": "marrybrown",
+      "chain_name": "Marrybrown",
+      "country_code": "MY",
+      "source_type": "official_website_menu",
+      "official_menu_source_url": "https://www.marrybrown.com.my/menu",
+      "menu_last_updated": "2026-04-12",
+      "chain_aliases": [
+        "marrybrown",
+        "marry brown",
+        "mb"
+      ],
+      "items": [
+        {
+          "item_name": "Grilled Chicken Rice",
+          "category": "entree",
+          "estimated_calories": 480,
+          "estimated_protein_g": 30,
+          "estimated_carbs_g": 52,
+          "estimated_fat_g": 14,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "MB Crispy Chicken (1pc)",
+          "category": "entree",
+          "estimated_calories": 260,
+          "estimated_protein_g": 18,
+          "estimated_carbs_g": 10,
+          "estimated_fat_g": 16,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Nasi Ayam Penyet (grilled)",
+          "category": "entree",
+          "estimated_calories": 510,
+          "estimated_protein_g": 28,
+          "estimated_carbs_g": 60,
+          "estimated_fat_g": 14,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Garden Salad",
+          "category": "side",
+          "estimated_calories": 60,
+          "estimated_protein_g": 2,
+          "estimated_carbs_g": 8,
+          "estimated_fat_g": 2,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.82
+        }
+      ]
+    },
+    {
+      "chain_id": "mcdonalds_id",
+      "chain_key": "mcdonalds",
+      "chain_name": "McDonald's",
+      "country_code": "ID",
+      "source_type": "official_website_menu",
+      "official_menu_source_url": "https://www.mcdonalds.co.id/menu",
+      "menu_last_updated": "2026-04-12",
+      "chain_aliases": [
+        "mcdonalds",
+        "mcdonald's",
+        "mcd"
+      ],
+      "items": [
+        {
+          "item_name": "PaNas 1 (grilled chicken + rice)",
+          "category": "entree",
+          "estimated_calories": 540,
+          "estimated_protein_g": 30,
+          "estimated_carbs_g": 64,
+          "estimated_fat_g": 16,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "McChicken Deluxe",
+          "category": "entree",
+          "estimated_calories": 400,
+          "estimated_protein_g": 18,
+          "estimated_carbs_g": 40,
+          "estimated_fat_g": 18,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Nasi Uduk with Grilled Chicken",
+          "category": "entree",
+          "estimated_calories": 580,
+          "estimated_protein_g": 30,
+          "estimated_carbs_g": 70,
+          "estimated_fat_g": 18,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Garden Salad",
+          "category": "side",
+          "estimated_calories": 25,
+          "estimated_protein_g": 1,
+          "estimated_carbs_g": 4,
+          "estimated_fat_g": 0,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.82
+        }
+      ]
+    },
+    {
+      "chain_id": "mcdonalds_my",
+      "chain_key": "mcdonalds",
+      "chain_name": "McDonald's",
+      "country_code": "MY",
+      "source_type": "official_website_menu",
+      "official_menu_source_url": "https://www.mcdonalds.com.my/menu",
+      "menu_last_updated": "2026-04-12",
+      "chain_aliases": [
+        "mcdonalds",
+        "mcdonald's",
+        "mcd"
+      ],
+      "items": [
+        {
+          "item_name": "Grilled Chicken Deluxe",
+          "category": "entree",
+          "estimated_calories": 360,
+          "estimated_protein_g": 28,
+          "estimated_carbs_g": 32,
+          "estimated_fat_g": 12,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "McChicken",
+          "category": "entree",
+          "estimated_calories": 400,
+          "estimated_protein_g": 16,
+          "estimated_carbs_g": 40,
+          "estimated_fat_g": 18,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Side Salad",
+          "category": "side",
+          "estimated_calories": 25,
+          "estimated_protein_g": 1,
+          "estimated_carbs_g": 4,
+          "estimated_fat_g": 0,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Nasi Lemak McD (grilled)",
+          "category": "entree",
+          "estimated_calories": 520,
+          "estimated_protein_g": 24,
+          "estimated_carbs_g": 58,
+          "estimated_fat_g": 18,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Filet-O-Fish",
+          "category": "entree",
+          "estimated_calories": 340,
+          "estimated_protein_g": 15,
+          "estimated_carbs_g": 36,
+          "estimated_fat_g": 14,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.82
+        }
+      ]
+    },
+    {
+      "chain_id": "mcdonalds_nz",
+      "chain_key": "mcdonalds",
+      "chain_name": "McDonald's",
+      "country_code": "NZ",
+      "source_type": "official_website_menu",
+      "official_menu_source_url": "https://mcdonalds.co.nz/menu",
+      "menu_last_updated": "2026-04-12",
+      "chain_aliases": [
+        "mcdonalds",
+        "mcdonald's",
+        "maccas"
+      ],
+      "items": [
+        {
+          "item_name": "Grilled Chicken Salad",
+          "category": "entree",
+          "estimated_calories": 180,
+          "estimated_protein_g": 22,
+          "estimated_carbs_g": 10,
+          "estimated_fat_g": 6,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "McChicken",
+          "category": "entree",
+          "estimated_calories": 400,
+          "estimated_protein_g": 16,
+          "estimated_carbs_g": 40,
+          "estimated_fat_g": 18,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Kiwi Burger (grilled)",
+          "category": "entree",
+          "estimated_calories": 520,
+          "estimated_protein_g": 28,
+          "estimated_carbs_g": 44,
+          "estimated_fat_g": 24,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Garden Salad",
+          "category": "side",
+          "estimated_calories": 25,
+          "estimated_protein_g": 1,
+          "estimated_carbs_g": 4,
+          "estimated_fat_g": 0,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.82
+        }
+      ]
+    },
+    {
+      "chain_id": "mcdonalds_th",
+      "chain_key": "mcdonalds",
+      "chain_name": "McDonald's",
+      "country_code": "TH",
+      "source_type": "official_website_menu",
+      "official_menu_source_url": "https://www.mcdonalds.co.th/menu",
+      "menu_last_updated": "2026-04-12",
+      "chain_aliases": [
+        "mcdonalds",
+        "mcdonald's",
+        "mcd"
+      ],
+      "items": [
+        {
+          "item_name": "Grilled Chicken Burger",
+          "category": "entree",
+          "estimated_calories": 380,
+          "estimated_protein_g": 28,
+          "estimated_carbs_g": 32,
+          "estimated_fat_g": 14,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "McChicken Kra Prao Rice",
+          "category": "entree",
+          "estimated_calories": 560,
+          "estimated_protein_g": 28,
+          "estimated_carbs_g": 72,
+          "estimated_fat_g": 18,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Salad with Grilled Chicken",
+          "category": "entree",
+          "estimated_calories": 240,
+          "estimated_protein_g": 24,
+          "estimated_carbs_g": 12,
+          "estimated_fat_g": 10,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Filet-O-Fish",
+          "category": "entree",
+          "estimated_calories": 340,
+          "estimated_protein_g": 15,
+          "estimated_carbs_g": 36,
+          "estimated_fat_g": 14,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.82
+        }
+      ]
+    },
+    {
+      "chain_id": "meghana_foods_in",
+      "chain_key": "meghana_foods",
+      "chain_name": "Meghana Foods",
+      "country_code": "IN",
+      "source_type": "official_website_menu",
+      "official_menu_source_url": "https://www.meghanafoods.com/menu",
+      "menu_last_updated": "2026-04-12",
+      "chain_aliases": [
+        "meghana",
+        "meghana foods",
+        "meghana's"
+      ],
+      "items": [
+        {
+          "item_name": "Chicken Biryani (half)",
+          "category": "entree",
+          "estimated_calories": 580,
+          "estimated_protein_g": 32,
+          "estimated_carbs_g": 62,
+          "estimated_fat_g": 22,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Paneer Biryani (half)",
+          "category": "entree",
+          "estimated_calories": 540,
+          "estimated_protein_g": 18,
+          "estimated_carbs_g": 64,
+          "estimated_fat_g": 24,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Chicken 65 (half)",
+          "category": "entree",
+          "estimated_calories": 380,
+          "estimated_protein_g": 28,
+          "estimated_carbs_g": 14,
+          "estimated_fat_g": 24,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Andhra Chicken Curry + 2 Roti",
+          "category": "entree",
+          "estimated_calories": 620,
+          "estimated_protein_g": 34,
+          "estimated_carbs_g": 42,
+          "estimated_fat_g": 32,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.82
+        }
+      ]
+    },
+    {
+      "chain_id": "mk_restaurants_th",
+      "chain_key": "mk_restaurants",
+      "chain_name": "MK Restaurants",
+      "country_code": "TH",
+      "source_type": "official_website_menu",
+      "official_menu_source_url": "https://www.mkrestaurant.com/menu",
+      "menu_last_updated": "2026-04-12",
+      "chain_aliases": [
+        "mk",
+        "mk restaurants",
+        "mk suki"
+      ],
+      "items": [
+        {
+          "item_name": "Suki Chicken Set (clear soup)",
+          "category": "entree",
+          "estimated_calories": 420,
+          "estimated_protein_g": 32,
+          "estimated_carbs_g": 36,
+          "estimated_fat_g": 16,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Roasted Duck + Rice",
+          "category": "entree",
+          "estimated_calories": 580,
+          "estimated_protein_g": 34,
+          "estimated_carbs_g": 62,
+          "estimated_fat_g": 22,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Tom Yum Noodle Soup Chicken",
+          "category": "entree",
+          "estimated_calories": 380,
+          "estimated_protein_g": 26,
+          "estimated_carbs_g": 48,
+          "estimated_fat_g": 10,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Vegetable Set (no sauce)",
+          "category": "side",
+          "estimated_calories": 80,
+          "estimated_protein_g": 4,
+          "estimated_carbs_g": 14,
+          "estimated_fat_g": 1,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.82
+        }
+      ]
+    },
+    {
+      "chain_id": "oishi_th",
+      "chain_key": "oishi",
+      "chain_name": "Oishi",
+      "country_code": "TH",
+      "source_type": "official_website_menu",
+      "official_menu_source_url": "https://www.oishigroup.com/menu",
+      "menu_last_updated": "2026-04-12",
+      "chain_aliases": [
+        "oishi",
+        "oishi japanese"
+      ],
+      "items": [
+        {
+          "item_name": "Grilled Salmon Teriyaki Set",
+          "category": "entree",
+          "estimated_calories": 520,
+          "estimated_protein_g": 36,
+          "estimated_carbs_g": 54,
+          "estimated_fat_g": 18,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Chicken Katsu Don (half)",
+          "category": "entree",
+          "estimated_calories": 480,
+          "estimated_protein_g": 26,
+          "estimated_carbs_g": 60,
+          "estimated_fat_g": 14,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Udon Chicken Soup",
+          "category": "entree",
+          "estimated_calories": 420,
+          "estimated_protein_g": 24,
+          "estimated_carbs_g": 58,
+          "estimated_fat_g": 10,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Salmon Sashimi (6pc)",
+          "category": "entree",
+          "estimated_calories": 220,
+          "estimated_protein_g": 22,
+          "estimated_carbs_g": 0,
+          "estimated_fat_g": 14,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.82
+        }
+      ]
+    },
+    {
+      "chain_id": "old_town_white_coffee_my",
+      "chain_key": "old_town_white_coffee",
+      "chain_name": "Old Town White Coffee",
+      "country_code": "MY",
+      "source_type": "official_website_menu",
+      "official_menu_source_url": "https://www.oldtown.com.my/menu",
+      "menu_last_updated": "2026-04-12",
+      "chain_aliases": [
+        "old town",
+        "old town white coffee",
+        "oldtown"
+      ],
+      "items": [
+        {
+          "item_name": "Nasi Lemak Chicken Rendang",
+          "category": "entree",
+          "estimated_calories": 680,
+          "estimated_protein_g": 28,
+          "estimated_carbs_g": 78,
+          "estimated_fat_g": 28,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Kaya Butter Toast Set (no sugar drink)",
+          "category": "breakfast",
+          "estimated_calories": 340,
+          "estimated_protein_g": 10,
+          "estimated_carbs_g": 44,
+          "estimated_fat_g": 14,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Steamed Chicken + Rice",
+          "category": "entree",
+          "estimated_calories": 520,
+          "estimated_protein_g": 30,
+          "estimated_carbs_g": 56,
+          "estimated_fat_g": 16,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Wantan Mee (dry, chicken)",
+          "category": "entree",
+          "estimated_calories": 440,
+          "estimated_protein_g": 22,
+          "estimated_carbs_g": 58,
+          "estimated_fat_g": 12,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.82
+        }
+      ]
+    },
+    {
+      "chain_id": "pita_pit_nz",
+      "chain_key": "pita_pit",
+      "chain_name": "Pita Pit",
+      "country_code": "NZ",
+      "source_type": "official_website_menu",
+      "official_menu_source_url": "https://www.pitapit.co.nz/menu",
+      "menu_last_updated": "2026-04-12",
+      "chain_aliases": [
+        "pita pit"
+      ],
+      "items": [
+        {
+          "item_name": "Grilled Chicken Pita (no sauce)",
+          "category": "entree",
+          "estimated_calories": 380,
+          "estimated_protein_g": 30,
+          "estimated_carbs_g": 42,
+          "estimated_fat_g": 10,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Turkey Breast Pita",
+          "category": "entree",
+          "estimated_calories": 340,
+          "estimated_protein_g": 24,
+          "estimated_carbs_g": 42,
+          "estimated_fat_g": 8,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Falafel Pita",
+          "category": "entree",
+          "estimated_calories": 420,
+          "estimated_protein_g": 14,
+          "estimated_carbs_g": 54,
+          "estimated_fat_g": 16,
+          "estimated_satiety": "low",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Salad Bowl Chicken",
+          "category": "entree",
+          "estimated_calories": 280,
+          "estimated_protein_g": 28,
+          "estimated_carbs_g": 14,
+          "estimated_fat_g": 10,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.82
+        }
+      ]
+    },
+    {
+      "chain_id": "pizza_hut_th",
+      "chain_key": "pizza_hut",
+      "chain_name": "Pizza Hut",
+      "country_code": "TH",
+      "source_type": "official_website_menu",
+      "official_menu_source_url": "https://www.pizzahut.co.th/menu",
+      "menu_last_updated": "2026-04-12",
+      "chain_aliases": [
+        "pizza hut"
+      ],
+      "items": [
+        {
+          "item_name": "Personal Pan Hawaiian",
+          "category": "entree",
+          "estimated_calories": 620,
+          "estimated_protein_g": 28,
+          "estimated_carbs_g": 70,
+          "estimated_fat_g": 24,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Grilled Chicken Salad",
+          "category": "entree",
+          "estimated_calories": 280,
+          "estimated_protein_g": 24,
+          "estimated_carbs_g": 18,
+          "estimated_fat_g": 12,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Chicken Wings (6pc grilled)",
+          "category": "entree",
+          "estimated_calories": 340,
+          "estimated_protein_g": 30,
+          "estimated_carbs_g": 4,
+          "estimated_fat_g": 22,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.82
+        }
+      ]
+    },
+    {
+      "chain_id": "richeese_factory_id",
+      "chain_key": "richeese_factory",
+      "chain_name": "Richeese Factory",
+      "country_code": "ID",
+      "source_type": "official_website_menu",
+      "official_menu_source_url": "https://richeesefactory.com/menu",
+      "menu_last_updated": "2026-04-12",
+      "chain_aliases": [
+        "richeese",
+        "richeese factory"
+      ],
+      "items": [
+        {
+          "item_name": "Fire Chicken Level 1 + Rice",
+          "category": "entree",
+          "estimated_calories": 540,
+          "estimated_protein_g": 30,
+          "estimated_carbs_g": 62,
+          "estimated_fat_g": 18,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Grilled Chicken + Rice",
+          "category": "entree",
+          "estimated_calories": 480,
+          "estimated_protein_g": 32,
+          "estimated_carbs_g": 58,
+          "estimated_fat_g": 12,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Small Salad",
+          "category": "side",
+          "estimated_calories": 60,
+          "estimated_protein_g": 2,
+          "estimated_carbs_g": 8,
+          "estimated_fat_g": 2,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.82
+        }
+      ]
+    },
+    {
+      "chain_id": "sangeetha_in",
+      "chain_key": "sangeetha",
+      "chain_name": "Sangeetha Restaurant",
+      "country_code": "IN",
+      "source_type": "official_website_menu",
+      "official_menu_source_url": "https://www.sangeethaveg.com/menu",
+      "menu_last_updated": "2026-04-12",
+      "chain_aliases": [
+        "sangeetha",
+        "sangeetha veg"
+      ],
+      "items": [
+        {
+          "item_name": "Ghee Roast Dosa",
+          "category": "entree",
+          "estimated_calories": 420,
+          "estimated_protein_g": 10,
+          "estimated_carbs_g": 58,
+          "estimated_fat_g": 18,
+          "estimated_satiety": "low",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Mini Tiffin (idli/vada/pongal)",
+          "category": "entree",
+          "estimated_calories": 480,
+          "estimated_protein_g": 16,
+          "estimated_carbs_g": 72,
+          "estimated_fat_g": 14,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Veg Meals (portion controlled)",
+          "category": "entree",
+          "estimated_calories": 540,
+          "estimated_protein_g": 18,
+          "estimated_carbs_g": 86,
+          "estimated_fat_g": 14,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Upma",
+          "category": "entree",
+          "estimated_calories": 260,
+          "estimated_protein_g": 8,
+          "estimated_carbs_g": 42,
+          "estimated_fat_g": 8,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.82
+        }
+      ]
+    },
+    {
+      "chain_id": "secret_recipe_my",
+      "chain_key": "secret_recipe",
+      "chain_name": "Secret Recipe",
+      "country_code": "MY",
+      "source_type": "official_website_menu",
+      "official_menu_source_url": "https://www.secretrecipe.com.my/menu",
+      "menu_last_updated": "2026-04-12",
+      "chain_aliases": [
+        "secret recipe"
+      ],
+      "items": [
+        {
+          "item_name": "Grilled Chicken Chop",
+          "category": "entree",
+          "estimated_calories": 440,
+          "estimated_protein_g": 34,
+          "estimated_carbs_g": 28,
+          "estimated_fat_g": 20,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Nasi Lemak Secret",
+          "category": "entree",
+          "estimated_calories": 640,
+          "estimated_protein_g": 26,
+          "estimated_carbs_g": 72,
+          "estimated_fat_g": 26,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Caesar Salad (chicken)",
+          "category": "entree",
+          "estimated_calories": 340,
+          "estimated_protein_g": 24,
+          "estimated_carbs_g": 16,
+          "estimated_fat_g": 20,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Tom Yam Chicken Rice",
+          "category": "entree",
+          "estimated_calories": 520,
+          "estimated_protein_g": 28,
+          "estimated_carbs_g": 54,
+          "estimated_fat_g": 18,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.82
+        }
+      ]
+    },
+    {
+      "chain_id": "sizzler_th",
+      "chain_key": "sizzler",
+      "chain_name": "Sizzler",
+      "country_code": "TH",
+      "source_type": "official_website_menu",
+      "official_menu_source_url": "https://www.sizzler.co.th/menu",
+      "menu_last_updated": "2026-04-12",
+      "chain_aliases": [
+        "sizzler"
+      ],
+      "items": [
+        {
+          "item_name": "Grilled Chicken Breast Lite",
+          "category": "entree",
+          "estimated_calories": 360,
+          "estimated_protein_g": 38,
+          "estimated_carbs_g": 10,
+          "estimated_fat_g": 18,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Salmon Steak (grilled)",
+          "category": "entree",
+          "estimated_calories": 420,
+          "estimated_protein_g": 36,
+          "estimated_carbs_g": 8,
+          "estimated_fat_g": 26,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Salad Bar (all veggie + lean protein)",
+          "category": "side",
+          "estimated_calories": 280,
+          "estimated_protein_g": 20,
+          "estimated_carbs_g": 22,
+          "estimated_fat_g": 12,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.82
+        }
+      ]
+    },
+    {
+      "chain_id": "social_in",
+      "chain_key": "social",
+      "chain_name": "Social",
+      "country_code": "IN",
+      "source_type": "official_website_menu",
+      "official_menu_source_url": "https://socialoffline.in/menu",
+      "menu_last_updated": "2026-04-12",
+      "chain_aliases": [
+        "social",
+        "social restaurant",
+        "social cafe"
+      ],
+      "items": [
+        {
+          "item_name": "Grilled Chicken Bao",
+          "category": "entree",
+          "estimated_calories": 280,
+          "estimated_protein_g": 20,
+          "estimated_carbs_g": 30,
+          "estimated_fat_g": 10,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Keema Pav (half)",
+          "category": "entree",
+          "estimated_calories": 420,
+          "estimated_protein_g": 24,
+          "estimated_carbs_g": 38,
+          "estimated_fat_g": 20,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Peri Peri Chicken Salad",
+          "category": "entree",
+          "estimated_calories": 340,
+          "estimated_protein_g": 28,
+          "estimated_carbs_g": 18,
+          "estimated_fat_g": 16,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Chicken Tikka Roll",
+          "category": "entree",
+          "estimated_calories": 440,
+          "estimated_protein_g": 26,
+          "estimated_carbs_g": 42,
+          "estimated_fat_g": 18,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.82
+        }
+      ]
+    },
+    {
+      "chain_id": "solaria_id",
+      "chain_key": "solaria",
+      "chain_name": "Solaria",
+      "country_code": "ID",
+      "source_type": "official_website_menu",
+      "official_menu_source_url": "https://solariaonline.com/menu",
+      "menu_last_updated": "2026-04-12",
+      "chain_aliases": [
+        "solaria"
+      ],
+      "items": [
+        {
+          "item_name": "Nasi Ayam Bakar Kecap",
+          "category": "entree",
+          "estimated_calories": 560,
+          "estimated_protein_g": 32,
+          "estimated_carbs_g": 64,
+          "estimated_fat_g": 16,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Nasi Goreng Ayam",
+          "category": "entree",
+          "estimated_calories": 580,
+          "estimated_protein_g": 26,
+          "estimated_carbs_g": 74,
+          "estimated_fat_g": 18,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Cap Cay Goreng",
+          "category": "entree",
+          "estimated_calories": 220,
+          "estimated_protein_g": 14,
+          "estimated_carbs_g": 20,
+          "estimated_fat_g": 10,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Ikan Gurame Bakar",
+          "category": "entree",
+          "estimated_calories": 420,
+          "estimated_protein_g": 34,
+          "estimated_carbs_g": 8,
+          "estimated_fat_g": 24,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.82
+        }
+      ]
+    },
+    {
+      "chain_id": "subway_my",
+      "chain_key": "subway",
+      "chain_name": "Subway",
+      "country_code": "MY",
+      "source_type": "official_website_menu",
+      "official_menu_source_url": "https://www.subway.com.my/menu",
+      "menu_last_updated": "2026-04-12",
+      "chain_aliases": [
+        "subway"
+      ],
+      "items": [
+        {
+          "item_name": "6-inch Roast Chicken Sub",
+          "category": "entree",
+          "estimated_calories": 280,
+          "estimated_protein_g": 22,
+          "estimated_carbs_g": 40,
+          "estimated_fat_g": 5,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "6-inch Turkey Breast Sub",
+          "category": "entree",
+          "estimated_calories": 260,
+          "estimated_protein_g": 18,
+          "estimated_carbs_g": 40,
+          "estimated_fat_g": 4,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Salad Bowl Chicken Teriyaki",
+          "category": "entree",
+          "estimated_calories": 290,
+          "estimated_protein_g": 26,
+          "estimated_carbs_g": 22,
+          "estimated_fat_g": 10,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "6-inch Veggie Delite",
+          "category": "entree",
+          "estimated_calories": 230,
+          "estimated_protein_g": 8,
+          "estimated_carbs_g": 40,
+          "estimated_fat_g": 3,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.82
+        }
+      ]
+    },
+    {
+      "chain_id": "subway_nz",
+      "chain_key": "subway",
+      "chain_name": "Subway",
+      "country_code": "NZ",
+      "source_type": "official_website_menu",
+      "official_menu_source_url": "https://www.subway.co.nz/menu",
+      "menu_last_updated": "2026-04-12",
+      "chain_aliases": [
+        "subway"
+      ],
+      "items": [
+        {
+          "item_name": "6-inch Chicken Classic",
+          "category": "entree",
+          "estimated_calories": 300,
+          "estimated_protein_g": 24,
+          "estimated_carbs_g": 40,
+          "estimated_fat_g": 5,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "6-inch Turkey Breast",
+          "category": "entree",
+          "estimated_calories": 280,
+          "estimated_protein_g": 18,
+          "estimated_carbs_g": 40,
+          "estimated_fat_g": 4,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Salad Bowl Chicken",
+          "category": "entree",
+          "estimated_calories": 260,
+          "estimated_protein_g": 28,
+          "estimated_carbs_g": 14,
+          "estimated_fat_g": 8,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "6-inch Veggie Delite",
+          "category": "entree",
+          "estimated_calories": 230,
+          "estimated_protein_g": 8,
+          "estimated_carbs_g": 40,
+          "estimated_fat_g": 3,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.82
+        }
+      ]
+    },
+    {
+      "chain_id": "tealive_my",
+      "chain_key": "tealive",
+      "chain_name": "Tealive",
+      "country_code": "MY",
+      "source_type": "official_website_menu",
+      "official_menu_source_url": "https://tealive.com.my/menu",
+      "menu_last_updated": "2026-04-12",
+      "chain_aliases": [
+        "tealive",
+        "tea live"
+      ],
+      "items": [
+        {
+          "item_name": "Classic Milk Tea (less sugar)",
+          "category": "beverage",
+          "estimated_calories": 220,
+          "estimated_protein_g": 2,
+          "estimated_carbs_g": 40,
+          "estimated_fat_g": 6,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Matcha Latte (less sugar)",
+          "category": "beverage",
+          "estimated_calories": 240,
+          "estimated_protein_g": 6,
+          "estimated_carbs_g": 34,
+          "estimated_fat_g": 8,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Signature Pearl Milk Tea",
+          "category": "beverage",
+          "estimated_calories": 340,
+          "estimated_protein_g": 2,
+          "estimated_carbs_g": 62,
+          "estimated_fat_g": 8,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.82
+        }
+      ]
+    },
+    {
+      "chain_id": "the_chicken_rice_shop_my",
+      "chain_key": "the_chicken_rice_shop",
+      "chain_name": "The Chicken Rice Shop",
+      "country_code": "MY",
+      "source_type": "official_website_menu",
+      "official_menu_source_url": "https://www.thechickenriceshop.com/menu",
+      "menu_last_updated": "2026-04-12",
+      "chain_aliases": [
+        "chicken rice shop",
+        "tcrs",
+        "the chicken rice shop"
+      ],
+      "items": [
+        {
+          "item_name": "Steamed Chicken + Rice (quarter)",
+          "category": "entree",
+          "estimated_calories": 520,
+          "estimated_protein_g": 32,
+          "estimated_carbs_g": 58,
+          "estimated_fat_g": 16,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Roast Chicken + Rice (quarter)",
+          "category": "entree",
+          "estimated_calories": 580,
+          "estimated_protein_g": 32,
+          "estimated_carbs_g": 60,
+          "estimated_fat_g": 22,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Sayur Manis",
+          "category": "side",
+          "estimated_calories": 40,
+          "estimated_protein_g": 2,
+          "estimated_carbs_g": 6,
+          "estimated_fat_g": 1,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Chicken Salad Bowl",
+          "category": "entree",
+          "estimated_calories": 320,
+          "estimated_protein_g": 26,
+          "estimated_carbs_g": 18,
+          "estimated_fat_g": 14,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.82
+        }
+      ]
+    },
+    {
+      "chain_id": "theobroma_in",
+      "chain_key": "theobroma",
+      "chain_name": "Theobroma",
+      "country_code": "IN",
+      "source_type": "official_website_menu",
+      "official_menu_source_url": "https://www.theobroma.in/menu",
+      "menu_last_updated": "2026-04-12",
+      "chain_aliases": [
+        "theobroma",
+        "theo"
+      ],
+      "items": [
+        {
+          "item_name": "Chicken Tikka Sandwich",
+          "category": "entree",
+          "estimated_calories": 420,
+          "estimated_protein_g": 26,
+          "estimated_carbs_g": 40,
+          "estimated_fat_g": 16,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Multigrain Veg Sandwich",
+          "category": "entree",
+          "estimated_calories": 320,
+          "estimated_protein_g": 12,
+          "estimated_carbs_g": 42,
+          "estimated_fat_g": 10,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Cappuccino (no sugar)",
+          "category": "beverage",
+          "estimated_calories": 110,
+          "estimated_protein_g": 6,
+          "estimated_carbs_g": 9,
+          "estimated_fat_g": 5,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Brownie (half)",
+          "category": "dessert",
+          "estimated_calories": 280,
+          "estimated_protein_g": 4,
+          "estimated_carbs_g": 34,
+          "estimated_fat_g": 14,
+          "estimated_satiety": "medium",
+          "menu_item_confidence": 0.82
+        }
+      ]
+    },
+    {
+      "chain_id": "yayoi_th",
+      "chain_key": "yayoi",
+      "chain_name": "Yayoi",
+      "country_code": "TH",
+      "source_type": "official_website_menu",
+      "official_menu_source_url": "https://www.yayoirestaurants.com/menu",
+      "menu_last_updated": "2026-04-12",
+      "chain_aliases": [
+        "yayoi",
+        "yayoi japanese teishoku"
+      ],
+      "items": [
+        {
+          "item_name": "Chicken Teriyaki Set",
+          "category": "entree",
+          "estimated_calories": 560,
+          "estimated_protein_g": 36,
+          "estimated_carbs_g": 58,
+          "estimated_fat_g": 18,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Saba Shioyaki Set",
+          "category": "entree",
+          "estimated_calories": 520,
+          "estimated_protein_g": 34,
+          "estimated_carbs_g": 56,
+          "estimated_fat_g": 18,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Yakiniku Set (pork)",
+          "category": "entree",
+          "estimated_calories": 620,
+          "estimated_protein_g": 32,
+          "estimated_carbs_g": 58,
+          "estimated_fat_g": 28,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.82
+        },
+        {
+          "item_name": "Salmon Sashimi Set",
+          "category": "entree",
+          "estimated_calories": 440,
+          "estimated_protein_g": 36,
+          "estimated_carbs_g": 42,
+          "estimated_fat_g": 14,
+          "estimated_satiety": "high",
+          "menu_item_confidence": 0.82
+        }
+      ]
     }
   ]
 }

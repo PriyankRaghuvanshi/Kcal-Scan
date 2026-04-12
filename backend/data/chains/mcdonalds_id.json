@@ -1,0 +1,56 @@
+{
+  "brand_name": "McDonald's",
+  "source_type": "seed_template",
+  "source_url": "https://www.mcdonalds.co.id/menu",
+  "store_name_variants": [
+    "mcdonalds",
+    "mcdonald's",
+    "mcd"
+  ],
+  "items": [
+    {
+      "item_name": "PaNas 1 (grilled chicken + rice)",
+      "category": "entree",
+      "estimated_calories": 540,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 64,
+      "estimated_fat_g": 16,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "McChicken Deluxe",
+      "category": "entree",
+      "estimated_calories": 400,
+      "estimated_protein_g": 18,
+      "estimated_carbs_g": 40,
+      "estimated_fat_g": 18,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Nasi Uduk with Grilled Chicken",
+      "category": "entree",
+      "estimated_calories": 580,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 70,
+      "estimated_fat_g": 18,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Garden Salad",
+      "category": "side",
+      "estimated_calories": 25,
+      "estimated_protein_g": 1,
+      "estimated_carbs_g": 4,
+      "estimated_fat_g": 0,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": true
+    }
+  ]
+}

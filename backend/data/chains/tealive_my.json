@@ -1,0 +1,44 @@
+{
+  "brand_name": "Tealive",
+  "source_type": "seed_template",
+  "source_url": "https://tealive.com.my/menu",
+  "store_name_variants": [
+    "tealive",
+    "tea live"
+  ],
+  "items": [
+    {
+      "item_name": "Classic Milk Tea (less sugar)",
+      "category": "beverage",
+      "estimated_calories": 220,
+      "estimated_protein_g": 2,
+      "estimated_carbs_g": 40,
+      "estimated_fat_g": 6,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Matcha Latte (less sugar)",
+      "category": "beverage",
+      "estimated_calories": 240,
+      "estimated_protein_g": 6,
+      "estimated_carbs_g": 34,
+      "estimated_fat_g": 8,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Signature Pearl Milk Tea",
+      "category": "beverage",
+      "estimated_calories": 340,
+      "estimated_protein_g": 2,
+      "estimated_carbs_g": 62,
+      "estimated_fat_g": 8,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    }
+  ]
+}

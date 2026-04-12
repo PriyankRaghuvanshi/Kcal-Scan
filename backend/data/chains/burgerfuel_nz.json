@@ -1,0 +1,55 @@
+{
+  "brand_name": "BurgerFuel",
+  "source_type": "seed_template",
+  "source_url": "https://burgerfuel.com/nz/menu",
+  "store_name_variants": [
+    "burgerfuel",
+    "burger fuel"
+  ],
+  "items": [
+    {
+      "item_name": "Combustion Grilled Chicken",
+      "category": "entree",
+      "estimated_calories": 620,
+      "estimated_protein_g": 36,
+      "estimated_carbs_g": 52,
+      "estimated_fat_g": 28,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Bastard Grilled Chicken",
+      "category": "entree",
+      "estimated_calories": 580,
+      "estimated_protein_g": 34,
+      "estimated_carbs_g": 48,
+      "estimated_fat_g": 26,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Garden Salad",
+      "category": "side",
+      "estimated_calories": 60,
+      "estimated_protein_g": 2,
+      "estimated_carbs_g": 8,
+      "estimated_fat_g": 2,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": true
+    },
+    {
+      "item_name": "Kumara Fries (small)",
+      "category": "side",
+      "estimated_calories": 260,
+      "estimated_protein_g": 3,
+      "estimated_carbs_g": 34,
+      "estimated_fat_g": 12,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    }
+  ]
+}

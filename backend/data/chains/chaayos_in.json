@@ -1,0 +1,54 @@
+{
+  "brand_name": "Chaayos",
+  "source_type": "seed_template",
+  "source_url": "https://chaayos.com/menu",
+  "store_name_variants": [
+    "chaayos"
+  ],
+  "items": [
+    {
+      "item_name": "Masala Chai (no sugar)",
+      "category": "beverage",
+      "estimated_calories": 110,
+      "estimated_protein_g": 4,
+      "estimated_carbs_g": 10,
+      "estimated_fat_g": 5,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Kulhad Chai (less sugar)",
+      "category": "beverage",
+      "estimated_calories": 130,
+      "estimated_protein_g": 4,
+      "estimated_carbs_g": 14,
+      "estimated_fat_g": 5,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Chicken Tikka Wrap",
+      "category": "entree",
+      "estimated_calories": 420,
+      "estimated_protein_g": 26,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 16,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Paneer Tikka Wrap",
+      "category": "entree",
+      "estimated_calories": 460,
+      "estimated_protein_g": 20,
+      "estimated_carbs_g": 44,
+      "estimated_fat_g": 22,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    }
+  ]
+}

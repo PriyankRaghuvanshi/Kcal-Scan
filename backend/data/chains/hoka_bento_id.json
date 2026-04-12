@@ -1,0 +1,56 @@
+{
+  "brand_name": "HokBen",
+  "source_type": "seed_template",
+  "source_url": "https://www.hokben.co.id/menu",
+  "store_name_variants": [
+    "hokben",
+    "hoka bento",
+    "hoka-hoka bento"
+  ],
+  "items": [
+    {
+      "item_name": "Chicken Teriyaki Bento",
+      "category": "entree",
+      "estimated_calories": 540,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 62,
+      "estimated_fat_g": 16,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Beef Yakiniku Bento",
+      "category": "entree",
+      "estimated_calories": 620,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 62,
+      "estimated_fat_g": 26,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Salmon Bento",
+      "category": "entree",
+      "estimated_calories": 520,
+      "estimated_protein_g": 34,
+      "estimated_carbs_g": 58,
+      "estimated_fat_g": 16,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Salad Bowl Chicken",
+      "category": "entree",
+      "estimated_calories": 280,
+      "estimated_protein_g": 26,
+      "estimated_carbs_g": 18,
+      "estimated_fat_g": 10,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    }
+  ]
+}

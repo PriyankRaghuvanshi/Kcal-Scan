@@ -1,0 +1,43 @@
+{
+  "brand_name": "Keventers",
+  "source_type": "seed_template",
+  "source_url": "https://keventers.com/menu",
+  "store_name_variants": [
+    "keventers"
+  ],
+  "items": [
+    {
+      "item_name": "Classic Milkshake (regular, less sugar)",
+      "category": "beverage",
+      "estimated_calories": 320,
+      "estimated_protein_g": 8,
+      "estimated_carbs_g": 48,
+      "estimated_fat_g": 10,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Dark Chocolate Milkshake",
+      "category": "beverage",
+      "estimated_calories": 420,
+      "estimated_protein_g": 9,
+      "estimated_carbs_g": 58,
+      "estimated_fat_g": 16,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Coffee Shake (less sugar)",
+      "category": "beverage",
+      "estimated_calories": 260,
+      "estimated_protein_g": 7,
+      "estimated_carbs_g": 38,
+      "estimated_fat_g": 8,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    }
+  ]
+}
