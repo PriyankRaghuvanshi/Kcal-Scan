@@ -433,6 +433,28 @@ def rank_one_healthy_nearby_place(p: Dict[str, Any], ctx: HealthyNearbyRankConte
         remaining_protein_g=remaining_protein_g,
         health_score=score,
     )
+    covered_chain_key = str(
+        menu_recommendations.get("covered_chain_key")
+        or menu_recommendations.get("chain_key")
+        or p.get("chain_key")
+        or ""
+    ).strip()
+    item_provenance = str(menu_recommendations.get("item_provenance") or "").strip().lower() or None
+    if not item_provenance and covered_chain_key:
+        _trusted_sources = {"chain_registry", "ingested_chain_item"}
+        _source_hint = str(
+            top_menu_source
+            or menu_recommendations.get("menu_source_resolved")
+            or menu_recommendations.get("menu_items_source_resolved")
+            or menu_recommendations.get("menu_source")
+            or menu_recommendations.get("menu_items_source")
+            or ""
+        ).strip().lower()
+        if _source_hint in _trusted_sources:
+            item_provenance = "exact_chain_menu"
+        else:
+            item_provenance = "heuristic_suggestion"
+    covered_chain_neutral = bool(menu_recommendations.get("covered_chain_neutral", item_provenance == "heuristic_suggestion"))
     fit_for_today = (str(decision_today.get("decision_today") or "").strip().upper() != "NO")
     place_name = str(p.get("name") or "Unknown place").strip()
     cuisine_hint = ", ".join(
@@ -455,6 +477,9 @@ def rank_one_healthy_nearby_place(p: Dict[str, Any], ctx: HealthyNearbyRankConte
         "order_confidence": final_order_confidence,
         "distance_meters": _dist_m,
         "menu_item_source": top_menu_source,
+        "item_provenance": item_provenance,
+        "covered_chain_key": covered_chain_key or None,
+        "covered_chain_neutral": covered_chain_neutral,
         "health_score": score,
         "fit_today_score_100": decision_today.get("fit_today_score_100"),
         "calorie_fit_score_100": decision_today.get("calorie_fit_score_100"),
@@ -633,6 +658,11 @@ def rank_one_healthy_nearby_place(p: Dict[str, Any], ctx: HealthyNearbyRankConte
         "top_menu_item": menu_recommendations.get("top_menu_item") if isinstance(menu_recommendations.get("top_menu_item"), dict) else None,
         "chain_key": menu_recommendations.get("chain_key"),
         "chain_id": menu_recommendations.get("chain_id"),
+        "item_provenance": item_provenance,
+        "covered_chain_key": covered_chain_key or None,
+        "covered_chain_neutral": covered_chain_neutral,
+        "covered_chain_display_name": str(menu_recommendations.get("covered_chain_display_name") or ""),
+        "covered_chain_menu_url": str(menu_recommendations.get("covered_chain_menu_url") or ""),
         "top_item": str(menu_recommendations.get("top_item") or ""),
         "diet_preference": diet_preference_val,
         "_diet_excluded_candidate_count": p.get("_diet_excluded_candidate_count"),
