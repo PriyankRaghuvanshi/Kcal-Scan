@@ -1,0 +1,66 @@
+{
+  "brand_name": "Wow! Chicken",
+  "source_type": "seed_template",
+  "source_url": "https://eatsure.com/wow-chicken/menu",
+  "store_name_variants": [
+    "wow chicken",
+    "wow! chicken"
+  ],
+  "items": [
+    {
+      "item_name": "Grilled Chicken + Rice Bowl",
+      "category": "entree",
+      "estimated_calories": 480,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 58,
+      "estimated_fat_g": 12,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Peri Peri Grilled Chicken Wings (6pc)",
+      "category": "entree",
+      "estimated_calories": 320,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 4,
+      "estimated_fat_g": 22,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Chicken Tikka Rice Bowl",
+      "category": "entree",
+      "estimated_calories": 520,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 62,
+      "estimated_fat_g": 16,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Chicken Shawarma Wrap",
+      "category": "entree",
+      "estimated_calories": 440,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 46,
+      "estimated_fat_g": 16,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Grilled Chicken Caesar Salad",
+      "category": "entree",
+      "estimated_calories": 340,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 14,
+      "estimated_fat_g": 18,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    }
+  ]
+}

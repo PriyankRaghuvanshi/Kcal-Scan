@@ -1,0 +1,67 @@
+{
+  "brand_name": "Britannia & Co.",
+  "source_type": "seed_template",
+  "source_url": "https://britanniaco.com/menu",
+  "store_name_variants": [
+    "britannia cafe",
+    "britannia and co",
+    "britannia & co"
+  ],
+  "items": [
+    {
+      "item_name": "Berry Pulao (chicken)",
+      "category": "entree",
+      "estimated_calories": 580,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 72,
+      "estimated_fat_g": 22,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Chicken Dhansak + Rice",
+      "category": "entree",
+      "estimated_calories": 620,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 64,
+      "estimated_fat_g": 26,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Mutton Berry Pulao",
+      "category": "entree",
+      "estimated_calories": 640,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 72,
+      "estimated_fat_g": 28,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Salli Boti",
+      "category": "entree",
+      "estimated_calories": 480,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 24,
+      "estimated_fat_g": 30,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Caramel Custard (small)",
+      "category": "dessert",
+      "estimated_calories": 220,
+      "estimated_protein_g": 4,
+      "estimated_carbs_g": 28,
+      "estimated_fat_g": 10,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    }
+  ]
+}

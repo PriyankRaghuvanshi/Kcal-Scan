@@ -1,0 +1,66 @@
+{
+  "brand_name": "Farzi Cafe",
+  "source_type": "seed_template",
+  "source_url": "https://farzicafe.com/menu",
+  "store_name_variants": [
+    "farzi cafe",
+    "farzi café"
+  ],
+  "items": [
+    {
+      "item_name": "Tandoori Chicken Tikka (half)",
+      "category": "entree",
+      "estimated_calories": 340,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 6,
+      "estimated_fat_g": 22,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Dal Chawal Arancini",
+      "category": "entree",
+      "estimated_calories": 380,
+      "estimated_protein_g": 14,
+      "estimated_carbs_g": 48,
+      "estimated_fat_g": 14,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Seabass Recheado",
+      "category": "entree",
+      "estimated_calories": 360,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 6,
+      "estimated_fat_g": 22,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Galouti Kebab (2pc)",
+      "category": "entree",
+      "estimated_calories": 320,
+      "estimated_protein_g": 22,
+      "estimated_carbs_g": 6,
+      "estimated_fat_g": 22,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Mushroom Galouti (veg, 2pc)",
+      "category": "entree",
+      "estimated_calories": 280,
+      "estimated_protein_g": 12,
+      "estimated_carbs_g": 14,
+      "estimated_fat_g": 20,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    }
+  ]
+}

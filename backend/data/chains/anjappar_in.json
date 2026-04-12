@@ -1,0 +1,66 @@
+{
+  "brand_name": "Anjappar Chettinad",
+  "source_type": "seed_template",
+  "source_url": "https://anjappar.com/menu",
+  "store_name_variants": [
+    "anjappar",
+    "anjappar chettinad"
+  ],
+  "items": [
+    {
+      "item_name": "Chettinad Chicken (half)",
+      "category": "entree",
+      "estimated_calories": 440,
+      "estimated_protein_g": 34,
+      "estimated_carbs_g": 14,
+      "estimated_fat_g": 26,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Chicken 65 (half)",
+      "category": "entree",
+      "estimated_calories": 380,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 14,
+      "estimated_fat_g": 24,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Mutton Sukka (portion)",
+      "category": "entree",
+      "estimated_calories": 480,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 10,
+      "estimated_fat_g": 32,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Kothu Parotta (chicken)",
+      "category": "entree",
+      "estimated_calories": 560,
+      "estimated_protein_g": 26,
+      "estimated_carbs_g": 62,
+      "estimated_fat_g": 22,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Idiyappam + Chicken Salna",
+      "category": "entree",
+      "estimated_calories": 480,
+      "estimated_protein_g": 22,
+      "estimated_carbs_g": 56,
+      "estimated_fat_g": 18,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    }
+  ]
+}

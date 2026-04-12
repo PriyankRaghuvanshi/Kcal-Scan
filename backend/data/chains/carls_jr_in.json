@@ -1,0 +1,67 @@
+{
+  "brand_name": "Carl's Jr.",
+  "source_type": "seed_template",
+  "source_url": "https://www.carlsjrindia.com/menu",
+  "store_name_variants": [
+    "carls jr",
+    "carl's jr",
+    "carls junior"
+  ],
+  "items": [
+    {
+      "item_name": "Grilled Chicken Sandwich",
+      "category": "entree",
+      "estimated_calories": 400,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 40,
+      "estimated_fat_g": 14,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Charbroiled BBQ Chicken",
+      "category": "entree",
+      "estimated_calories": 420,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 40,
+      "estimated_fat_g": 16,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Original Angus Burger (half)",
+      "category": "entree",
+      "estimated_calories": 440,
+      "estimated_protein_g": 26,
+      "estimated_carbs_g": 38,
+      "estimated_fat_g": 20,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Beyond Famous Star (veg)",
+      "category": "entree",
+      "estimated_calories": 540,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 46,
+      "estimated_fat_g": 28,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Grilled Chicken Salad",
+      "category": "entree",
+      "estimated_calories": 280,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 14,
+      "estimated_fat_g": 12,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    }
+  ]
+}
