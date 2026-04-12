@@ -1,0 +1,54 @@
+{
+  "brand_name": "Bakingo",
+  "source_type": "seed_template",
+  "source_url": "https://www.bakingo.com/menu",
+  "store_name_variants": [
+    "bakingo"
+  ],
+  "items": [
+    {
+      "item_name": "Fresh Cream Chocolate Slice",
+      "category": "dessert",
+      "estimated_calories": 340,
+      "estimated_protein_g": 4,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 18,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Sugar-free Dry Cake Slice",
+      "category": "dessert",
+      "estimated_calories": 220,
+      "estimated_protein_g": 4,
+      "estimated_carbs_g": 24,
+      "estimated_fat_g": 12,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Multigrain Sandwich (chicken)",
+      "category": "entree",
+      "estimated_calories": 340,
+      "estimated_protein_g": 22,
+      "estimated_carbs_g": 38,
+      "estimated_fat_g": 12,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Veg Sandwich",
+      "category": "entree",
+      "estimated_calories": 280,
+      "estimated_protein_g": 10,
+      "estimated_carbs_g": 40,
+      "estimated_fat_g": 8,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    }
+  ]
+}
