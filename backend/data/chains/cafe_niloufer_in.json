@@ -21,7 +21,8 @@
       "vegetarian_possible": true,
       "vegan_possible": false,
       "halal_possible": true,
-      "gluten_free_possible": true
+      "gluten_free_possible": true,
+      "diet_type": "vegetarian"
     },
     {
       "item_name": "Osmania Biscuits (4pc)",
@@ -34,7 +35,8 @@
       "vegetarian_possible": true,
       "vegan_possible": false,
       "halal_possible": true,
-      "gluten_free_possible": false
+      "gluten_free_possible": false,
+      "diet_type": "vegetarian"
     },
     {
       "item_name": "Keema Samosa (2pc)",
@@ -47,7 +49,8 @@
       "vegetarian_possible": false,
       "vegan_possible": false,
       "halal_possible": true,
-      "gluten_free_possible": false
+      "gluten_free_possible": false,
+      "diet_type": "non_veg"
     },
     {
       "item_name": "Chicken Tangdi (2pc)",
@@ -60,7 +63,8 @@
       "vegetarian_possible": false,
       "vegan_possible": false,
       "halal_possible": true,
-      "gluten_free_possible": true
+      "gluten_free_possible": true,
+      "diet_type": "non_veg"
     },
     {
       "item_name": "Mutton Paya (1 bowl)",
@@ -73,7 +77,8 @@
       "vegetarian_possible": false,
       "vegan_possible": false,
       "halal_possible": true,
-      "gluten_free_possible": true
+      "gluten_free_possible": true,
+      "diet_type": "non_veg"
     }
   ]
 }

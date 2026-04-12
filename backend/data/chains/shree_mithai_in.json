@@ -1,0 +1,54 @@
+{
+  "brand_name": "Shree Mithai",
+  "source_type": "seed_template",
+  "source_url": "https://shreemithai.com/menu",
+  "store_name_variants": [
+    "shree mithai",
+    "shree",
+    "shreemithai"
+  ],
+  "items": [
+    {
+      "item_name": "Motichoor Ladoo (2pc)",
+      "category": "dessert",
+      "estimated_calories": 320,
+      "estimated_protein_g": 6,
+      "estimated_carbs_g": 44,
+      "estimated_fat_g": 14,
+      "confidence": 0.8,
+      "vegetarian_possible": true,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true,
+      "diet_type": "vegetarian"
+    },
+    {
+      "item_name": "Kaju Katli (100g)",
+      "category": "dessert",
+      "estimated_calories": 520,
+      "estimated_protein_g": 12,
+      "estimated_carbs_g": 56,
+      "estimated_fat_g": 28,
+      "confidence": 0.8,
+      "vegetarian_possible": true,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true,
+      "diet_type": "vegetarian"
+    },
+    {
+      "item_name": "Gulab Jamun (2pc)",
+      "category": "dessert",
+      "estimated_calories": 260,
+      "estimated_protein_g": 4,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 10,
+      "confidence": 0.8,
+      "vegetarian_possible": true,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true,
+      "diet_type": "vegetarian"
+    }
+  ]
+}

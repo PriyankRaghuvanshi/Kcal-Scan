@@ -21,7 +21,8 @@
       "vegetarian_possible": false,
       "vegan_possible": false,
       "halal_possible": true,
-      "gluten_free_possible": false
+      "gluten_free_possible": false,
+      "diet_type": "non_veg"
     },
     {
       "item_name": "Twister Wrap",
@@ -34,7 +35,8 @@
       "vegetarian_possible": false,
       "vegan_possible": false,
       "halal_possible": true,
-      "gluten_free_possible": false
+      "gluten_free_possible": false,
+      "diet_type": "non_veg"
     },
     {
       "item_name": "Rice Box (Original)",
@@ -47,7 +49,8 @@
       "vegetarian_possible": false,
       "vegan_possible": false,
       "halal_possible": true,
-      "gluten_free_possible": true
+      "gluten_free_possible": true,
+      "diet_type": "non_veg"
     },
     {
       "item_name": "Mini Fillet (3pc)",
@@ -57,10 +60,11 @@
       "estimated_carbs_g": 16,
       "estimated_fat_g": 14,
       "confidence": 0.84,
-      "vegetarian_possible": false,
+      "vegetarian_possible": true,
       "vegan_possible": false,
       "halal_possible": true,
-      "gluten_free_possible": true
+      "gluten_free_possible": true,
+      "diet_type": "vegetarian"
     },
     {
       "item_name": "Original Vegan Burger",
@@ -73,7 +77,8 @@
       "vegetarian_possible": true,
       "vegan_possible": true,
       "halal_possible": true,
-      "gluten_free_possible": false
+      "gluten_free_possible": false,
+      "diet_type": "vegan"
     },
     {
       "item_name": "Corn Cobette",
@@ -86,7 +91,8 @@
       "vegetarian_possible": true,
       "vegan_possible": true,
       "halal_possible": true,
-      "gluten_free_possible": true
+      "gluten_free_possible": true,
+      "diet_type": "vegan"
     }
   ]
 }

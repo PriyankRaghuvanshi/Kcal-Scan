@@ -21,7 +21,8 @@
       "vegetarian_possible": false,
       "vegan_possible": false,
       "halal_possible": true,
-      "gluten_free_possible": true
+      "gluten_free_possible": true,
+      "diet_type": "non_veg"
     },
     {
       "item_name": "Mild Chicken Slider",
@@ -34,7 +35,8 @@
       "vegetarian_possible": false,
       "vegan_possible": false,
       "halal_possible": true,
-      "gluten_free_possible": false
+      "gluten_free_possible": false,
+      "diet_type": "non_veg"
     },
     {
       "item_name": "Chicken Tenders (3pc) + Slaw",
@@ -47,7 +49,8 @@
       "vegetarian_possible": false,
       "vegan_possible": false,
       "halal_possible": true,
-      "gluten_free_possible": true
+      "gluten_free_possible": true,
+      "diet_type": "non_veg"
     }
   ]
 }

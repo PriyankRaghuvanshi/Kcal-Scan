@@ -17,7 +17,10 @@
       "estimated_fat_g": 20,
       "confidence": 0.76,
       "halal_possible": true,
-      "gluten_free_possible": false
+      "gluten_free_possible": false,
+      "diet_type": "non_veg",
+      "vegetarian_possible": false,
+      "vegan_possible": false
     },
     {
       "item_name": "Cheese, Spinach & Corn Wrap",
@@ -28,7 +31,10 @@
       "estimated_fat_g": 26,
       "confidence": 0.72,
       "halal_possible": true,
-      "gluten_free_possible": false
+      "gluten_free_possible": false,
+      "diet_type": "vegetarian",
+      "vegetarian_possible": true,
+      "vegan_possible": false
     }
   ]
 }

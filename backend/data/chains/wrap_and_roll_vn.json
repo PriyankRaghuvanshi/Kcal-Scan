@@ -22,7 +22,8 @@
       "vegetarian_possible": false,
       "vegan_possible": false,
       "halal_possible": false,
-      "gluten_free_possible": false
+      "gluten_free_possible": false,
+      "diet_type": "non_veg"
     },
     {
       "item_name": "Rice Paper Rolls (shrimp, 4pc)",
@@ -35,7 +36,8 @@
       "vegetarian_possible": false,
       "vegan_possible": false,
       "halal_possible": true,
-      "gluten_free_possible": false
+      "gluten_free_possible": false,
+      "diet_type": "non_veg"
     },
     {
       "item_name": "Grilled Beef + Vermicelli Bowl",
@@ -48,7 +50,8 @@
       "vegetarian_possible": false,
       "vegan_possible": false,
       "halal_possible": true,
-      "gluten_free_possible": true
+      "gluten_free_possible": true,
+      "diet_type": "non_veg"
     },
     {
       "item_name": "Veg Summer Rolls (4pc)",
@@ -59,9 +62,10 @@
       "estimated_fat_g": 2,
       "confidence": 0.82,
       "vegetarian_possible": true,
-      "vegan_possible": true,
+      "vegan_possible": false,
       "halal_possible": true,
-      "gluten_free_possible": false
+      "gluten_free_possible": false,
+      "diet_type": "vegetarian"
     }
   ]
 }

@@ -17,7 +17,8 @@
       "vegetarian_possible": false,
       "vegan_possible": false,
       "halal_possible": true,
-      "gluten_free_possible": true
+      "gluten_free_possible": true,
+      "diet_type": "non_veg"
     },
     {
       "item_name": "Veggie Dragon Bowl",
@@ -28,9 +29,10 @@
       "estimated_fat_g": 10,
       "confidence": 0.82,
       "vegetarian_possible": true,
-      "vegan_possible": true,
+      "vegan_possible": false,
       "halal_possible": true,
-      "gluten_free_possible": true
+      "gluten_free_possible": true,
+      "diet_type": "vegetarian"
     },
     {
       "item_name": "Chicken Gyoza (6pc)",
@@ -43,7 +45,8 @@
       "vegetarian_possible": false,
       "vegan_possible": false,
       "halal_possible": true,
-      "gluten_free_possible": false
+      "gluten_free_possible": false,
+      "diet_type": "non_veg"
     },
     {
       "item_name": "Crystal Prawn Dumplings",
@@ -56,7 +59,8 @@
       "vegetarian_possible": false,
       "vegan_possible": false,
       "halal_possible": true,
-      "gluten_free_possible": false
+      "gluten_free_possible": false,
+      "diet_type": "non_veg"
     },
     {
       "item_name": "Salmon Sashimi (5pc)",
@@ -69,7 +73,8 @@
       "vegetarian_possible": false,
       "vegan_possible": false,
       "halal_possible": true,
-      "gluten_free_possible": true
+      "gluten_free_possible": true,
+      "diet_type": "non_veg"
     }
   ]
 }

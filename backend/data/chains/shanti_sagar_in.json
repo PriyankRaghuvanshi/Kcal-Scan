@@ -1,0 +1,83 @@
+{
+  "brand_name": "Shanti Sagar",
+  "source_type": "seed_template",
+  "source_url": "https://shantisagarhotels.com/menu",
+  "store_name_variants": [
+    "shanti sagar",
+    "shanti sagar hotel",
+    "shantisagar",
+    "shantisagarhotel"
+  ],
+  "items": [
+    {
+      "item_name": "Masala Dosa",
+      "category": "entree",
+      "estimated_calories": 380,
+      "estimated_protein_g": 10,
+      "estimated_carbs_g": 56,
+      "estimated_fat_g": 14,
+      "confidence": 0.8,
+      "vegetarian_possible": true,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true,
+      "diet_type": "vegetarian"
+    },
+    {
+      "item_name": "Ghee Roast Dosa",
+      "category": "entree",
+      "estimated_calories": 420,
+      "estimated_protein_g": 10,
+      "estimated_carbs_g": 58,
+      "estimated_fat_g": 18,
+      "confidence": 0.8,
+      "vegetarian_possible": true,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true,
+      "diet_type": "vegetarian"
+    },
+    {
+      "item_name": "Idli Sambar (4pc)",
+      "category": "entree",
+      "estimated_calories": 280,
+      "estimated_protein_g": 10,
+      "estimated_carbs_g": 52,
+      "estimated_fat_g": 4,
+      "confidence": 0.8,
+      "vegetarian_possible": true,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true,
+      "diet_type": "vegetarian"
+    },
+    {
+      "item_name": "Mini Meals",
+      "category": "entree",
+      "estimated_calories": 480,
+      "estimated_protein_g": 16,
+      "estimated_carbs_g": 72,
+      "estimated_fat_g": 14,
+      "confidence": 0.8,
+      "vegetarian_possible": false,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true,
+      "diet_type": "non_veg"
+    },
+    {
+      "item_name": "Khara Bath + Kesari Bath (set)",
+      "category": "entree",
+      "estimated_calories": 440,
+      "estimated_protein_g": 12,
+      "estimated_carbs_g": 68,
+      "estimated_fat_g": 14,
+      "confidence": 0.8,
+      "vegetarian_possible": false,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true,
+      "diet_type": "non_veg"
+    }
+  ]
+}

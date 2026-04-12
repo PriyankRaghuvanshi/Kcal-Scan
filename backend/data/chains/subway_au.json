@@ -17,7 +17,8 @@
       "vegetarian_possible": false,
       "vegan_possible": false,
       "halal_possible": true,
-      "gluten_free_possible": true
+      "gluten_free_possible": true,
+      "diet_type": "non_veg"
     },
     {
       "item_name": "6-inch Turkey Breast",
@@ -30,7 +31,8 @@
       "vegetarian_possible": false,
       "vegan_possible": false,
       "halal_possible": true,
-      "gluten_free_possible": true
+      "gluten_free_possible": true,
+      "diet_type": "non_veg"
     },
     {
       "item_name": "6-inch Veggie Delite",
@@ -41,9 +43,10 @@
       "estimated_fat_g": 3,
       "confidence": 0.85,
       "vegetarian_possible": true,
-      "vegan_possible": true,
+      "vegan_possible": false,
       "halal_possible": true,
-      "gluten_free_possible": true
+      "gluten_free_possible": true,
+      "diet_type": "vegetarian"
     },
     {
       "item_name": "6-inch Steak & Cheese",
@@ -53,10 +56,11 @@
       "estimated_carbs_g": 40,
       "estimated_fat_g": 10,
       "confidence": 0.85,
-      "vegetarian_possible": false,
+      "vegetarian_possible": true,
       "vegan_possible": false,
       "halal_possible": true,
-      "gluten_free_possible": true
+      "gluten_free_possible": true,
+      "diet_type": "vegetarian"
     },
     {
       "item_name": "Chicken & Bacon Ranch Wrap",
@@ -69,7 +73,8 @@
       "vegetarian_possible": false,
       "vegan_possible": false,
       "halal_possible": false,
-      "gluten_free_possible": false
+      "gluten_free_possible": false,
+      "diet_type": "non_veg"
     },
     {
       "item_name": "6-inch Tuna",
@@ -82,7 +87,8 @@
       "vegetarian_possible": false,
       "vegan_possible": false,
       "halal_possible": true,
-      "gluten_free_possible": true
+      "gluten_free_possible": true,
+      "diet_type": "non_veg"
     }
   ]
 }

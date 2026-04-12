@@ -19,7 +19,10 @@
       "estimated_fat_g": 20,
       "confidence": 0.84,
       "halal_possible": true,
-      "gluten_free_possible": true
+      "gluten_free_possible": true,
+      "diet_type": "non_veg",
+      "vegetarian_possible": false,
+      "vegan_possible": false
     },
     {
       "item_name": "Mediterranean Bowl with Chicken",
@@ -30,7 +33,10 @@
       "estimated_fat_g": 22,
       "confidence": 0.8,
       "halal_possible": true,
-      "gluten_free_possible": true
+      "gluten_free_possible": true,
+      "diet_type": "non_veg",
+      "vegetarian_possible": false,
+      "vegan_possible": false
     },
     {
       "item_name": "Frontega Chicken Panini",
@@ -41,7 +47,10 @@
       "estimated_fat_g": 34,
       "confidence": 0.77,
       "halal_possible": true,
-      "gluten_free_possible": true
+      "gluten_free_possible": true,
+      "diet_type": "non_veg",
+      "vegetarian_possible": false,
+      "vegan_possible": false
     },
     {
       "item_name": "Caesar Salad with Grilled Chicken",
@@ -52,7 +61,10 @@
       "estimated_fat_g": 24,
       "confidence": 0.82,
       "halal_possible": true,
-      "gluten_free_possible": true
+      "gluten_free_possible": true,
+      "diet_type": "non_veg",
+      "vegetarian_possible": false,
+      "vegan_possible": false
     }
   ]
 }

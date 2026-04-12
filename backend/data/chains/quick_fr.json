@@ -17,7 +17,8 @@
       "vegetarian_possible": false,
       "vegan_possible": false,
       "halal_possible": true,
-      "gluten_free_possible": false
+      "gluten_free_possible": false,
+      "diet_type": "non_veg"
     },
     {
       "item_name": "Chicken Caesar Salad",
@@ -30,7 +31,8 @@
       "vegetarian_possible": false,
       "vegan_possible": false,
       "halal_possible": true,
-      "gluten_free_possible": true
+      "gluten_free_possible": true,
+      "diet_type": "non_veg"
     },
     {
       "item_name": "Egg McMuffin or Breakfast Item",
@@ -40,10 +42,11 @@
       "estimated_carbs_g": 28,
       "estimated_fat_g": 13,
       "confidence": 0.78,
-      "vegetarian_possible": false,
+      "vegetarian_possible": true,
       "vegan_possible": false,
       "halal_possible": true,
-      "gluten_free_possible": false
+      "gluten_free_possible": false,
+      "diet_type": "vegetarian"
     },
     {
       "item_name": "Side Salad",
@@ -56,7 +59,8 @@
       "vegetarian_possible": true,
       "vegan_possible": true,
       "halal_possible": true,
-      "gluten_free_possible": true
+      "gluten_free_possible": true,
+      "diet_type": "vegan"
     }
   ]
 }

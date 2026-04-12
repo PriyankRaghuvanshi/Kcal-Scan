@@ -1,0 +1,68 @@
+{
+  "brand_name": "Konkan Cafe",
+  "source_type": "seed_template",
+  "source_url": "https://konkancafe.in/menu",
+  "store_name_variants": [
+    "konkan cafe",
+    "konkan",
+    "konkancafe"
+  ],
+  "items": [
+    {
+      "item_name": "Malvani Chicken Curry + Rice",
+      "category": "entree",
+      "estimated_calories": 520,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 54,
+      "estimated_fat_g": 20,
+      "confidence": 0.8,
+      "vegetarian_possible": false,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true,
+      "diet_type": "non_veg"
+    },
+    {
+      "item_name": "Prawn Gassi + Neer Dosa",
+      "category": "entree",
+      "estimated_calories": 520,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 52,
+      "estimated_fat_g": 20,
+      "confidence": 0.8,
+      "vegetarian_possible": false,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true,
+      "diet_type": "non_veg"
+    },
+    {
+      "item_name": "Solkadhi (small glass)",
+      "category": "beverage",
+      "estimated_calories": 60,
+      "estimated_protein_g": 2,
+      "estimated_carbs_g": 10,
+      "estimated_fat_g": 2,
+      "confidence": 0.8,
+      "vegetarian_possible": true,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true,
+      "diet_type": "vegetarian"
+    },
+    {
+      "item_name": "Fish Thali",
+      "category": "entree",
+      "estimated_calories": 620,
+      "estimated_protein_g": 38,
+      "estimated_carbs_g": 66,
+      "estimated_fat_g": 22,
+      "confidence": 0.8,
+      "vegetarian_possible": false,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true,
+      "diet_type": "non_veg"
+    }
+  ]
+}

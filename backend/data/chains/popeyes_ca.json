@@ -17,7 +17,8 @@
       "vegetarian_possible": false,
       "vegan_possible": false,
       "halal_possible": true,
-      "gluten_free_possible": false
+      "gluten_free_possible": false,
+      "diet_type": "non_veg"
     },
     {
       "item_name": "3pc Handcrafted Tenders",
@@ -30,7 +31,8 @@
       "vegetarian_possible": false,
       "vegan_possible": false,
       "halal_possible": true,
-      "gluten_free_possible": true
+      "gluten_free_possible": true,
+      "diet_type": "non_veg"
     },
     {
       "item_name": "2pc Mild Chicken",
@@ -43,7 +45,8 @@
       "vegetarian_possible": false,
       "vegan_possible": false,
       "halal_possible": true,
-      "gluten_free_possible": true
+      "gluten_free_possible": true,
+      "diet_type": "non_veg"
     },
     {
       "item_name": "Cajun Rice",
@@ -53,10 +56,11 @@
       "estimated_carbs_g": 26,
       "estimated_fat_g": 6,
       "confidence": 0.82,
-      "vegetarian_possible": false,
+      "vegetarian_possible": true,
       "vegan_possible": false,
       "halal_possible": true,
-      "gluten_free_possible": true
+      "gluten_free_possible": true,
+      "diet_type": "vegetarian"
     },
     {
       "item_name": "Green Beans",
@@ -69,7 +73,8 @@
       "vegetarian_possible": true,
       "vegan_possible": true,
       "halal_possible": true,
-      "gluten_free_possible": true
+      "gluten_free_possible": true,
+      "diet_type": "vegan"
     }
   ]
 }

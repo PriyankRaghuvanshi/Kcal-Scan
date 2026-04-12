@@ -1,0 +1,69 @@
+{
+  "brand_name": "Bombay Chaat House",
+  "source_type": "seed_template",
+  "source_url": "https://bombaychaat.com/menu",
+  "store_name_variants": [
+    "bombay chaat",
+    "bombay chaat house",
+    "bombaychaat",
+    "bombaychaathouse"
+  ],
+  "items": [
+    {
+      "item_name": "Bhel Puri",
+      "category": "entree",
+      "estimated_calories": 280,
+      "estimated_protein_g": 7,
+      "estimated_carbs_g": 46,
+      "estimated_fat_g": 8,
+      "confidence": 0.8,
+      "vegetarian_possible": false,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true,
+      "diet_type": "non_veg"
+    },
+    {
+      "item_name": "Sev Puri (6pc)",
+      "category": "entree",
+      "estimated_calories": 340,
+      "estimated_protein_g": 8,
+      "estimated_carbs_g": 52,
+      "estimated_fat_g": 12,
+      "confidence": 0.8,
+      "vegetarian_possible": false,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true,
+      "diet_type": "non_veg"
+    },
+    {
+      "item_name": "Pani Puri (6pc)",
+      "category": "entree",
+      "estimated_calories": 180,
+      "estimated_protein_g": 5,
+      "estimated_carbs_g": 32,
+      "estimated_fat_g": 4,
+      "confidence": 0.8,
+      "vegetarian_possible": false,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": true,
+      "diet_type": "non_veg"
+    },
+    {
+      "item_name": "Pav Bhaji",
+      "category": "entree",
+      "estimated_calories": 440,
+      "estimated_protein_g": 10,
+      "estimated_carbs_g": 54,
+      "estimated_fat_g": 20,
+      "confidence": 0.8,
+      "vegetarian_possible": false,
+      "vegan_possible": false,
+      "halal_possible": true,
+      "gluten_free_possible": false,
+      "diet_type": "non_veg"
+    }
+  ]
+}

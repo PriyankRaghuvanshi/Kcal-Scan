@@ -20,7 +20,8 @@
       "vegetarian_possible": true,
       "vegan_possible": false,
       "halal_possible": true,
-      "gluten_free_possible": false
+      "gluten_free_possible": false,
+      "diet_type": "vegetarian"
     },
     {
       "item_name": "Mexican Burrito Bowl (veg)",
@@ -33,7 +34,8 @@
       "vegetarian_possible": true,
       "vegan_possible": false,
       "halal_possible": true,
-      "gluten_free_possible": false
+      "gluten_free_possible": false,
+      "diet_type": "vegetarian"
     },
     {
       "item_name": "Paneer Tikka Masala + Roti",
@@ -46,7 +48,8 @@
       "vegetarian_possible": true,
       "vegan_possible": false,
       "halal_possible": true,
-      "gluten_free_possible": false
+      "gluten_free_possible": false,
+      "diet_type": "vegetarian"
     },
     {
       "item_name": "Lebanese Mezze Platter",
@@ -59,7 +62,8 @@
       "vegetarian_possible": true,
       "vegan_possible": true,
       "halal_possible": true,
-      "gluten_free_possible": true
+      "gluten_free_possible": true,
+      "diet_type": "vegan"
     },
     {
       "item_name": "Salad Bowl (hummus + falafel)",
@@ -72,7 +76,8 @@
       "vegetarian_possible": true,
       "vegan_possible": true,
       "halal_possible": true,
-      "gluten_free_possible": true
+      "gluten_free_possible": true,
+      "diet_type": "vegan"
     }
   ]
 }

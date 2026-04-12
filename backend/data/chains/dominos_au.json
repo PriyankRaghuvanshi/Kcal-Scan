@@ -20,7 +20,8 @@
       "vegetarian_possible": false,
       "vegan_possible": false,
       "halal_possible": true,
-      "gluten_free_possible": true
+      "gluten_free_possible": true,
+      "diet_type": "non_veg"
     },
     {
       "item_name": "Chicken & Feta (Medium, Thin Crust)",
@@ -33,7 +34,8 @@
       "vegetarian_possible": false,
       "vegan_possible": false,
       "halal_possible": true,
-      "gluten_free_possible": true
+      "gluten_free_possible": true,
+      "diet_type": "non_veg"
     },
     {
       "item_name": "BBQ Chicken & Bacon (Medium, Classic)",
@@ -46,7 +48,8 @@
       "vegetarian_possible": false,
       "vegan_possible": false,
       "halal_possible": false,
-      "gluten_free_possible": true
+      "gluten_free_possible": true,
+      "diet_type": "non_veg"
     },
     {
       "item_name": "Loaded Pepperoni (Medium, Thin Crust)",
@@ -59,7 +62,8 @@
       "vegetarian_possible": false,
       "vegan_possible": false,
       "halal_possible": false,
-      "gluten_free_possible": true
+      "gluten_free_possible": true,
+      "diet_type": "non_veg"
     },
     {
       "item_name": "Veg Trio (Medium, Classic)",
@@ -72,7 +76,8 @@
       "vegetarian_possible": true,
       "vegan_possible": false,
       "halal_possible": true,
-      "gluten_free_possible": true
+      "gluten_free_possible": true,
+      "diet_type": "vegetarian"
     },
     {
       "item_name": "Chicken Caesar Salad",
@@ -85,7 +90,8 @@
       "vegetarian_possible": false,
       "vegan_possible": false,
       "halal_possible": true,
-      "gluten_free_possible": true
+      "gluten_free_possible": true,
+      "diet_type": "non_veg"
     }
   ]
 }

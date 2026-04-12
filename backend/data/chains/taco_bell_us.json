@@ -16,7 +16,10 @@
       "estimated_fat_g": 18,
       "confidence": 0.82,
       "halal_possible": true,
-      "gluten_free_possible": true
+      "gluten_free_possible": true,
+      "diet_type": "non_veg",
+      "vegetarian_possible": false,
+      "vegan_possible": false
     },
     {
       "item_name": "Power Menu Bowl with Steak",
@@ -27,7 +30,10 @@
       "estimated_fat_g": 20,
       "confidence": 0.8,
       "halal_possible": true,
-      "gluten_free_possible": true
+      "gluten_free_possible": true,
+      "diet_type": "non_veg",
+      "vegetarian_possible": false,
+      "vegan_possible": false
     },
     {
       "item_name": "Fresco Soft Taco with Chicken",
@@ -38,7 +44,10 @@
       "estimated_fat_g": 5,
       "confidence": 0.78,
       "halal_possible": true,
-      "gluten_free_possible": false
+      "gluten_free_possible": false,
+      "diet_type": "non_veg",
+      "vegetarian_possible": false,
+      "vegan_possible": false
     },
     {
       "item_name": "Crunchy Taco",
@@ -49,7 +58,10 @@
       "estimated_fat_g": 9,
       "confidence": 0.85,
       "halal_possible": true,
-      "gluten_free_possible": false
+      "gluten_free_possible": false,
+      "diet_type": "non_veg",
+      "vegetarian_possible": false,
+      "vegan_possible": false
     },
     {
       "item_name": "Beefy 5-Layer Burrito",
@@ -60,7 +72,10 @@
       "estimated_fat_g": 22,
       "confidence": 0.78,
       "halal_possible": true,
-      "gluten_free_possible": false
+      "gluten_free_possible": false,
+      "diet_type": "non_veg",
+      "vegetarian_possible": false,
+      "vegan_possible": false
     }
   ]
 }
