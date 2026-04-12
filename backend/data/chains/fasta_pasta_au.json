@@ -1,0 +1,54 @@
+{
+  "brand_name": "Fasta Pasta",
+  "source_type": "seed_template",
+  "source_url": "https://www.fastapasta.com.au/menu",
+  "store_name_variants": [
+    "fasta pasta"
+  ],
+  "items": [
+    {
+      "item_name": "Chicken Parmigiana + Pasta",
+      "category": "entree",
+      "estimated_calories": 640,
+      "estimated_protein_g": 38,
+      "estimated_carbs_g": 60,
+      "estimated_fat_g": 28,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Spaghetti Bolognese",
+      "category": "entree",
+      "estimated_calories": 560,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 66,
+      "estimated_fat_g": 22,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Chicken Carbonara (half)",
+      "category": "entree",
+      "estimated_calories": 540,
+      "estimated_protein_g": 26,
+      "estimated_carbs_g": 58,
+      "estimated_fat_g": 22,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Napolitana Pasta (veg)",
+      "category": "entree",
+      "estimated_calories": 460,
+      "estimated_protein_g": 16,
+      "estimated_carbs_g": 68,
+      "estimated_fat_g": 14,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    }
+  ]
+}

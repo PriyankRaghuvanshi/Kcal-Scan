@@ -1,0 +1,55 @@
+{
+  "brand_name": "The Cheesecake Factory",
+  "source_type": "seed_template",
+  "source_url": "https://www.thecheesecakefactory.com/menu",
+  "store_name_variants": [
+    "cheesecake factory",
+    "the cheesecake factory"
+  ],
+  "items": [
+    {
+      "item_name": "Grilled Salmon + Steamed Vegetables",
+      "category": "entree",
+      "estimated_calories": 480,
+      "estimated_protein_g": 42,
+      "estimated_carbs_g": 12,
+      "estimated_fat_g": 28,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Herb Crusted Chicken",
+      "category": "entree",
+      "estimated_calories": 520,
+      "estimated_protein_g": 44,
+      "estimated_carbs_g": 18,
+      "estimated_fat_g": 28,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "SkinnyLicious Grilled Chicken",
+      "category": "entree",
+      "estimated_calories": 440,
+      "estimated_protein_g": 46,
+      "estimated_carbs_g": 24,
+      "estimated_fat_g": 16,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Chinese Chicken Salad",
+      "category": "entree",
+      "estimated_calories": 460,
+      "estimated_protein_g": 34,
+      "estimated_carbs_g": 32,
+      "estimated_fat_g": 20,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    }
+  ]
+}

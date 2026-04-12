@@ -1,0 +1,43 @@
+{
+  "brand_name": "Burger Edge",
+  "source_type": "seed_template",
+  "source_url": "https://burgeredge.com.au/menu",
+  "store_name_variants": [
+    "burger edge"
+  ],
+  "items": [
+    {
+      "item_name": "Classic Beef Burger",
+      "category": "entree",
+      "estimated_calories": 560,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 28,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Grilled Chicken Burger",
+      "category": "entree",
+      "estimated_calories": 480,
+      "estimated_protein_g": 34,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 20,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Vegan Burger",
+      "category": "entree",
+      "estimated_calories": 460,
+      "estimated_protein_g": 16,
+      "estimated_carbs_g": 54,
+      "estimated_fat_g": 22,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": true
+    }
+  ]
+}

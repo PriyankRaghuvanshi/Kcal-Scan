@@ -1,0 +1,57 @@
+{
+  "brand_name": "BJ's Restaurant & Brewhouse",
+  "source_type": "seed_template",
+  "source_url": "https://www.bjsrestaurants.com/menu",
+  "store_name_variants": [
+    "bjs restaurant",
+    "bj's restaurant",
+    "bjs brewhouse",
+    "bj's brewhouse"
+  ],
+  "items": [
+    {
+      "item_name": "Grilled Chicken Avocado Flatbread (half)",
+      "category": "entree",
+      "estimated_calories": 460,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 40,
+      "estimated_fat_g": 22,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Atlantic Salmon + Vegetables",
+      "category": "entree",
+      "estimated_calories": 480,
+      "estimated_protein_g": 42,
+      "estimated_carbs_g": 12,
+      "estimated_fat_g": 28,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Buffalo Chicken Salad",
+      "category": "entree",
+      "estimated_calories": 520,
+      "estimated_protein_g": 34,
+      "estimated_carbs_g": 22,
+      "estimated_fat_g": 34,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Personal Chicken Alfredo Pizza",
+      "category": "entree",
+      "estimated_calories": 520,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 56,
+      "estimated_fat_g": 22,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    }
+  ]
+}

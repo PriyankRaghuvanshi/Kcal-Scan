@@ -1,0 +1,56 @@
+{
+  "brand_name": "Fisherman's Wharf",
+  "source_type": "seed_template",
+  "source_url": "https://fishermanswharfgoa.com/menu",
+  "store_name_variants": [
+    "fishermans wharf",
+    "fisherman's wharf",
+    "fishermans"
+  ],
+  "items": [
+    {
+      "item_name": "Grilled Pomfret",
+      "category": "entree",
+      "estimated_calories": 360,
+      "estimated_protein_g": 34,
+      "estimated_carbs_g": 2,
+      "estimated_fat_g": 22,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Chicken Xacuti + Neer Dosa",
+      "category": "entree",
+      "estimated_calories": 540,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 48,
+      "estimated_fat_g": 24,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Prawn Balchao + Rice",
+      "category": "entree",
+      "estimated_calories": 520,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 52,
+      "estimated_fat_g": 22,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Fish Thali (Goan)",
+      "category": "entree",
+      "estimated_calories": 620,
+      "estimated_protein_g": 34,
+      "estimated_carbs_g": 58,
+      "estimated_fat_g": 24,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    }
+  ]
+}
