@@ -132,6 +132,16 @@ def _infer_country_from_latlng(lat: Any, lng: Any) -> str:
         return "IN"
     if 49.0 <= lat_f <= 61.0 and -9.0 <= lng_f <= 2.0:
         return "GB"
+    if 1.15 <= lat_f <= 1.5 and 103.5 <= lng_f <= 104.1:
+        return "SG"
+    if 5.5 <= lat_f <= 20.5 and 97.3 <= lng_f <= 105.6:
+        return "TH"
+    if 0.8 <= lat_f <= 7.5 and 99.5 <= lng_f <= 119.3:
+        return "MY"
+    if -11.0 <= lat_f <= 6.1 and 95.0 <= lng_f <= 141.0:
+        return "ID"
+    if 4.5 <= lat_f <= 21.0 and 116.0 <= lng_f <= 127.0:
+        return "PH"
     return ""
 
 
@@ -158,6 +168,34 @@ def _infer_country_code(place: Dict[str, Any]) -> str:
         return "NZ"
     if "united kingdom" in text or " uk" in f" {text} ":
         return "GB"
+    if "singapore" in text:
+        return "SG"
+    if "malaysia" in text:
+        return "MY"
+    if "thailand" in text:
+        return "TH"
+    if "indonesia" in text:
+        return "ID"
+    if "philippines" in text:
+        return "PH"
+    if "japan" in text:
+        return "JP"
+    if "canada" in text:
+        return "CA"
+    if "brazil" in text or "brasil" in text:
+        return "BR"
+    if "mexico" in text or "méxico" in text:
+        return "MX"
+    if "germany" in text or "deutschland" in text:
+        return "DE"
+    if "france" in text:
+        return "FR"
+    if "south africa" in text:
+        return "ZA"
+    if "united arab emirates" in text or " uae" in f" {text} ":
+        return "AE"
+    if "south korea" in text or "republic of korea" in text:
+        return "KR"
 
     latlng_guess = _infer_country_from_latlng(payload.get("lat"), payload.get("lng"))
     if latlng_guess:

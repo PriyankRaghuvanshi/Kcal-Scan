@@ -1,0 +1,54 @@
+{
+  "brand_name": "Subway",
+  "source_type": "seed_template",
+  "source_url": "https://www.subway.com.my/menu",
+  "store_name_variants": [
+    "subway"
+  ],
+  "items": [
+    {
+      "item_name": "6-inch Roast Chicken Sub",
+      "category": "entree",
+      "estimated_calories": 280,
+      "estimated_protein_g": 22,
+      "estimated_carbs_g": 40,
+      "estimated_fat_g": 5,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "6-inch Turkey Breast Sub",
+      "category": "entree",
+      "estimated_calories": 260,
+      "estimated_protein_g": 18,
+      "estimated_carbs_g": 40,
+      "estimated_fat_g": 4,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Salad Bowl Chicken Teriyaki",
+      "category": "entree",
+      "estimated_calories": 290,
+      "estimated_protein_g": 26,
+      "estimated_carbs_g": 22,
+      "estimated_fat_g": 10,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "6-inch Veggie Delite",
+      "category": "entree",
+      "estimated_calories": 230,
+      "estimated_protein_g": 8,
+      "estimated_carbs_g": 40,
+      "estimated_fat_g": 3,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": true
+    }
+  ]
+}

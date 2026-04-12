@@ -1,0 +1,44 @@
+{
+  "brand_name": "After You",
+  "source_type": "seed_template",
+  "source_url": "https://afteryoudessertcafe.com/menu",
+  "store_name_variants": [
+    "after you",
+    "after you dessert cafe"
+  ],
+  "items": [
+    {
+      "item_name": "Shibuya Honey Toast (share)",
+      "category": "dessert",
+      "estimated_calories": 720,
+      "estimated_protein_g": 10,
+      "estimated_carbs_g": 110,
+      "estimated_fat_g": 24,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Matcha Latte (less sweet)",
+      "category": "beverage",
+      "estimated_calories": 220,
+      "estimated_protein_g": 6,
+      "estimated_carbs_g": 30,
+      "estimated_fat_g": 8,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Mango Sticky Rice",
+      "category": "dessert",
+      "estimated_calories": 420,
+      "estimated_protein_g": 6,
+      "estimated_carbs_g": 78,
+      "estimated_fat_g": 12,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": true
+    }
+  ]
+}

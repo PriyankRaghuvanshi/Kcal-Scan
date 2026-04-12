@@ -1,0 +1,56 @@
+{
+  "brand_name": "Old Town White Coffee",
+  "source_type": "seed_template",
+  "source_url": "https://www.oldtown.com.my/menu",
+  "store_name_variants": [
+    "old town",
+    "old town white coffee",
+    "oldtown"
+  ],
+  "items": [
+    {
+      "item_name": "Nasi Lemak Chicken Rendang",
+      "category": "entree",
+      "estimated_calories": 680,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 78,
+      "estimated_fat_g": 28,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Kaya Butter Toast Set (no sugar drink)",
+      "category": "breakfast",
+      "estimated_calories": 340,
+      "estimated_protein_g": 10,
+      "estimated_carbs_g": 44,
+      "estimated_fat_g": 14,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Steamed Chicken + Rice",
+      "category": "entree",
+      "estimated_calories": 520,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 56,
+      "estimated_fat_g": 16,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Wantan Mee (dry, chicken)",
+      "category": "entree",
+      "estimated_calories": 440,
+      "estimated_protein_g": 22,
+      "estimated_carbs_g": 58,
+      "estimated_fat_g": 12,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    }
+  ]
+}

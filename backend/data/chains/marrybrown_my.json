@@ -1,0 +1,56 @@
+{
+  "brand_name": "Marrybrown",
+  "source_type": "seed_template",
+  "source_url": "https://www.marrybrown.com.my/menu",
+  "store_name_variants": [
+    "marrybrown",
+    "marry brown",
+    "mb"
+  ],
+  "items": [
+    {
+      "item_name": "Grilled Chicken Rice",
+      "category": "entree",
+      "estimated_calories": 480,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 52,
+      "estimated_fat_g": 14,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "MB Crispy Chicken (1pc)",
+      "category": "entree",
+      "estimated_calories": 260,
+      "estimated_protein_g": 18,
+      "estimated_carbs_g": 10,
+      "estimated_fat_g": 16,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Nasi Ayam Penyet (grilled)",
+      "category": "entree",
+      "estimated_calories": 510,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 60,
+      "estimated_fat_g": 14,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Garden Salad",
+      "category": "side",
+      "estimated_calories": 60,
+      "estimated_protein_g": 2,
+      "estimated_carbs_g": 8,
+      "estimated_fat_g": 2,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": true
+    }
+  ]
+}

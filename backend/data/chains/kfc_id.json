@@ -1,0 +1,55 @@
+{
+  "brand_name": "KFC",
+  "source_type": "seed_template",
+  "source_url": "https://www.kfcku.com/menu",
+  "store_name_variants": [
+    "kfc",
+    "kfcku"
+  ],
+  "items": [
+    {
+      "item_name": "Chicken + Nasi (1pc grilled)",
+      "category": "entree",
+      "estimated_calories": 520,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 64,
+      "estimated_fat_g": 14,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Original Recipe (1pc breast)",
+      "category": "entree",
+      "estimated_calories": 340,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 10,
+      "estimated_fat_g": 20,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Kol Slaw (regular)",
+      "category": "side",
+      "estimated_calories": 120,
+      "estimated_protein_g": 1,
+      "estimated_carbs_g": 12,
+      "estimated_fat_g": 8,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Fish Fillet Rice Bowl",
+      "category": "entree",
+      "estimated_calories": 480,
+      "estimated_protein_g": 26,
+      "estimated_carbs_g": 62,
+      "estimated_fat_g": 14,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    }
+  ]
+}

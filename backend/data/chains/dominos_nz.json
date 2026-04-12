@@ -1,0 +1,45 @@
+{
+  "brand_name": "Domino's Pizza",
+  "source_type": "seed_template",
+  "source_url": "https://www.dominos.co.nz/menu",
+  "store_name_variants": [
+    "dominos",
+    "domino's",
+    "dominos pizza"
+  ],
+  "items": [
+    {
+      "item_name": "Chef's Best Chicken (personal)",
+      "category": "entree",
+      "estimated_calories": 540,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 64,
+      "estimated_fat_g": 18,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Hawaiian (personal)",
+      "category": "entree",
+      "estimated_calories": 580,
+      "estimated_protein_g": 24,
+      "estimated_carbs_g": 72,
+      "estimated_fat_g": 20,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Veg Supreme (personal)",
+      "category": "entree",
+      "estimated_calories": 480,
+      "estimated_protein_g": 18,
+      "estimated_carbs_g": 66,
+      "estimated_fat_g": 16,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    }
+  ]
+}

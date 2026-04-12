@@ -1,0 +1,55 @@
+{
+  "brand_name": "KFC",
+  "source_type": "seed_template",
+  "source_url": "https://www.kfc.co.th/menu",
+  "store_name_variants": [
+    "kfc",
+    "kentucky fried chicken"
+  ],
+  "items": [
+    {
+      "item_name": "Grilled Chicken (1pc)",
+      "category": "entree",
+      "estimated_calories": 190,
+      "estimated_protein_g": 26,
+      "estimated_carbs_g": 2,
+      "estimated_fat_g": 9,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Original Recipe (1pc breast)",
+      "category": "entree",
+      "estimated_calories": 340,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 10,
+      "estimated_fat_g": 20,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Rice Bowl Chicken Kra Pao",
+      "category": "entree",
+      "estimated_calories": 540,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 70,
+      "estimated_fat_g": 16,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Coleslaw",
+      "category": "side",
+      "estimated_calories": 120,
+      "estimated_protein_g": 1,
+      "estimated_carbs_g": 12,
+      "estimated_fat_g": 8,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    }
+  ]
+}

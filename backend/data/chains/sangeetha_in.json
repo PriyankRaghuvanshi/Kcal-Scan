@@ -1,0 +1,55 @@
+{
+  "brand_name": "Sangeetha Restaurant",
+  "source_type": "seed_template",
+  "source_url": "https://www.sangeethaveg.com/menu",
+  "store_name_variants": [
+    "sangeetha",
+    "sangeetha veg"
+  ],
+  "items": [
+    {
+      "item_name": "Ghee Roast Dosa",
+      "category": "entree",
+      "estimated_calories": 420,
+      "estimated_protein_g": 10,
+      "estimated_carbs_g": 58,
+      "estimated_fat_g": 18,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Mini Tiffin (idli/vada/pongal)",
+      "category": "entree",
+      "estimated_calories": 480,
+      "estimated_protein_g": 16,
+      "estimated_carbs_g": 72,
+      "estimated_fat_g": 14,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Veg Meals (portion controlled)",
+      "category": "entree",
+      "estimated_calories": 540,
+      "estimated_protein_g": 18,
+      "estimated_carbs_g": 86,
+      "estimated_fat_g": 14,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Upma",
+      "category": "entree",
+      "estimated_calories": 260,
+      "estimated_protein_g": 8,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 8,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": true
+    }
+  ]
+}

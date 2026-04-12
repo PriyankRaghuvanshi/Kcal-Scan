@@ -1,0 +1,55 @@
+{
+  "brand_name": "Es Teler 77",
+  "source_type": "seed_template",
+  "source_url": "https://esteler77.com/menu",
+  "store_name_variants": [
+    "es teler 77",
+    "es teler"
+  ],
+  "items": [
+    {
+      "item_name": "Gado-Gado",
+      "category": "entree",
+      "estimated_calories": 380,
+      "estimated_protein_g": 16,
+      "estimated_carbs_g": 38,
+      "estimated_fat_g": 20,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": true
+    },
+    {
+      "item_name": "Nasi Goreng Ayam",
+      "category": "entree",
+      "estimated_calories": 540,
+      "estimated_protein_g": 24,
+      "estimated_carbs_g": 72,
+      "estimated_fat_g": 16,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Mie Ayam",
+      "category": "entree",
+      "estimated_calories": 420,
+      "estimated_protein_g": 22,
+      "estimated_carbs_g": 56,
+      "estimated_fat_g": 12,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Ayam Bakar + Rice",
+      "category": "entree",
+      "estimated_calories": 520,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 58,
+      "estimated_fat_g": 16,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    }
+  ]
+}

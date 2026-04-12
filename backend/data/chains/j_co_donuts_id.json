@@ -1,0 +1,45 @@
+{
+  "brand_name": "J.CO Donuts & Coffee",
+  "source_type": "seed_template",
+  "source_url": "https://www.jcodonuts.com/menu",
+  "store_name_variants": [
+    "j.co",
+    "jco",
+    "j.co donuts"
+  ],
+  "items": [
+    {
+      "item_name": "Coffee (black, no sugar)",
+      "category": "beverage",
+      "estimated_calories": 10,
+      "estimated_protein_g": 0,
+      "estimated_carbs_g": 1,
+      "estimated_fat_g": 0,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": true
+    },
+    {
+      "item_name": "Single Donut (glazed)",
+      "category": "dessert",
+      "estimated_calories": 280,
+      "estimated_protein_g": 4,
+      "estimated_carbs_g": 34,
+      "estimated_fat_g": 14,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Cappuccino (no sugar)",
+      "category": "beverage",
+      "estimated_calories": 120,
+      "estimated_protein_g": 8,
+      "estimated_carbs_g": 10,
+      "estimated_fat_g": 6,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    }
+  ]
+}

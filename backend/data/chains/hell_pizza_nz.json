@@ -1,0 +1,44 @@
+{
+  "brand_name": "Hell Pizza",
+  "source_type": "seed_template",
+  "source_url": "https://hell.co.nz/menu",
+  "store_name_variants": [
+    "hell pizza",
+    "hell"
+  ],
+  "items": [
+    {
+      "item_name": "Sloth (personal, chicken)",
+      "category": "entree",
+      "estimated_calories": 540,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 62,
+      "estimated_fat_g": 20,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Greed (personal, ham/bacon/chicken)",
+      "category": "entree",
+      "estimated_calories": 620,
+      "estimated_protein_g": 34,
+      "estimated_carbs_g": 60,
+      "estimated_fat_g": 26,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Mischief (personal, veg)",
+      "category": "entree",
+      "estimated_calories": 480,
+      "estimated_protein_g": 18,
+      "estimated_carbs_g": 66,
+      "estimated_fat_g": 16,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    }
+  ]
+}

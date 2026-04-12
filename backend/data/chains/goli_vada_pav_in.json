@@ -1,0 +1,44 @@
+{
+  "brand_name": "Goli Vada Pav",
+  "source_type": "seed_template",
+  "source_url": "https://www.golivadapav.com/menu",
+  "store_name_variants": [
+    "goli vada pav",
+    "goli"
+  ],
+  "items": [
+    {
+      "item_name": "Vada Pav (single)",
+      "category": "entree",
+      "estimated_calories": 290,
+      "estimated_protein_g": 7,
+      "estimated_carbs_g": 38,
+      "estimated_fat_g": 12,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": true
+    },
+    {
+      "item_name": "Schezwan Vada Pav",
+      "category": "entree",
+      "estimated_calories": 310,
+      "estimated_protein_g": 7,
+      "estimated_carbs_g": 38,
+      "estimated_fat_g": 14,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": true
+    },
+    {
+      "item_name": "Samosa Pav",
+      "category": "entree",
+      "estimated_calories": 320,
+      "estimated_protein_g": 8,
+      "estimated_carbs_g": 44,
+      "estimated_fat_g": 12,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": false
+    }
+  ]
+}

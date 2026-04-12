@@ -1,0 +1,56 @@
+{
+  "brand_name": "The Chicken Rice Shop",
+  "source_type": "seed_template",
+  "source_url": "https://www.thechickenriceshop.com/menu",
+  "store_name_variants": [
+    "chicken rice shop",
+    "tcrs",
+    "the chicken rice shop"
+  ],
+  "items": [
+    {
+      "item_name": "Steamed Chicken + Rice (quarter)",
+      "category": "entree",
+      "estimated_calories": 520,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 58,
+      "estimated_fat_g": 16,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Roast Chicken + Rice (quarter)",
+      "category": "entree",
+      "estimated_calories": 580,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 60,
+      "estimated_fat_g": 22,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    },
+    {
+      "item_name": "Sayur Manis",
+      "category": "side",
+      "estimated_calories": 40,
+      "estimated_protein_g": 2,
+      "estimated_carbs_g": 6,
+      "estimated_fat_g": 1,
+      "confidence": 0.82,
+      "vegetarian_possible": true,
+      "vegan_possible": true
+    },
+    {
+      "item_name": "Chicken Salad Bowl",
+      "category": "entree",
+      "estimated_calories": 320,
+      "estimated_protein_g": 26,
+      "estimated_carbs_g": 18,
+      "estimated_fat_g": 14,
+      "confidence": 0.82,
+      "vegetarian_possible": false,
+      "vegan_possible": false
+    }
+  ]
+}
