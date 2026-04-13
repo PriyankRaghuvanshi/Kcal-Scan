@@ -21608,9 +21608,9 @@
       "cuisine_tags": [],
       "category_tags": [],
       "rollout_priority": "p2_regional_growth",
-      "confidence_tier": "tier_3_basic",
-      "coverage_status": "partial",
-      "supports_swaps": false,
+      "confidence_tier": "tier_2_good",
+      "coverage_status": "live",
+      "supports_swaps": true,
       "menu_template_count": 4,
       "notes": "Auto-generated from ingested menu data. Hand-curate swaps before promoting to live.",
       "menu_templates": [
@@ -21683,7 +21683,44 @@
           "recommended_swap_keys": []
         }
       ],
-      "swap_templates": []
+      "swap_templates": [
+        {
+          "swap_key": "half_portion",
+          "swap_label": "Share main / half portion",
+          "swap_type": "portion_change",
+          "calories_delta": -280,
+          "protein_delta": -10,
+          "reason": "Right-size calories",
+          "plausibility_score": 0.88,
+          "markets": [
+            "IN"
+          ]
+        },
+        {
+          "swap_key": "grilled_not_fried",
+          "swap_label": "Grilled instead of fried",
+          "swap_type": "prep_change",
+          "calories_delta": -160,
+          "protein_delta": 2,
+          "reason": "Fewer calories, retain protein",
+          "plausibility_score": 0.9,
+          "markets": [
+            "IN"
+          ]
+        },
+        {
+          "swap_key": "dressing_on_side",
+          "swap_label": "Dressing on the side",
+          "swap_type": "prep_change",
+          "calories_delta": -120,
+          "protein_delta": 0,
+          "reason": "Control added fat",
+          "plausibility_score": 0.92,
+          "markets": [
+            "IN"
+          ]
+        }
+      ]
     },
     {
       "chain_key": "jaffer_bhais",
@@ -22370,9 +22407,9 @@
       "cuisine_tags": [],
       "category_tags": [],
       "rollout_priority": "p2_regional_growth",
-      "confidence_tier": "tier_3_basic",
-      "coverage_status": "partial",
-      "supports_swaps": false,
+      "confidence_tier": "tier_2_good",
+      "coverage_status": "live",
+      "supports_swaps": true,
       "menu_template_count": 4,
       "notes": "Auto-generated from ingested menu data. Hand-curate swaps before promoting to live.",
       "menu_templates": [
@@ -22450,7 +22487,44 @@
           "recommended_swap_keys": []
         }
       ],
-      "swap_templates": []
+      "swap_templates": [
+        {
+          "swap_key": "half_portion",
+          "swap_label": "Share main / half portion",
+          "swap_type": "portion_change",
+          "calories_delta": -280,
+          "protein_delta": -10,
+          "reason": "Right-size calories",
+          "plausibility_score": 0.88,
+          "markets": [
+            "IN"
+          ]
+        },
+        {
+          "swap_key": "no_cream",
+          "swap_label": "Less cream in curry",
+          "swap_type": "prep_change",
+          "calories_delta": -100,
+          "protein_delta": -2,
+          "reason": "Cut added saturated fat",
+          "plausibility_score": 0.85,
+          "markets": [
+            "IN"
+          ]
+        },
+        {
+          "swap_key": "dressing_on_side",
+          "swap_label": "Dressing on the side",
+          "swap_type": "prep_change",
+          "calories_delta": -120,
+          "protein_delta": 0,
+          "reason": "Control added fat",
+          "plausibility_score": 0.92,
+          "markets": [
+            "IN"
+          ]
+        }
+      ]
     },
     {
       "chain_key": "max_brenner",
@@ -23250,9 +23324,9 @@
       "cuisine_tags": [],
       "category_tags": [],
       "rollout_priority": "p2_regional_growth",
-      "confidence_tier": "tier_3_basic",
-      "coverage_status": "partial",
-      "supports_swaps": false,
+      "confidence_tier": "tier_2_good",
+      "coverage_status": "live",
+      "supports_swaps": true,
       "menu_template_count": 4,
       "notes": "Auto-generated from ingested menu data. Hand-curate swaps before promoting to live.",
       "menu_templates": [
@@ -23327,7 +23401,44 @@
           "recommended_swap_keys": []
         }
       ],
-      "swap_templates": []
+      "swap_templates": [
+        {
+          "swap_key": "half_portion",
+          "swap_label": "Half biryani / rice portion",
+          "swap_type": "portion_change",
+          "calories_delta": -260,
+          "protein_delta": -15,
+          "reason": "Cut rice load",
+          "plausibility_score": 0.88,
+          "markets": [
+            "IN"
+          ]
+        },
+        {
+          "swap_key": "extra_raita",
+          "swap_label": "Double raita portion",
+          "swap_type": "add_on",
+          "calories_delta": 40,
+          "protein_delta": 5,
+          "reason": "Protein + volume, slows GI",
+          "plausibility_score": 0.9,
+          "markets": [
+            "IN"
+          ]
+        },
+        {
+          "swap_key": "extra_veg",
+          "swap_label": "Extra veg / salad",
+          "swap_type": "add_on",
+          "calories_delta": 30,
+          "protein_delta": 2,
+          "reason": "Add fiber + volume",
+          "plausibility_score": 0.92,
+          "markets": [
+            "IN"
+          ]
+        }
+      ]
     },
     {
       "chain_key": "rashays",
@@ -23921,9 +24032,9 @@
       "cuisine_tags": [],
       "category_tags": [],
       "rollout_priority": "p2_regional_growth",
-      "confidence_tier": "tier_3_basic",
-      "coverage_status": "partial",
-      "supports_swaps": false,
+      "confidence_tier": "tier_2_good",
+      "coverage_status": "live",
+      "supports_swaps": true,
       "menu_template_count": 4,
       "notes": "Auto-generated from ingested menu data. Hand-curate swaps before promoting to live.",
       "menu_templates": [
@@ -24000,7 +24111,44 @@
           "recommended_swap_keys": []
         }
       ],
-      "swap_templates": []
+      "swap_templates": [
+        {
+          "swap_key": "fill_salad_first",
+          "swap_label": "Fill plate with salad first",
+          "swap_type": "portion_change",
+          "calories_delta": -150,
+          "protein_delta": 3,
+          "reason": "Fiber before calories",
+          "plausibility_score": 0.92,
+          "markets": [
+            "IN"
+          ]
+        },
+        {
+          "swap_key": "grilled_not_fried",
+          "swap_label": "Grilled instead of fried",
+          "swap_type": "prep_change",
+          "calories_delta": -160,
+          "protein_delta": 2,
+          "reason": "Fewer calories, retain protein",
+          "plausibility_score": 0.9,
+          "markets": [
+            "IN"
+          ]
+        },
+        {
+          "swap_key": "skip_dessert",
+          "swap_label": "Skip dessert buffet",
+          "swap_type": "course_skip",
+          "calories_delta": -260,
+          "protein_delta": 0,
+          "reason": "Remove added sugar",
+          "plausibility_score": 0.95,
+          "markets": [
+            "IN"
+          ]
+        }
+      ]
     },
     {
       "chain_key": "slay_coffee",
@@ -24015,9 +24163,9 @@
       "cuisine_tags": [],
       "category_tags": [],
       "rollout_priority": "p2_regional_growth",
-      "confidence_tier": "tier_3_basic",
-      "coverage_status": "partial",
-      "supports_swaps": false,
+      "confidence_tier": "tier_2_good",
+      "coverage_status": "live",
+      "supports_swaps": true,
       "menu_template_count": 4,
       "notes": "Auto-generated from ingested menu data. Hand-curate swaps before promoting to live.",
       "menu_templates": [
@@ -24096,7 +24244,32 @@
           "recommended_swap_keys": []
         }
       ],
-      "swap_templates": []
+      "swap_templates": [
+        {
+          "swap_key": "unsweet_drink",
+          "swap_label": "Water or unsweet drink",
+          "swap_type": "drink_swap",
+          "calories_delta": -200,
+          "protein_delta": 0,
+          "reason": "Remove liquid sugar",
+          "plausibility_score": 0.96,
+          "markets": [
+            "IN"
+          ]
+        },
+        {
+          "swap_key": "skip_pastry",
+          "swap_label": "Skip pastry",
+          "swap_type": "course_skip",
+          "calories_delta": -320,
+          "protein_delta": -3,
+          "reason": "Cut added sugar + fat",
+          "plausibility_score": 0.94,
+          "markets": [
+            "IN"
+          ]
+        }
+      ]
     },
     {
       "chain_key": "smoothie_king",
@@ -24905,9 +25078,9 @@
       "cuisine_tags": [],
       "category_tags": [],
       "rollout_priority": "p2_regional_growth",
-      "confidence_tier": "tier_3_basic",
-      "coverage_status": "partial",
-      "supports_swaps": false,
+      "confidence_tier": "tier_2_good",
+      "coverage_status": "live",
+      "supports_swaps": true,
       "menu_template_count": 4,
       "notes": "Auto-generated from ingested menu data. Hand-curate swaps before promoting to live.",
       "menu_templates": [
@@ -24978,7 +25151,44 @@
           "recommended_swap_keys": []
         }
       ],
-      "swap_templates": []
+      "swap_templates": [
+        {
+          "swap_key": "no_ghee",
+          "swap_label": "No ghee on roti/rice",
+          "swap_type": "prep_change",
+          "calories_delta": -60,
+          "protein_delta": 0,
+          "reason": "Reduce added fat",
+          "plausibility_score": 0.9,
+          "markets": [
+            "IN"
+          ]
+        },
+        {
+          "swap_key": "half_rice",
+          "swap_label": "Half rice, double the side",
+          "swap_type": "portion_change",
+          "calories_delta": -150,
+          "protein_delta": 4,
+          "reason": "Shift carbs to protein/fiber",
+          "plausibility_score": 0.88,
+          "markets": [
+            "IN"
+          ]
+        },
+        {
+          "swap_key": "extra_veg",
+          "swap_label": "Extra veg / salad",
+          "swap_type": "add_on",
+          "calories_delta": 30,
+          "protein_delta": 2,
+          "reason": "Add fiber + volume",
+          "plausibility_score": 0.92,
+          "markets": [
+            "IN"
+          ]
+        }
+      ]
     },
     {
       "chain_key": "aminia",
@@ -24992,9 +25202,9 @@
       "cuisine_tags": [],
       "category_tags": [],
       "rollout_priority": "p2_regional_growth",
-      "confidence_tier": "tier_3_basic",
-      "coverage_status": "partial",
-      "supports_swaps": false,
+      "confidence_tier": "tier_2_good",
+      "coverage_status": "live",
+      "supports_swaps": true,
       "menu_template_count": 4,
       "notes": "Auto-generated from ingested menu data. Hand-curate swaps before promoting to live.",
       "menu_templates": [
@@ -25069,7 +25279,44 @@
           "recommended_swap_keys": []
         }
       ],
-      "swap_templates": []
+      "swap_templates": [
+        {
+          "swap_key": "half_portion",
+          "swap_label": "Half biryani / rice portion",
+          "swap_type": "portion_change",
+          "calories_delta": -260,
+          "protein_delta": -15,
+          "reason": "Cut rice load",
+          "plausibility_score": 0.88,
+          "markets": [
+            "IN"
+          ]
+        },
+        {
+          "swap_key": "extra_raita",
+          "swap_label": "Double raita portion",
+          "swap_type": "add_on",
+          "calories_delta": 40,
+          "protein_delta": 5,
+          "reason": "Protein + volume, slows GI",
+          "plausibility_score": 0.9,
+          "markets": [
+            "IN"
+          ]
+        },
+        {
+          "swap_key": "extra_veg",
+          "swap_label": "Extra veg / salad",
+          "swap_type": "add_on",
+          "calories_delta": 30,
+          "protein_delta": 2,
+          "reason": "Add fiber + volume",
+          "plausibility_score": 0.92,
+          "markets": [
+            "IN"
+          ]
+        }
+      ]
     },
     {
       "chain_key": "arsalan",
@@ -25083,9 +25330,9 @@
       "cuisine_tags": [],
       "category_tags": [],
       "rollout_priority": "p2_regional_growth",
-      "confidence_tier": "tier_3_basic",
-      "coverage_status": "partial",
-      "supports_swaps": false,
+      "confidence_tier": "tier_2_good",
+      "coverage_status": "live",
+      "supports_swaps": true,
       "menu_template_count": 4,
       "notes": "Auto-generated from ingested menu data. Hand-curate swaps before promoting to live.",
       "menu_templates": [
@@ -25160,7 +25407,44 @@
           "recommended_swap_keys": []
         }
       ],
-      "swap_templates": []
+      "swap_templates": [
+        {
+          "swap_key": "half_portion",
+          "swap_label": "Half biryani / rice portion",
+          "swap_type": "portion_change",
+          "calories_delta": -260,
+          "protein_delta": -15,
+          "reason": "Cut rice load",
+          "plausibility_score": 0.88,
+          "markets": [
+            "IN"
+          ]
+        },
+        {
+          "swap_key": "extra_raita",
+          "swap_label": "Double raita portion",
+          "swap_type": "add_on",
+          "calories_delta": 40,
+          "protein_delta": 5,
+          "reason": "Protein + volume, slows GI",
+          "plausibility_score": 0.9,
+          "markets": [
+            "IN"
+          ]
+        },
+        {
+          "swap_key": "extra_veg",
+          "swap_label": "Extra veg / salad",
+          "swap_type": "add_on",
+          "calories_delta": 30,
+          "protein_delta": 2,
+          "reason": "Add fiber + volume",
+          "plausibility_score": 0.92,
+          "markets": [
+            "IN"
+          ]
+        }
+      ]
     },
     {
       "chain_key": "baja_fresh",
@@ -25809,9 +26093,9 @@
       "cuisine_tags": [],
       "category_tags": [],
       "rollout_priority": "p2_regional_growth",
-      "confidence_tier": "tier_3_basic",
-      "coverage_status": "partial",
-      "supports_swaps": false,
+      "confidence_tier": "tier_2_good",
+      "coverage_status": "live",
+      "supports_swaps": true,
       "menu_template_count": 4,
       "notes": "Auto-generated from ingested menu data. Hand-curate swaps before promoting to live.",
       "menu_templates": [
@@ -25886,7 +26170,44 @@
           "recommended_swap_keys": []
         }
       ],
-      "swap_templates": []
+      "swap_templates": [
+        {
+          "swap_key": "no_sour_cream",
+          "swap_label": "No sour cream & cheese",
+          "swap_type": "topping_omit",
+          "calories_delta": -220,
+          "protein_delta": -5,
+          "reason": "Cut saturated fat",
+          "plausibility_score": 0.95,
+          "markets": [
+            "IN"
+          ]
+        },
+        {
+          "swap_key": "brown_rice",
+          "swap_label": "Brown rice instead of white",
+          "swap_type": "ingredient_swap",
+          "calories_delta": -20,
+          "protein_delta": 2,
+          "reason": "More fiber, steadier GI",
+          "plausibility_score": 0.8,
+          "markets": [
+            "IN"
+          ]
+        },
+        {
+          "swap_key": "extra_veg",
+          "swap_label": "Extra veg / salad",
+          "swap_type": "add_on",
+          "calories_delta": 30,
+          "protein_delta": 2,
+          "reason": "Add fiber + volume",
+          "plausibility_score": 0.92,
+          "markets": [
+            "IN"
+          ]
+        }
+      ]
     },
     {
       "chain_key": "china_bistro",
@@ -25901,9 +26222,9 @@
       "cuisine_tags": [],
       "category_tags": [],
       "rollout_priority": "p2_regional_growth",
-      "confidence_tier": "tier_3_basic",
-      "coverage_status": "partial",
-      "supports_swaps": false,
+      "confidence_tier": "tier_2_good",
+      "coverage_status": "live",
+      "supports_swaps": true,
       "menu_template_count": 4,
       "notes": "Auto-generated from ingested menu data. Hand-curate swaps before promoting to live.",
       "menu_templates": [
@@ -25980,7 +26301,44 @@
           "recommended_swap_keys": []
         }
       ],
-      "swap_templates": []
+      "swap_templates": [
+        {
+          "swap_key": "brown_rice",
+          "swap_label": "Brown rice instead of white",
+          "swap_type": "ingredient_swap",
+          "calories_delta": -20,
+          "protein_delta": 2,
+          "reason": "More fiber, steadier GI",
+          "plausibility_score": 0.8,
+          "markets": [
+            "IN"
+          ]
+        },
+        {
+          "swap_key": "steamed_over_fried",
+          "swap_label": "Steamed dim sum / stir-fry over crispy",
+          "swap_type": "prep_change",
+          "calories_delta": -200,
+          "protein_delta": 4,
+          "reason": "Steamed > fried",
+          "plausibility_score": 0.92,
+          "markets": [
+            "IN"
+          ]
+        },
+        {
+          "swap_key": "extra_veg",
+          "swap_label": "Extra veg / salad",
+          "swap_type": "add_on",
+          "calories_delta": 30,
+          "protein_delta": 2,
+          "reason": "Add fiber + volume",
+          "plausibility_score": 0.92,
+          "markets": [
+            "IN"
+          ]
+        }
+      ]
     },
     {
       "chain_key": "chor_bizarre",
@@ -29174,9 +29532,9 @@
       "cuisine_tags": [],
       "category_tags": [],
       "rollout_priority": "p2_regional_growth",
-      "confidence_tier": "tier_3_basic",
-      "coverage_status": "partial",
-      "supports_swaps": false,
+      "confidence_tier": "tier_2_good",
+      "coverage_status": "live",
+      "supports_swaps": true,
       "menu_template_count": 3,
       "notes": "Auto-generated from ingested menu data. Hand-curate swaps before promoting to live.",
       "menu_templates": [
@@ -29231,7 +29589,44 @@
           "recommended_swap_keys": []
         }
       ],
-      "swap_templates": []
+      "swap_templates": [
+        {
+          "swap_key": "grilled_not_fried",
+          "swap_label": "Grilled instead of fried",
+          "swap_type": "prep_change",
+          "calories_delta": -160,
+          "protein_delta": 2,
+          "reason": "Fewer calories, retain protein",
+          "plausibility_score": 0.9,
+          "markets": [
+            "US"
+          ]
+        },
+        {
+          "swap_key": "no_sour_cream",
+          "swap_label": "No sour cream & cheese",
+          "swap_type": "topping_omit",
+          "calories_delta": -220,
+          "protein_delta": -5,
+          "reason": "Cut saturated fat",
+          "plausibility_score": 0.95,
+          "markets": [
+            "US"
+          ]
+        },
+        {
+          "swap_key": "brown_rice",
+          "swap_label": "Brown rice instead of white",
+          "swap_type": "ingredient_swap",
+          "calories_delta": -20,
+          "protein_delta": 2,
+          "reason": "More fiber, steadier GI",
+          "plausibility_score": 0.8,
+          "markets": [
+            "US"
+          ]
+        }
+      ]
     },
     {
       "chain_key": "shiraz",
@@ -29768,9 +30163,9 @@
       "cuisine_tags": [],
       "category_tags": [],
       "rollout_priority": "p2_regional_growth",
-      "confidence_tier": "tier_3_basic",
-      "coverage_status": "partial",
-      "supports_swaps": false,
+      "confidence_tier": "tier_2_good",
+      "coverage_status": "live",
+      "supports_swaps": true,
       "menu_template_count": 3,
       "notes": "Auto-generated from ingested menu data. Hand-curate swaps before promoting to live.",
       "menu_templates": [
@@ -29829,7 +30224,44 @@
           "recommended_swap_keys": []
         }
       ],
-      "swap_templates": []
+      "swap_templates": [
+        {
+          "swap_key": "no_sour_cream",
+          "swap_label": "No sour cream & cheese",
+          "swap_type": "topping_omit",
+          "calories_delta": -220,
+          "protein_delta": -5,
+          "reason": "Cut saturated fat",
+          "plausibility_score": 0.95,
+          "markets": [
+            "US"
+          ]
+        },
+        {
+          "swap_key": "brown_rice",
+          "swap_label": "Brown rice instead of white",
+          "swap_type": "ingredient_swap",
+          "calories_delta": -20,
+          "protein_delta": 2,
+          "reason": "More fiber, steadier GI",
+          "plausibility_score": 0.8,
+          "markets": [
+            "US"
+          ]
+        },
+        {
+          "swap_key": "extra_veg",
+          "swap_label": "Extra veg / salad",
+          "swap_type": "add_on",
+          "calories_delta": 30,
+          "protein_delta": 2,
+          "reason": "Add fiber + volume",
+          "plausibility_score": 0.92,
+          "markets": [
+            "US"
+          ]
+        }
+      ]
     },
     {
       "chain_key": "trishna",
@@ -29998,9 +30430,9 @@
       "cuisine_tags": [],
       "category_tags": [],
       "rollout_priority": "p2_regional_growth",
-      "confidence_tier": "tier_3_basic",
-      "coverage_status": "partial",
-      "supports_swaps": false,
+      "confidence_tier": "tier_2_good",
+      "coverage_status": "live",
+      "supports_swaps": true,
       "menu_template_count": 3,
       "notes": "Auto-generated from ingested menu data. Hand-curate swaps before promoting to live.",
       "menu_templates": [
@@ -30057,7 +30489,44 @@
           "recommended_swap_keys": []
         }
       ],
-      "swap_templates": []
+      "swap_templates": [
+        {
+          "swap_key": "wholewheat_wrap",
+          "swap_label": "Wholewheat wrap",
+          "swap_type": "ingredient_swap",
+          "calories_delta": -20,
+          "protein_delta": 2,
+          "reason": "Fiber upgrade",
+          "plausibility_score": 0.85,
+          "markets": [
+            "US"
+          ]
+        },
+        {
+          "swap_key": "no_mayo",
+          "swap_label": "No mayo",
+          "swap_type": "sauce_omit",
+          "calories_delta": -80,
+          "protein_delta": 0,
+          "reason": "Reduce added fat",
+          "plausibility_score": 0.95,
+          "markets": [
+            "US"
+          ]
+        },
+        {
+          "swap_key": "extra_veg",
+          "swap_label": "Extra veg / salad",
+          "swap_type": "add_on",
+          "calories_delta": 30,
+          "protein_delta": 2,
+          "reason": "Add fiber + volume",
+          "plausibility_score": 0.92,
+          "markets": [
+            "US"
+          ]
+        }
+      ]
     },
     {
       "chain_key": "wendys_au",
@@ -30175,9 +30644,9 @@
       "cuisine_tags": [],
       "category_tags": [],
       "rollout_priority": "p2_regional_growth",
-      "confidence_tier": "tier_3_basic",
-      "coverage_status": "partial",
-      "supports_swaps": false,
+      "confidence_tier": "tier_2_good",
+      "coverage_status": "live",
+      "supports_swaps": true,
       "menu_template_count": 3,
       "notes": "Auto-generated from ingested menu data. Hand-curate swaps before promoting to live.",
       "menu_templates": [
@@ -30234,7 +30703,44 @@
           "recommended_swap_keys": []
         }
       ],
-      "swap_templates": []
+      "swap_templates": [
+        {
+          "swap_key": "wholewheat_wrap",
+          "swap_label": "Wholewheat wrap",
+          "swap_type": "ingredient_swap",
+          "calories_delta": -20,
+          "protein_delta": 2,
+          "reason": "Fiber upgrade",
+          "plausibility_score": 0.85,
+          "markets": [
+            "US"
+          ]
+        },
+        {
+          "swap_key": "no_mayo",
+          "swap_label": "No mayo",
+          "swap_type": "sauce_omit",
+          "calories_delta": -80,
+          "protein_delta": 0,
+          "reason": "Reduce added fat",
+          "plausibility_score": 0.95,
+          "markets": [
+            "US"
+          ]
+        },
+        {
+          "swap_key": "extra_veg",
+          "swap_label": "Extra veg / salad",
+          "swap_type": "add_on",
+          "calories_delta": 30,
+          "protein_delta": 2,
+          "reason": "Add fiber + volume",
+          "plausibility_score": 0.92,
+          "markets": [
+            "US"
+          ]
+        }
+      ]
     },
     {
       "chain_key": "yauatcha",
@@ -32296,9 +32802,9 @@
       "cuisine_tags": [],
       "category_tags": [],
       "rollout_priority": "p2_regional_growth",
-      "confidence_tier": "tier_3_basic",
-      "coverage_status": "partial",
-      "supports_swaps": false,
+      "confidence_tier": "tier_2_good",
+      "coverage_status": "live",
+      "supports_swaps": true,
       "menu_template_count": 3,
       "notes": "Auto-generated from ingested menu data. Hand-curate swaps before promoting to live.",
       "menu_templates": [
@@ -32357,7 +32863,44 @@
           "recommended_swap_keys": []
         }
       ],
-      "swap_templates": []
+      "swap_templates": [
+        {
+          "swap_key": "no_sour_cream",
+          "swap_label": "No sour cream & cheese",
+          "swap_type": "topping_omit",
+          "calories_delta": -220,
+          "protein_delta": -5,
+          "reason": "Cut saturated fat",
+          "plausibility_score": 0.95,
+          "markets": [
+            "US"
+          ]
+        },
+        {
+          "swap_key": "grilled_not_fried",
+          "swap_label": "Grilled instead of fried",
+          "swap_type": "prep_change",
+          "calories_delta": -160,
+          "protein_delta": 2,
+          "reason": "Fewer calories, retain protein",
+          "plausibility_score": 0.9,
+          "markets": [
+            "US"
+          ]
+        },
+        {
+          "swap_key": "brown_rice",
+          "swap_label": "Brown rice instead of white",
+          "swap_type": "ingredient_swap",
+          "calories_delta": -20,
+          "protein_delta": 2,
+          "reason": "More fiber, steadier GI",
+          "plausibility_score": 0.8,
+          "markets": [
+            "US"
+          ]
+        }
+      ]
     },
     {
       "chain_key": "crinitis",
@@ -32606,9 +33149,9 @@
       "cuisine_tags": [],
       "category_tags": [],
       "rollout_priority": "p2_regional_growth",
-      "confidence_tier": "tier_3_basic",
-      "coverage_status": "partial",
-      "supports_swaps": false,
+      "confidence_tier": "tier_2_good",
+      "coverage_status": "live",
+      "supports_swaps": true,
       "menu_template_count": 3,
       "notes": "Auto-generated from ingested menu data. Hand-curate swaps before promoting to live.",
       "menu_templates": [
@@ -32663,7 +33206,44 @@
           "recommended_swap_keys": []
         }
       ],
-      "swap_templates": []
+      "swap_templates": [
+        {
+          "swap_key": "grilled_not_fried",
+          "swap_label": "Grilled instead of fried",
+          "swap_type": "prep_change",
+          "calories_delta": -160,
+          "protein_delta": 2,
+          "reason": "Fewer calories, retain protein",
+          "plausibility_score": 0.9,
+          "markets": [
+            "US"
+          ]
+        },
+        {
+          "swap_key": "no_mayo",
+          "swap_label": "No mayo",
+          "swap_type": "sauce_omit",
+          "calories_delta": -80,
+          "protein_delta": 0,
+          "reason": "Reduce added fat",
+          "plausibility_score": 0.95,
+          "markets": [
+            "US"
+          ]
+        },
+        {
+          "swap_key": "side_salad_not_fries",
+          "swap_label": "Side salad instead of fries",
+          "swap_type": "side_swap",
+          "calories_delta": -240,
+          "protein_delta": 1,
+          "reason": "Replace fried starch with fiber",
+          "plausibility_score": 0.94,
+          "markets": [
+            "US"
+          ]
+        }
+      ]
     },
     {
       "chain_key": "fishermans_wharf",
@@ -33098,9 +33678,9 @@
       "cuisine_tags": [],
       "category_tags": [],
       "rollout_priority": "p2_regional_growth",
-      "confidence_tier": "tier_3_basic",
-      "coverage_status": "partial",
-      "supports_swaps": false,
+      "confidence_tier": "tier_2_good",
+      "coverage_status": "live",
+      "supports_swaps": true,
       "menu_template_count": 3,
       "notes": "Auto-generated from ingested menu data. Hand-curate swaps before promoting to live.",
       "menu_templates": [
@@ -33157,7 +33737,44 @@
           "recommended_swap_keys": []
         }
       ],
-      "swap_templates": []
+      "swap_templates": [
+        {
+          "swap_key": "thin_crust",
+          "swap_label": "Thin crust instead of classic",
+          "swap_type": "prep_change",
+          "calories_delta": -80,
+          "protein_delta": 0,
+          "reason": "Lower crust calories",
+          "plausibility_score": 0.85,
+          "markets": [
+            "US"
+          ]
+        },
+        {
+          "swap_key": "half_cheese",
+          "swap_label": "Half cheese on pizza",
+          "swap_type": "topping_reduce",
+          "calories_delta": -120,
+          "protein_delta": -5,
+          "reason": "Cut saturated fat",
+          "plausibility_score": 0.85,
+          "markets": [
+            "US"
+          ]
+        },
+        {
+          "swap_key": "extra_veg",
+          "swap_label": "Extra veg / salad",
+          "swap_type": "add_on",
+          "calories_delta": 30,
+          "protein_delta": 2,
+          "reason": "Add fiber + volume",
+          "plausibility_score": 0.92,
+          "markets": [
+            "US"
+          ]
+        }
+      ]
     },
     {
       "chain_key": "moolchand_parathe",
@@ -33786,9 +34403,9 @@
       "cuisine_tags": [],
       "category_tags": [],
       "rollout_priority": "p2_regional_growth",
-      "confidence_tier": "tier_3_basic",
-      "coverage_status": "partial",
-      "supports_swaps": false,
+      "confidence_tier": "tier_2_good",
+      "coverage_status": "live",
+      "supports_swaps": true,
       "menu_template_count": 3,
       "notes": "Auto-generated from ingested menu data. Hand-curate swaps before promoting to live.",
       "menu_templates": [
@@ -33845,7 +34462,44 @@
           "recommended_swap_keys": []
         }
       ],
-      "swap_templates": []
+      "swap_templates": [
+        {
+          "swap_key": "grilled_not_fried",
+          "swap_label": "Grilled instead of fried",
+          "swap_type": "prep_change",
+          "calories_delta": -160,
+          "protein_delta": 2,
+          "reason": "Fewer calories, retain protein",
+          "plausibility_score": 0.9,
+          "markets": [
+            "US"
+          ]
+        },
+        {
+          "swap_key": "no_mayo",
+          "swap_label": "No mayo",
+          "swap_type": "sauce_omit",
+          "calories_delta": -80,
+          "protein_delta": 0,
+          "reason": "Reduce added fat",
+          "plausibility_score": 0.95,
+          "markets": [
+            "US"
+          ]
+        },
+        {
+          "swap_key": "side_salad_not_fries",
+          "swap_label": "Side salad instead of fries",
+          "swap_type": "side_swap",
+          "calories_delta": -240,
+          "protein_delta": 1,
+          "reason": "Replace fried starch with fiber",
+          "plausibility_score": 0.94,
+          "markets": [
+            "US"
+          ]
+        }
+      ]
     },
     {
       "chain_key": "the_counter",
@@ -33860,9 +34514,9 @@
       "cuisine_tags": [],
       "category_tags": [],
       "rollout_priority": "p2_regional_growth",
-      "confidence_tier": "tier_3_basic",
-      "coverage_status": "partial",
-      "supports_swaps": false,
+      "confidence_tier": "tier_2_good",
+      "coverage_status": "live",
+      "supports_swaps": true,
       "menu_template_count": 3,
       "notes": "Auto-generated from ingested menu data. Hand-curate swaps before promoting to live.",
       "menu_templates": [
@@ -33917,7 +34571,44 @@
           "recommended_swap_keys": []
         }
       ],
-      "swap_templates": []
+      "swap_templates": [
+        {
+          "swap_key": "grilled_not_fried",
+          "swap_label": "Grilled instead of fried",
+          "swap_type": "prep_change",
+          "calories_delta": -160,
+          "protein_delta": 2,
+          "reason": "Fewer calories, retain protein",
+          "plausibility_score": 0.9,
+          "markets": [
+            "US"
+          ]
+        },
+        {
+          "swap_key": "no_mayo",
+          "swap_label": "No mayo",
+          "swap_type": "sauce_omit",
+          "calories_delta": -80,
+          "protein_delta": 0,
+          "reason": "Reduce added fat",
+          "plausibility_score": 0.95,
+          "markets": [
+            "US"
+          ]
+        },
+        {
+          "swap_key": "side_salad_not_fries",
+          "swap_label": "Side salad instead of fries",
+          "swap_type": "side_swap",
+          "calories_delta": -240,
+          "protein_delta": 1,
+          "reason": "Replace fried starch with fiber",
+          "plausibility_score": 0.94,
+          "markets": [
+            "US"
+          ]
+        }
+      ]
     },
     {
       "chain_key": "vaishali",
@@ -34685,9 +35376,9 @@
       "cuisine_tags": [],
       "category_tags": [],
       "rollout_priority": "p2_regional_growth",
-      "confidence_tier": "tier_3_basic",
-      "coverage_status": "partial",
-      "supports_swaps": false,
+      "confidence_tier": "tier_2_good",
+      "coverage_status": "live",
+      "supports_swaps": true,
       "menu_template_count": 3,
       "notes": "Auto-generated from ingested menu data. Hand-curate swaps before promoting to live.",
       "menu_templates": [
@@ -34744,7 +35435,44 @@
           "recommended_swap_keys": []
         }
       ],
-      "swap_templates": []
+      "swap_templates": [
+        {
+          "swap_key": "grilled_not_fried",
+          "swap_label": "Grilled instead of fried",
+          "swap_type": "prep_change",
+          "calories_delta": -160,
+          "protein_delta": 2,
+          "reason": "Fewer calories, retain protein",
+          "plausibility_score": 0.9,
+          "markets": [
+            "US"
+          ]
+        },
+        {
+          "swap_key": "no_mayo",
+          "swap_label": "No mayo",
+          "swap_type": "sauce_omit",
+          "calories_delta": -80,
+          "protein_delta": 0,
+          "reason": "Reduce added fat",
+          "plausibility_score": 0.95,
+          "markets": [
+            "US"
+          ]
+        },
+        {
+          "swap_key": "side_salad_not_fries",
+          "swap_label": "Side salad instead of fries",
+          "swap_type": "side_swap",
+          "calories_delta": -240,
+          "protein_delta": 1,
+          "reason": "Replace fried starch with fiber",
+          "plausibility_score": 0.94,
+          "markets": [
+            "US"
+          ]
+        }
+      ]
     },
     {
       "chain_key": "cousins_subs",
@@ -34759,9 +35487,9 @@
       "cuisine_tags": [],
       "category_tags": [],
       "rollout_priority": "p2_regional_growth",
-      "confidence_tier": "tier_3_basic",
-      "coverage_status": "partial",
-      "supports_swaps": false,
+      "confidence_tier": "tier_2_good",
+      "coverage_status": "live",
+      "supports_swaps": true,
       "menu_template_count": 3,
       "notes": "Auto-generated from ingested menu data. Hand-curate swaps before promoting to live.",
       "menu_templates": [
@@ -34818,7 +35546,44 @@
           "recommended_swap_keys": []
         }
       ],
-      "swap_templates": []
+      "swap_templates": [
+        {
+          "swap_key": "wholewheat_wrap",
+          "swap_label": "Wholewheat wrap",
+          "swap_type": "ingredient_swap",
+          "calories_delta": -20,
+          "protein_delta": 2,
+          "reason": "Fiber upgrade",
+          "plausibility_score": 0.85,
+          "markets": [
+            "US"
+          ]
+        },
+        {
+          "swap_key": "no_mayo",
+          "swap_label": "No mayo",
+          "swap_type": "sauce_omit",
+          "calories_delta": -80,
+          "protein_delta": 0,
+          "reason": "Reduce added fat",
+          "plausibility_score": 0.95,
+          "markets": [
+            "US"
+          ]
+        },
+        {
+          "swap_key": "extra_veg",
+          "swap_label": "Extra veg / salad",
+          "swap_type": "add_on",
+          "calories_delta": 30,
+          "protein_delta": 2,
+          "reason": "Add fiber + volume",
+          "plausibility_score": 0.92,
+          "markets": [
+            "US"
+          ]
+        }
+      ]
     },
     {
       "chain_key": "cupcake_factory",
@@ -35037,9 +35802,9 @@
       "cuisine_tags": [],
       "category_tags": [],
       "rollout_priority": "p2_regional_growth",
-      "confidence_tier": "tier_3_basic",
-      "coverage_status": "partial",
-      "supports_swaps": false,
+      "confidence_tier": "tier_2_good",
+      "coverage_status": "live",
+      "supports_swaps": true,
       "menu_template_count": 3,
       "notes": "Auto-generated from ingested menu data. Hand-curate swaps before promoting to live.",
       "menu_templates": [
@@ -35096,7 +35861,44 @@
           "recommended_swap_keys": []
         }
       ],
-      "swap_templates": []
+      "swap_templates": [
+        {
+          "swap_key": "egg_whites",
+          "swap_label": "Egg whites instead of whole eggs",
+          "swap_type": "ingredient_swap",
+          "calories_delta": -90,
+          "protein_delta": -2,
+          "reason": "Cut saturated fat",
+          "plausibility_score": 0.85,
+          "markets": [
+            "US"
+          ]
+        },
+        {
+          "swap_key": "wholewheat_wrap",
+          "swap_label": "Wholewheat wrap",
+          "swap_type": "ingredient_swap",
+          "calories_delta": -20,
+          "protein_delta": 2,
+          "reason": "Fiber upgrade",
+          "plausibility_score": 0.85,
+          "markets": [
+            "US"
+          ]
+        },
+        {
+          "swap_key": "skip_cheese",
+          "swap_label": "Skip cheese add-on",
+          "swap_type": "topping_omit",
+          "calories_delta": -80,
+          "protein_delta": -4,
+          "reason": "Reduce sat fat",
+          "plausibility_score": 0.9,
+          "markets": [
+            "US"
+          ]
+        }
+      ]
     },
     {
       "chain_key": "hard_rock_cafe",
@@ -35392,9 +36194,9 @@
       "cuisine_tags": [],
       "category_tags": [],
       "rollout_priority": "p2_regional_growth",
-      "confidence_tier": "tier_3_basic",
-      "coverage_status": "partial",
-      "supports_swaps": false,
+      "confidence_tier": "tier_2_good",
+      "coverage_status": "live",
+      "supports_swaps": true,
       "menu_template_count": 3,
       "notes": "Auto-generated from ingested menu data. Hand-curate swaps before promoting to live.",
       "menu_templates": [
@@ -35452,7 +36254,44 @@
           "recommended_swap_keys": []
         }
       ],
-      "swap_templates": []
+      "swap_templates": [
+        {
+          "swap_key": "6oz_filet",
+          "swap_label": "6oz filet or 4oz petite over full",
+          "swap_type": "portion_change",
+          "calories_delta": -360,
+          "protein_delta": -12,
+          "reason": "Right-size protein",
+          "plausibility_score": 0.88,
+          "markets": [
+            "US"
+          ]
+        },
+        {
+          "swap_key": "side_salad_not_fries",
+          "swap_label": "Side salad instead of fries",
+          "swap_type": "side_swap",
+          "calories_delta": -240,
+          "protein_delta": 1,
+          "reason": "Replace fried starch with fiber",
+          "plausibility_score": 0.94,
+          "markets": [
+            "US"
+          ]
+        },
+        {
+          "swap_key": "dressing_on_side",
+          "swap_label": "Dressing on the side",
+          "swap_type": "prep_change",
+          "calories_delta": -120,
+          "protein_delta": 0,
+          "reason": "Control added fat",
+          "plausibility_score": 0.92,
+          "markets": [
+            "US"
+          ]
+        }
+      ]
     },
     {
       "chain_key": "jamoon",
@@ -35872,9 +36711,9 @@
       "cuisine_tags": [],
       "category_tags": [],
       "rollout_priority": "p2_regional_growth",
-      "confidence_tier": "tier_3_basic",
-      "coverage_status": "partial",
-      "supports_swaps": false,
+      "confidence_tier": "tier_2_good",
+      "coverage_status": "live",
+      "supports_swaps": true,
       "menu_template_count": 3,
       "notes": "Auto-generated from ingested menu data. Hand-curate swaps before promoting to live.",
       "menu_templates": [
@@ -35932,7 +36771,44 @@
           "recommended_swap_keys": []
         }
       ],
-      "swap_templates": []
+      "swap_templates": [
+        {
+          "swap_key": "dressing_on_side",
+          "swap_label": "Dressing on the side",
+          "swap_type": "prep_change",
+          "calories_delta": -120,
+          "protein_delta": 0,
+          "reason": "Control added fat",
+          "plausibility_score": 0.92,
+          "markets": [
+            "US"
+          ]
+        },
+        {
+          "swap_key": "add_protein",
+          "swap_label": "Add extra protein",
+          "swap_type": "add_on",
+          "calories_delta": 80,
+          "protein_delta": 18,
+          "reason": "Shift macros to protein",
+          "plausibility_score": 0.92,
+          "markets": [
+            "US"
+          ]
+        },
+        {
+          "swap_key": "half_sandwich_salad",
+          "swap_label": "Half sandwich + full salad",
+          "swap_type": "portion_change",
+          "calories_delta": -200,
+          "protein_delta": -4,
+          "reason": "Right-size portion",
+          "plausibility_score": 0.88,
+          "markets": [
+            "US"
+          ]
+        }
+      ]
     },
     {
       "chain_key": "nagarjuna",
@@ -36154,9 +37030,9 @@
       "cuisine_tags": [],
       "category_tags": [],
       "rollout_priority": "p2_regional_growth",
-      "confidence_tier": "tier_3_basic",
-      "coverage_status": "partial",
-      "supports_swaps": false,
+      "confidence_tier": "tier_2_good",
+      "coverage_status": "live",
+      "supports_swaps": true,
       "menu_template_count": 3,
       "notes": "Auto-generated from ingested menu data. Hand-curate swaps before promoting to live.",
       "menu_templates": [
@@ -36217,7 +37093,32 @@
           "recommended_swap_keys": []
         }
       ],
-      "swap_templates": []
+      "swap_templates": [
+        {
+          "swap_key": "unsweet_drink",
+          "swap_label": "Water or unsweet drink",
+          "swap_type": "drink_swap",
+          "calories_delta": -200,
+          "protein_delta": 0,
+          "reason": "Remove liquid sugar",
+          "plausibility_score": 0.96,
+          "markets": [
+            "US"
+          ]
+        },
+        {
+          "swap_key": "skim_milk",
+          "swap_label": "Skim/oat milk, no sweetener",
+          "swap_type": "ingredient_swap",
+          "calories_delta": -120,
+          "protein_delta": 1,
+          "reason": "Cut sat fat + sugar",
+          "plausibility_score": 0.92,
+          "markets": [
+            "US"
+          ]
+        }
+      ]
     },
     {
       "chain_key": "red_mango",
@@ -36363,9 +37264,9 @@
       "cuisine_tags": [],
       "category_tags": [],
       "rollout_priority": "p2_regional_growth",
-      "confidence_tier": "tier_3_basic",
-      "coverage_status": "partial",
-      "supports_swaps": false,
+      "confidence_tier": "tier_2_good",
+      "coverage_status": "live",
+      "supports_swaps": true,
       "menu_template_count": 3,
       "notes": "Auto-generated from ingested menu data. Hand-curate swaps before promoting to live.",
       "menu_templates": [
@@ -36422,7 +37323,44 @@
           "recommended_swap_keys": []
         }
       ],
-      "swap_templates": []
+      "swap_templates": [
+        {
+          "swap_key": "egg_whites",
+          "swap_label": "Egg whites instead of whole eggs",
+          "swap_type": "ingredient_swap",
+          "calories_delta": -90,
+          "protein_delta": -2,
+          "reason": "Cut saturated fat",
+          "plausibility_score": 0.85,
+          "markets": [
+            "US"
+          ]
+        },
+        {
+          "swap_key": "skip_pancake_stack",
+          "swap_label": "Skip the pancake stack",
+          "swap_type": "course_skip",
+          "calories_delta": -560,
+          "protein_delta": -8,
+          "reason": "Major refined-carb cut",
+          "plausibility_score": 0.92,
+          "markets": [
+            "US"
+          ]
+        },
+        {
+          "swap_key": "fruit_side",
+          "swap_label": "Fruit over hash browns",
+          "swap_type": "side_swap",
+          "calories_delta": -160,
+          "protein_delta": -1,
+          "reason": "Cut fried starch",
+          "plausibility_score": 0.92,
+          "markets": [
+            "US"
+          ]
+        }
+      ]
     },
     {
       "chain_key": "south_indies",
@@ -36571,9 +37509,9 @@
       "cuisine_tags": [],
       "category_tags": [],
       "rollout_priority": "p2_regional_growth",
-      "confidence_tier": "tier_3_basic",
-      "coverage_status": "partial",
-      "supports_swaps": false,
+      "confidence_tier": "tier_2_good",
+      "coverage_status": "live",
+      "supports_swaps": true,
       "menu_template_count": 3,
       "notes": "Auto-generated from ingested menu data. Hand-curate swaps before promoting to live.",
       "menu_templates": [
@@ -36629,7 +37567,44 @@
           "recommended_swap_keys": []
         }
       ],
-      "swap_templates": []
+      "swap_templates": [
+        {
+          "swap_key": "brown_rice",
+          "swap_label": "Brown rice instead of white",
+          "swap_type": "ingredient_swap",
+          "calories_delta": -20,
+          "protein_delta": 2,
+          "reason": "More fiber, steadier GI",
+          "plausibility_score": 0.8,
+          "markets": [
+            "US"
+          ]
+        },
+        {
+          "swap_key": "greens_base",
+          "swap_label": "Greens base over grain",
+          "swap_type": "portion_change",
+          "calories_delta": -140,
+          "protein_delta": -2,
+          "reason": "Shift carbs to fiber",
+          "plausibility_score": 0.9,
+          "markets": [
+            "US"
+          ]
+        },
+        {
+          "swap_key": "dressing_on_side",
+          "swap_label": "Dressing on the side",
+          "swap_type": "prep_change",
+          "calories_delta": -120,
+          "protein_delta": 0,
+          "reason": "Control added fat",
+          "plausibility_score": 0.92,
+          "markets": [
+            "US"
+          ]
+        }
+      ]
     },
     {
       "chain_key": "teds_montana_grill",
@@ -36644,9 +37619,9 @@
       "cuisine_tags": [],
       "category_tags": [],
       "rollout_priority": "p2_regional_growth",
-      "confidence_tier": "tier_3_basic",
-      "coverage_status": "partial",
-      "supports_swaps": false,
+      "confidence_tier": "tier_2_good",
+      "coverage_status": "live",
+      "supports_swaps": true,
       "menu_template_count": 3,
       "notes": "Auto-generated from ingested menu data. Hand-curate swaps before promoting to live.",
       "menu_templates": [
@@ -36704,7 +37679,44 @@
           "recommended_swap_keys": []
         }
       ],
-      "swap_templates": []
+      "swap_templates": [
+        {
+          "swap_key": "bison_lean",
+          "swap_label": "Bison burger (leaner than beef)",
+          "swap_type": "ingredient_swap",
+          "calories_delta": -80,
+          "protein_delta": 3,
+          "reason": "Leaner protein",
+          "plausibility_score": 0.88,
+          "markets": [
+            "US"
+          ]
+        },
+        {
+          "swap_key": "side_salad_not_fries",
+          "swap_label": "Side salad instead of fries",
+          "swap_type": "side_swap",
+          "calories_delta": -240,
+          "protein_delta": 1,
+          "reason": "Replace fried starch with fiber",
+          "plausibility_score": 0.94,
+          "markets": [
+            "US"
+          ]
+        },
+        {
+          "swap_key": "no_mayo",
+          "swap_label": "No mayo",
+          "swap_type": "sauce_omit",
+          "calories_delta": -80,
+          "protein_delta": 0,
+          "reason": "Reduce added fat",
+          "plausibility_score": 0.95,
+          "markets": [
+            "US"
+          ]
+        }
+      ]
     },
     {
       "chain_key": "toit",
@@ -36865,9 +37877,9 @@
       "cuisine_tags": [],
       "category_tags": [],
       "rollout_priority": "p2_regional_growth",
-      "confidence_tier": "tier_3_basic",
-      "coverage_status": "partial",
-      "supports_swaps": false,
+      "confidence_tier": "tier_2_good",
+      "coverage_status": "live",
+      "supports_swaps": true,
       "menu_template_count": 3,
       "notes": "Auto-generated from ingested menu data. Hand-curate swaps before promoting to live.",
       "menu_templates": [
@@ -36926,7 +37938,44 @@
           "recommended_swap_keys": []
         }
       ],
-      "swap_templates": []
+      "swap_templates": [
+        {
+          "swap_key": "grilled_not_fried",
+          "swap_label": "Grilled instead of fried",
+          "swap_type": "prep_change",
+          "calories_delta": -160,
+          "protein_delta": 2,
+          "reason": "Fewer calories, retain protein",
+          "plausibility_score": 0.9,
+          "markets": [
+            "US"
+          ]
+        },
+        {
+          "swap_key": "side_salad_not_fries",
+          "swap_label": "Side salad instead of fries",
+          "swap_type": "side_swap",
+          "calories_delta": -240,
+          "protein_delta": 1,
+          "reason": "Replace fried starch with fiber",
+          "plausibility_score": 0.94,
+          "markets": [
+            "US"
+          ]
+        },
+        {
+          "swap_key": "skip_biscuit",
+          "swap_label": "Skip biscuit",
+          "swap_type": "course_skip",
+          "calories_delta": -280,
+          "protein_delta": -4,
+          "reason": "Cut refined carbs + fat",
+          "plausibility_score": 0.9,
+          "markets": [
+            "US"
+          ]
+        }
+      ]
     },
     {
       "chain_key": "bonefish_grill",
@@ -36941,9 +37990,9 @@
       "cuisine_tags": [],
       "category_tags": [],
       "rollout_priority": "p2_regional_growth",
-      "confidence_tier": "tier_3_basic",
-      "coverage_status": "partial",
-      "supports_swaps": false,
+      "confidence_tier": "tier_2_good",
+      "coverage_status": "live",
+      "supports_swaps": true,
       "menu_template_count": 3,
       "notes": "Auto-generated from ingested menu data. Hand-curate swaps before promoting to live.",
       "menu_templates": [
@@ -37002,7 +38051,44 @@
           "recommended_swap_keys": []
         }
       ],
-      "swap_templates": []
+      "swap_templates": [
+        {
+          "swap_key": "grilled_fish",
+          "swap_label": "Wood-grilled fish over crispy",
+          "swap_type": "prep_change",
+          "calories_delta": -260,
+          "protein_delta": 6,
+          "reason": "Lean + no breading",
+          "plausibility_score": 0.92,
+          "markets": [
+            "US"
+          ]
+        },
+        {
+          "swap_key": "side_salad_not_fries",
+          "swap_label": "Side salad instead of fries",
+          "swap_type": "side_swap",
+          "calories_delta": -240,
+          "protein_delta": 1,
+          "reason": "Replace fried starch with fiber",
+          "plausibility_score": 0.94,
+          "markets": [
+            "US"
+          ]
+        },
+        {
+          "swap_key": "dressing_on_side",
+          "swap_label": "Dressing on the side",
+          "swap_type": "prep_change",
+          "calories_delta": -120,
+          "protein_delta": 0,
+          "reason": "Control added fat",
+          "plausibility_score": 0.92,
+          "markets": [
+            "US"
+          ]
+        }
+      ]
     },
     {
       "chain_key": "boost_juice_au_v2",
