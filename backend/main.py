@@ -254,21 +254,12 @@ def whoami():
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    # Wildcard origin is incompatible with credentials=True in browsers; TripDeal UI uses default fetch (no cookies).
+    # Wildcard origin is incompatible with credentials=True in browsers.
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 app.include_router(yieldpilot_case_router, prefix="/yieldpilot")
-
-# TripDeal Next.js UI (/v1/*) — same process as `uvicorn main:app` (port 8000 by default).
-try:
-    from app.api.tripdeal_mvp import router as _tripdeal_mvp_router
-
-    app.include_router(_tripdeal_mvp_router, prefix="/v1")
-    logger.info("TripDeal API mounted at /v1 (search, saved searches, alerts, dispatches).")
-except Exception as _tripdeal_mount_exc:
-    logger.warning("TripDeal /v1 routes not mounted: %s", _tripdeal_mount_exc)
 
 # -------------------- ENV --------------------
 USDA_API_KEY = os.getenv("USDA_API_KEY", "").strip()
