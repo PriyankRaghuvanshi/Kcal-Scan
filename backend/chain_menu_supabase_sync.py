@@ -173,10 +173,18 @@ def sync_chain_menu_to_supabase(
                 "bad_item": {"index": i, "item_name": row.get("item_name"), "payload": row},
             }
     try:
-        from supabase_intelligence_store import upsert_chain_menu_profile, upsert_chain_menu_items
+        from supabase_intelligence_store import (
+            upsert_chain_menu_profile,
+            upsert_chain_menu_items,
+            upsert_chain_registry_parent,
+        )
     except ImportError:
         return {**base_result, "ok": False, "error": "store_unavailable"}
 
+    upsert_chain_registry_parent(
+        key,
+        str(seed.get("brand_name") or "").strip() or key,
+    )
     profile_row = {
         "chain_key": key,
         "market_tag": market,

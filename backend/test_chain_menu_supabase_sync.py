@@ -136,9 +136,11 @@ class TestSyncChipotleUs(unittest.TestCase):
 
     @patch("supabase_intelligence_store.upsert_chain_menu_items")
     @patch("supabase_intelligence_store.upsert_chain_menu_profile")
+    @patch("supabase_intelligence_store.upsert_chain_registry_parent")
     def test_sync_chipotle_us_creates_profile_and_items(
-        self, mock_upsert_profile, mock_upsert_items
+        self, mock_upsert_registry, mock_upsert_profile, mock_upsert_items
     ):
+        mock_upsert_registry.return_value = {"chain_key": "chipotle", "display_name": "Chipotle Mexican Grill"}
         mock_upsert_profile.return_value = {"chain_key": "chipotle", "market_tag": "US"}
         mock_upsert_items.return_value = len(CHIPOTLE_US_SEED["items"])
 
@@ -148,6 +150,7 @@ class TestSyncChipotleUs(unittest.TestCase):
 
         self.assertTrue(result.get("ok"), result)
         self.assertEqual(result.get("item_count"), len(CHIPOTLE_US_SEED["items"]))
+        mock_upsert_registry.assert_called_once_with("chipotle", "Chipotle Mexican Grill")
         self.assertEqual(mock_upsert_profile.call_count, 1)
         self.assertEqual(mock_upsert_items.call_count, 1)
         profile_call = mock_upsert_profile.call_args[0][0]
@@ -164,9 +167,11 @@ class TestSyncFaasosIn(unittest.TestCase):
 
     @patch("supabase_intelligence_store.upsert_chain_menu_items")
     @patch("supabase_intelligence_store.upsert_chain_menu_profile")
+    @patch("supabase_intelligence_store.upsert_chain_registry_parent")
     def test_sync_faasos_in_creates_profile_and_items(
-        self, mock_upsert_profile, mock_upsert_items
+        self, mock_upsert_registry, mock_upsert_profile, mock_upsert_items
     ):
+        mock_upsert_registry.return_value = {"chain_key": "faasos", "display_name": "Faasos"}
         mock_upsert_profile.return_value = {"chain_key": "faasos", "market_tag": "IN"}
         mock_upsert_items.return_value = len(FAASOS_IN_SEED["items"])
 
@@ -176,6 +181,7 @@ class TestSyncFaasosIn(unittest.TestCase):
 
         self.assertTrue(result.get("ok"), result)
         self.assertEqual(result.get("item_count"), len(FAASOS_IN_SEED["items"]))
+        mock_upsert_registry.assert_called_once_with("faasos", "Faasos")
         self.assertEqual(mock_upsert_profile.call_count, 1)
         self.assertEqual(mock_upsert_items.call_count, 1)
         profile_call = mock_upsert_profile.call_args[0][0]
@@ -188,9 +194,11 @@ class TestSyncIdempotent(unittest.TestCase):
 
     @patch("supabase_intelligence_store.upsert_chain_menu_items")
     @patch("supabase_intelligence_store.upsert_chain_menu_profile")
+    @patch("supabase_intelligence_store.upsert_chain_registry_parent")
     def test_sync_chipotle_us_idempotent_shape(
-        self, mock_upsert_profile, mock_upsert_items
+        self, mock_upsert_registry, mock_upsert_profile, mock_upsert_items
     ):
+        mock_upsert_registry.return_value = {}
         mock_upsert_profile.return_value = {}
         mock_upsert_items.return_value = len(CHIPOTLE_US_SEED["items"])
 
@@ -207,6 +215,7 @@ class TestSyncIdempotent(unittest.TestCase):
         self.assertIn("item_count", result2)
         self.assertEqual(result1["ok"], result2["ok"])
         self.assertEqual(result1["item_count"], result2["item_count"])
+        self.assertEqual(mock_upsert_registry.call_count, 2)
         self.assertEqual(mock_upsert_profile.call_count, 2)
         self.assertEqual(mock_upsert_items.call_count, 2)
         self.assertEqual(result1["item_count"], len(CHIPOTLE_US_SEED["items"]))

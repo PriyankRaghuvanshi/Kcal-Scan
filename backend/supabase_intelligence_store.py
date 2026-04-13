@@ -19,6 +19,7 @@ TBL_LOCAL_VENUE_SWAPS = "local_venue_swaps"
 TBL_ENRICHMENT_QUEUE = "enrichment_queue"
 TBL_CHAIN_MENU_ITEMS = "chain_menu_items"
 TBL_CHAIN_MENU_PROFILES = "chain_menu_profiles"
+TBL_CHAIN_REGISTRY = "chain_registry"
 
 
 def _supabase_available() -> bool:
@@ -264,6 +265,45 @@ def upsert_chain_menu_profile(row: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     except Exception as e:
         if _chain_sync_debug():
             print("SUPABASE DEBUG upsert_chain_menu_profile ERROR:", repr(e))
+        return None
+
+
+def upsert_chain_registry_parent(chain_key: str, display_name: str) -> Optional[Dict[str, Any]]:
+    """Ensure chain_registry parent row exists for chain_menu_items FK. Fail-open."""
+    if not _supabase_available():
+        if _chain_sync_debug():
+            print("SUPABASE DEBUG upsert_chain_registry_parent: supabase not available")
+        return None
+    key = str(chain_key or "").strip().lower()
+    label = str(display_name or "").strip() or key
+    if not key:
+        return None
+    row = {"chain_key": key, "display_name": label}
+    try:
+        url = f"{_supabase_base_url()}/{TBL_CHAIN_REGISTRY}"
+        headers = _supabase_headers("resolution=merge-duplicates,return=representation")
+        params = {"on_conflict": "chain_key"}
+        if _chain_sync_debug():
+            print("SUPABASE DEBUG REGISTRY POST url:", url, "params:", params, "row:", row)
+        status, payload = _http_post_json(url, headers=headers, payload=[row], params=params, timeout=30)
+        if _chain_sync_debug():
+            print("SUPABASE DEBUG REGISTRY POST status:", status)
+        rows = payload or []
+        return dict(rows[0]) if rows else dict(row)
+    except HTTPError as e:
+        if _chain_sync_debug():
+            body = ""
+            try:
+                body = e.read().decode("utf-8", errors="ignore")
+            except Exception:
+                body = ""
+            print("SUPABASE DEBUG upsert_chain_registry_parent ERROR:", repr(e))
+            if body:
+                print("SUPABASE DEBUG upsert_chain_registry_parent ERROR BODY:", body)
+        return None
+    except Exception as e:
+        if _chain_sync_debug():
+            print("SUPABASE DEBUG upsert_chain_registry_parent ERROR:", repr(e))
         return None
 
 
