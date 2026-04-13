@@ -1426,6 +1426,7 @@ def score_menu_item(
         "best_item_swaps": swaps,
         "swap_debug": swap_debug,
         "source_url": source_url,
+        "image_url": str(payload.get("image_url") or "").strip() or None,
         "extraction_method": extraction_method,
         "parse_method": parse_method,
         "parsed_via": parsed_via,
@@ -2055,6 +2056,7 @@ def recommend_menu_items_for_place(
             "estimated_protein_g": int(_safe_float(src.get("estimated_protein_g"), 0) or 0),
             "menu_item_source": str(src.get("menu_item_source") or "heuristic"),
             "menu_item_confidence": round(_safe_float(src.get("menu_item_confidence") or src.get("confidence"), 0.5), 2),
+            "image_url": str(src.get("image_url") or "").strip() or None,
         }
 
     goal_variants: Dict[str, Any] = {}
