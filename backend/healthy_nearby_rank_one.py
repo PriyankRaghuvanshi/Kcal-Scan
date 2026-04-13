@@ -639,6 +639,7 @@ def rank_one_healthy_nearby_place(p: Dict[str, Any], ctx: HealthyNearbyRankConte
         "diet_preference": diet_preference_val,
     }
     mem_dict = None
+    usual_meal = None
     if str(user_id or "").strip():
         try:
             mem = get_personal_meal_memory(
@@ -655,6 +656,16 @@ def rank_one_healthy_nearby_place(p: Dict[str, Any], ctx: HealthyNearbyRankConte
             user_context_meal["personal_memory"] = mem
         except Exception:
             mem_dict = None
+        # "Your usual: X · Y kcal" — most-frequently-recorded item at this
+        # specific place_id. Cheap; reads from existing meal_feedback events.
+        try:
+            from meal_feedback_store import get_usual_meal_at_place
+            place_pid = str(p.get("place_id") or p.get("id") or "")
+            usual = get_usual_meal_at_place(user_id=str(user_id), place_id=place_pid)
+            if isinstance(usual, dict):
+                usual_meal = usual
+        except Exception:
+            usual_meal = None
 
     ranking_fields = build_ranked_place_profile(place_for_ranking, user_context_meal)
 
@@ -824,6 +835,7 @@ def rank_one_healthy_nearby_place(p: Dict[str, Any], ctx: HealthyNearbyRankConte
         **ranking_fields,
         "candidate_source_label": top_menu_source.replace("_", " ").title(),
         **(mem_dict or {}),
+        "usual_meal": usual_meal,
     }
 
 

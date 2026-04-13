@@ -6,7 +6,7 @@ import threading
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 
 MEAL_FEEDBACK_STORE_VERSION = "v1"
@@ -172,6 +172,82 @@ def list_meal_feedback_events(*, user_id: str = "", limit: int = 200) -> List[Di
         if len(out) >= max(1, min(1000, int(limit or 200))):
             break
     return out
+
+
+def get_usual_meal_at_place(user_id: str, place_id: str, *, lookback: int = 200) -> Optional[Dict[str, Any]]:
+    """
+    Return the user's "usual" item at this place, computed from prior feedback events.
+    Picks the most-frequently-recorded `selected_item_name` (falls back to
+    `best_item_name`) for (user_id, place_id). Ties broken by most-recent.
+
+    Returns None when:
+      - missing user_id / place_id
+      - no events match
+      - <2 events at this place (one-off — not yet a "usual")
+
+    Shape:
+      {
+        "item_name": str,
+        "estimated_calories": int|None,
+        "estimated_protein_g": int|None,
+        "times_chosen": int,
+        "last_seen_iso": str,
+        "source": "selected" | "recommended",
+      }
+    """
+    uid = _normalize_space(user_id)
+    pid = _normalize_space(place_id)
+    if not uid or not pid:
+        return None
+    with _LOCK:
+        store = _load_store()
+    events = store.get("events") if isinstance(store.get("events"), list) else []
+    matched = []
+    for e in events:
+        if not isinstance(e, dict): continue
+        if _normalize_space(e.get("user_id")) != uid: continue
+        if _normalize_space(e.get("place_id")) != pid: continue
+        matched.append(e)
+    if len(matched) < 2:
+        return None
+    # Tally by selected_item_name first, fall back to best_item_name
+    from collections import Counter
+    selected_counter: Counter = Counter()
+    recommended_counter: Counter = Counter()
+    last_kcal: Dict[str, Any] = {}
+    last_protein: Dict[str, Any] = {}
+    last_seen: Dict[str, str] = {}
+    for e in matched:
+        sel = _normalize_space(e.get("selected_item_name"))
+        rec = _normalize_space(e.get("best_item_name"))
+        ts = _normalize_space(e.get("created_at"))
+        if sel:
+            selected_counter[sel] += 1
+            last_kcal[sel] = e.get("estimated_calories")
+            last_protein[sel] = e.get("estimated_protein_g")
+            if ts and ts > last_seen.get(sel, ""):
+                last_seen[sel] = ts
+        elif rec:
+            recommended_counter[rec] += 1
+            last_kcal[rec] = e.get("estimated_calories")
+            last_protein[rec] = e.get("estimated_protein_g")
+            if ts and ts > last_seen.get(rec, ""):
+                last_seen[rec] = ts
+    counter = selected_counter if selected_counter else recommended_counter
+    src = "selected" if selected_counter else "recommended"
+    if not counter:
+        return None
+    # Sort by count DESC, then by recency DESC
+    ranked = sorted(counter.items(), key=lambda kv: (-kv[1], -last_seen.get(kv[0], "").__hash__()))
+    name, times = ranked[0]
+    return {
+        "item_name": name,
+        "estimated_calories": _safe_int(last_kcal.get(name)),
+        "estimated_protein_g": _safe_int(last_protein.get(name)),
+        "times_chosen": int(times),
+        "last_seen_iso": last_seen.get(name, ""),
+        "source": src,
+    }
 
 
 def clear_meal_feedback_store_for_tests() -> None:

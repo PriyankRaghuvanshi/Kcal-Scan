@@ -43,6 +43,28 @@ function num(v) {
 }
 
 /**
+ * Build "Your usual: X" pill content from the place.usual_meal payload.
+ * Returns null if no usual yet (e.g. <2 prior visits at this place_id).
+ */
+function buildUsualMealPill(place, bestItemName) {
+  const u = place?.usual_meal;
+  if (!u || typeof u !== "object") return null;
+  const name = String(u.item_name || "").trim();
+  if (!name) return null;
+  const kcal = Number.isFinite(Number(u.estimated_calories)) ? Math.round(Number(u.estimated_calories)) : null;
+  const protein = Number.isFinite(Number(u.estimated_protein_g)) ? Math.round(Number(u.estimated_protein_g)) : null;
+  const times = Number.isFinite(Number(u.times_chosen)) ? Number(u.times_chosen) : 0;
+  const isSameAsTopPick = String(bestItemName || "").trim().toLowerCase() === name.toLowerCase();
+  return {
+    name,
+    kcal,
+    protein,
+    times,
+    isSameAsTopPick,
+  };
+}
+
+/**
  * Detect whether the top item (or the place-level menu) confirms palm-oil
  * contents. Reads multiple possible signal locations; returns true/false/null.
  * null = unknown (do NOT claim either way).
@@ -154,6 +176,7 @@ export function RecommendationCard({
   const swaps = extractSwapSuggestions(topItem || place, place);
   const goalVariantPills = buildGoalVariantPills(place, bestItem);
   const palmOil = detectPalmOil(place);
+  const usualMeal = buildUsualMealPill(place, bestItem);
 
   const resolvedVariant = variant || inferCardVariant(place);
   const needsMenuCheck = shouldShowMenuMayVary(place);
@@ -221,6 +244,25 @@ export function RecommendationCard({
                 </TouchableOpacity>
               ) : null}
             </View>
+          ) : null}
+        </View>
+      ) : null}
+
+      {/* C-pre. "Your usual: X" pill — only shown when user has ≥2 prior visits */}
+      {usualMeal && !isScreenshot ? (
+        <View style={styles.usualPill}>
+          <Text style={styles.usualLabel} numberOfLines={1}>
+            👤 Your usual{usualMeal.times >= 3 ? ` (${usualMeal.times}×)` : ""}:
+          </Text>
+          <Text style={[styles.usualName, { color: textPrimary }]} numberOfLines={1}>
+            {usualMeal.name}
+          </Text>
+          {(usualMeal.kcal != null || usualMeal.protein != null) ? (
+            <Text style={[styles.usualMacros, { color: textMuted }]} numberOfLines={1}>
+              {usualMeal.kcal != null ? `${usualMeal.kcal} kcal` : ""}
+              {(usualMeal.kcal != null && usualMeal.protein != null) ? " · " : ""}
+              {usualMeal.protein != null ? `${usualMeal.protein}g p` : ""}
+            </Text>
           ) : null}
         </View>
       ) : null}
@@ -397,6 +439,35 @@ const styles = StyleSheet.create({
     fontWeight: typography.weight.bold,
     marginTop: spacing.md,
     lineHeight: typography.xl * 1.35,
+  },
+  usualPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    marginTop: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: "rgba(99, 102, 241, 0.35)",
+    backgroundColor: "rgba(99, 102, 241, 0.10)",
+    alignSelf: "flex-start",
+    maxWidth: "100%",
+  },
+  usualLabel: {
+    fontSize: 11,
+    fontWeight: typography.weight.semibold,
+    color: "#a5b4fc",
+    marginRight: 6,
+  },
+  usualName: {
+    fontSize: 12,
+    fontWeight: typography.weight.semibold,
+    flexShrink: 1,
+  },
+  usualMacros: {
+    fontSize: 11,
+    marginLeft: 6,
   },
   palmBadge: {
     marginTop: 6,
