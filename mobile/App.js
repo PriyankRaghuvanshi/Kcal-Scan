@@ -258,6 +258,8 @@ const DAILY_COACH_KEY = "kcal_daily_coach_v1";
 const dailyCoachKey = (uid, day) => `${DAILY_COACH_KEY}:${uid}:${day}`;
 const COACH_PROFILE_KEY = "kcal_coach_profile_v1";
 const coachProfileKey = (uid) => `${COACH_PROFILE_KEY}:${uid}`;
+const COACH_CHAT_HISTORY_KEY = "kcal_coach_chat_history_v1";
+const coachChatHistoryKey = (uid, day) => `${COACH_CHAT_HISTORY_KEY}:${uid}:${day}`;
 const COACH_VOICE_MEMORY_KEY = "kcal_coach_voice_memory_v1";
 const coachVoiceMemoryKey = (uid, day) => `${COACH_VOICE_MEMORY_KEY}:${uid}:${day}`;
 const UPGRADE_NUDGE_KEY = "kcal_upgrade_nudge_v1";
@@ -2069,6 +2071,13 @@ export default function App() {
   const [coachProfileModal, setCoachProfileModal] = useState(false);
   const [coachMemoryFoodInput, setCoachMemoryFoodInput] = useState("");
   const [coachMemoryGoalInput, setCoachMemoryGoalInput] = useState("");
+  // AI Live Coach Chat — restored from build 1.0.13 (182)
+  const [coachChatInput, setCoachChatInput] = useState("");
+  const [coachChatBusy, setCoachChatBusy] = useState(false);
+  const [coachChatMessages, setCoachChatMessages] = useState([]);
+  const [coachRecoveryBadge, setCoachRecoveryBadge] = useState({ label: "Recovery mode: balanced", tone: "amber" });
+  const [coachRecoveryExpanded, setCoachRecoveryExpanded] = useState(false);
+  const coachChatScrollRef = useRef(null);
   const coachReqRef = useRef(false);
   const coachRefreshTimerRef = useRef(null);
   const coachQueuedRefreshRef = useRef(null);
@@ -3451,6 +3460,120 @@ export default function App() {
       const merged = [msg, ...cur.filter((x) => x.advice_key !== msg.advice_key)].slice(0, 6);
       await AsyncStorage.setItem(coachVoiceMemoryKey(uid, dayIso), JSON.stringify(merged));
     } catch {}
+  }
+
+  // ===== AI Live Coach Chat (restored from 1.0.13 build 182) =====
+  async function loadCoachChatHistory(uid, dayIso) {
+    try {
+      const raw = await AsyncStorage.getItem(coachChatHistoryKey(uid, dayIso));
+      const arr = safeParseJson(raw, [], "coach_chat_history");
+      return (Array.isArray(arr) ? arr : [])
+        .map((m) => ({
+          role: String(m?.role || "").trim().toLowerCase() === "coach" ? "coach" : "user",
+          text: String(m?.text || "").trim(),
+          ts: String(m?.ts || ""),
+        }))
+        .filter((m) => m.text)
+        .slice(-14);
+    } catch {
+      return [];
+    }
+  }
+
+  async function saveCoachChatHistory(uid, dayIso, messages) {
+    try {
+      const cleaned = (Array.isArray(messages) ? messages : [])
+        .map((m) => ({
+          role: String(m?.role || "").trim().toLowerCase() === "coach" ? "coach" : "user",
+          text: String(m?.text || "").trim().slice(0, 500),
+          ts: String(m?.ts || nowISO()),
+        }))
+        .filter((m) => m.text)
+        .slice(-14);
+      await AsyncStorage.setItem(coachChatHistoryKey(uid, dayIso), JSON.stringify(cleaned));
+    } catch {}
+  }
+
+  async function sendCoachChatTurn() {
+    const uid = userId || session?.user?.id;
+    const text = String(coachChatInput || "").trim();
+    if (!uid || !text || coachChatBusy) return;
+    setCoachChatBusy(true);
+    const day = localDayISO();
+    const userMsg = { role: "user", text, ts: nowISO() };
+    const nextMessages = [...coachChatMessages, userMsg].slice(-12);
+    setCoachChatMessages(nextMessages);
+    void saveCoachChatHistory(uid, day, nextMessages);
+    setCoachChatInput("");
+    const base = buildDailyCoachPayload();
+    const tone = coachProfile?.tone_preference || "supportive";
+
+    const _applyReply = (data) => {
+      const replyParts = [
+        String(data?.coach_reply || "").trim(),
+        String(data?.next_question || "").trim(),
+        String(data?.action_hint || "").trim(),
+      ].filter(Boolean);
+      const coachText = replyParts.join("\n\n").trim();
+      if (!coachText) {
+        throw new Error("Coach returned an empty reply. Please try again.");
+      }
+      setCoachChatMessages((prev) => {
+        const merged = [...prev, { role: "coach", text: coachText, ts: nowISO() }].slice(-14);
+        void saveCoachChatHistory(uid, day, merged);
+        return merged;
+      });
+    };
+
+    const history = nextMessages
+      .map((m) => ({
+        role: String(m?.role || "").trim().toLowerCase() === "coach" ? "coach" : "user",
+        text: String(m?.text || "").trim(),
+      }))
+      .filter((m) => m.text)
+      .slice(-10);
+
+    try {
+      let healthContext = {};
+      try {
+        healthContext = (await getDailyHealthContext(String(base?.date || localDayISO()))) || {};
+      } catch (_) {}
+      const fp = Array.isArray(coachProfile?.food_preferences) ? coachProfile.food_preferences.filter(Boolean) : [];
+      const gr = Array.isArray(coachProfile?.goal_reminders) ? coachProfile.goal_reminders.filter(Boolean) : [];
+      const body = {
+        user_id: uid,
+        day: String(base?.date || localDayISO()),
+        user_text: text,
+        goals: base?.goals || {},
+        consumed: base?.consumed || {},
+        health_context: healthContext,
+        history,
+        tone_preference: tone,
+        tone_id: tone,
+        profile: base?.profile || {},
+        signals: base?.signals || {},
+        meal_timing: base?.meal_timing || {},
+        food_preferences: fp,
+        goal_reminders: gr,
+      };
+      const res = await fetch(withTimezoneQuery(`${API_BASE}/coach/audio/turn`), {
+        method: "POST",
+        headers: { "Content-Type": "application/json", accept: "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await safeJson(res);
+      _applyReply(data);
+    } catch (err) {
+      const fallback = "Coach could not respond right now. Check your connection and try again.";
+      const msg = String(err?.message || "").trim() || fallback;
+      setCoachChatMessages((prev) => {
+        const merged = [...prev, { role: "coach", text: msg, ts: nowISO(), coach_error: true }].slice(-14);
+        void saveCoachChatHistory(uid, day, merged);
+        return merged;
+      });
+    } finally {
+      setCoachChatBusy(false);
+    }
   }
 
   function getTodayVoiceMeals(latestResult = null) {
@@ -7673,6 +7796,109 @@ async function openCamera(mode = "meal") {
                 }}
               />
             </View>
+
+            {canCoaching ? (
+              <View style={styles.homeSection}>
+                <View style={[premium.cardBase, styles.coachChatCard]}>
+                  <View style={styles.coachChatHeaderRow}>
+                    <Text style={premium.title}>Live Coach Chat</Text>
+                    <View style={styles.coachChatHeaderActions}>
+                      <TouchableOpacity
+                        style={[
+                          styles.coachRecoveryBadge,
+                          coachRecoveryBadge?.tone === "green"
+                            ? styles.coachRecoveryBadgeGreen
+                            : coachRecoveryBadge?.tone === "red"
+                            ? styles.coachRecoveryBadgeRed
+                            : styles.coachRecoveryBadgeAmber,
+                        ]}
+                        onPress={() => setCoachRecoveryExpanded((v) => !v)}
+                        activeOpacity={0.85}
+                      >
+                        <Text style={styles.coachRecoveryBadgeText}>
+                          {String(coachRecoveryBadge?.label || "Recovery mode: balanced")} {coachRecoveryExpanded ? "▲" : "▼"}
+                        </Text>
+                      </TouchableOpacity>
+                      {coachChatMessages.length > 0 ? (
+                        <TouchableOpacity
+                          style={premium.ctaGhost}
+                          onPress={() => {
+                            setCoachChatMessages([]);
+                            const uid = userId || session?.user?.id;
+                            if (uid) void saveCoachChatHistory(uid, localDayISO(), []);
+                          }}
+                          disabled={coachChatBusy}
+                          activeOpacity={0.85}
+                        >
+                          <Text style={premium.ctaGhostText}>Clear</Text>
+                        </TouchableOpacity>
+                      ) : null}
+                    </View>
+                  </View>
+                  {coachRecoveryExpanded ? (
+                    <View style={styles.coachRecoveryPanel}>
+                      {(Array.isArray(coachRecoveryBadge?.lines) ? coachRecoveryBadge.lines : []).map((line, idx) => (
+                        <Text key={`rec-line-${idx}`} style={styles.coachRecoveryPanelText}>
+                          {line}
+                        </Text>
+                      ))}
+                    </View>
+                  ) : null}
+                  <Text style={premium.muted}>Ask anything about your next meal, cravings, or plan for today.</Text>
+                  <ScrollView
+                    style={styles.coachChatFeed}
+                    contentContainerStyle={styles.coachChatFeedContent}
+                    showsVerticalScrollIndicator={false}
+                    onContentSizeChange={() => { coachChatScrollRef.current?.scrollToEnd?.({ animated: true }); }}
+                    ref={coachChatScrollRef}
+                    keyboardShouldPersistTaps="handled"
+                  >
+                    {(coachChatMessages.length ? coachChatMessages : [{ role: "coach", text: "Hey! 👋 I'm your personal coach. Tell me what's on your mind — meals, cravings, how you're feeling... I'm here for it all 😊" }]).slice(-8).map((m, idx) => {
+                      const isCoach = String(m?.role || "").toLowerCase() === "coach";
+                      return (
+                        <View key={`cc-${idx}`} style={[styles.coachChatBubble, isCoach ? styles.coachChatCoachBubble : styles.coachChatUserBubble]}>
+                          <Text style={[styles.coachChatBubbleText, isCoach ? styles.coachChatCoachText : styles.coachChatUserText]}>
+                            {String(m?.text || "")}
+                          </Text>
+                        </View>
+                      );
+                    })}
+                  </ScrollView>
+                  <View style={styles.coachQuickRow}>
+                    {["What should I eat rn? 🍽️", "Having a craving 😩", "How's my day looking?", "Feeling low today"].map((q) => (
+                      <TouchableOpacity
+                        key={q}
+                        style={styles.coachQuickChip}
+                        onPress={() => setCoachChatInput(q)}
+                        disabled={coachChatBusy}
+                        activeOpacity={0.85}
+                      >
+                        <Text style={styles.coachQuickChipText}>{q}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                  <View style={styles.coachChatComposerRow}>
+                    <TextInput
+                      style={styles.coachChatInputField}
+                      value={coachChatInput}
+                      onChangeText={setCoachChatInput}
+                      placeholder="Type your question..."
+                      placeholderTextColor="#94a3b8"
+                      editable={!coachChatBusy}
+                      multiline
+                    />
+                    <TouchableOpacity
+                      style={[premium.ctaPrimary, styles.coachChatSendBtn, (!coachChatInput.trim() || coachChatBusy) ? { opacity: 0.65 } : null]}
+                      onPress={() => { void sendCoachChatTurn(); }}
+                      disabled={!coachChatInput.trim() || coachChatBusy}
+                      activeOpacity={0.9}
+                    >
+                      <Text style={premium.ctaPrimaryText}>{coachChatBusy ? "…" : "Send"}</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </View>
+            ) : null}
 
             <View style={styles.homeSection}>
               <JourneyCard
@@ -12955,4 +13181,51 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "700",
   },
+  // ===== AI Live Coach Chat (restored from 1.0.13 build 182) =====
+  coachChatCard: { padding: 14 },
+  coachChatHeaderRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  coachChatHeaderActions: { flexDirection: "row", alignItems: "center", gap: 8 },
+  coachRecoveryBadge: { borderRadius: 999, borderWidth: 1, paddingHorizontal: 9, paddingVertical: 5 },
+  coachRecoveryBadgeGreen: { borderColor: "rgba(34,197,94,0.5)", backgroundColor: "rgba(34,197,94,0.14)" },
+  coachRecoveryBadgeAmber: { borderColor: "rgba(245,158,11,0.5)", backgroundColor: "rgba(245,158,11,0.14)" },
+  coachRecoveryBadgeRed: { borderColor: "rgba(239,68,68,0.55)", backgroundColor: "rgba(239,68,68,0.14)" },
+  coachRecoveryBadgeText: { color: "#e2e8f0", fontSize: 11, fontWeight: "700" },
+  coachRecoveryPanel: {
+    marginTop: 8, marginBottom: 4, borderRadius: 10, borderWidth: 1,
+    borderColor: "rgba(148,163,184,0.24)", backgroundColor: "rgba(2,6,23,0.35)",
+    paddingVertical: 8, paddingHorizontal: 10,
+  },
+  coachRecoveryPanelText: { color: "#cbd5e1", fontSize: 12, lineHeight: 18 },
+  coachChatFeed: {
+    marginTop: 10, maxHeight: 300, borderWidth: 1,
+    borderColor: "rgba(148, 163, 184, 0.22)", borderRadius: 12,
+    backgroundColor: "rgba(2, 6, 23, 0.35)",
+  },
+  coachChatFeedContent: { padding: 10, flexGrow: 1, justifyContent: "flex-end" },
+  coachChatBubble: { paddingVertical: 8, paddingHorizontal: 10, borderRadius: 10, marginBottom: 8 },
+  coachChatCoachBubble: {
+    alignSelf: "flex-start", backgroundColor: "rgba(147, 197, 253, 0.12)",
+    borderWidth: 1, borderColor: "rgba(147, 197, 253, 0.30)",
+  },
+  coachChatUserBubble: {
+    alignSelf: "flex-end", backgroundColor: "rgba(34, 197, 94, 0.14)",
+    borderWidth: 1, borderColor: "rgba(34, 197, 94, 0.30)",
+  },
+  coachChatBubbleText: { fontSize: 13, lineHeight: 18, fontWeight: "500" },
+  coachChatCoachText: { color: "#dbeafe" },
+  coachChatUserText: { color: "#dcfce7" },
+  coachQuickRow: { marginTop: 8, flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  coachQuickChip: {
+    borderRadius: 999, borderWidth: 1, borderColor: "rgba(148, 163, 184, 0.30)",
+    backgroundColor: "rgba(15, 23, 42, 0.45)", paddingHorizontal: 10, paddingVertical: 6,
+  },
+  coachQuickChipText: { color: "#cbd5e1", fontSize: 12, fontWeight: "600" },
+  coachChatComposerRow: { marginTop: 10, flexDirection: "row", alignItems: "flex-end", gap: 8 },
+  coachChatInputField: {
+    flex: 1, minHeight: 42, maxHeight: 110, borderWidth: 1,
+    borderColor: "rgba(148, 163, 184, 0.24)", borderRadius: 10,
+    color: "#f8fafc", paddingHorizontal: 12, paddingVertical: 9,
+    backgroundColor: "rgba(15, 23, 42, 0.55)",
+  },
+  coachChatSendBtn: { paddingHorizontal: 16, minHeight: 42 },
 });

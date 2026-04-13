@@ -3,7 +3,7 @@
     "scheme": "calorieclickai",
     "name": "CalorieClick AI",
     "slug": "calorieclick-ai",
-    "version": "1.0.12",
+    "version": "1.0.14",
     "orientation": "portrait",
     "icon": "./assets/CalorieClick.png",
     "userInterfaceStyle": "light",
@@ -16,7 +16,7 @@
     "ios": {
       "icon": "./assets/CalorieClick.png",
       "bundleIdentifier": "com.priyank.calorieclick",
-      "buildNumber": "183",
+      "buildNumber": "1",
       "supportsTablet": true,
       "infoPlist": {
         "NSCameraUsageDescription": "We need camera access to scan meals and barcodes.",
@@ -30,7 +30,7 @@
     },
     "android": {
       "package": "com.priyank.calorieclick",
-      "versionCode": 189,
+      "versionCode": 190,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
