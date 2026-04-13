@@ -112,10 +112,64 @@ function patchFile(filePath, fileName) {
     "([[$1 UUID] UUIDString] ?: @\"\")"
   );
 
+  // Nil-guard dot-notation [sample.UUID UUIDString] (save-sample callbacks in Methods_Results)
+  src = src.replace(
+    /\[(\w+)\.UUID UUIDString\](?!\s*\?:)/g,
+    "([$1.UUID UUIDString] ?: @\"\")"
+  );
+
   // Nil-guard [[...sourceRevision] productType]
   src = src.replace(
     /\[\[(\w+) sourceRevision\] productType\](?!\s*\?:)/g,
     "([[$1 sourceRevision] productType] ?: @\"\")"
+  );
+
+  // --- RCTAppleHealthKit+Queries.m: anchor strings can be nil when archiver/base64 fails ---
+  src = src.replace(
+    /NSString \*anchorString = \[anchorData base64EncodedStringWithOptions:0\];/g,
+    "NSString *anchorString = (anchorData ? ([anchorData base64EncodedStringWithOptions:0] ?: @\"\") : @\"\");"
+  );
+
+  // --- Clinical records: early-return on failed FHIR parse; nil-guard display/version fields ---
+  src = src.replace(
+    /if \(!fhirData\) \{\s*completion\(nil, jsonE\);\s*\}/g,
+    "if (!fhirData) {\n                      completion(nil, jsonE);\n                      return;\n                    }"
+  );
+  src = src.replace(
+    /@"displayName"\s*:\s*record\.displayName,/g,
+    '@"displayName" : (record.displayName ?: @""),'
+  );
+  src = src.replace(
+    /@"fhirRelease"\s*:\s*fhirRelease,/g,
+    '@"fhirRelease" : (fhirRelease ?: @""),'
+  );
+  src = src.replace(
+    /@"fhirVersion"\s*:\s*fhirVersion,/g,
+    '@"fhirVersion" : (fhirVersion ?: @""),'
+  );
+  src = src.replace(
+    /@"fhirData"\s*:\s*fhirData,/g,
+    '@"fhirData" : (fhirData ?: @[]),'
+  );
+
+  // --- Dietary save-food metadata: optional food/meal names must not be nil in @{ } ---
+  src = src.replace(
+    /HKMetadataKeyFoodType:foodNameValue,/g,
+    'HKMetadataKeyFoodType:(foodNameValue ?: @""),'
+  );
+  src = src.replace(
+    /@"HKFoodMeal":mealNameValue/g,
+    '@"HKFoodMeal":(mealNameValue ?: @"")'
+  );
+
+  // --- Blood pressure: [sample valueForKey:@"startDate"/@"endDate"] can be nil ---
+  src = src.replace(
+    /@"startDate"\s*:\s*\[sample valueForKey:@"startDate"\],/g,
+    '@"startDate" : ([sample valueForKey:@"startDate"] ?: @""),'
+  );
+  src = src.replace(
+    /@"endDate"\s*:\s*\[sample valueForKey:@"endDate"\],/g,
+    '@"endDate" : ([sample valueForKey:@"endDate"] ?: @""),'
   );
 
   if (src !== original) {
