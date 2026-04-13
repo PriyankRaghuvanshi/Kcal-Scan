@@ -2024,6 +2024,53 @@ def recommend_menu_items_for_place(
         except Exception:
             pass
 
+    # Goal variants — explicit "best for fat-loss / high-protein / lowest-cal"
+    # picks from the scored items. Gives the mobile UI an easy way to render
+    # per-goal alternatives instead of one opaque "top item".
+    def _variant_payload(src: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+        if not isinstance(src, dict):
+            return None
+        name = str(src.get("item_name") or "").strip()
+        if not name:
+            return None
+        return {
+            "item_name": name,
+            "estimated_calories": int(_safe_float(src.get("estimated_calories"), 0) or 0),
+            "estimated_protein_g": int(_safe_float(src.get("estimated_protein_g"), 0) or 0),
+            "menu_item_source": str(src.get("menu_item_source") or "heuristic"),
+            "menu_item_confidence": round(_safe_float(src.get("menu_item_confidence") or src.get("confidence"), 0.5), 2),
+        }
+
+    goal_variants: Dict[str, Any] = {}
+    if scored_items:
+        # high_protein: max protein_g, tiebreak by score
+        hp = max(
+            scored_items,
+            key=lambda r: (
+                _safe_float(r.get("estimated_protein_g"), 0.0),
+                _safe_float(r.get("item_score"), 0.0),
+            ),
+        )
+        # lowest_calorie among items with at least 15g protein (exclude pure drinks/desserts)
+        lc_pool = [r for r in scored_items if _safe_float(r.get("estimated_protein_g"), 0.0) >= 15.0]
+        lc = min(
+            lc_pool or scored_items,
+            key=lambda r: _safe_float(r.get("estimated_calories"), 1e9),
+        ) if (lc_pool or scored_items) else None
+        # fat_loss: highest fat_loss_score; tiebreak higher protein
+        fl = max(
+            scored_items,
+            key=lambda r: (
+                _safe_float(r.get("fat_loss_score"), 0.0),
+                _safe_float(r.get("estimated_protein_g"), 0.0),
+            ),
+        )
+        goal_variants = {
+            "high_protein": _variant_payload(hp),
+            "lowest_calorie": _variant_payload(lc),
+            "fat_loss": _variant_payload(fl),
+        }
+
     return {
         "menu_item_scoring_available": bool(top_items),
         "menu_items_source": menu_source,
@@ -2055,6 +2102,7 @@ def recommend_menu_items_for_place(
         "menu_intelligence_available": bool(place_id),
         "top_menu_items": top_items,
         "best_menu_items": top_items,
+        "goal_variants": goal_variants,
         "top_menu_item": top_item,
         "top_item": str(top_item.get("item_name")) if isinstance(top_item, dict) else "",
         "top_menu_item_source_priority": int(
