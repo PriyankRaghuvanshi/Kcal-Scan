@@ -13970,10 +13970,10 @@
       "category_tags": [],
       "rollout_priority": "p2_regional_growth",
       "confidence_tier": "tier_2_good",
-      "coverage_status": "live",
+      "coverage_status": "planned",
       "supports_swaps": true,
       "menu_template_count": 5,
-      "notes": "Auto-generated from ingested menu data. Hand-curate swaps before promoting to live.",
+      "notes": "Iconic single-location / \u22642-outlet restaurant, not a multi-city chain. Demoted to 'planned' on audit so it no longer reads as a 'live chain' in coverage metrics. Swap_templates retained for future re-promotion if outlet count grows. Auto-generated from ingested menu data. Hand-curate swaps before promoting to live.",
       "menu_templates": [
         {
           "template_key": "britannia_cafe_berry_pulao_chicken",
@@ -14100,7 +14100,8 @@
             "IN"
           ]
         }
-      ]
+      ],
+      "single_location": true
     },
     {
       "chain_key": "dindigul_thalappakatti",
@@ -20652,10 +20653,10 @@
       "category_tags": [],
       "rollout_priority": "p2_regional_growth",
       "confidence_tier": "tier_2_good",
-      "coverage_status": "live",
+      "coverage_status": "planned",
       "supports_swaps": true,
       "menu_template_count": 4,
-      "notes": "Auto-generated from ingested menu data. Hand-curate swaps before promoting to live.",
+      "notes": "Iconic single-location / \u22642-outlet restaurant, not a multi-city chain. Demoted to 'planned' on audit so it no longer reads as a 'live chain' in coverage metrics. Swap_templates retained for future re-promotion if outlet count grows. Auto-generated from ingested menu data. Hand-curate swaps before promoting to live.",
       "menu_templates": [
         {
           "template_key": "bukhara_sikandari_raan_shared_portion",
@@ -20763,7 +20764,8 @@
             "IN"
           ]
         }
-      ]
+      ],
+      "single_location": true
     },
     {
       "chain_key": "chargrill_charlies",
@@ -21895,10 +21897,10 @@
       "category_tags": [],
       "rollout_priority": "p2_regional_growth",
       "confidence_tier": "tier_2_good",
-      "coverage_status": "live",
+      "coverage_status": "planned",
       "supports_swaps": true,
       "menu_template_count": 4,
-      "notes": "Auto-generated from ingested menu data. Hand-curate swaps before promoting to live.",
+      "notes": "Iconic single-location / \u22642-outlet restaurant, not a multi-city chain. Demoted to 'planned' on audit so it no longer reads as a 'live chain' in coverage metrics. Swap_templates retained for future re-promotion if outlet count grows. Auto-generated from ingested menu data. Hand-curate swaps before promoting to live.",
       "menu_templates": [
         {
           "template_key": "indian_accent_tandoori_bacon_prawns",
@@ -22002,7 +22004,8 @@
             "IN"
           ]
         }
-      ]
+      ],
+      "single_location": true
     },
     {
       "chain_key": "indigo",
@@ -25686,10 +25689,10 @@
       "category_tags": [],
       "rollout_priority": "p2_regional_growth",
       "confidence_tier": "tier_2_good",
-      "coverage_status": "live",
+      "coverage_status": "planned",
       "supports_swaps": true,
       "menu_template_count": 4,
-      "notes": "Auto-generated from ingested menu data. Hand-curate swaps before promoting to live.",
+      "notes": "Iconic single-location / \u22642-outlet restaurant, not a multi-city chain. Demoted to 'planned' on audit so it no longer reads as a 'live chain' in coverage metrics. Swap_templates retained for future re-promotion if outlet count grows. Auto-generated from ingested menu data. Hand-curate swaps before promoting to live.",
       "menu_templates": [
         {
           "template_key": "6_ballygunge_place_kosha_mangsho_half",
@@ -25795,7 +25798,8 @@
             "IN"
           ]
         }
-      ]
+      ],
+      "single_location": true
     },
     {
       "chain_key": "aminia",
@@ -28556,10 +28560,10 @@
       "category_tags": [],
       "rollout_priority": "p2_regional_growth",
       "confidence_tier": "tier_2_good",
-      "coverage_status": "live",
+      "coverage_status": "planned",
       "supports_swaps": true,
       "menu_template_count": 4,
-      "notes": "Auto-generated from ingested menu data. Hand-curate swaps before promoting to live.",
+      "notes": "Iconic single-location / \u22642-outlet restaurant, not a multi-city chain. Demoted to 'planned' on audit so it no longer reads as a 'live chain' in coverage metrics. Swap_templates retained for future re-promotion if outlet count grows. Auto-generated from ingested menu data. Hand-curate swaps before promoting to live.",
       "menu_templates": [
         {
           "template_key": "gulati_tandoori_chicken_half",
@@ -28671,7 +28675,8 @@
             "IN"
           ]
         }
-      ]
+      ],
+      "single_location": true
     },
     {
       "chain_key": "highway_gomantak",
@@ -28908,10 +28913,10 @@
       "category_tags": [],
       "rollout_priority": "p2_regional_growth",
       "confidence_tier": "tier_2_good",
-      "coverage_status": "live",
+      "coverage_status": "planned",
       "supports_swaps": true,
       "menu_template_count": 2,
-      "notes": "Auto-generated from ingested menu data. Hand-curate swaps before promoting to live.",
+      "notes": "Iconic single-location / \u22642-outlet restaurant, not a multi-city chain. Demoted to 'planned' on audit so it no longer reads as a 'live chain' in coverage metrics. Swap_templates retained for future re-promotion if outlet count grows. Auto-generated from ingested menu data. Hand-curate swaps before promoting to live.",
       "menu_templates": [
         {
           "template_key": "kayani_bakery_shrewsbury_biscuits_100g",
@@ -28988,7 +28993,8 @@
             "IN"
           ]
         }
-      ]
+      ],
+      "single_location": true
     },
     {
       "chain_key": "la_madeleine",
@@ -31394,10 +31400,10 @@
       "category_tags": [],
       "rollout_priority": "p2_regional_growth",
       "confidence_tier": "tier_2_good",
-      "coverage_status": "live",
+      "coverage_status": "planned",
       "supports_swaps": true,
       "menu_template_count": 4,
-      "notes": "Auto-generated from ingested menu data. Hand-curate swaps before promoting to live.",
+      "notes": "Iconic single-location / \u22642-outlet restaurant, not a multi-city chain. Demoted to 'planned' on audit so it no longer reads as a 'live chain' in coverage metrics. Swap_templates retained for future re-promotion if outlet count grows. Auto-generated from ingested menu data. Hand-curate swaps before promoting to live.",
       "menu_templates": [
         {
           "template_key": "the_bombay_canteen_goan_chicken_cafreal",
@@ -31508,7 +31514,8 @@
             "IN"
           ]
         }
-      ]
+      ],
+      "single_location": true
     },
     {
       "chain_key": "tijuana_flats",
@@ -31636,10 +31643,10 @@
       "category_tags": [],
       "rollout_priority": "p2_regional_growth",
       "confidence_tier": "tier_2_good",
-      "coverage_status": "live",
+      "coverage_status": "planned",
       "supports_swaps": true,
       "menu_template_count": 4,
-      "notes": "Auto-generated from ingested menu data. Hand-curate swaps before promoting to live.",
+      "notes": "Iconic single-location / \u22642-outlet restaurant, not a multi-city chain. Demoted to 'planned' on audit so it no longer reads as a 'live chain' in coverage metrics. Swap_templates retained for future re-promotion if outlet count grows. Auto-generated from ingested menu data. Hand-curate swaps before promoting to live.",
       "menu_templates": [
         {
           "template_key": "trishna_koliwada_prawns",
@@ -31743,7 +31750,8 @@
             "IN"
           ]
         }
-      ]
+      ],
+      "single_location": true
     },
     {
       "chain_key": "veer_ji_malai_chaap",
@@ -31759,10 +31767,10 @@
       "category_tags": [],
       "rollout_priority": "p2_regional_growth",
       "confidence_tier": "tier_2_good",
-      "coverage_status": "live",
+      "coverage_status": "planned",
       "supports_swaps": true,
       "menu_template_count": 3,
-      "notes": "Auto-generated from ingested menu data. Hand-curate swaps before promoting to live.",
+      "notes": "Iconic single-location / \u22642-outlet restaurant, not a multi-city chain. Demoted to 'planned' on audit so it no longer reads as a 'live chain' in coverage metrics. Swap_templates retained for future re-promotion if outlet count grows. Auto-generated from ingested menu data. Hand-curate swaps before promoting to live.",
       "menu_templates": [
         {
           "template_key": "veer_ji_malai_chaap_malai_chaap_half_veg",
@@ -31850,7 +31858,8 @@
             "IN"
           ]
         }
-      ]
+      ],
+      "single_location": true
     },
     {
       "chain_key": "wawa",
@@ -33446,10 +33455,10 @@
       "category_tags": [],
       "rollout_priority": "p2_regional_growth",
       "confidence_tier": "tier_2_good",
-      "coverage_status": "live",
+      "coverage_status": "planned",
       "supports_swaps": true,
       "menu_template_count": 4,
-      "notes": "Auto-generated from ingested menu data. Hand-curate swaps before promoting to live.",
+      "notes": "Iconic single-location / \u22642-outlet restaurant, not a multi-city chain. Demoted to 'planned' on audit so it no longer reads as a 'live chain' in coverage metrics. Swap_templates retained for future re-promotion if outlet count grows. Auto-generated from ingested menu data. Hand-curate swaps before promoting to live.",
       "menu_templates": [
         {
           "template_key": "sarvi_chicken_biryani_half",
@@ -33559,7 +33568,8 @@
             "IN"
           ]
         }
-      ]
+      ],
+      "single_location": true
     },
     {
       "chain_key": "shah_ghouse",
@@ -33847,10 +33857,10 @@
       "category_tags": [],
       "rollout_priority": "p2_regional_growth",
       "confidence_tier": "tier_2_good",
-      "coverage_status": "live",
+      "coverage_status": "planned",
       "supports_swaps": true,
       "menu_template_count": 3,
-      "notes": "Auto-generated from ingested menu data. Hand-curate swaps before promoting to live.",
+      "notes": "Iconic single-location / \u22642-outlet restaurant, not a multi-city chain. Demoted to 'planned' on audit so it no longer reads as a 'live chain' in coverage metrics. Swap_templates retained for future re-promotion if outlet count grows. Auto-generated from ingested menu data. Hand-curate swaps before promoting to live.",
       "menu_templates": [
         {
           "template_key": "annalakshmi_south_indian_meals_pure_veg",
@@ -33940,7 +33950,8 @@
             "IN"
           ]
         }
-      ]
+      ],
+      "single_location": true
     },
     {
       "chain_key": "asia_haus",
@@ -35755,10 +35766,10 @@
       "category_tags": [],
       "rollout_priority": "p2_regional_growth",
       "confidence_tier": "tier_2_good",
-      "coverage_status": "live",
+      "coverage_status": "planned",
       "supports_swaps": true,
       "menu_template_count": 4,
-      "notes": "Auto-generated from ingested menu data. Hand-curate swaps before promoting to live.",
+      "notes": "Iconic single-location / \u22642-outlet restaurant, not a multi-city chain. Demoted to 'planned' on audit so it no longer reads as a 'live chain' in coverage metrics. Swap_templates retained for future re-promotion if outlet count grows. Auto-generated from ingested menu data. Hand-curate swaps before promoting to live.",
       "menu_templates": [
         {
           "template_key": "moolchand_parathe_aloo_paratha_1pc",
@@ -35870,7 +35881,8 @@
             "IN"
           ]
         }
-      ]
+      ],
+      "single_location": true
     },
     {
       "chain_key": "ovation",
@@ -36354,10 +36366,10 @@
       "category_tags": [],
       "rollout_priority": "p2_regional_growth",
       "confidence_tier": "tier_2_good",
-      "coverage_status": "live",
+      "coverage_status": "planned",
       "supports_swaps": true,
       "menu_template_count": 3,
-      "notes": "Auto-generated from ingested menu data. Hand-curate swaps before promoting to live.",
+      "notes": "Iconic single-location / \u22642-outlet restaurant, not a multi-city chain. Demoted to 'planned' on audit so it no longer reads as a 'live chain' in coverage metrics. Swap_templates retained for future re-promotion if outlet count grows. Auto-generated from ingested menu data. Hand-curate swaps before promoting to live.",
       "menu_templates": [
         {
           "template_key": "shrewsbury_pune_shrewsbury_biscuits_100g",
@@ -36453,7 +36465,8 @@
             "IN"
           ]
         }
-      ]
+      ],
+      "single_location": true
     },
     {
       "chain_key": "smashburger",
@@ -38913,10 +38926,10 @@
       "category_tags": [],
       "rollout_priority": "p2_regional_growth",
       "confidence_tier": "tier_2_good",
-      "coverage_status": "live",
+      "coverage_status": "planned",
       "supports_swaps": true,
       "menu_template_count": 2,
-      "notes": "Auto-generated from ingested menu data. Hand-curate swaps before promoting to live.",
+      "notes": "Iconic single-location / \u22642-outlet restaurant, not a multi-city chain. Demoted to 'planned' on audit so it no longer reads as a 'live chain' in coverage metrics. Swap_templates retained for future re-promotion if outlet count grows. Auto-generated from ingested menu data. Hand-curate swaps before promoting to live.",
       "menu_templates": [
         {
           "template_key": "jamoon_gulab_jamun_2pc",
@@ -38982,7 +38995,8 @@
             "IN"
           ]
         }
-      ]
+      ],
+      "single_location": true
     },
     {
       "chain_key": "kebabsville",
@@ -39110,10 +39124,10 @@
       "category_tags": [],
       "rollout_priority": "p2_regional_growth",
       "confidence_tier": "tier_2_good",
-      "coverage_status": "live",
+      "coverage_status": "planned",
       "supports_swaps": true,
       "menu_template_count": 3,
-      "notes": "Auto-generated from ingested menu data. Hand-curate swaps before promoting to live.",
+      "notes": "Iconic single-location / \u22642-outlet restaurant, not a multi-city chain. Demoted to 'planned' on audit so it no longer reads as a 'live chain' in coverage metrics. Swap_templates retained for future re-promotion if outlet count grows. Auto-generated from ingested menu data. Hand-curate swaps before promoting to live.",
       "menu_templates": [
         {
           "template_key": "koramangala_social_chicken_wings_peri_peri_6pc",
@@ -39205,7 +39219,8 @@
             "IN"
           ]
         }
-      ]
+      ],
+      "single_location": true
     },
     {
       "chain_key": "la_colombe",
@@ -43079,10 +43094,10 @@
       "category_tags": [],
       "rollout_priority": "p2_regional_growth",
       "confidence_tier": "tier_2_good",
-      "coverage_status": "live",
+      "coverage_status": "planned",
       "supports_swaps": true,
       "menu_template_count": 3,
-      "notes": "Auto-generated from ingested menu data. Hand-curate swaps before promoting to live.",
+      "notes": "Iconic single-location / \u22642-outlet restaurant, not a multi-city chain. Demoted to 'planned' on audit so it no longer reads as a 'live chain' in coverage metrics. Swap_templates retained for future re-promotion if outlet count grows. Auto-generated from ingested menu data. Hand-curate swaps before promoting to live.",
       "menu_templates": [
         {
           "template_key": "jai_hind_dhaba_butter_chicken_2_roti",
@@ -43176,7 +43191,8 @@
             "IN"
           ]
         }
-      ]
+      ],
+      "single_location": true
     },
     {
       "chain_key": "jalebi",
@@ -43191,10 +43207,10 @@
       "category_tags": [],
       "rollout_priority": "p2_regional_growth",
       "confidence_tier": "tier_2_good",
-      "coverage_status": "live",
+      "coverage_status": "planned",
       "supports_swaps": true,
       "menu_template_count": 2,
-      "notes": "Auto-generated from ingested menu data. Hand-curate swaps before promoting to live.",
+      "notes": "Iconic single-location / \u22642-outlet restaurant, not a multi-city chain. Demoted to 'planned' on audit so it no longer reads as a 'live chain' in coverage metrics. Swap_templates retained for future re-promotion if outlet count grows. Auto-generated from ingested menu data. Hand-curate swaps before promoting to live.",
       "menu_templates": [
         {
           "template_key": "jalebi_jalebi_100g",
@@ -43260,7 +43276,8 @@
             "IN"
           ]
         }
-      ]
+      ],
+      "single_location": true
     },
     {
       "chain_key": "joes_crab_shack",
@@ -43482,10 +43499,10 @@
       "category_tags": [],
       "rollout_priority": "p2_regional_growth",
       "confidence_tier": "tier_2_good",
-      "coverage_status": "live",
+      "coverage_status": "planned",
       "supports_swaps": true,
       "menu_template_count": 3,
-      "notes": "Auto-generated from ingested menu data. Hand-curate swaps before promoting to live.",
+      "notes": "Iconic single-location / \u22642-outlet restaurant, not a multi-city chain. Demoted to 'planned' on audit so it no longer reads as a 'live chain' in coverage metrics. Swap_templates retained for future re-promotion if outlet count grows. Auto-generated from ingested menu data. Hand-curate swaps before promoting to live.",
       "menu_templates": [
         {
           "template_key": "kake_da_hotel_chicken_curry_2_roti",
@@ -43579,7 +43596,8 @@
             "IN"
           ]
         }
-      ]
+      ],
+      "single_location": true
     },
     {
       "chain_key": "krystal",
@@ -44662,10 +44680,10 @@
       "category_tags": [],
       "rollout_priority": "p2_regional_growth",
       "confidence_tier": "tier_2_good",
-      "coverage_status": "live",
+      "coverage_status": "planned",
       "supports_swaps": true,
       "menu_template_count": 3,
-      "notes": "Auto-generated from ingested menu data. Hand-curate swaps before promoting to live.",
+      "notes": "Iconic single-location / \u22642-outlet restaurant, not a multi-city chain. Demoted to 'planned' on audit so it no longer reads as a 'live chain' in coverage metrics. Swap_templates retained for future re-promotion if outlet count grows. Auto-generated from ingested menu data. Hand-curate swaps before promoting to live.",
       "menu_templates": [
         {
           "template_key": "pizza_by_the_bay_grilled_chicken_personal",
@@ -44757,7 +44775,8 @@
             "IN"
           ]
         }
-      ]
+      ],
+      "single_location": true
     },
     {
       "chain_key": "pollo_tropical",
@@ -44887,10 +44906,10 @@
       "category_tags": [],
       "rollout_priority": "p2_regional_growth",
       "confidence_tier": "tier_2_good",
-      "coverage_status": "live",
+      "coverage_status": "planned",
       "supports_swaps": true,
       "menu_template_count": 3,
-      "notes": "Auto-generated from ingested menu data. Hand-curate swaps before promoting to live.",
+      "notes": "Iconic single-location / \u22642-outlet restaurant, not a multi-city chain. Demoted to 'planned' on audit so it no longer reads as a 'live chain' in coverage metrics. Swap_templates retained for future re-promotion if outlet count grows. Auto-generated from ingested menu data. Hand-curate swaps before promoting to live.",
       "menu_templates": [
         {
           "template_key": "ram_ashrey_masala_dosa",
@@ -44982,7 +45001,8 @@
             "IN"
           ]
         }
-      ]
+      ],
+      "single_location": true
     },
     {
       "chain_key": "salsas_fresh_mex",
@@ -46116,10 +46136,10 @@
       "category_tags": [],
       "rollout_priority": "p2_regional_growth",
       "confidence_tier": "tier_2_good",
-      "coverage_status": "live",
+      "coverage_status": "planned",
       "supports_swaps": true,
       "menu_template_count": 3,
-      "notes": "Auto-generated from ingested menu data. Hand-curate swaps before promoting to live.",
+      "notes": "Iconic single-location / \u22642-outlet restaurant, not a multi-city chain. Demoted to 'planned' on audit so it no longer reads as a 'live chain' in coverage metrics. Swap_templates retained for future re-promotion if outlet count grows. Auto-generated from ingested menu data. Hand-curate swaps before promoting to live.",
       "menu_templates": [
         {
           "template_key": "bombay_duck_bombay_duck_fry_6pc",
@@ -46210,7 +46230,8 @@
             "IN"
           ]
         }
-      ]
+      ],
+      "single_location": true
     },
     {
       "chain_key": "bourke_street_bakery",
@@ -47626,10 +47647,10 @@
       "category_tags": [],
       "rollout_priority": "p2_regional_growth",
       "confidence_tier": "tier_2_good",
-      "coverage_status": "live",
+      "coverage_status": "planned",
       "supports_swaps": true,
       "menu_template_count": 4,
-      "notes": "Auto-generated from ingested menu data. Hand-curate swaps before promoting to live.",
+      "notes": "Iconic single-location / \u22642-outlet restaurant, not a multi-city chain. Demoted to 'planned' on audit so it no longer reads as a 'live chain' in coverage metrics. Swap_templates retained for future re-promotion if outlet count grows. Auto-generated from ingested menu data. Hand-curate swaps before promoting to live.",
       "menu_templates": [
         {
           "template_key": "jimmy_boy_berry_pulao_chicken",
@@ -47740,7 +47761,8 @@
             "IN"
           ]
         }
-      ]
+      ],
+      "single_location": true
     },
     {
       "chain_key": "kareems",
@@ -47947,10 +47969,10 @@
       "category_tags": [],
       "rollout_priority": "p2_regional_growth",
       "confidence_tier": "tier_2_good",
-      "coverage_status": "live",
+      "coverage_status": "planned",
       "supports_swaps": true,
       "menu_template_count": 3,
-      "notes": "Auto-generated from ingested menu data. Hand-curate swaps before promoting to live.",
+      "notes": "Iconic single-location / \u22642-outlet restaurant, not a multi-city chain. Demoted to 'planned' on audit so it no longer reads as a 'live chain' in coverage metrics. Swap_templates retained for future re-promotion if outlet count grows. Auto-generated from ingested menu data. Hand-curate swaps before promoting to live.",
       "menu_templates": [
         {
           "template_key": "kyani_and_co_keema_pav_half",
@@ -48040,7 +48062,8 @@
             "IN"
           ]
         }
-      ]
+      ],
+      "single_location": true
     },
     {
       "chain_key": "lot_burger",
@@ -49137,10 +49160,10 @@
       "category_tags": [],
       "rollout_priority": "p2_regional_growth",
       "confidence_tier": "tier_2_good",
-      "coverage_status": "live",
+      "coverage_status": "planned",
       "supports_swaps": true,
       "menu_template_count": 3,
-      "notes": "Auto-generated from ingested menu data. Hand-curate swaps before promoting to live.",
+      "notes": "Iconic single-location / \u22642-outlet restaurant, not a multi-city chain. Demoted to 'planned' on audit so it no longer reads as a 'live chain' in coverage metrics. Swap_templates retained for future re-promotion if outlet count grows. Auto-generated from ingested menu data. Hand-curate swaps before promoting to live.",
       "menu_templates": [
         {
           "template_key": "yazdani_bakery_bun_maska_no_jam",
@@ -49235,7 +49258,8 @@
             "IN"
           ]
         }
-      ]
+      ],
+      "single_location": true
     },
     {
       "chain_key": "yazdani_cafe",
@@ -49251,10 +49275,10 @@
       "category_tags": [],
       "rollout_priority": "p2_regional_growth",
       "confidence_tier": "tier_2_good",
-      "coverage_status": "live",
+      "coverage_status": "planned",
       "supports_swaps": true,
       "menu_template_count": 2,
-      "notes": "Auto-generated from ingested menu data. Hand-curate swaps before promoting to live.",
+      "notes": "Iconic single-location / \u22642-outlet restaurant, not a multi-city chain. Demoted to 'planned' on audit so it no longer reads as a 'live chain' in coverage metrics. Swap_templates retained for future re-promotion if outlet count grows. Auto-generated from ingested menu data. Hand-curate swaps before promoting to live.",
       "menu_templates": [
         {
           "template_key": "yazdani_cafe_bun_maska_chai",
@@ -49331,7 +49355,8 @@
             "IN"
           ]
         }
-      ]
+      ],
+      "single_location": true
     },
     {
       "chain_key": "aslam_chicken",
@@ -54533,10 +54558,10 @@
       "category_tags": [],
       "rollout_priority": "p2_regional_growth",
       "confidence_tier": "tier_2_good",
-      "coverage_status": "live",
+      "coverage_status": "planned",
       "supports_swaps": true,
       "menu_template_count": 3,
-      "notes": "Auto-generated from ingested menu data. Hand-curate swaps before promoting to live.",
+      "notes": "Iconic single-location / \u22642-outlet restaurant, not a multi-city chain. Demoted to 'planned' on audit so it no longer reads as a 'live chain' in coverage metrics. Swap_templates retained for future re-promotion if outlet count grows. Auto-generated from ingested menu data. Hand-curate swaps before promoting to live.",
       "menu_templates": [
         {
           "template_key": "embassy_restaurant_butter_chicken_2_roti",
@@ -54630,7 +54655,8 @@
             "IN"
           ]
         }
-      ]
+      ],
+      "single_location": true
     },
     {
       "chain_key": "haveli",
@@ -54774,10 +54800,10 @@
       "category_tags": [],
       "rollout_priority": "p2_regional_growth",
       "confidence_tier": "tier_2_good",
-      "coverage_status": "live",
+      "coverage_status": "planned",
       "supports_swaps": true,
       "menu_template_count": 3,
-      "notes": "Auto-generated from ingested menu data. Hand-curate swaps before promoting to live.",
+      "notes": "Iconic single-location / \u22642-outlet restaurant, not a multi-city chain. Demoted to 'planned' on audit so it no longer reads as a 'live chain' in coverage metrics. Swap_templates retained for future re-promotion if outlet count grows. Auto-generated from ingested menu data. Hand-curate swaps before promoting to live.",
       "menu_templates": [
         {
           "template_key": "hotel_nayab_nayab_chicken_biryani",
@@ -54871,7 +54897,8 @@
             "IN"
           ]
         }
-      ]
+      ],
+      "single_location": true
     },
     {
       "chain_key": "kamat",
@@ -55017,10 +55044,10 @@
       "category_tags": [],
       "rollout_priority": "p2_regional_growth",
       "confidence_tier": "tier_2_good",
-      "coverage_status": "live",
+      "coverage_status": "planned",
       "supports_swaps": true,
       "menu_template_count": 4,
-      "notes": "Auto-generated from ingested menu data. Hand-curate swaps before promoting to live.",
+      "notes": "Iconic single-location / \u22642-outlet restaurant, not a multi-city chain. Demoted to 'planned' on audit so it no longer reads as a 'live chain' in coverage metrics. Swap_templates retained for future re-promotion if outlet count grows. Auto-generated from ingested menu data. Hand-curate swaps before promoting to live.",
       "menu_templates": [
         {
           "template_key": "konkan_cafe_malvani_chicken_curry_rice",
@@ -55128,7 +55155,8 @@
             "IN"
           ]
         }
-      ]
+      ],
+      "single_location": true
     },
     {
       "chain_key": "natraj_aliwale",
