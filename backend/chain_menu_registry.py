@@ -806,6 +806,10 @@ CHAIN_KEYS: Dict[str, List[str]] = {
     "kudu": ["kudu"],
     "toit": ["toit bangalore", "toit brewpub"],
     "lmb": ["laxmi mishthan bhandar", "lmb jaipur"],
+
+    # --- Wave 3c: researched brand names (WebSearch-confirmed) ---
+    "empire": ["hotel empire"],  # Bangalore chain since 1966; "hotel" survives _SUFFIX_RE
+    "sarvi": ["cafe sarvi"],     # Mumbai kebab institution since 1899
 }
 
 _SUFFIX_RE = re.compile(
