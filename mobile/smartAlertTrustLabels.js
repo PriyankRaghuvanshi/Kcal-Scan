@@ -72,7 +72,9 @@ export function getAlertTrustLabel(alertOrPlace) {
   if (tier === "generic_fallback") return TRUST_LABELS.needs_menu_check;
   if (tier === "heuristic_cuisine_match_weak") return TRUST_LABELS.needs_menu_check;
 
-  // A. Verified – exact/cache or very strong trusted source
+  // A. Verified – exact/cache or very strong trusted source.
+  // `official_published` = item came from the brand's own published
+  // nutrition data (McDonald's, Chipotle, etc.) — highest-trust tier.
   if (conf === "Verified") return TRUST_LABELS.verified;
   if (
     source &&
@@ -82,6 +84,7 @@ export function getAlertTrustLabel(alertOrPlace) {
       "exact_menu_cache",
       "menu_intelligence_store",
       "structured_menu",
+      "official_published",
     ].includes(source)
   ) {
     return TRUST_LABELS.verified;
@@ -115,13 +118,21 @@ export function getAlertTrustLabel(alertOrPlace) {
     return TRUST_LABELS.local_favorite;
   }
 
-  // D. Estimated – strong heuristic / reasonable inference
+  // D. Estimated – strong heuristic / reasonable inference.
+  // `llm_curated` = brand-knowledge-grounded dish authored for thin chains
+  // (e.g. Barista, Goli Vada Pav, Keventers) with 0.78-0.85 confidence.
+  // `seed_estimated` / `seed_template` = original scaffolded seed data.
   if (conf === "Estimated") return TRUST_LABELS.estimated;
   if (rec === "Best pick" || rec === "Strong option") return TRUST_LABELS.estimated;
   if (tier === "heuristic_cuisine_match_strong" || tier === "menu_inferred") {
     return TRUST_LABELS.estimated;
   }
-  if (source === "llm_inferred") return TRUST_LABELS.estimated;
+  if (
+    source &&
+    ["llm_inferred", "llm_curated", "seed_estimated", "seed_template"].includes(source)
+  ) {
+    return TRUST_LABELS.estimated;
+  }
 
   // Default for unknown/heuristic
   return TRUST_LABELS.estimated;
