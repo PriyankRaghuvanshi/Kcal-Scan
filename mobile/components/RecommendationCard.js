@@ -43,6 +43,39 @@ function num(v) {
 }
 
 /**
+ * Build two or three goal_variant pills for display: the highest-protein and
+ * lowest-calorie (and fat-loss) picks from goal_variants, skipping any that
+ * are the same as the primary bestItem or each other.
+ */
+function buildGoalVariantPills(place, bestItemName) {
+  const gv = place?.goal_variants;
+  if (!gv || typeof gv !== "object") return [];
+  const norm = (s) => String(s || "").trim().toLowerCase();
+  const primary = norm(bestItemName);
+  const out = [];
+  const seen = new Set();
+  const add = (label, variant) => {
+    if (!variant || typeof variant !== "object") return;
+    const name = String(variant.item_name || "").trim();
+    if (!name) return;
+    const key = norm(name);
+    if (key === primary || seen.has(key)) return;
+    seen.add(key);
+    out.push({
+      label,
+      name,
+      kcal: Number.isFinite(Number(variant.estimated_calories)) ? Math.round(Number(variant.estimated_calories)) : null,
+      protein: Number.isFinite(Number(variant.estimated_protein_g)) ? Math.round(Number(variant.estimated_protein_g)) : null,
+    });
+  };
+  // Order: high protein, lowest cal, fat_loss (if distinct from both)
+  add("High protein", gv.high_protein);
+  add("Lowest cal", gv.lowest_calorie);
+  add("Fat-loss", gv.fat_loss);
+  return out.slice(0, 2);
+}
+
+/**
  * Infer card variant from place/candidate data.
  */
 export function inferCardVariant(place) {
@@ -92,6 +125,7 @@ export function RecommendationCard({
 
   const topItem = place.top_menu_item && typeof place.top_menu_item === "object" ? place.top_menu_item : null;
   const swaps = extractSwapSuggestions(topItem || place, place);
+  const goalVariantPills = buildGoalVariantPills(place, bestItem);
 
   const resolvedVariant = variant || inferCardVariant(place);
   const needsMenuCheck = shouldShowMenuMayVary(place);
@@ -160,6 +194,29 @@ export function RecommendationCard({
               ) : null}
             </View>
           ) : null}
+        </View>
+      ) : null}
+
+      {/* C-b. Alternative picks by goal (high-protein / lowest-cal) */}
+      {goalVariantPills.length > 0 && !isScreenshot ? (
+        <View style={styles.variantsRow}>
+          {goalVariantPills.map((v, idx) => (
+            <View key={`gv-${idx}-${v.label}`} style={styles.variantPill}>
+              <Text style={[styles.variantLabel, { color: textMuted }]} numberOfLines={1}>
+                {v.label}:
+              </Text>
+              <Text style={[styles.variantName, { color: textPrimary }]} numberOfLines={1}>
+                {v.name}
+              </Text>
+              {(v.kcal != null || v.protein != null) ? (
+                <Text style={[styles.variantMacros, { color: textMuted }]} numberOfLines={1}>
+                  {v.kcal != null ? `${v.kcal} kcal` : ""}
+                  {(v.kcal != null && v.protein != null) ? " · " : ""}
+                  {v.protein != null ? `${v.protein}g p` : ""}
+                </Text>
+              ) : null}
+            </View>
+          ))}
         </View>
       ) : null}
 
@@ -303,6 +360,41 @@ const styles = StyleSheet.create({
     fontWeight: typography.weight.bold,
     marginTop: spacing.md,
     lineHeight: typography.xl * 1.35,
+  },
+  variantsRow: {
+    marginTop: spacing.sm,
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  variantPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: "rgba(148, 163, 184, 0.30)",
+    backgroundColor: "rgba(15, 23, 42, 0.35)",
+    maxWidth: "48%",
+    minWidth: "44%",
+    flexGrow: 1,
+  },
+  variantLabel: {
+    fontSize: 11,
+    fontWeight: typography.weight.semibold,
+    marginRight: 6,
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
+  },
+  variantName: {
+    fontSize: 12,
+    fontWeight: typography.weight.semibold,
+    flexShrink: 1,
+  },
+  variantMacros: {
+    fontSize: 11,
+    marginLeft: 6,
   },
   menuMayVary: {
     fontSize: typography.xs,

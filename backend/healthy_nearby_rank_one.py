@@ -791,6 +791,7 @@ def rank_one_healthy_nearby_place(p: Dict[str, Any], ctx: HealthyNearbyRankConte
         "top_menu_items": menu_recommendations.get("top_menu_items") if isinstance(menu_recommendations.get("top_menu_items"), list) else [],
         "best_menu_items": menu_recommendations.get("best_menu_items") if isinstance(menu_recommendations.get("best_menu_items"), list) else [],
         "top_menu_item": menu_recommendations.get("top_menu_item") if isinstance(menu_recommendations.get("top_menu_item"), dict) else None,
+        "goal_variants": menu_recommendations.get("goal_variants") if isinstance(menu_recommendations.get("goal_variants"), dict) else {},
         "chain_key": menu_recommendations.get("chain_key"),
         "chain_id": menu_recommendations.get("chain_id"),
         "top_item": str(menu_recommendations.get("top_item") or ""),
