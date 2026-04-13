@@ -477,26 +477,96 @@ def _display_label_for_menu_item(
 
 
 def _coarse_item_name_for_context(cuisine_hint: str) -> str:
-    text = str(cuisine_hint or "").strip().lower()
+    """
+    Cuisine-aware heuristic menu item name for independent (non-chain) restaurants.
+    Ordered most-specific first so narrower matches (south indian > indian) win.
+    Input is a Google Places primary_type/types token or fallback place name.
+    """
+    text = str(cuisine_hint or "").strip().lower().replace("_", " ")
+
+    # Dessert/sweets-only venues: no savory guidance possible.
     if any(token in text for token in _DESSERT_CONTEXT_TOKENS):
         return "Needs menu check: choose lighter savory or single-item options"
+
+    # --- Indian subregions first (more specific than "indian") ---
     if any(token in text for token in ("south indian", "idli", "dosa", "udupi", "temple", "canteen")):
-        return "Idli or plain dosa-style option"
+        return "Idli or plain dosa, sambar, coconut chutney"
     if "biryani" in text:
-        return "Tandoori or grilled kebab-style option"
+        return "Tandoori or grilled kebab + raita (share rice)"
     if "indian" in text:
-        return "Simpler tandoori or dal + roti option"
-    if any(token in text for token in ("cafe", "coffee", "bakery", "brunch", "patisserie")):
-        return "Egg, yogurt, or sandwich-style lighter option"
-    if any(token in text for token in ("burger", "fast food", "fast_food", "fried chicken")):
-        return "Lighter grilled or single-item option"
-    if "pizza" in text:
-        return "Lighter thin-crust option"
+        return "Tandoori or grilled kebab + dal + 2 roti"
+
+    # --- Asian — specific regions before generic ---
+    if any(token in text for token in ("thai",)):
+        return "Clear tom yum or stir-fry with brown rice"
+    if any(token in text for token in ("vietnamese", "pho", "banh mi")):
+        return "Pho with lean chicken/beef + extra herbs"
+    if any(token in text for token in ("korean",)):
+        return "Bibimbap or kalbi + kimchi (light rice)"
+    if any(token in text for token in ("ramen",)):
+        return "Shio or shoyu ramen, extra veg, skip chashu fat"
+    if any(token in text for token in ("dim sum", "dimsum", "cantonese")):
+        return "Steamed har gow/siu mai + steamed greens"
     if any(token in text for token in ("sushi", "japanese")):
-        return "Sashimi or simple rice-bowl option"
+        return "Sashimi or chirashi over tempura rolls"
+    if any(token in text for token in ("chinese",)):
+        return "Steamed/stir-fry protein + greens, half rice"
+    if any(token in text for token in ("asian", "pan_asian", "pan asian")):
+        return "Steamed/grilled protein + veg, skip crispy-fried"
+
+    # --- Middle Eastern / Mediterranean ---
+    if any(token in text for token in ("middle eastern", "lebanese", "turkish", "shawarma", "kebab house")):
+        return "Chicken shawarma or grilled kebab + tabbouleh"
+    if any(token in text for token in ("mediterranean", "greek")):
+        return "Grilled chicken/fish + Greek salad, light dressing"
+
+    # --- Americas ---
     if any(token in text for token in ("mexican", "burrito", "taco")):
-        return "Lighter bowl or taco-style option"
-    return "Lighter menu option"
+        return "Chicken bowl (brown rice/beans), skip sour cream & cheese"
+    if any(token in text for token in ("peruvian",)):
+        return "Ceviche or grilled pollo a la brasa + salad"
+    if any(token in text for token in ("brazilian", "churrasco")):
+        return "Grilled lean cuts + salad bar (skip farofa/pao)"
+    if any(token in text for token in ("caribbean", "jerk")):
+        return "Jerk chicken + rice & peas (half rice), extra veg"
+
+    # --- European ---
+    if any(token in text for token in ("italian",)):
+        return "Grilled fish/chicken or tomato-based pasta (skip cream)"
+    if any(token in text for token in ("french",)):
+        return "Grilled protein + ratatouille, skip buttery sauces"
+    if any(token in text for token in ("spanish", "tapas")):
+        return "Grilled seafood tapas + salad, light on chorizo"
+    if any(token in text for token in ("british", "pub", "gastropub")):
+        return "Grilled chicken or fish + salad, skip chips"
+
+    # --- Format-specific ---
+    if any(token in text for token in ("steak", "steakhouse")):
+        return "Filet or sirloin (lean), salad + steamed veg"
+    if any(token in text for token in ("seafood",)):
+        return "Grilled fish or steamed shellfish + salad"
+    if any(token in text for token in ("bbq", "barbecue", "smokehouse")):
+        return "Lean brisket or grilled chicken + slaw (no ribs combo)"
+    if any(token in text for token in ("salad", "poke", "bowl")):
+        return "Protein bowl + greens, dressing on the side"
+    if any(token in text for token in ("buffet", "all you can eat")):
+        return "Lean protein + salad first; skip desserts"
+    if any(token in text for token in ("vegan", "plant")):
+        return "High-protein plant bowl (tofu/tempeh/lentils + greens)"
+    if any(token in text for token in ("vegetarian", "veg ",)):
+        return "Paneer/dal + whole grain + salad (light ghee)"
+    if any(token in text for token in ("pizza",)):
+        return "Thin-crust veggie or chicken, half cheese"
+    if any(token in text for token in ("burger", "fast food", "fast_food", "fried chicken")):
+        return "Grilled chicken + side salad (not fries), no mayo"
+    if any(token in text for token in ("diner", "breakfast", "brunch")):
+        return "Egg-white omelette + wholegrain toast, skip hash browns"
+    if any(token in text for token in ("cafe", "coffee", "bakery", "patisserie")):
+        return "Wholegrain sandwich or egg option, skip pastry + sugary drink"
+    if any(token in text for token in ("bar", "cocktail")):
+        return "Grilled protein small plate, skip fried bar snacks"
+
+    return "Lighter grilled protein + vegetables, share carbs"
 
 
 def _source_rank_weight(source: str, raw_source_token: str) -> float:
