@@ -13,10 +13,11 @@
       ],
       "market_tags": [
         "AU",
-        "US",
+        "CA",
         "GB",
+        "IN",
         "NZ",
-        "IN"
+        "US"
       ],
       "cuisine_tags": [
         "sandwich",
@@ -234,10 +235,11 @@
       ],
       "market_tags": [
         "AU",
-        "US",
+        "CA",
         "GB",
+        "IN",
         "NZ",
-        "IN"
+        "US"
       ],
       "cuisine_tags": [
         "burger",
@@ -410,10 +412,11 @@
       ],
       "market_tags": [
         "AU",
-        "US",
+        "CA",
         "GB",
+        "IN",
         "NZ",
-        "IN"
+        "US"
       ],
       "cuisine_tags": [
         "chicken",
@@ -665,10 +668,11 @@
       ],
       "market_tags": [
         "AU",
-        "US",
+        "CA",
         "GB",
+        "IN",
         "NZ",
-        "IN"
+        "US"
       ],
       "cuisine_tags": [
         "pizza",
@@ -800,10 +804,11 @@
       ],
       "market_tags": [
         "AU",
-        "US",
+        "CA",
         "GB",
+        "IN",
         "NZ",
-        "IN"
+        "US"
       ],
       "cuisine_tags": [
         "pizza",
@@ -1726,9 +1731,10 @@
       ],
       "market_tags": [
         "AU",
-        "US",
+        "CA",
         "GB",
-        "IN"
+        "IN",
+        "US"
       ],
       "cuisine_tags": [
         "coffee",
@@ -2051,10 +2057,11 @@
         "bk"
       ],
       "market_tags": [
-        "US",
-        "GB",
         "AU",
-        "IN"
+        "CA",
+        "GB",
+        "IN",
+        "US"
       ],
       "cuisine_tags": [
         "burger",
@@ -2237,6 +2244,7 @@
       ],
       "market_tags": [
         "AU",
+        "CA",
         "IN",
         "US"
       ],
@@ -2367,9 +2375,10 @@
         "dunkin'"
       ],
       "market_tags": [
-        "US",
+        "CA",
         "GB",
-        "IN"
+        "IN",
+        "US"
       ],
       "cuisine_tags": [
         "donut",
@@ -2666,8 +2675,9 @@
         "popeyes louisiana kitchen"
       ],
       "market_tags": [
-        "US",
-        "AU"
+        "AU",
+        "CA",
+        "US"
       ],
       "cuisine_tags": [
         "chicken",
@@ -3114,29 +3124,150 @@
       "chain_key": "tim_hortons",
       "display_name": "Tim Hortons",
       "aliases": [
-        "tim hortons",
         "tim horton's",
-        "tim horton"
+        "timmies",
+        "tims",
+        "tim horton",
+        "tim hortons"
       ],
       "market_tags": [
         "CA",
         "US"
       ],
       "cuisine_tags": [
+        "cafe",
+        "breakfast",
+        "bakery",
         "coffee",
-        "donut",
-        "breakfast"
+        "donut"
       ],
       "category_tags": [
         "cafe",
+        "fast_food",
         "bakery"
       ],
       "rollout_priority": "p1_high_value",
       "confidence_tier": "tier_2_good",
-      "coverage_status": "planned",
+      "coverage_status": "live",
       "supports_swaps": true,
-      "menu_template_count": 0,
-      "notes": "Breakfast sandwich, egg wrap. Skip timbits."
+      "menu_template_count": 3,
+      "notes": "Coffee/donut chain. Favor farmer's wrap (egg white) + black coffee; demote double-double + Timbits + sausage breakfast sandwich.",
+      "menu_templates": [
+        {
+          "template_key": "farmers_wrap_egg_white",
+          "template_name": "Farmer's Wrap (egg white, chicken)",
+          "item_type": "wrap",
+          "estimated_calories": 380,
+          "estimated_protein_g": 24,
+          "specificity_tier": "chain_registry",
+          "cut_friendly": false,
+          "food_quality_tags": [
+            "protein_rich",
+            "whole_grain"
+          ],
+          "negative_flags": [],
+          "default_confidence": 0.82,
+          "markets": [
+            "CA"
+          ],
+          "recommended_swap_keys": [
+            "egg_white",
+            "skip_hash_browns"
+          ]
+        },
+        {
+          "template_key": "coffee_black",
+          "template_name": "Black Coffee (regular)",
+          "item_type": "beverage",
+          "estimated_calories": 5,
+          "estimated_protein_g": 0,
+          "specificity_tier": "chain_registry",
+          "cut_friendly": false,
+          "food_quality_tags": [
+            "unsweet"
+          ],
+          "negative_flags": [],
+          "default_confidence": 0.95,
+          "markets": [
+            "CA"
+          ],
+          "recommended_swap_keys": [
+            "unsweet_drink"
+          ]
+        },
+        {
+          "template_key": "chicken_wrap_crispy_swap",
+          "template_name": "Grilled Chicken Wrap (not crispy)",
+          "item_type": "wrap",
+          "estimated_calories": 420,
+          "estimated_protein_g": 30,
+          "specificity_tier": "chain_registry",
+          "cut_friendly": false,
+          "food_quality_tags": [
+            "protein_rich",
+            "grilled"
+          ],
+          "negative_flags": [],
+          "default_confidence": 0.82,
+          "markets": [
+            "CA"
+          ],
+          "recommended_swap_keys": [
+            "grilled_not_crispy",
+            "no_mayo"
+          ]
+        }
+      ],
+      "swap_templates": [
+        {
+          "swap_key": "unsweet_drink",
+          "swap_label": "Skip cream + sugar; black or with skim",
+          "swap_type": "drink_swap",
+          "calories_delta": -120,
+          "protein_delta": 1,
+          "reason": "Cut added sugar + fat",
+          "plausibility_score": 0.94,
+          "markets": [
+            "CA"
+          ]
+        },
+        {
+          "swap_key": "egg_white",
+          "swap_label": "Egg white over whole egg in wrap",
+          "swap_type": "ingredient_swap",
+          "calories_delta": -60,
+          "protein_delta": -1,
+          "reason": "Cut saturated fat",
+          "plausibility_score": 0.88,
+          "markets": [
+            "CA"
+          ]
+        },
+        {
+          "swap_key": "grilled_not_crispy",
+          "swap_label": "Grilled chicken over crispy",
+          "swap_type": "prep_change",
+          "calories_delta": -180,
+          "protein_delta": 3,
+          "reason": "Avoid fried breading",
+          "plausibility_score": 0.9,
+          "markets": [
+            "CA"
+          ]
+        },
+        {
+          "swap_key": "skip_hash_browns",
+          "swap_label": "Skip hash brown add-on",
+          "swap_type": "side_swap",
+          "calories_delta": -140,
+          "protein_delta": -2,
+          "reason": "Avoid fried starch",
+          "plausibility_score": 0.92,
+          "markets": [
+            "CA"
+          ]
+        }
+      ]
     },
     {
       "chain_key": "pret_a_manger",
@@ -44047,6 +44178,1441 @@
           "plausibility_score": 0.92,
           "markets": [
             "GB"
+          ]
+        }
+      ]
+    },
+    {
+      "chain_key": "harveys",
+      "display_name": "Harvey's",
+      "aliases": [
+        "harveys",
+        "harvey's"
+      ],
+      "market_tags": [
+        "CA"
+      ],
+      "cuisine_tags": [
+        "burger",
+        "canadian"
+      ],
+      "category_tags": [
+        "fast_food",
+        "burger"
+      ],
+      "rollout_priority": "p2_regional_growth",
+      "confidence_tier": "tier_2_good",
+      "coverage_status": "live",
+      "supports_swaps": true,
+      "menu_template_count": 3,
+      "notes": "Build-your-own burger chain. Favor grilled chicken burger, load fresh veggies, skip cheese/bacon/mayo stacks.",
+      "menu_templates": [
+        {
+          "template_key": "grilled_chicken_burger",
+          "template_name": "Grilled Chicken Burger",
+          "item_type": "burger",
+          "estimated_calories": 360,
+          "estimated_protein_g": 32,
+          "specificity_tier": "chain_registry",
+          "cut_friendly": false,
+          "food_quality_tags": [
+            "protein_rich",
+            "grilled"
+          ],
+          "negative_flags": [],
+          "default_confidence": 0.82,
+          "markets": [
+            "CA"
+          ],
+          "recommended_swap_keys": [
+            "no_mayo",
+            "side_salad"
+          ]
+        },
+        {
+          "template_key": "angus_burger_simple",
+          "template_name": "Original Angus Burger (lettuce, tomato, onion)",
+          "item_type": "burger",
+          "estimated_calories": 480,
+          "estimated_protein_g": 28,
+          "specificity_tier": "chain_registry",
+          "cut_friendly": false,
+          "food_quality_tags": [
+            "protein_rich"
+          ],
+          "negative_flags": [],
+          "default_confidence": 0.78,
+          "markets": [
+            "CA"
+          ],
+          "recommended_swap_keys": [
+            "no_mayo",
+            "side_salad"
+          ]
+        },
+        {
+          "template_key": "veggie_burger",
+          "template_name": "Veggie Burger",
+          "item_type": "burger",
+          "estimated_calories": 400,
+          "estimated_protein_g": 18,
+          "specificity_tier": "chain_registry",
+          "cut_friendly": false,
+          "food_quality_tags": [
+            "plant_protein",
+            "vegetarian"
+          ],
+          "negative_flags": [],
+          "default_confidence": 0.74,
+          "markets": [
+            "CA"
+          ],
+          "recommended_swap_keys": [
+            "no_mayo",
+            "side_salad"
+          ]
+        }
+      ],
+      "swap_templates": [
+        {
+          "swap_key": "no_mayo",
+          "swap_label": "No mayo",
+          "swap_type": "sauce_omit",
+          "calories_delta": -80,
+          "protein_delta": 0,
+          "reason": "Reduce added fat",
+          "plausibility_score": 0.95,
+          "markets": [
+            "CA"
+          ]
+        },
+        {
+          "swap_key": "side_salad",
+          "swap_label": "Side salad instead of fries",
+          "swap_type": "side_swap",
+          "calories_delta": -240,
+          "protein_delta": 1,
+          "reason": "Replace fried starch",
+          "plausibility_score": 0.94,
+          "markets": [
+            "CA"
+          ]
+        },
+        {
+          "swap_key": "extra_veg",
+          "swap_label": "Load fresh veggies (lettuce/tomato/pickle)",
+          "swap_type": "add_on",
+          "calories_delta": 20,
+          "protein_delta": 1,
+          "reason": "Add fiber + volume",
+          "plausibility_score": 0.94,
+          "markets": [
+            "CA"
+          ]
+        }
+      ]
+    },
+    {
+      "chain_key": "freshii",
+      "display_name": "Freshii",
+      "aliases": [
+        "freshii"
+      ],
+      "market_tags": [
+        "CA"
+      ],
+      "cuisine_tags": [
+        "healthy",
+        "bowl",
+        "salad",
+        "wrap"
+      ],
+      "category_tags": [
+        "fast_casual",
+        "healthy"
+      ],
+      "rollout_priority": "p1_high_value",
+      "confidence_tier": "tier_1_strong",
+      "coverage_status": "live",
+      "supports_swaps": true,
+      "menu_template_count": 3,
+      "notes": "Health-positioned chain. Bowls + salads with lean protein dominate; watch for dressing calories.",
+      "menu_templates": [
+        {
+          "template_key": "bowl_chicken_brown_rice",
+          "template_name": "Teriyaki Twist Bowl with Chicken",
+          "item_type": "bowl",
+          "estimated_calories": 480,
+          "estimated_protein_g": 36,
+          "specificity_tier": "chain_registry",
+          "cut_friendly": false,
+          "food_quality_tags": [
+            "protein_rich",
+            "grilled",
+            "whole_grain"
+          ],
+          "negative_flags": [],
+          "default_confidence": 0.88,
+          "markets": [
+            "CA"
+          ],
+          "recommended_swap_keys": [
+            "dressing_on_side"
+          ]
+        },
+        {
+          "template_key": "oaxaca_salad",
+          "template_name": "Oaxaca Salad with Chicken",
+          "item_type": "salad",
+          "estimated_calories": 440,
+          "estimated_protein_g": 32,
+          "specificity_tier": "chain_registry",
+          "cut_friendly": false,
+          "food_quality_tags": [
+            "protein_rich",
+            "grilled",
+            "vegetables"
+          ],
+          "negative_flags": [],
+          "default_confidence": 0.88,
+          "markets": [
+            "CA"
+          ],
+          "recommended_swap_keys": [
+            "dressing_on_side"
+          ]
+        },
+        {
+          "template_key": "buddha_bowl_tofu",
+          "template_name": "Buddha's Satay Bowl with Tofu",
+          "item_type": "bowl",
+          "estimated_calories": 460,
+          "estimated_protein_g": 22,
+          "specificity_tier": "chain_registry",
+          "cut_friendly": false,
+          "food_quality_tags": [
+            "plant_protein",
+            "whole_grain",
+            "vegetables"
+          ],
+          "negative_flags": [],
+          "default_confidence": 0.82,
+          "markets": [
+            "CA"
+          ],
+          "recommended_swap_keys": [
+            "dressing_on_side"
+          ]
+        }
+      ],
+      "swap_templates": [
+        {
+          "swap_key": "dressing_on_side",
+          "swap_label": "Dressing on the side",
+          "swap_type": "prep_change",
+          "calories_delta": -120,
+          "protein_delta": 0,
+          "reason": "Control added fat",
+          "plausibility_score": 0.92,
+          "markets": [
+            "CA"
+          ]
+        },
+        {
+          "swap_key": "add_protein",
+          "swap_label": "Double protein",
+          "swap_type": "add_on",
+          "calories_delta": 80,
+          "protein_delta": 18,
+          "reason": "Shift macros",
+          "plausibility_score": 0.92,
+          "markets": [
+            "CA"
+          ]
+        },
+        {
+          "swap_key": "skip_smoothie",
+          "swap_label": "Skip sugary smoothie add-on",
+          "swap_type": "drink_swap",
+          "calories_delta": -220,
+          "protein_delta": 0,
+          "reason": "Remove liquid sugar",
+          "plausibility_score": 0.94,
+          "markets": [
+            "CA"
+          ]
+        }
+      ]
+    },
+    {
+      "chain_key": "a_and_w",
+      "display_name": "A&W Canada",
+      "aliases": [
+        "a&w",
+        "a and w",
+        "aw canada"
+      ],
+      "market_tags": [
+        "CA"
+      ],
+      "cuisine_tags": [
+        "burger",
+        "canadian"
+      ],
+      "category_tags": [
+        "fast_food",
+        "burger"
+      ],
+      "rollout_priority": "p2_regional_growth",
+      "confidence_tier": "tier_2_good",
+      "coverage_status": "live",
+      "supports_swaps": true,
+      "menu_template_count": 3,
+      "notes": "Canadian A&W. Favor Buddy Burger (smallest) + salad, skip Mama Burger combos with root beer.",
+      "menu_templates": [
+        {
+          "template_key": "buddy_burger",
+          "template_name": "Buddy Burger (small)",
+          "item_type": "burger",
+          "estimated_calories": 280,
+          "estimated_protein_g": 15,
+          "specificity_tier": "chain_registry",
+          "cut_friendly": false,
+          "food_quality_tags": [
+            "protein_rich"
+          ],
+          "negative_flags": [],
+          "default_confidence": 0.82,
+          "markets": [
+            "CA"
+          ],
+          "recommended_swap_keys": [
+            "no_mayo",
+            "side_salad"
+          ]
+        },
+        {
+          "template_key": "grilled_chicken",
+          "template_name": "Grilled Chicken Sandwich",
+          "item_type": "sandwich",
+          "estimated_calories": 400,
+          "estimated_protein_g": 32,
+          "specificity_tier": "chain_registry",
+          "cut_friendly": false,
+          "food_quality_tags": [
+            "protein_rich",
+            "grilled"
+          ],
+          "negative_flags": [],
+          "default_confidence": 0.82,
+          "markets": [
+            "CA"
+          ],
+          "recommended_swap_keys": [
+            "no_mayo",
+            "side_salad"
+          ]
+        },
+        {
+          "template_key": "beyond_meat",
+          "template_name": "Beyond Meat Burger",
+          "item_type": "burger",
+          "estimated_calories": 460,
+          "estimated_protein_g": 23,
+          "specificity_tier": "chain_registry",
+          "cut_friendly": false,
+          "food_quality_tags": [
+            "plant_protein",
+            "vegetarian"
+          ],
+          "negative_flags": [],
+          "default_confidence": 0.76,
+          "markets": [
+            "CA"
+          ],
+          "recommended_swap_keys": [
+            "no_mayo",
+            "side_salad"
+          ]
+        }
+      ],
+      "swap_templates": [
+        {
+          "swap_key": "no_mayo",
+          "swap_label": "No mayo / mustard-only",
+          "swap_type": "sauce_omit",
+          "calories_delta": -80,
+          "protein_delta": 0,
+          "reason": "Reduce added fat",
+          "plausibility_score": 0.95,
+          "markets": [
+            "CA"
+          ]
+        },
+        {
+          "swap_key": "side_salad",
+          "swap_label": "Side salad instead of fries",
+          "swap_type": "side_swap",
+          "calories_delta": -240,
+          "protein_delta": 1,
+          "reason": "Replace fried starch",
+          "plausibility_score": 0.94,
+          "markets": [
+            "CA"
+          ]
+        },
+        {
+          "swap_key": "unsweet_drink",
+          "swap_label": "Water or diet soda over root beer",
+          "swap_type": "drink_swap",
+          "calories_delta": -180,
+          "protein_delta": 0,
+          "reason": "Remove liquid sugar",
+          "plausibility_score": 0.96,
+          "markets": [
+            "CA"
+          ]
+        }
+      ]
+    },
+    {
+      "chain_key": "swiss_chalet",
+      "display_name": "Swiss Chalet",
+      "aliases": [
+        "swiss chalet"
+      ],
+      "market_tags": [
+        "CA"
+      ],
+      "cuisine_tags": [
+        "chicken",
+        "rotisserie",
+        "canadian"
+      ],
+      "category_tags": [
+        "casual_dining",
+        "chicken"
+      ],
+      "rollout_priority": "p1_high_value",
+      "confidence_tier": "tier_2_good",
+      "coverage_status": "live",
+      "supports_swaps": true,
+      "menu_template_count": 3,
+      "notes": "Rotisserie chicken chain. Favor quarter-white + salad + no skin; demote ribs combo, fries + gravy.",
+      "menu_templates": [
+        {
+          "template_key": "quarter_white_no_skin",
+          "template_name": "Quarter Chicken White (no skin)",
+          "item_type": "meat",
+          "estimated_calories": 360,
+          "estimated_protein_g": 36,
+          "specificity_tier": "chain_registry",
+          "cut_friendly": false,
+          "food_quality_tags": [
+            "protein_rich"
+          ],
+          "negative_flags": [],
+          "default_confidence": 0.84,
+          "markets": [
+            "CA"
+          ],
+          "recommended_swap_keys": [
+            "no_skin",
+            "side_salad_not_fries"
+          ]
+        },
+        {
+          "template_key": "chicken_salad_swiss",
+          "template_name": "Swiss Chalet Chicken Salad",
+          "item_type": "salad",
+          "estimated_calories": 420,
+          "estimated_protein_g": 38,
+          "specificity_tier": "chain_registry",
+          "cut_friendly": false,
+          "food_quality_tags": [
+            "protein_rich",
+            "vegetables"
+          ],
+          "negative_flags": [],
+          "default_confidence": 0.82,
+          "markets": [
+            "CA"
+          ],
+          "recommended_swap_keys": [
+            "dressing_on_side"
+          ]
+        },
+        {
+          "template_key": "half_chicken_share",
+          "template_name": "Half Chicken (share, white meat focus)",
+          "item_type": "meat",
+          "estimated_calories": 540,
+          "estimated_protein_g": 52,
+          "specificity_tier": "chain_registry",
+          "cut_friendly": false,
+          "food_quality_tags": [
+            "protein_rich"
+          ],
+          "negative_flags": [],
+          "default_confidence": 0.8,
+          "markets": [
+            "CA"
+          ],
+          "recommended_swap_keys": [
+            "no_skin",
+            "side_salad_not_fries"
+          ]
+        }
+      ],
+      "swap_templates": [
+        {
+          "swap_key": "no_skin",
+          "swap_label": "No skin on chicken",
+          "swap_type": "prep_change",
+          "calories_delta": -120,
+          "protein_delta": -2,
+          "reason": "Reduce saturated fat",
+          "plausibility_score": 0.92,
+          "markets": [
+            "CA"
+          ]
+        },
+        {
+          "swap_key": "side_salad_not_fries",
+          "swap_label": "Side salad instead of fries",
+          "swap_type": "side_swap",
+          "calories_delta": -240,
+          "protein_delta": 1,
+          "reason": "Replace fried starch",
+          "plausibility_score": 0.94,
+          "markets": [
+            "CA"
+          ]
+        },
+        {
+          "swap_key": "no_gravy",
+          "swap_label": "Skip gravy + dipping sauce",
+          "swap_type": "sauce_omit",
+          "calories_delta": -80,
+          "protein_delta": 0,
+          "reason": "Reduce added sodium+fat",
+          "plausibility_score": 0.88,
+          "markets": [
+            "CA"
+          ]
+        }
+      ]
+    },
+    {
+      "chain_key": "boston_pizza",
+      "display_name": "Boston Pizza",
+      "aliases": [
+        "boston pizza",
+        "bostonpizza"
+      ],
+      "market_tags": [
+        "CA"
+      ],
+      "cuisine_tags": [
+        "pizza",
+        "italian",
+        "canadian"
+      ],
+      "category_tags": [
+        "casual_dining",
+        "pizza"
+      ],
+      "rollout_priority": "p2_regional_growth",
+      "confidence_tier": "tier_2_good",
+      "coverage_status": "live",
+      "supports_swaps": true,
+      "menu_template_count": 3,
+      "notes": "Casual dining pizza. Favor thin-crust + salad, or grilled chicken mains; demote cheesy starters.",
+      "menu_templates": [
+        {
+          "template_key": "thin_crust_veggie",
+          "template_name": "Thin-Crust Veggie Pizza",
+          "item_type": "pizza",
+          "estimated_calories": 560,
+          "estimated_protein_g": 22,
+          "specificity_tier": "chain_registry",
+          "cut_friendly": false,
+          "food_quality_tags": [
+            "vegetables",
+            "vegetarian"
+          ],
+          "negative_flags": [],
+          "default_confidence": 0.8,
+          "markets": [
+            "CA"
+          ],
+          "recommended_swap_keys": [
+            "half_cheese"
+          ]
+        },
+        {
+          "template_key": "grilled_chicken_breast",
+          "template_name": "Grilled Chicken Breast + Salad",
+          "item_type": "meat",
+          "estimated_calories": 480,
+          "estimated_protein_g": 42,
+          "specificity_tier": "chain_registry",
+          "cut_friendly": false,
+          "food_quality_tags": [
+            "protein_rich",
+            "grilled",
+            "vegetables"
+          ],
+          "negative_flags": [],
+          "default_confidence": 0.82,
+          "markets": [
+            "CA"
+          ],
+          "recommended_swap_keys": [
+            "dressing_on_side"
+          ]
+        },
+        {
+          "template_key": "thai_bites_salad",
+          "template_name": "Thai Bites Chicken Salad",
+          "item_type": "salad",
+          "estimated_calories": 520,
+          "estimated_protein_g": 32,
+          "specificity_tier": "chain_registry",
+          "cut_friendly": false,
+          "food_quality_tags": [
+            "protein_rich",
+            "grilled",
+            "vegetables"
+          ],
+          "negative_flags": [],
+          "default_confidence": 0.8,
+          "markets": [
+            "CA"
+          ],
+          "recommended_swap_keys": [
+            "dressing_on_side"
+          ]
+        }
+      ],
+      "swap_templates": [
+        {
+          "swap_key": "half_cheese",
+          "swap_label": "Half cheese on pizza",
+          "swap_type": "topping_reduce",
+          "calories_delta": -120,
+          "protein_delta": -5,
+          "reason": "Cut saturated fat",
+          "plausibility_score": 0.85,
+          "markets": [
+            "CA"
+          ]
+        },
+        {
+          "swap_key": "dressing_on_side",
+          "swap_label": "Dressing on the side",
+          "swap_type": "prep_change",
+          "calories_delta": -100,
+          "protein_delta": 0,
+          "reason": "Control added fat",
+          "plausibility_score": 0.92,
+          "markets": [
+            "CA"
+          ]
+        },
+        {
+          "swap_key": "add_salad",
+          "swap_label": "Add side salad starter",
+          "swap_type": "add_on",
+          "calories_delta": 60,
+          "protein_delta": 2,
+          "reason": "Fiber + volume",
+          "plausibility_score": 0.9,
+          "markets": [
+            "CA"
+          ]
+        }
+      ]
+    },
+    {
+      "chain_key": "pizza_pizza",
+      "display_name": "Pizza Pizza",
+      "aliases": [
+        "pizza pizza"
+      ],
+      "market_tags": [
+        "CA"
+      ],
+      "cuisine_tags": [
+        "pizza",
+        "canadian"
+      ],
+      "category_tags": [
+        "fast_food",
+        "pizza"
+      ],
+      "rollout_priority": "p2_regional_growth",
+      "confidence_tier": "tier_2_good",
+      "coverage_status": "live",
+      "supports_swaps": true,
+      "menu_template_count": 3,
+      "notes": "Canadian pizza chain. Favor thin crust + veggie toppings; skip garlic dipping sauce + sugary pop.",
+      "menu_templates": [
+        {
+          "template_key": "thin_crust_slice_veggie",
+          "template_name": "Thin-Crust Veggie Slice x2",
+          "item_type": "pizza",
+          "estimated_calories": 380,
+          "estimated_protein_g": 16,
+          "specificity_tier": "chain_registry",
+          "cut_friendly": false,
+          "food_quality_tags": [
+            "vegetables",
+            "vegetarian"
+          ],
+          "negative_flags": [],
+          "default_confidence": 0.8,
+          "markets": [
+            "CA"
+          ],
+          "recommended_swap_keys": [
+            "half_cheese"
+          ]
+        },
+        {
+          "template_key": "chicken_souvlaki_pita",
+          "template_name": "Chicken Souvlaki Pita",
+          "item_type": "wrap",
+          "estimated_calories": 440,
+          "estimated_protein_g": 30,
+          "specificity_tier": "chain_registry",
+          "cut_friendly": false,
+          "food_quality_tags": [
+            "protein_rich",
+            "grilled"
+          ],
+          "negative_flags": [],
+          "default_confidence": 0.8,
+          "markets": [
+            "CA"
+          ],
+          "recommended_swap_keys": [
+            "wholewheat_wrap",
+            "dressing_on_side"
+          ]
+        },
+        {
+          "template_key": "greek_salad_chicken",
+          "template_name": "Greek Salad with Chicken",
+          "item_type": "salad",
+          "estimated_calories": 420,
+          "estimated_protein_g": 30,
+          "specificity_tier": "chain_registry",
+          "cut_friendly": false,
+          "food_quality_tags": [
+            "protein_rich",
+            "vegetables"
+          ],
+          "negative_flags": [],
+          "default_confidence": 0.82,
+          "markets": [
+            "CA"
+          ],
+          "recommended_swap_keys": [
+            "dressing_on_side"
+          ]
+        }
+      ],
+      "swap_templates": [
+        {
+          "swap_key": "half_cheese",
+          "swap_label": "Half cheese",
+          "swap_type": "topping_reduce",
+          "calories_delta": -120,
+          "protein_delta": -5,
+          "reason": "Cut saturated fat",
+          "plausibility_score": 0.85,
+          "markets": [
+            "CA"
+          ]
+        },
+        {
+          "swap_key": "dressing_on_side",
+          "swap_label": "Dressing on the side",
+          "swap_type": "prep_change",
+          "calories_delta": -100,
+          "protein_delta": 0,
+          "reason": "Control added fat",
+          "plausibility_score": 0.92,
+          "markets": [
+            "CA"
+          ]
+        },
+        {
+          "swap_key": "unsweet_drink",
+          "swap_label": "Water or diet pop",
+          "swap_type": "drink_swap",
+          "calories_delta": -180,
+          "protein_delta": 0,
+          "reason": "Remove liquid sugar",
+          "plausibility_score": 0.96,
+          "markets": [
+            "CA"
+          ]
+        }
+      ]
+    },
+    {
+      "chain_key": "cactus_club",
+      "display_name": "Cactus Club Cafe",
+      "aliases": [
+        "cactus club cafe",
+        "cactus club"
+      ],
+      "market_tags": [
+        "CA"
+      ],
+      "cuisine_tags": [
+        "global",
+        "casual_dining",
+        "canadian"
+      ],
+      "category_tags": [
+        "casual_dining",
+        "global"
+      ],
+      "rollout_priority": "p1_high_value",
+      "confidence_tier": "tier_2_good",
+      "coverage_status": "live",
+      "supports_swaps": true,
+      "menu_template_count": 3,
+      "notes": "Upscale casual chain. Favor grilled salmon, bowls, and salads; demote truffle fries + brown butter desserts.",
+      "menu_templates": [
+        {
+          "template_key": "hunter_chicken",
+          "template_name": "Hunter Chicken Pasta (half portion)",
+          "item_type": "meat",
+          "estimated_calories": 560,
+          "estimated_protein_g": 42,
+          "specificity_tier": "chain_registry",
+          "cut_friendly": false,
+          "food_quality_tags": [
+            "protein_rich",
+            "grilled"
+          ],
+          "negative_flags": [],
+          "default_confidence": 0.8,
+          "markets": [
+            "CA"
+          ],
+          "recommended_swap_keys": [
+            "half_portion"
+          ]
+        },
+        {
+          "template_key": "salmon_power_bowl",
+          "template_name": "Salmon Power Bowl",
+          "item_type": "bowl",
+          "estimated_calories": 520,
+          "estimated_protein_g": 38,
+          "specificity_tier": "chain_registry",
+          "cut_friendly": false,
+          "food_quality_tags": [
+            "protein_rich",
+            "whole_grain",
+            "vegetables"
+          ],
+          "negative_flags": [],
+          "default_confidence": 0.86,
+          "markets": [
+            "CA"
+          ],
+          "recommended_swap_keys": [
+            "dressing_on_side"
+          ]
+        },
+        {
+          "template_key": "market_salad",
+          "template_name": "Market Salad with Chicken",
+          "item_type": "salad",
+          "estimated_calories": 440,
+          "estimated_protein_g": 32,
+          "specificity_tier": "chain_registry",
+          "cut_friendly": false,
+          "food_quality_tags": [
+            "protein_rich",
+            "grilled",
+            "vegetables"
+          ],
+          "negative_flags": [],
+          "default_confidence": 0.86,
+          "markets": [
+            "CA"
+          ],
+          "recommended_swap_keys": [
+            "dressing_on_side"
+          ]
+        }
+      ],
+      "swap_templates": [
+        {
+          "swap_key": "half_portion",
+          "swap_label": "Share main / half portion",
+          "swap_type": "portion_change",
+          "calories_delta": -280,
+          "protein_delta": -10,
+          "reason": "Right-size calories",
+          "plausibility_score": 0.88,
+          "markets": [
+            "CA"
+          ]
+        },
+        {
+          "swap_key": "dressing_on_side",
+          "swap_label": "Dressing on the side",
+          "swap_type": "prep_change",
+          "calories_delta": -120,
+          "protein_delta": 0,
+          "reason": "Control added fat",
+          "plausibility_score": 0.92,
+          "markets": [
+            "CA"
+          ]
+        },
+        {
+          "swap_key": "skip_fries",
+          "swap_label": "Side salad or veg instead of truffle fries",
+          "swap_type": "side_swap",
+          "calories_delta": -260,
+          "protein_delta": 2,
+          "reason": "Replace fried + truffle oil",
+          "plausibility_score": 0.94,
+          "markets": [
+            "CA"
+          ]
+        }
+      ]
+    },
+    {
+      "chain_key": "earls",
+      "display_name": "Earls Kitchen + Bar",
+      "aliases": [
+        "earls kitchen",
+        "earls",
+        "earls kitchen + bar"
+      ],
+      "market_tags": [
+        "CA"
+      ],
+      "cuisine_tags": [
+        "global",
+        "casual_dining",
+        "canadian"
+      ],
+      "category_tags": [
+        "casual_dining",
+        "global"
+      ],
+      "rollout_priority": "p1_high_value",
+      "confidence_tier": "tier_2_good",
+      "coverage_status": "live",
+      "supports_swaps": true,
+      "menu_template_count": 3,
+      "notes": "Casual bar/kitchen. Favor power bowls + grilled proteins; demote loaded nachos + espresso martinis.",
+      "menu_templates": [
+        {
+          "template_key": "santorini_chicken",
+          "template_name": "Santorini Chicken Bowl",
+          "item_type": "bowl",
+          "estimated_calories": 540,
+          "estimated_protein_g": 38,
+          "specificity_tier": "chain_registry",
+          "cut_friendly": false,
+          "food_quality_tags": [
+            "protein_rich",
+            "grilled",
+            "whole_grain"
+          ],
+          "negative_flags": [],
+          "default_confidence": 0.84,
+          "markets": [
+            "CA"
+          ],
+          "recommended_swap_keys": [
+            "dressing_on_side"
+          ]
+        },
+        {
+          "template_key": "bibimbap_bowl",
+          "template_name": "Korean Bibimbap Bowl",
+          "item_type": "bowl",
+          "estimated_calories": 520,
+          "estimated_protein_g": 28,
+          "specificity_tier": "chain_registry",
+          "cut_friendly": false,
+          "food_quality_tags": [
+            "protein_rich",
+            "whole_grain",
+            "vegetables"
+          ],
+          "negative_flags": [],
+          "default_confidence": 0.82,
+          "markets": [
+            "CA"
+          ],
+          "recommended_swap_keys": [
+            "brown_rice"
+          ]
+        },
+        {
+          "template_key": "blackened_chicken_pasta",
+          "template_name": "Blackened Chicken Pasta (share)",
+          "item_type": "meat",
+          "estimated_calories": 620,
+          "estimated_protein_g": 42,
+          "specificity_tier": "chain_registry",
+          "cut_friendly": false,
+          "food_quality_tags": [
+            "protein_rich",
+            "grilled"
+          ],
+          "negative_flags": [],
+          "default_confidence": 0.76,
+          "markets": [
+            "CA"
+          ],
+          "recommended_swap_keys": [
+            "half_portion"
+          ]
+        }
+      ],
+      "swap_templates": [
+        {
+          "swap_key": "dressing_on_side",
+          "swap_label": "Dressing on the side",
+          "swap_type": "prep_change",
+          "calories_delta": -120,
+          "protein_delta": 0,
+          "reason": "Control added fat",
+          "plausibility_score": 0.92,
+          "markets": [
+            "CA"
+          ]
+        },
+        {
+          "swap_key": "half_portion",
+          "swap_label": "Share pasta / half portion",
+          "swap_type": "portion_change",
+          "calories_delta": -300,
+          "protein_delta": -15,
+          "reason": "Right-size calories",
+          "plausibility_score": 0.88,
+          "markets": [
+            "CA"
+          ]
+        },
+        {
+          "swap_key": "brown_rice",
+          "swap_label": "Brown rice over white",
+          "swap_type": "ingredient_swap",
+          "calories_delta": -20,
+          "protein_delta": 2,
+          "reason": "More fiber",
+          "plausibility_score": 0.82,
+          "markets": [
+            "CA"
+          ]
+        }
+      ]
+    },
+    {
+      "chain_key": "moxies",
+      "display_name": "Moxie's",
+      "aliases": [
+        "moxies",
+        "moxie's",
+        "moxies grill and bar"
+      ],
+      "market_tags": [
+        "CA"
+      ],
+      "cuisine_tags": [
+        "global",
+        "casual_dining",
+        "canadian"
+      ],
+      "category_tags": [
+        "casual_dining",
+        "global"
+      ],
+      "rollout_priority": "p2_regional_growth",
+      "confidence_tier": "tier_2_good",
+      "coverage_status": "live",
+      "supports_swaps": true,
+      "menu_template_count": 3,
+      "notes": "Casual chain. Favor salmon bowl, blackened chicken salad; demote sticky toffee + nachos.",
+      "menu_templates": [
+        {
+          "template_key": "salmon_bowl_moxies",
+          "template_name": "Sesame Miso Salmon Bowl",
+          "item_type": "bowl",
+          "estimated_calories": 540,
+          "estimated_protein_g": 36,
+          "specificity_tier": "chain_registry",
+          "cut_friendly": false,
+          "food_quality_tags": [
+            "protein_rich",
+            "grilled",
+            "whole_grain"
+          ],
+          "negative_flags": [],
+          "default_confidence": 0.84,
+          "markets": [
+            "CA"
+          ],
+          "recommended_swap_keys": [
+            "dressing_on_side"
+          ]
+        },
+        {
+          "template_key": "blackened_chicken_salad",
+          "template_name": "Blackened Chicken Salad",
+          "item_type": "salad",
+          "estimated_calories": 460,
+          "estimated_protein_g": 36,
+          "specificity_tier": "chain_registry",
+          "cut_friendly": false,
+          "food_quality_tags": [
+            "protein_rich",
+            "grilled",
+            "vegetables"
+          ],
+          "negative_flags": [],
+          "default_confidence": 0.84,
+          "markets": [
+            "CA"
+          ],
+          "recommended_swap_keys": [
+            "dressing_on_side"
+          ]
+        },
+        {
+          "template_key": "sirloin_top_sirloin",
+          "template_name": "Top Sirloin (6oz) + Veg",
+          "item_type": "meat",
+          "estimated_calories": 480,
+          "estimated_protein_g": 44,
+          "specificity_tier": "chain_registry",
+          "cut_friendly": false,
+          "food_quality_tags": [
+            "protein_rich",
+            "grilled"
+          ],
+          "negative_flags": [],
+          "default_confidence": 0.82,
+          "markets": [
+            "CA"
+          ],
+          "recommended_swap_keys": [
+            "side_salad_not_fries"
+          ]
+        }
+      ],
+      "swap_templates": [
+        {
+          "swap_key": "dressing_on_side",
+          "swap_label": "Dressing on the side",
+          "swap_type": "prep_change",
+          "calories_delta": -120,
+          "protein_delta": 0,
+          "reason": "Control added fat",
+          "plausibility_score": 0.92,
+          "markets": [
+            "CA"
+          ]
+        },
+        {
+          "swap_key": "side_salad_not_fries",
+          "swap_label": "Side salad instead of fries",
+          "swap_type": "side_swap",
+          "calories_delta": -240,
+          "protein_delta": 1,
+          "reason": "Replace fried starch",
+          "plausibility_score": 0.94,
+          "markets": [
+            "CA"
+          ]
+        },
+        {
+          "swap_key": "half_portion",
+          "swap_label": "Share main / half portion",
+          "swap_type": "portion_change",
+          "calories_delta": -280,
+          "protein_delta": -10,
+          "reason": "Right-size calories",
+          "plausibility_score": 0.88,
+          "markets": [
+            "CA"
+          ]
+        }
+      ]
+    },
+    {
+      "chain_key": "the_keg",
+      "display_name": "The Keg Steakhouse",
+      "aliases": [
+        "the keg",
+        "keg steakhouse",
+        "keg"
+      ],
+      "market_tags": [
+        "CA"
+      ],
+      "cuisine_tags": [
+        "steakhouse",
+        "canadian"
+      ],
+      "category_tags": [
+        "fine_dining",
+        "steakhouse"
+      ],
+      "rollout_priority": "p2_regional_growth",
+      "confidence_tier": "tier_2_good",
+      "coverage_status": "live",
+      "supports_swaps": true,
+      "menu_template_count": 3,
+      "notes": "Steakhouse chain. Favor filet mignon (6-7oz) + salad + steamed veg; demote prime rib combos + creamed spinach.",
+      "menu_templates": [
+        {
+          "template_key": "filet_mignon_6oz",
+          "template_name": "Filet Mignon (6oz) + Steamed Veg",
+          "item_type": "meat",
+          "estimated_calories": 460,
+          "estimated_protein_g": 46,
+          "specificity_tier": "chain_registry",
+          "cut_friendly": false,
+          "food_quality_tags": [
+            "protein_rich",
+            "grilled"
+          ],
+          "negative_flags": [],
+          "default_confidence": 0.82,
+          "markets": [
+            "CA"
+          ],
+          "recommended_swap_keys": [
+            "side_salad_not_potato"
+          ]
+        },
+        {
+          "template_key": "caesar_salad_chicken",
+          "template_name": "Caesar Salad with Grilled Chicken",
+          "item_type": "salad",
+          "estimated_calories": 480,
+          "estimated_protein_g": 34,
+          "specificity_tier": "chain_registry",
+          "cut_friendly": false,
+          "food_quality_tags": [
+            "protein_rich",
+            "grilled",
+            "vegetables"
+          ],
+          "negative_flags": [],
+          "default_confidence": 0.8,
+          "markets": [
+            "CA"
+          ],
+          "recommended_swap_keys": [
+            "dressing_on_side"
+          ]
+        },
+        {
+          "template_key": "sirloin_8oz_salad",
+          "template_name": "Sirloin (8oz) + Side Salad",
+          "item_type": "meat",
+          "estimated_calories": 520,
+          "estimated_protein_g": 50,
+          "specificity_tier": "chain_registry",
+          "cut_friendly": false,
+          "food_quality_tags": [
+            "protein_rich",
+            "grilled"
+          ],
+          "negative_flags": [],
+          "default_confidence": 0.82,
+          "markets": [
+            "CA"
+          ],
+          "recommended_swap_keys": [
+            "side_salad_not_potato"
+          ]
+        }
+      ],
+      "swap_templates": [
+        {
+          "swap_key": "side_salad_not_potato",
+          "swap_label": "Side salad or veg instead of baked potato",
+          "swap_type": "side_swap",
+          "calories_delta": -240,
+          "protein_delta": 2,
+          "reason": "Lower starch, more fiber",
+          "plausibility_score": 0.92,
+          "markets": [
+            "CA"
+          ]
+        },
+        {
+          "swap_key": "dressing_on_side",
+          "swap_label": "Dressing on the side",
+          "swap_type": "prep_change",
+          "calories_delta": -120,
+          "protein_delta": 0,
+          "reason": "Control added fat",
+          "plausibility_score": 0.92,
+          "markets": [
+            "CA"
+          ]
+        },
+        {
+          "swap_key": "skip_creamed_side",
+          "swap_label": "Skip creamed spinach / creamy sides",
+          "swap_type": "side_swap",
+          "calories_delta": -260,
+          "protein_delta": -5,
+          "reason": "Cut saturated fat",
+          "plausibility_score": 0.92,
+          "markets": [
+            "CA"
+          ]
+        }
+      ]
+    },
+    {
+      "chain_key": "white_spot",
+      "display_name": "White Spot",
+      "aliases": [
+        "white spot"
+      ],
+      "market_tags": [
+        "CA"
+      ],
+      "cuisine_tags": [
+        "burger",
+        "diner",
+        "canadian"
+      ],
+      "category_tags": [
+        "casual_dining",
+        "burger"
+      ],
+      "rollout_priority": "p2_regional_growth",
+      "confidence_tier": "tier_2_good",
+      "coverage_status": "live",
+      "supports_swaps": true,
+      "menu_template_count": 3,
+      "notes": "BC diner chain. Favor Triple-O-less burger; demote Legendary with Triple-O + fries + shake combo.",
+      "menu_templates": [
+        {
+          "template_key": "bigger_better_burger_no_triple_o",
+          "template_name": "Bigger Better Burger, no Triple-O",
+          "item_type": "burger",
+          "estimated_calories": 560,
+          "estimated_protein_g": 32,
+          "specificity_tier": "chain_registry",
+          "cut_friendly": false,
+          "food_quality_tags": [
+            "protein_rich"
+          ],
+          "negative_flags": [],
+          "default_confidence": 0.78,
+          "markets": [
+            "CA"
+          ],
+          "recommended_swap_keys": [
+            "no_triple_o",
+            "side_salad"
+          ]
+        },
+        {
+          "template_key": "grilled_chicken_burger",
+          "template_name": "Grilled Chicken Burger",
+          "item_type": "burger",
+          "estimated_calories": 440,
+          "estimated_protein_g": 36,
+          "specificity_tier": "chain_registry",
+          "cut_friendly": false,
+          "food_quality_tags": [
+            "protein_rich",
+            "grilled"
+          ],
+          "negative_flags": [],
+          "default_confidence": 0.82,
+          "markets": [
+            "CA"
+          ],
+          "recommended_swap_keys": [
+            "no_mayo",
+            "side_salad"
+          ]
+        },
+        {
+          "template_key": "chopped_chicken_salad",
+          "template_name": "Chopped Chicken Salad",
+          "item_type": "salad",
+          "estimated_calories": 420,
+          "estimated_protein_g": 34,
+          "specificity_tier": "chain_registry",
+          "cut_friendly": false,
+          "food_quality_tags": [
+            "protein_rich",
+            "grilled",
+            "vegetables"
+          ],
+          "negative_flags": [],
+          "default_confidence": 0.82,
+          "markets": [
+            "CA"
+          ],
+          "recommended_swap_keys": [
+            "dressing_on_side"
+          ]
+        }
+      ],
+      "swap_templates": [
+        {
+          "swap_key": "no_triple_o",
+          "swap_label": "No Triple-O sauce",
+          "swap_type": "sauce_omit",
+          "calories_delta": -140,
+          "protein_delta": 0,
+          "reason": "Reduce added fat+sugar",
+          "plausibility_score": 0.92,
+          "markets": [
+            "CA"
+          ]
+        },
+        {
+          "swap_key": "side_salad",
+          "swap_label": "Side salad instead of fries",
+          "swap_type": "side_swap",
+          "calories_delta": -240,
+          "protein_delta": 1,
+          "reason": "Replace fried starch",
+          "plausibility_score": 0.94,
+          "markets": [
+            "CA"
+          ]
+        },
+        {
+          "swap_key": "dressing_on_side",
+          "swap_label": "Dressing on the side",
+          "swap_type": "prep_change",
+          "calories_delta": -100,
+          "protein_delta": 0,
+          "reason": "Control added fat",
+          "plausibility_score": 0.92,
+          "markets": [
+            "CA"
           ]
         }
       ]
