@@ -27,7 +27,7 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/aa/Buddha_bowl_with_falafel.jpg/640px-Buddha_bowl_with_falafel.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/89/Burrito.jpg/640px-Burrito.jpg"
     },
     {
       "item_name": "Power Menu Bowl with Steak",
@@ -49,7 +49,7 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/44/Nice_Cup_of_Tea.jpg/640px-Nice_Cup_of_Tea.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/89/Burrito.jpg/640px-Burrito.jpg"
     },
     {
       "item_name": "Fresco Soft Taco with Chicken",
@@ -184,7 +184,7 @@
       "contains_soy": false,
       "confidence": 0.95,
       "menu_item_source": "official_published",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/cb/Tandoori_chicken_001.jpg/640px-Tandoori_chicken_001.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Tacos_-_Roberto%27s_Taco_Shop_-_Stockton%2C_CA.jpg/640px-Tacos_-_Roberto%27s_Taco_Shop_-_Stockton%2C_CA.jpg"
     },
     {
       "item_name": "Fresco Chicken Soft Taco",
@@ -230,7 +230,7 @@
       "contains_soy": false,
       "confidence": 0.95,
       "menu_item_source": "official_published",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2a/Chicken_caesar_wrap.jpg/640px-Chicken_caesar_wrap.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/89/Burrito.jpg/640px-Burrito.jpg"
     },
     {
       "item_name": "Bean Burrito",
@@ -299,7 +299,7 @@
       "contains_soy": false,
       "confidence": 0.95,
       "menu_item_source": "official_published",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/aa/Buddha_bowl_with_falafel.jpg/640px-Buddha_bowl_with_falafel.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/89/Burrito.jpg/640px-Burrito.jpg"
     },
     {
       "item_name": "Power Menu Bowl (Chicken, Fresco)",
@@ -322,7 +322,7 @@
       "contains_soy": false,
       "confidence": 0.95,
       "menu_item_source": "official_published",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/aa/Buddha_bowl_with_falafel.jpg/640px-Buddha_bowl_with_falafel.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/89/Burrito.jpg/640px-Burrito.jpg"
     },
     {
       "item_name": "Bean Tostada",
@@ -391,7 +391,7 @@
       "contains_soy": false,
       "confidence": 0.95,
       "menu_item_source": "official_published",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Tacos_-_Roberto%27s_Taco_Shop_-_Stockton%2C_CA.jpg/640px-Tacos_-_Roberto%27s_Taco_Shop_-_Stockton%2C_CA.jpg"
     },
     {
       "item_name": "Doritos Locos Taco Supreme",
@@ -460,7 +460,7 @@
       "contains_soy": false,
       "confidence": 0.95,
       "menu_item_source": "official_published",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Chocolate_cake_001.jpg/640px-Chocolate_cake_001.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c2/Croissant.jpg/640px-Croissant.jpg"
     },
     {
       "item_name": "Pepsi (medium)",
