@@ -799,6 +799,13 @@ CHAIN_KEYS: Dict[str, List[str]] = {
     "shiraz": ["shiraz golden"],
     "bravo": ["bravo cucina italiana", "bravo italian kitchen"],
     "maxims": ["maxim's caterers", "maxim's cakes"],
+
+    # --- Wave 3b: distinctive proper-noun brand aliases ---
+    "febo": ["febo"],
+    "wawa": ["wawa"],
+    "kudu": ["kudu"],
+    "toit": ["toit bangalore", "toit brewpub"],
+    "lmb": ["laxmi mishthan bhandar", "lmb jaipur"],
 }
 
 _SUFFIX_RE = re.compile(
