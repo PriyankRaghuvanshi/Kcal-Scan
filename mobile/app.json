@@ -3,7 +3,7 @@
     "scheme": "calorieclickai",
     "name": "CalorieClick AI",
     "slug": "calorieclick-ai",
-    "version": "1.0.14",
+    "version": "1.0.15",
     "orientation": "portrait",
     "icon": "./assets/CalorieClick.png",
     "userInterfaceStyle": "light",
@@ -30,7 +30,7 @@
     },
     "android": {
       "package": "com.priyank.calorieclick",
-      "versionCode": 191,
+      "versionCode": 192,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
