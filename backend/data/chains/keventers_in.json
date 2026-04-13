@@ -26,7 +26,7 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/35/Coffee_cup.jpg/640px-Coffee_cup.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/33/Lassi.jpg/640px-Lassi.jpg"
     },
     {
       "item_name": "Dark Chocolate Milkshake",
@@ -48,7 +48,7 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/35/Coffee_cup.jpg/640px-Coffee_cup.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/45/Strawberry_milkshake_in_glass.jpg/640px-Strawberry_milkshake_in_glass.jpg"
     },
     {
       "item_name": "Coffee Shake (less sugar)",
@@ -70,7 +70,7 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/35/Coffee_cup.jpg/640px-Coffee_cup.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/45/Strawberry_milkshake_in_glass.jpg/640px-Strawberry_milkshake_in_glass.jpg"
     },
     {
       "item_name": "Chocolate Milkshake (regular)",
@@ -93,7 +93,7 @@
       "contains_soy": false,
       "confidence": 0.85,
       "menu_item_source": "llm_curated",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/35/Coffee_cup.jpg/640px-Coffee_cup.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/45/Strawberry_milkshake_in_glass.jpg/640px-Strawberry_milkshake_in_glass.jpg"
     },
     {
       "item_name": "Strawberry Milkshake (regular)",
@@ -116,7 +116,7 @@
       "contains_soy": false,
       "confidence": 0.85,
       "menu_item_source": "llm_curated",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/35/Coffee_cup.jpg/640px-Coffee_cup.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/45/Strawberry_milkshake_in_glass.jpg/640px-Strawberry_milkshake_in_glass.jpg"
     },
     {
       "item_name": "Banana Milkshake (regular)",
@@ -139,7 +139,7 @@
       "contains_soy": false,
       "confidence": 0.85,
       "menu_item_source": "llm_curated",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/35/Coffee_cup.jpg/640px-Coffee_cup.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/45/Strawberry_milkshake_in_glass.jpg/640px-Strawberry_milkshake_in_glass.jpg"
     },
     {
       "item_name": "Cold Coffee (regular)",
@@ -162,7 +162,7 @@
       "contains_soy": false,
       "confidence": 0.85,
       "menu_item_source": "llm_curated",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/35/Coffee_cup.jpg/640px-Coffee_cup.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c5/Cappuccino_at_Sightglass_Coffee.jpg/640px-Cappuccino_at_Sightglass_Coffee.jpg"
     },
     {
       "item_name": "Protein Shake",
@@ -185,7 +185,7 @@
       "contains_soy": false,
       "confidence": 0.78,
       "menu_item_source": "llm_curated",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/35/Coffee_cup.jpg/640px-Coffee_cup.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/45/Strawberry_milkshake_in_glass.jpg/640px-Strawberry_milkshake_in_glass.jpg"
     },
     {
       "item_name": "Oreo Thickshake",
@@ -208,7 +208,7 @@
       "contains_soy": false,
       "confidence": 0.78,
       "menu_item_source": "llm_curated",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/35/Coffee_cup.jpg/640px-Coffee_cup.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/45/Strawberry_milkshake_in_glass.jpg/640px-Strawberry_milkshake_in_glass.jpg"
     }
   ]
 }

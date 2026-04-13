@@ -28,7 +28,7 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/30/Vada_pav.JPG/640px-Vada_pav.JPG"
     },
     {
       "item_name": "Schezwan Vada Pav",
@@ -50,7 +50,7 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/30/Vada_pav.JPG/640px-Vada_pav.JPG"
     },
     {
       "item_name": "Samosa Pav",
@@ -72,7 +72,7 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/24/Samosa-3.jpg/640px-Samosa-3.jpg"
     },
     {
       "item_name": "Cheese Vada Pav",
@@ -95,7 +95,7 @@
       "contains_soy": false,
       "confidence": 0.78,
       "menu_item_source": "llm_curated",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/30/Vada_pav.JPG/640px-Vada_pav.JPG"
     },
     {
       "item_name": "Masala Pav",
@@ -141,7 +141,7 @@
       "contains_soy": false,
       "confidence": 0.78,
       "menu_item_source": "llm_curated",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8b/Caesar_salad_%281%29.jpg/640px-Caesar_salad_%281%29.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
     },
     {
       "item_name": "Masala Chai",
@@ -164,7 +164,7 @@
       "contains_soy": false,
       "confidence": 0.9,
       "menu_item_source": "llm_curated",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/35/Coffee_cup.jpg/640px-Coffee_cup.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/44/Nice_Cup_of_Tea.jpg/640px-Nice_Cup_of_Tea.jpg"
     }
   ]
 }

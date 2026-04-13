@@ -27,7 +27,7 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2d/Dosa.JPG/640px-Dosa.JPG"
     },
     {
       "item_name": "Pav Bhaji",
@@ -49,7 +49,7 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/30/Vada_pav.JPG/640px-Vada_pav.JPG"
     },
     {
       "item_name": "South Indian Thali",
@@ -94,7 +94,7 @@
       "contains_soy": false,
       "confidence": 0.8,
       "menu_item_source": "llm_curated",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/30/Vada_pav.JPG/640px-Vada_pav.JPG"
     },
     {
       "item_name": "Misal Pav",
@@ -140,7 +140,7 @@
       "contains_soy": false,
       "confidence": 0.8,
       "menu_item_source": "llm_curated",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/30/Vada_pav.JPG/640px-Vada_pav.JPG"
     },
     {
       "item_name": "South Indian Thali (mini)",
@@ -186,7 +186,7 @@
       "contains_soy": false,
       "confidence": 0.8,
       "menu_item_source": "llm_curated",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/45/Tuna_sandwich.jpg/640px-Tuna_sandwich.jpg"
     }
   ]
 }

@@ -28,7 +28,7 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c0/Various_grains.jpg/640px-Various_grains.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0c/Eggs_benedict.jpg/640px-Eggs_benedict.jpg"
     },
     {
       "item_name": "Mawa Cake Slice",
@@ -76,7 +76,7 @@
         "contains_palm_oil"
       ],
       "contains_palm_oil": true,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c0/Various_grains.jpg/640px-Various_grains.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0c/Eggs_benedict.jpg/640px-Eggs_benedict.jpg"
     },
     {
       "item_name": "Mawa Cake (slice)",
@@ -124,7 +124,7 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.9,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/35/Coffee_cup.jpg/640px-Coffee_cup.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/44/Nice_Cup_of_Tea.jpg/640px-Nice_Cup_of_Tea.jpg"
     }
   ]
 }

@@ -27,7 +27,7 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Chocolate_cake_001.jpg/640px-Chocolate_cake_001.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/85/Waffles_with_Strawberries.jpg/640px-Waffles_with_Strawberries.jpg"
     },
     {
       "item_name": "Nutella Waffle",
@@ -49,7 +49,7 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Chocolate_cake_001.jpg/640px-Chocolate_cake_001.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/85/Waffles_with_Strawberries.jpg/640px-Waffles_with_Strawberries.jpg"
     },
     {
       "item_name": "Protein Pancake Stack",
@@ -71,7 +71,7 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/85/Waffles_with_Strawberries.jpg/640px-Waffles_with_Strawberries.jpg"
     },
     {
       "item_name": "Classic Maple Pancake Stack",
@@ -98,7 +98,7 @@
         "contains_palm_oil"
       ],
       "contains_palm_oil": true,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Chocolate_cake_001.jpg/640px-Chocolate_cake_001.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/85/Waffles_with_Strawberries.jpg/640px-Waffles_with_Strawberries.jpg"
     },
     {
       "item_name": "Chocolate Pancake Stack",
@@ -125,7 +125,7 @@
         "contains_palm_oil"
       ],
       "contains_palm_oil": true,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Chocolate_cake_001.jpg/640px-Chocolate_cake_001.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/85/Waffles_with_Strawberries.jpg/640px-Waffles_with_Strawberries.jpg"
     },
     {
       "item_name": "Fruit & Nut Pancake",
@@ -152,7 +152,7 @@
         "contains_palm_oil"
       ],
       "contains_palm_oil": true,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Chocolate_cake_001.jpg/640px-Chocolate_cake_001.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/85/Waffles_with_Strawberries.jpg/640px-Waffles_with_Strawberries.jpg"
     },
     {
       "item_name": "Oatmeal Pancake (single)",
@@ -175,7 +175,7 @@
       "contains_soy": false,
       "confidence": 0.78,
       "menu_item_source": "llm_curated",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0c/Eggs_benedict.jpg/640px-Eggs_benedict.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/85/Waffles_with_Strawberries.jpg/640px-Waffles_with_Strawberries.jpg"
     },
     {
       "item_name": "Egg & Cheese Savoury Pancake",
@@ -198,7 +198,7 @@
       "contains_soy": false,
       "confidence": 0.78,
       "menu_item_source": "llm_curated",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0c/Eggs_benedict.jpg/640px-Eggs_benedict.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/85/Waffles_with_Strawberries.jpg/640px-Waffles_with_Strawberries.jpg"
     },
     {
       "item_name": "Chocolate Waffle",
@@ -225,7 +225,7 @@
         "contains_palm_oil"
       ],
       "contains_palm_oil": true,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Chocolate_cake_001.jpg/640px-Chocolate_cake_001.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/85/Waffles_with_Strawberries.jpg/640px-Waffles_with_Strawberries.jpg"
     }
   ]
 }

@@ -26,7 +26,7 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Chocolate_cake_001.jpg/640px-Chocolate_cake_001.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/89/Jalebi_in_Indore_2014.jpg/640px-Jalebi_in_Indore_2014.jpg"
     },
     {
       "item_name": "Rabri + Jalebi (portion)",
@@ -48,7 +48,7 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Chocolate_cake_001.jpg/640px-Chocolate_cake_001.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/89/Jalebi_in_Indore_2014.jpg/640px-Jalebi_in_Indore_2014.jpg"
     },
     {
       "item_name": "Rabri Jalebi (100g)",
@@ -70,7 +70,7 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.9,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Chocolate_cake_001.jpg/640px-Chocolate_cake_001.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/89/Jalebi_in_Indore_2014.jpg/640px-Jalebi_in_Indore_2014.jpg"
     },
     {
       "item_name": "Jalebi + Fafda (share)",
@@ -92,7 +92,7 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.9,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c0/Various_grains.jpg/640px-Various_grains.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/89/Jalebi_in_Indore_2014.jpg/640px-Jalebi_in_Indore_2014.jpg"
     }
   ]
 }
