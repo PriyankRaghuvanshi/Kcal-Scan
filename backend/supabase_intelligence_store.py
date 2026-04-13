@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import os
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
@@ -19,6 +20,7 @@ TBL_LOCAL_VENUE_SWAPS = "local_venue_swaps"
 TBL_ENRICHMENT_QUEUE = "enrichment_queue"
 TBL_CHAIN_MENU_ITEMS = "chain_menu_items"
 TBL_CHAIN_MENU_PROFILES = "chain_menu_profiles"
+TBL_CHAIN_MATCH_EVENTS = "chain_match_events"
 TBL_CHAIN_REGISTRY = "chain_registry"
 
 
@@ -352,6 +354,92 @@ def upsert_chain_menu_items(chain_key: str, market_tag: str, items: List[Dict[st
         if _chain_sync_debug():
             print("SUPABASE DEBUG upsert_chain_menu_items ERROR:", repr(e))
         return 0
+
+
+def insert_chain_match_events(events: List[Dict[str, Any]]) -> int:
+    """
+    Append-only insert of chain match impressions.
+    Each row: {user_id?, chain_key, market_tag?, place_id?, was_top_pick?, ts?}
+    Fail-open. Returns rows attempted (0 if Supabase unavailable).
+    """
+    if not _supabase_available():
+        return 0
+    rows: List[Dict[str, Any]] = []
+    for ev in events or []:
+        if not isinstance(ev, dict):
+            continue
+        ck = str(ev.get("chain_key") or "").strip().lower()
+        if not ck:
+            continue
+        rows.append({
+            "user_id": str(ev.get("user_id") or "").strip() or None,
+            "chain_key": ck,
+            "market_tag": str(ev.get("market_tag") or "").strip().upper() or None,
+            "place_id": str(ev.get("place_id") or "").strip() or None,
+            "was_top_pick": bool(ev.get("was_top_pick")),
+        })
+    if not rows:
+        return 0
+    try:
+        url = f"{_supabase_base_url()}/{TBL_CHAIN_MATCH_EVENTS}"
+        headers = _supabase_headers("return=minimal")
+        _http_post_json(url, headers=headers, payload=rows, timeout=15)
+        return len(rows)
+    except Exception:
+        return 0
+
+
+def chain_match_stats(days: int = 30, limit: int = 50) -> List[Dict[str, Any]]:
+    """
+    Aggregate top chain matches in the last N days.
+    Returns [{chain_key, market_tag, total, top_pick_count, distinct_users, distinct_places}, ...]
+    Uses PostgREST RPC if available; falls back to client-side aggregation.
+    """
+    if not _supabase_available():
+        return []
+    days = max(1, min(int(days), 365))
+    since_iso = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat().replace("+00:00", "Z")
+    try:
+        rows = _sb_safe_get_many(
+            TBL_CHAIN_MATCH_EVENTS,
+            {
+                "select": "chain_key,market_tag,user_id,place_id,was_top_pick,ts",
+                "ts": f"gte.{since_iso}",
+                "limit": "100000",
+            },
+        )
+    except Exception:
+        return []
+    agg: Dict[tuple, Dict[str, Any]] = {}
+    for r in rows or []:
+        if not isinstance(r, dict):
+            continue
+        ck = str(r.get("chain_key") or "").strip().lower()
+        if not ck:
+            continue
+        mt = str(r.get("market_tag") or "").strip().upper()
+        key = (ck, mt)
+        cell = agg.setdefault(key, {
+            "chain_key": ck, "market_tag": mt,
+            "total": 0, "top_pick_count": 0,
+            "_users": set(), "_places": set(),
+        })
+        cell["total"] += 1
+        if bool(r.get("was_top_pick")):
+            cell["top_pick_count"] += 1
+        u = str(r.get("user_id") or "").strip()
+        p = str(r.get("place_id") or "").strip()
+        if u: cell["_users"].add(u)
+        if p: cell["_places"].add(p)
+    out = []
+    for v in agg.values():
+        out.append({
+            "chain_key": v["chain_key"], "market_tag": v["market_tag"],
+            "total": v["total"], "top_pick_count": v["top_pick_count"],
+            "distinct_users": len(v["_users"]), "distinct_places": len(v["_places"]),
+        })
+    out.sort(key=lambda x: -x["total"])
+    return out[:limit]
 
 
 def list_chain_menu_chain_keys() -> List[str]:

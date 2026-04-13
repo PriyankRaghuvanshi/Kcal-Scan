@@ -17286,6 +17286,42 @@ async def healthy_places(
                 pass
 
     radius_used = int(max(200, min(50000, int(_safe_float(radius, 3000) or 3000))))
+
+    # Fire-and-forget impression log: which chains were matched in this
+    # response. Powers /admin/chain-match-stats so we know which chains
+    # actually surface to users (informs curation priority).
+    try:
+        from supabase_intelligence_store import insert_chain_match_events
+        events = []
+        seen_per_response: set = set()
+        for idx, sp in enumerate(scored or []):
+            if not isinstance(sp, dict):
+                continue
+            ck = str(sp.get("chain_key") or sp.get("covered_chain_key") or "").strip().lower()
+            if not ck:
+                continue
+            pid = str(sp.get("place_id") or "").strip()
+            dedupe_key = f"{ck}|{pid}"
+            if dedupe_key in seen_per_response:
+                continue
+            seen_per_response.add(dedupe_key)
+            mt = ""
+            try:
+                mt = str(sp.get("market_tag") or sp.get("country_code") or "").strip().upper()
+            except Exception:
+                mt = ""
+            events.append({
+                "user_id": uid_for_location or None,
+                "chain_key": ck,
+                "market_tag": mt or None,
+                "place_id": pid or None,
+                "was_top_pick": bool(idx == 0),
+            })
+        if events:
+            insert_chain_match_events(events)
+    except Exception:
+        pass
+
     response = {
         "sort_mode": healthy_sort_mode,
         "places_count": len(scored),
@@ -17679,6 +17715,31 @@ async def admin_auth_login(payload: Dict[str, Any] = Body(...), request: Request
 async def admin_auth_me(authorization: Optional[str] = Header(default=None)):
     decoded = _require_admin_auth(authorization)
     return {"ok": True, "username": decoded.get("username"), "exp": decoded.get("exp")}
+
+
+@app.get("/admin/chain-match-stats")
+async def admin_chain_match_stats(
+    days: int = 30,
+    limit: int = 50,
+    authorization: Optional[str] = Header(default=None),
+):
+    """
+    Top chain matches in the last N days. Powers curation prioritization:
+    chains served most often to real users are the ones to perfect first.
+    """
+    _require_admin_auth(authorization)
+    try:
+        from supabase_intelligence_store import chain_match_stats
+        rows = chain_match_stats(days=days, limit=limit)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail={"error": "stats_unavailable", "msg": str(e)[:200]})
+    return {
+        "ok": True,
+        "window_days": int(max(1, min(days, 365))),
+        "limit": int(max(1, min(limit, 500))),
+        "total_chains": len(rows),
+        "rows": rows,
+    }
 
 
 @app.get("/admin/ops-dashboard")
