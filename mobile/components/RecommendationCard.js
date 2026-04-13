@@ -43,6 +43,33 @@ function num(v) {
 }
 
 /**
+ * Detect whether the top item (or the place-level menu) confirms palm-oil
+ * contents. Reads multiple possible signal locations; returns true/false/null.
+ * null = unknown (do NOT claim either way).
+ */
+function detectPalmOil(place) {
+  if (!place || typeof place !== "object") return null;
+  const directCandidates = [
+    place.contains_palm_oil,
+    place?.top_menu_item?.contains_palm_oil,
+  ];
+  for (const v of directCandidates) {
+    if (v === true) return true;
+    if (v === false) return false;
+  }
+  const flagLists = [
+    place.negative_flags,
+    place?.top_menu_item?.negative_flags,
+  ];
+  for (const nf of flagLists) {
+    if (!Array.isArray(nf)) continue;
+    if (nf.includes("contains_palm_oil")) return true;
+    if (nf.includes("palm_oil_free")) return false;
+  }
+  return null;
+}
+
+/**
  * Build two or three goal_variant pills for display: the highest-protein and
  * lowest-calorie (and fat-loss) picks from goal_variants, skipping any that
  * are the same as the primary bestItem or each other.
@@ -126,6 +153,7 @@ export function RecommendationCard({
   const topItem = place.top_menu_item && typeof place.top_menu_item === "object" ? place.top_menu_item : null;
   const swaps = extractSwapSuggestions(topItem || place, place);
   const goalVariantPills = buildGoalVariantPills(place, bestItem);
+  const palmOil = detectPalmOil(place);
 
   const resolvedVariant = variant || inferCardVariant(place);
   const needsMenuCheck = shouldShowMenuMayVary(place);
@@ -194,6 +222,15 @@ export function RecommendationCard({
               ) : null}
             </View>
           ) : null}
+        </View>
+      ) : null}
+
+      {/* C-a. Palm-oil indicator (only when confirmed TRUE; never falsely claim) */}
+      {palmOil === true && !isScreenshot ? (
+        <View style={styles.palmBadge}>
+          <Text style={styles.palmText} numberOfLines={1}>
+            🌴 Contains palm oil
+          </Text>
         </View>
       ) : null}
 
@@ -360,6 +397,21 @@ const styles = StyleSheet.create({
     fontWeight: typography.weight.bold,
     marginTop: spacing.md,
     lineHeight: typography.xl * 1.35,
+  },
+  palmBadge: {
+    marginTop: 6,
+    alignSelf: "flex-start",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: "rgba(245, 158, 11, 0.45)",
+    backgroundColor: "rgba(245, 158, 11, 0.14)",
+  },
+  palmText: {
+    fontSize: 11,
+    fontWeight: typography.weight.semibold,
+    color: "#f59e0b",
   },
   variantsRow: {
     marginTop: spacing.sm,
