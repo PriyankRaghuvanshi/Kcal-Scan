@@ -1094,6 +1094,19 @@ def score_menu_item(
 
     input_calories = int(_safe_float(payload.get("estimated_calories", payload.get("calories")), 0) or 0)
     input_protein = int(_safe_float(payload.get("estimated_protein_g", payload.get("protein_g")), 0) or 0)
+    input_carbs = int(_safe_float(payload.get("estimated_carbs_g", payload.get("carbs_g")), 0) or 0)
+    input_fat = int(_safe_float(payload.get("estimated_fat_g", payload.get("fat_g")), 0) or 0)
+    # When the source is high-trust (real published nutrition or fully
+    # authored menu data), pass macros through unchanged. Without this, the
+    # 65/35 blend in estimate_restaurant_macros wrecks values like Big Mac
+    # 550 → ~620 or Apple Slices 15 → 418.
+    HIGH_TRUST_SOURCES = {
+        "official_published", "real_menu", "user_scan",
+        "exact_menu_cache", "menu_intelligence_store", "structured_menu",
+        "ingested_chain_item", "chain_registry", "llm_curated",
+    }
+    src_for_trust = str(payload.get("menu_item_source") or "").strip().lower()
+    trust_input = src_for_trust in HIGH_TRUST_SOURCES
 
     macro_estimate = estimate_restaurant_macros(
         item_name=item_name,
@@ -1101,6 +1114,9 @@ def score_menu_item(
         place=context_payload.get("place") if isinstance(context_payload.get("place"), dict) else None,
         input_calories=input_calories if input_calories > 0 else None,
         input_protein_g=input_protein if input_protein > 0 else None,
+        input_carbs_g=input_carbs if input_carbs > 0 else None,
+        input_fat_g=input_fat if input_fat > 0 else None,
+        trust_input_macros=trust_input,
     )
 
     calories = int(_safe_float(macro_estimate.get("estimated_calories"), 520) or 520)

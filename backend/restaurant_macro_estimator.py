@@ -212,10 +212,39 @@ def estimate_restaurant_macros(
     input_calories: int | None = None,
     input_protein_g: int | None = None,
     allow_llm: bool = True,
+    input_carbs_g: int | None = None,
+    input_fat_g: int | None = None,
+    trust_input_macros: bool = False,
 ) -> Dict[str, Any]:
     item_text = str(item_name or "").strip().lower()
     cuisine_text = str(cuisine_hint or "").strip().lower()
     place_text = _place_text(place)
+
+    # High-trust pass-through: when the caller marks input as authoritative
+    # (e.g. menu_item_source == "official_published") OR all four macros are
+    # explicitly provided as non-zero, return them as-is. The 65/35 blend was
+    # designed to denoise weak heuristic inputs but it WATERS DOWN real
+    # published nutrition (Big Mac 550 → blended ~620, Apple Slices 15 →
+    # blended 418). Trusted source = pass-through.
+    has_input_kcal = input_calories is not None and int(input_calories) > 0
+    has_input_protein = input_protein_g is not None and int(input_protein_g) > 0
+    has_input_carbs = input_carbs_g is not None and int(input_carbs_g) > 0
+    has_input_fat = input_fat_g is not None and int(input_fat_g) > 0
+    full_macros_provided = has_input_kcal and has_input_protein and has_input_carbs and has_input_fat
+    if has_input_kcal and (trust_input_macros or full_macros_provided):
+        kcal_p = int(input_calories)
+        prot_p = int(input_protein_g) if has_input_protein else 0
+        carbs_p = int(input_carbs_g) if has_input_carbs else 0
+        fat_p = int(input_fat_g) if has_input_fat else 0
+        return {
+            "estimated_calories": kcal_p,
+            "estimated_protein_g": prot_p,
+            "estimated_carbs_g": carbs_p,
+            "estimated_fat_g": fat_p,
+            "estimated_satiety": _satiety_from_macros(kcal_p, prot_p, carbs_p, fat_p),
+            "macro_confidence": 0.95 if trust_input_macros else 0.85,
+            "macro_estimation_version": "v2_trust_input",
+        }
 
     profile, hit_count = _match_profile(item_text)
 
