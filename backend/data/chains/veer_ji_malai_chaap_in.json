@@ -28,7 +28,11 @@
       "contains_soy": false,
       "contains_shellfish": false,
       "contains_egg": false,
-      "contains_sesame": false
+      "contains_sesame": false,
+      "negative_flags": [
+        "contains_palm_oil"
+      ],
+      "contains_palm_oil": true
     },
     {
       "item_name": "Afghani Chaap (half)",
@@ -49,7 +53,11 @@
       "contains_soy": false,
       "contains_shellfish": false,
       "contains_egg": false,
-      "contains_sesame": false
+      "contains_sesame": false,
+      "negative_flags": [
+        "contains_palm_oil"
+      ],
+      "contains_palm_oil": true
     },
     {
       "item_name": "Chaap Curry + 2 Roti",
@@ -70,7 +78,11 @@
       "contains_soy": false,
       "contains_shellfish": false,
       "contains_egg": false,
-      "contains_sesame": false
+      "contains_sesame": false,
+      "negative_flags": [
+        "contains_palm_oil"
+      ],
+      "contains_palm_oil": true
     },
     {
       "item_name": "Malai Chaap (6 pc)",
@@ -91,7 +103,11 @@
       "contains_sesame": false,
       "contains_shellfish": false,
       "contains_soy": true,
-      "confidence": 0.9
+      "confidence": 0.9,
+      "negative_flags": [
+        "contains_palm_oil"
+      ],
+      "contains_palm_oil": true
     },
     {
       "item_name": "Afghani Chaap (6 pc)",
@@ -112,7 +128,11 @@
       "contains_sesame": false,
       "contains_shellfish": false,
       "contains_soy": true,
-      "confidence": 0.9
+      "confidence": 0.9,
+      "negative_flags": [
+        "contains_palm_oil"
+      ],
+      "contains_palm_oil": true
     },
     {
       "item_name": "Tandoori Chaap (6 pc)",
@@ -133,7 +153,11 @@
       "contains_sesame": false,
       "contains_shellfish": false,
       "contains_soy": true,
-      "confidence": 0.9
+      "confidence": 0.9,
+      "negative_flags": [
+        "contains_palm_oil"
+      ],
+      "contains_palm_oil": true
     }
   ]
 }

@@ -90,7 +90,11 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.78,
-      "menu_item_source": "llm_curated"
+      "menu_item_source": "llm_curated",
+      "negative_flags": [
+        "contains_palm_oil"
+      ],
+      "contains_palm_oil": true
     },
     {
       "item_name": "Chocolate Pancake Stack",
@@ -112,7 +116,11 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.78,
-      "menu_item_source": "llm_curated"
+      "menu_item_source": "llm_curated",
+      "negative_flags": [
+        "contains_palm_oil"
+      ],
+      "contains_palm_oil": true
     },
     {
       "item_name": "Fruit & Nut Pancake",
@@ -134,7 +142,11 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.78,
-      "menu_item_source": "llm_curated"
+      "menu_item_source": "llm_curated",
+      "negative_flags": [
+        "contains_palm_oil"
+      ],
+      "contains_palm_oil": true
     },
     {
       "item_name": "Oatmeal Pancake (single)",
@@ -200,7 +212,11 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.78,
-      "menu_item_source": "llm_curated"
+      "menu_item_source": "llm_curated",
+      "negative_flags": [
+        "contains_palm_oil"
+      ],
+      "contains_palm_oil": true
     }
   ]
 }

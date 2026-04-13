@@ -444,7 +444,11 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.95,
-      "menu_item_source": "official_published"
+      "menu_item_source": "official_published",
+      "negative_flags": [
+        "palm_oil_free"
+      ],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Fries (medium)",
@@ -466,7 +470,11 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.95,
-      "menu_item_source": "official_published"
+      "menu_item_source": "official_published",
+      "negative_flags": [
+        "palm_oil_free"
+      ],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Fries (large)",
@@ -488,7 +496,11 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.95,
-      "menu_item_source": "official_published"
+      "menu_item_source": "official_published",
+      "negative_flags": [
+        "palm_oil_free"
+      ],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Apple Slices (bag)",
@@ -642,7 +654,11 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.95,
-      "menu_item_source": "official_published"
+      "menu_item_source": "official_published",
+      "negative_flags": [
+        "palm_oil_free"
+      ],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Coca-Cola (medium)",
@@ -730,7 +746,11 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.95,
-      "menu_item_source": "official_published"
+      "menu_item_source": "official_published",
+      "negative_flags": [
+        "contains_palm_oil"
+      ],
+      "contains_palm_oil": true
     },
     {
       "item_name": "McFlurry M&M (small)",
@@ -752,7 +772,11 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.95,
-      "menu_item_source": "official_published"
+      "menu_item_source": "official_published",
+      "negative_flags": [
+        "contains_palm_oil"
+      ],
+      "contains_palm_oil": true
     }
   ]
 }

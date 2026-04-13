@@ -30,7 +30,11 @@
       "contains_soy": false,
       "contains_shellfish": false,
       "contains_egg": false,
-      "contains_sesame": false
+      "contains_sesame": false,
+      "negative_flags": [
+        "contains_palm_oil"
+      ],
+      "contains_palm_oil": true
     },
     {
       "item_name": "Nutella Waffle",
@@ -51,7 +55,11 @@
       "contains_soy": false,
       "contains_shellfish": false,
       "contains_egg": false,
-      "contains_sesame": false
+      "contains_sesame": false,
+      "negative_flags": [
+        "contains_palm_oil"
+      ],
+      "contains_palm_oil": true
     },
     {
       "item_name": "Cheese Waffle",
@@ -72,7 +80,11 @@
       "contains_soy": false,
       "contains_shellfish": false,
       "contains_egg": false,
-      "contains_sesame": false
+      "contains_sesame": false,
+      "negative_flags": [
+        "contains_palm_oil"
+      ],
+      "contains_palm_oil": true
     },
     {
       "item_name": "Classic Chocolate Waffle (regular)",
@@ -94,7 +106,11 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.78,
-      "menu_item_source": "llm_curated"
+      "menu_item_source": "llm_curated",
+      "negative_flags": [
+        "contains_palm_oil"
+      ],
+      "contains_palm_oil": true
     },
     {
       "item_name": "Fruit & Cream Waffle",
@@ -116,7 +132,11 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.78,
-      "menu_item_source": "llm_curated"
+      "menu_item_source": "llm_curated",
+      "negative_flags": [
+        "contains_palm_oil"
+      ],
+      "contains_palm_oil": true
     },
     {
       "item_name": "Mini Waffle (single)",
@@ -138,7 +158,11 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.82,
-      "menu_item_source": "llm_curated"
+      "menu_item_source": "llm_curated",
+      "negative_flags": [
+        "contains_palm_oil"
+      ],
+      "contains_palm_oil": true
     },
     {
       "item_name": "Waffle Sandwich (savoury)",
@@ -160,7 +184,11 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.78,
-      "menu_item_source": "llm_curated"
+      "menu_item_source": "llm_curated",
+      "negative_flags": [
+        "contains_palm_oil"
+      ],
+      "contains_palm_oil": true
     },
     {
       "item_name": "Waffle Cone Gelato",
@@ -182,7 +210,11 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.78,
-      "menu_item_source": "llm_curated"
+      "menu_item_source": "llm_curated",
+      "negative_flags": [
+        "contains_palm_oil"
+      ],
+      "contains_palm_oil": true
     }
   ]
 }

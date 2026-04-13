@@ -136,7 +136,11 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.95,
-      "menu_item_source": "official_published"
+      "menu_item_source": "official_published",
+      "negative_flags": [
+        "contains_palm_oil"
+      ],
+      "contains_palm_oil": true
     },
     {
       "item_name": "Boston Kreme Donut",
@@ -158,7 +162,11 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.95,
-      "menu_item_source": "official_published"
+      "menu_item_source": "official_published",
+      "negative_flags": [
+        "contains_palm_oil"
+      ],
+      "contains_palm_oil": true
     },
     {
       "item_name": "Old Fashioned Donut",
@@ -180,7 +188,11 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.95,
-      "menu_item_source": "official_published"
+      "menu_item_source": "official_published",
+      "negative_flags": [
+        "contains_palm_oil"
+      ],
+      "contains_palm_oil": true
     },
     {
       "item_name": "Chocolate Frosted Donut",
@@ -202,7 +214,11 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.95,
-      "menu_item_source": "official_published"
+      "menu_item_source": "official_published",
+      "negative_flags": [
+        "contains_palm_oil"
+      ],
+      "contains_palm_oil": true
     },
     {
       "item_name": "Plain Bagel",
@@ -246,7 +262,8 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.95,
-      "menu_item_source": "official_published"
+      "menu_item_source": "official_published",
+      "negative_flags": []
     },
     {
       "item_name": "Sausage Egg Cheese Croissant",
@@ -268,7 +285,11 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.95,
-      "menu_item_source": "official_published"
+      "menu_item_source": "official_published",
+      "negative_flags": [
+        "contains_palm_oil"
+      ],
+      "contains_palm_oil": true
     },
     {
       "item_name": "Tall Hot Latte (2% milk)",
@@ -378,7 +399,11 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.95,
-      "menu_item_source": "official_published"
+      "menu_item_source": "official_published",
+      "negative_flags": [
+        "contains_palm_oil"
+      ],
+      "contains_palm_oil": true
     }
   ]
 }

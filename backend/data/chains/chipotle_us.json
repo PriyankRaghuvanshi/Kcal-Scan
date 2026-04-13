@@ -27,7 +27,11 @@
       "contains_soy": false,
       "contains_shellfish": false,
       "contains_egg": false,
-      "contains_sesame": false
+      "contains_sesame": false,
+      "negative_flags": [
+        "palm_oil_free"
+      ],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Chicken Burrito Bowl (no rice)",
@@ -48,7 +52,11 @@
       "contains_soy": false,
       "contains_shellfish": false,
       "contains_egg": false,
-      "contains_sesame": false
+      "contains_sesame": false,
+      "negative_flags": [
+        "palm_oil_free"
+      ],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Chicken Salad",
@@ -69,7 +77,11 @@
       "contains_soy": false,
       "contains_shellfish": false,
       "contains_egg": false,
-      "contains_sesame": false
+      "contains_sesame": false,
+      "negative_flags": [
+        "palm_oil_free"
+      ],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Barbacoa Bowl",
@@ -90,7 +102,11 @@
       "contains_soy": false,
       "contains_shellfish": false,
       "contains_egg": false,
-      "contains_sesame": false
+      "contains_sesame": false,
+      "negative_flags": [
+        "palm_oil_free"
+      ],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Sofritas Bowl",
@@ -111,7 +127,11 @@
       "contains_soy": false,
       "contains_shellfish": false,
       "contains_egg": false,
-      "contains_sesame": false
+      "contains_sesame": false,
+      "negative_flags": [
+        "palm_oil_free"
+      ],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Chicken Tacos (3)",
@@ -132,7 +152,11 @@
       "contains_soy": false,
       "contains_shellfish": false,
       "contains_egg": false,
-      "contains_sesame": false
+      "contains_sesame": false,
+      "negative_flags": [
+        "palm_oil_free"
+      ],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Chicken Bowl (brown rice, black beans, salsa)",
@@ -154,7 +178,11 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.94,
-      "menu_item_source": "official_published"
+      "menu_item_source": "official_published",
+      "negative_flags": [
+        "palm_oil_free"
+      ],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Chicken Bowl (white rice, black beans, cheese, sour cream, salsa)",
@@ -176,7 +204,11 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.94,
-      "menu_item_source": "official_published"
+      "menu_item_source": "official_published",
+      "negative_flags": [
+        "palm_oil_free"
+      ],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Chicken Salad Bowl (no rice, fajitas, salsa, no dressing)",
@@ -198,7 +230,11 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.94,
-      "menu_item_source": "official_published"
+      "menu_item_source": "official_published",
+      "negative_flags": [
+        "palm_oil_free"
+      ],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Chicken Burrito (white rice, beans, cheese, salsa)",
@@ -220,7 +256,11 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.94,
-      "menu_item_source": "official_published"
+      "menu_item_source": "official_published",
+      "negative_flags": [
+        "palm_oil_free"
+      ],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Sofritas Bowl (brown rice, black beans, fajitas, salsa)",
@@ -242,7 +282,11 @@
       "contains_shellfish": false,
       "contains_soy": true,
       "confidence": 0.94,
-      "menu_item_source": "official_published"
+      "menu_item_source": "official_published",
+      "negative_flags": [
+        "palm_oil_free"
+      ],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Steak Bowl (brown rice, black beans, salsa)",
@@ -264,7 +308,11 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.94,
-      "menu_item_source": "official_published"
+      "menu_item_source": "official_published",
+      "negative_flags": [
+        "palm_oil_free"
+      ],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Barbacoa Bowl (brown rice, beans, salsa)",
@@ -286,7 +334,11 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.94,
-      "menu_item_source": "official_published"
+      "menu_item_source": "official_published",
+      "negative_flags": [
+        "palm_oil_free"
+      ],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Carnitas Bowl (brown rice, beans, salsa)",
@@ -308,7 +360,11 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.94,
-      "menu_item_source": "official_published"
+      "menu_item_source": "official_published",
+      "negative_flags": [
+        "palm_oil_free"
+      ],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Chicken Quesadilla",
@@ -330,7 +386,11 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.94,
-      "menu_item_source": "official_published"
+      "menu_item_source": "official_published",
+      "negative_flags": [
+        "palm_oil_free"
+      ],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Chicken Tacos (3 soft, lettuce+salsa+cheese)",
@@ -352,7 +412,11 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.94,
-      "menu_item_source": "official_published"
+      "menu_item_source": "official_published",
+      "negative_flags": [
+        "palm_oil_free"
+      ],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Kids Build Your Own (chicken + rice + beans)",
@@ -374,7 +438,11 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.94,
-      "menu_item_source": "official_published"
+      "menu_item_source": "official_published",
+      "negative_flags": [
+        "palm_oil_free"
+      ],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Chips (regular)",
@@ -396,7 +464,11 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.94,
-      "menu_item_source": "official_published"
+      "menu_item_source": "official_published",
+      "negative_flags": [
+        "palm_oil_free"
+      ],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Chips + Guac",
@@ -418,7 +490,11 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.94,
-      "menu_item_source": "official_published"
+      "menu_item_source": "official_published",
+      "negative_flags": [
+        "palm_oil_free"
+      ],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Chips + Tomato Salsa",
@@ -440,7 +516,11 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.94,
-      "menu_item_source": "official_published"
+      "menu_item_source": "official_published",
+      "negative_flags": [
+        "palm_oil_free"
+      ],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Guac (2oz)",
@@ -462,7 +542,11 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.94,
-      "menu_item_source": "official_published"
+      "menu_item_source": "official_published",
+      "negative_flags": [
+        "palm_oil_free"
+      ],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Queso Blanco (side)",
@@ -484,7 +568,11 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.94,
-      "menu_item_source": "official_published"
+      "menu_item_source": "official_published",
+      "negative_flags": [
+        "palm_oil_free"
+      ],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Sour Cream (2oz)",
@@ -506,7 +594,11 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.94,
-      "menu_item_source": "official_published"
+      "menu_item_source": "official_published",
+      "negative_flags": [
+        "palm_oil_free"
+      ],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Cheese (1oz)",
@@ -528,7 +620,11 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.94,
-      "menu_item_source": "official_published"
+      "menu_item_source": "official_published",
+      "negative_flags": [
+        "palm_oil_free"
+      ],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Fajita Veggies (free add-on)",
@@ -550,7 +646,11 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.94,
-      "menu_item_source": "official_published"
+      "menu_item_source": "official_published",
+      "negative_flags": [
+        "palm_oil_free"
+      ],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Chicken (4oz protein)",
@@ -572,7 +672,11 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.94,
-      "menu_item_source": "official_published"
+      "menu_item_source": "official_published",
+      "negative_flags": [
+        "palm_oil_free"
+      ],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Steak (4oz protein)",
@@ -594,7 +698,11 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.94,
-      "menu_item_source": "official_published"
+      "menu_item_source": "official_published",
+      "negative_flags": [
+        "palm_oil_free"
+      ],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Barbacoa (4oz protein)",
@@ -616,7 +724,11 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.94,
-      "menu_item_source": "official_published"
+      "menu_item_source": "official_published",
+      "negative_flags": [
+        "palm_oil_free"
+      ],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Carnitas (4oz protein)",
@@ -638,7 +750,11 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.94,
-      "menu_item_source": "official_published"
+      "menu_item_source": "official_published",
+      "negative_flags": [
+        "palm_oil_free"
+      ],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Sofritas (4oz protein)",
@@ -660,7 +776,11 @@
       "contains_shellfish": false,
       "contains_soy": true,
       "confidence": 0.94,
-      "menu_item_source": "official_published"
+      "menu_item_source": "official_published",
+      "negative_flags": [
+        "palm_oil_free"
+      ],
+      "contains_palm_oil": false
     }
   ]
 }

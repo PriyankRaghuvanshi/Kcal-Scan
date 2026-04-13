@@ -90,7 +90,11 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.8,
-      "menu_item_source": "llm_curated"
+      "menu_item_source": "llm_curated",
+      "negative_flags": [
+        "contains_palm_oil"
+      ],
+      "contains_palm_oil": true
     },
     {
       "item_name": "Osmania Biscuits (3 pc)",
@@ -112,7 +116,11 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.8,
-      "menu_item_source": "llm_curated"
+      "menu_item_source": "llm_curated",
+      "negative_flags": [
+        "contains_palm_oil"
+      ],
+      "contains_palm_oil": true
     },
     {
       "item_name": "Dilkush (slice)",
@@ -134,7 +142,11 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.8,
-      "menu_item_source": "llm_curated"
+      "menu_item_source": "llm_curated",
+      "negative_flags": [
+        "contains_palm_oil"
+      ],
+      "contains_palm_oil": true
     },
     {
       "item_name": "Plum Cake (slice)",
@@ -156,7 +168,11 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.8,
-      "menu_item_source": "llm_curated"
+      "menu_item_source": "llm_curated",
+      "negative_flags": [
+        "contains_palm_oil"
+      ],
+      "contains_palm_oil": true
     },
     {
       "item_name": "Puff (veg, 1 pc)",
@@ -178,7 +194,11 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.8,
-      "menu_item_source": "llm_curated"
+      "menu_item_source": "llm_curated",
+      "negative_flags": [
+        "contains_palm_oil"
+      ],
+      "contains_palm_oil": true
     }
   ]
 }

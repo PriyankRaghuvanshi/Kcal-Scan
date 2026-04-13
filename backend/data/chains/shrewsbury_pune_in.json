@@ -92,7 +92,11 @@
       "contains_sesame": false,
       "contains_shellfish": false,
       "contains_soy": false,
-      "confidence": 0.9
+      "confidence": 0.9,
+      "negative_flags": [
+        "contains_palm_oil"
+      ],
+      "contains_palm_oil": true
     },
     {
       "item_name": "Plum Cake (slice)",
@@ -113,7 +117,11 @@
       "contains_sesame": false,
       "contains_shellfish": false,
       "contains_soy": false,
-      "confidence": 0.9
+      "confidence": 0.9,
+      "negative_flags": [
+        "contains_palm_oil"
+      ],
+      "contains_palm_oil": true
     },
     {
       "item_name": "Fruit Cake (slice)",
@@ -134,7 +142,11 @@
       "contains_sesame": false,
       "contains_shellfish": false,
       "contains_soy": false,
-      "confidence": 0.9
+      "confidence": 0.9,
+      "negative_flags": [
+        "contains_palm_oil"
+      ],
+      "contains_palm_oil": true
     }
   ]
 }

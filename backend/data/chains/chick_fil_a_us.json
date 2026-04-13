@@ -28,7 +28,11 @@
       "contains_soy": false,
       "contains_shellfish": false,
       "contains_egg": false,
-      "contains_sesame": false
+      "contains_sesame": false,
+      "negative_flags": [
+        "palm_oil_free"
+      ],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Grilled Nuggets (8ct)",
@@ -49,7 +53,11 @@
       "contains_soy": false,
       "contains_shellfish": false,
       "contains_egg": false,
-      "contains_sesame": false
+      "contains_sesame": false,
+      "negative_flags": [
+        "palm_oil_free"
+      ],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Spicy Southwest Salad",
@@ -70,7 +78,11 @@
       "contains_soy": false,
       "contains_shellfish": false,
       "contains_egg": false,
-      "contains_sesame": false
+      "contains_sesame": false,
+      "negative_flags": [
+        "palm_oil_free"
+      ],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Cobb Salad",
@@ -91,7 +103,11 @@
       "contains_soy": false,
       "contains_shellfish": false,
       "contains_egg": false,
-      "contains_sesame": false
+      "contains_sesame": false,
+      "negative_flags": [
+        "palm_oil_free"
+      ],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Egg White Grill",
@@ -112,7 +128,11 @@
       "contains_soy": false,
       "contains_shellfish": false,
       "contains_egg": true,
-      "contains_sesame": false
+      "contains_sesame": false,
+      "negative_flags": [
+        "palm_oil_free"
+      ],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Grilled Cool Wrap",
@@ -133,7 +153,11 @@
       "contains_soy": false,
       "contains_shellfish": false,
       "contains_egg": false,
-      "contains_sesame": false
+      "contains_sesame": false,
+      "negative_flags": [
+        "palm_oil_free"
+      ],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Market Salad",
@@ -154,7 +178,11 @@
       "contains_soy": false,
       "contains_shellfish": false,
       "contains_egg": false,
-      "contains_sesame": false
+      "contains_sesame": false,
+      "negative_flags": [
+        "palm_oil_free"
+      ],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Chick-fil-A Chicken Sandwich",
@@ -176,7 +204,11 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.95,
-      "menu_item_source": "official_published"
+      "menu_item_source": "official_published",
+      "negative_flags": [
+        "palm_oil_free"
+      ],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Spicy Chicken Sandwich",
@@ -198,7 +230,11 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.95,
-      "menu_item_source": "official_published"
+      "menu_item_source": "official_published",
+      "negative_flags": [
+        "palm_oil_free"
+      ],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Grilled Chicken Cool Wrap",
@@ -220,7 +256,11 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.95,
-      "menu_item_source": "official_published"
+      "menu_item_source": "official_published",
+      "negative_flags": [
+        "palm_oil_free"
+      ],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Grilled Nuggets (8pc)",
@@ -242,7 +282,11 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.95,
-      "menu_item_source": "official_published"
+      "menu_item_source": "official_published",
+      "negative_flags": [
+        "palm_oil_free"
+      ],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Nuggets (8pc)",
@@ -264,7 +308,11 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.95,
-      "menu_item_source": "official_published"
+      "menu_item_source": "official_published",
+      "negative_flags": [
+        "palm_oil_free"
+      ],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Waffle Potato Fries (medium)",
@@ -286,7 +334,11 @@
       "contains_shellfish": false,
       "contains_soy": true,
       "confidence": 0.95,
-      "menu_item_source": "official_published"
+      "menu_item_source": "official_published",
+      "negative_flags": [
+        "palm_oil_free"
+      ],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Market Salad w/ Grilled Chicken",
@@ -308,7 +360,11 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.95,
-      "menu_item_source": "official_published"
+      "menu_item_source": "official_published",
+      "negative_flags": [
+        "palm_oil_free"
+      ],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Cobb Salad w/ Grilled Chicken",
@@ -330,7 +386,11 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.95,
-      "menu_item_source": "official_published"
+      "menu_item_source": "official_published",
+      "negative_flags": [
+        "palm_oil_free"
+      ],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Chicken Tortilla Soup (cup)",
@@ -352,7 +412,11 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.95,
-      "menu_item_source": "official_published"
+      "menu_item_source": "official_published",
+      "negative_flags": [
+        "palm_oil_free"
+      ],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Chicken Biscuit",
@@ -374,7 +438,11 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.95,
-      "menu_item_source": "official_published"
+      "menu_item_source": "official_published",
+      "negative_flags": [
+        "palm_oil_free"
+      ],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Chicken Egg & Cheese Biscuit",
@@ -396,7 +464,11 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.95,
-      "menu_item_source": "official_published"
+      "menu_item_source": "official_published",
+      "negative_flags": [
+        "palm_oil_free"
+      ],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Chick-n-Minis (4-count)",
@@ -418,7 +490,11 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.95,
-      "menu_item_source": "official_published"
+      "menu_item_source": "official_published",
+      "negative_flags": [
+        "palm_oil_free"
+      ],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Hash Brown Scramble Burrito w/ Nuggets",
@@ -440,7 +516,11 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.95,
-      "menu_item_source": "official_published"
+      "menu_item_source": "official_published",
+      "negative_flags": [
+        "palm_oil_free"
+      ],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Fruit Cup (medium)",
@@ -462,7 +542,11 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.95,
-      "menu_item_source": "official_published"
+      "menu_item_source": "official_published",
+      "negative_flags": [
+        "palm_oil_free"
+      ],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Small Lemonade",
@@ -484,7 +568,11 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.95,
-      "menu_item_source": "official_published"
+      "menu_item_source": "official_published",
+      "negative_flags": [
+        "palm_oil_free"
+      ],
+      "contains_palm_oil": false
     }
   ]
 }
