@@ -27,7 +27,8 @@
       "contains_soy": false,
       "contains_shellfish": false,
       "contains_egg": false,
-      "contains_sesame": false
+      "contains_sesame": false,
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
     },
     {
       "item_name": "Mini Meals",
@@ -48,7 +49,8 @@
       "contains_soy": false,
       "contains_shellfish": false,
       "contains_egg": false,
-      "contains_sesame": false
+      "contains_sesame": false,
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
     },
     {
       "item_name": "Idli Sambar (4pc)",
@@ -69,7 +71,8 @@
       "contains_soy": false,
       "contains_shellfish": false,
       "contains_egg": false,
-      "contains_sesame": false
+      "contains_sesame": false,
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
     },
     {
       "item_name": "Mini Meals (rice thali)",
@@ -91,7 +94,8 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.8,
-      "menu_item_source": "llm_curated"
+      "menu_item_source": "llm_curated",
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
     },
     {
       "item_name": "Masala Dosa + Sambar",
@@ -113,7 +117,8 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.8,
-      "menu_item_source": "llm_curated"
+      "menu_item_source": "llm_curated",
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
     },
     {
       "item_name": "Ghee Podi Idli (2 pc)",
@@ -135,7 +140,8 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.8,
-      "menu_item_source": "llm_curated"
+      "menu_item_source": "llm_curated",
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0c/Eggs_benedict.jpg/640px-Eggs_benedict.jpg"
     },
     {
       "item_name": "Filter Coffee",
@@ -157,7 +163,8 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.8,
-      "menu_item_source": "llm_curated"
+      "menu_item_source": "llm_curated",
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/35/Coffee_cup.jpg/640px-Coffee_cup.jpg"
     },
     {
       "item_name": "Upma + Chutney",
@@ -179,7 +186,8 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.8,
-      "menu_item_source": "llm_curated"
+      "menu_item_source": "llm_curated",
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0c/Eggs_benedict.jpg/640px-Eggs_benedict.jpg"
     }
   ]
 }

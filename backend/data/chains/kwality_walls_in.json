@@ -32,7 +32,8 @@
       "negative_flags": [
         "contains_palm_oil"
       ],
-      "contains_palm_oil": true
+      "contains_palm_oil": true,
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Chocolate_cake_001.jpg/640px-Chocolate_cake_001.jpg"
     },
     {
       "item_name": "Cornetto (single)",
@@ -57,7 +58,8 @@
       "negative_flags": [
         "contains_palm_oil"
       ],
-      "contains_palm_oil": true
+      "contains_palm_oil": true,
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Chocolate_cake_001.jpg/640px-Chocolate_cake_001.jpg"
     },
     {
       "item_name": "Paddle Pop",
@@ -82,7 +84,8 @@
       "negative_flags": [
         "contains_palm_oil"
       ],
-      "contains_palm_oil": true
+      "contains_palm_oil": true,
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Chocolate_cake_001.jpg/640px-Chocolate_cake_001.jpg"
     },
     {
       "item_name": "Cornetto Classic",
@@ -108,7 +111,8 @@
       "negative_flags": [
         "contains_palm_oil"
       ],
-      "contains_palm_oil": true
+      "contains_palm_oil": true,
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Chocolate_cake_001.jpg/640px-Chocolate_cake_001.jpg"
     },
     {
       "item_name": "Feast Chocolate Bar",
@@ -134,7 +138,8 @@
       "negative_flags": [
         "contains_palm_oil"
       ],
-      "contains_palm_oil": true
+      "contains_palm_oil": true,
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Chocolate_cake_001.jpg/640px-Chocolate_cake_001.jpg"
     },
     {
       "item_name": "Fruttare Popsicle",
@@ -160,7 +165,8 @@
       "negative_flags": [
         "contains_palm_oil"
       ],
-      "contains_palm_oil": true
+      "contains_palm_oil": true,
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Chocolate_cake_001.jpg/640px-Chocolate_cake_001.jpg"
     },
     {
       "item_name": "Magnum Classic",
@@ -186,7 +192,8 @@
       "negative_flags": [
         "contains_palm_oil"
       ],
-      "contains_palm_oil": true
+      "contains_palm_oil": true,
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Chocolate_cake_001.jpg/640px-Chocolate_cake_001.jpg"
     },
     {
       "item_name": "Vanilla Family Pack Scoop",
@@ -212,7 +219,8 @@
       "negative_flags": [
         "contains_palm_oil"
       ],
-      "contains_palm_oil": true
+      "contains_palm_oil": true,
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Chocolate_cake_001.jpg/640px-Chocolate_cake_001.jpg"
     }
   ]
 }

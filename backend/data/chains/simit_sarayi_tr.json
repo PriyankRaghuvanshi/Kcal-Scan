@@ -1,13 +1,13 @@
 {
-  "brand_name": "Simit Sarayı",
+  "brand_name": "Simit Saray\u0131",
   "source_type": "seed_template",
   "source_url": "https://www.simitsarayi.com/menu",
   "store_name_variants": [
     "simit sarayi",
-    "simit sarayı",
+    "simit saray\u0131",
     "simit saray",
     "simitsarayi",
-    "simitsarayı",
+    "simitsaray\u0131",
     "simitsaray"
   ],
   "items": [
@@ -30,10 +30,11 @@
       "contains_soy": false,
       "contains_shellfish": false,
       "contains_egg": false,
-      "contains_sesame": false
+      "contains_sesame": false,
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c0/Various_grains.jpg/640px-Various_grains.jpg"
     },
     {
-      "item_name": "Peynirli Poğaça (cheese)",
+      "item_name": "Peynirli Po\u011fa\u00e7a (cheese)",
       "category": "entree",
       "estimated_calories": 260,
       "estimated_protein_g": 10,
@@ -51,7 +52,8 @@
       "contains_soy": false,
       "contains_shellfish": false,
       "contains_egg": false,
-      "contains_sesame": false
+      "contains_sesame": false,
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
     },
     {
       "item_name": "Cay (Turkish tea, unsweetened)",
@@ -72,7 +74,8 @@
       "contains_soy": false,
       "contains_shellfish": false,
       "contains_egg": false,
-      "contains_sesame": false
+      "contains_sesame": false,
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/35/Coffee_cup.jpg/640px-Coffee_cup.jpg"
     }
   ]
 }

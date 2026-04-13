@@ -28,7 +28,8 @@
       "contains_soy": false,
       "contains_shellfish": false,
       "contains_egg": false,
-      "contains_sesame": false
+      "contains_sesame": false,
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
     },
     {
       "item_name": "Beef Udon Bowl",
@@ -49,7 +50,8 @@
       "contains_soy": false,
       "contains_shellfish": false,
       "contains_egg": false,
-      "contains_sesame": false
+      "contains_sesame": false,
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
     },
     {
       "item_name": "Veg Rice Bowl",
@@ -70,7 +72,8 @@
       "contains_soy": false,
       "contains_shellfish": false,
       "contains_egg": false,
-      "contains_sesame": false
+      "contains_sesame": false,
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
     },
     {
       "item_name": "Chicken Teriyaki Noodles",
@@ -92,7 +95,8 @@
       "contains_shellfish": false,
       "contains_soy": true,
       "confidence": 0.8,
-      "menu_item_source": "llm_curated"
+      "menu_item_source": "llm_curated",
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
     },
     {
       "item_name": "Tofu Satay Rice Bowl",
@@ -114,7 +118,8 @@
       "contains_shellfish": false,
       "contains_soy": true,
       "confidence": 0.8,
-      "menu_item_source": "llm_curated"
+      "menu_item_source": "llm_curated",
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
     },
     {
       "item_name": "Prawn Black Bean Noodles",
@@ -136,7 +141,8 @@
       "contains_shellfish": true,
       "contains_soy": true,
       "confidence": 0.8,
-      "menu_item_source": "llm_curated"
+      "menu_item_source": "llm_curated",
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
     },
     {
       "item_name": "Veg Stir-Fry + Brown Rice",
@@ -158,7 +164,8 @@
       "contains_shellfish": false,
       "contains_soy": true,
       "confidence": 0.8,
-      "menu_item_source": "llm_curated"
+      "menu_item_source": "llm_curated",
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
     },
     {
       "item_name": "Edamame (starter)",
@@ -180,7 +187,8 @@
       "contains_shellfish": false,
       "contains_soy": true,
       "confidence": 0.8,
-      "menu_item_source": "llm_curated"
+      "menu_item_source": "llm_curated",
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/cb/Tandoori_chicken_001.jpg/640px-Tandoori_chicken_001.jpg"
     }
   ]
 }

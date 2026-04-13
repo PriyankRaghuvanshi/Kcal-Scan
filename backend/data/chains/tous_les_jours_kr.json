@@ -5,7 +5,7 @@
   "store_name_variants": [
     "tous les jours",
     "tlj",
-    "뚜레쥬르",
+    "\ub69c\ub808\uc96c\ub974",
     "touslesjours"
   ],
   "items": [
@@ -28,7 +28,8 @@
       "contains_soy": false,
       "contains_shellfish": false,
       "contains_egg": false,
-      "contains_sesame": false
+      "contains_sesame": false,
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/35/Coffee_cup.jpg/640px-Coffee_cup.jpg"
     },
     {
       "item_name": "Whole Wheat Sandwich (chicken)",
@@ -49,7 +50,8 @@
       "contains_soy": false,
       "contains_shellfish": false,
       "contains_egg": false,
-      "contains_sesame": false
+      "contains_sesame": false,
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
     },
     {
       "item_name": "Plain Bagel",
@@ -70,7 +72,8 @@
       "contains_soy": false,
       "contains_shellfish": false,
       "contains_egg": false,
-      "contains_sesame": false
+      "contains_sesame": false,
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0c/Eggs_benedict.jpg/640px-Eggs_benedict.jpg"
     }
   ]
 }

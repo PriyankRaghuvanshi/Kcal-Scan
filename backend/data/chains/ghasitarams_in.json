@@ -26,7 +26,8 @@
       "contains_soy": false,
       "contains_shellfish": false,
       "contains_egg": false,
-      "contains_sesame": false
+      "contains_sesame": false,
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Chocolate_cake_001.jpg/640px-Chocolate_cake_001.jpg"
     },
     {
       "item_name": "Motichoor Ladoo (2pc)",
@@ -47,7 +48,8 @@
       "contains_soy": false,
       "contains_shellfish": false,
       "contains_egg": false,
-      "contains_sesame": false
+      "contains_sesame": false,
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Chocolate_cake_001.jpg/640px-Chocolate_cake_001.jpg"
     },
     {
       "item_name": "Kalakand (100g)",
@@ -68,7 +70,8 @@
       "contains_soy": false,
       "contains_shellfish": false,
       "contains_egg": false,
-      "contains_sesame": false
+      "contains_sesame": false,
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Chocolate_cake_001.jpg/640px-Chocolate_cake_001.jpg"
     },
     {
       "item_name": "Kaju Katli (2 pc)",
@@ -90,7 +93,8 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.8,
-      "menu_item_source": "llm_curated"
+      "menu_item_source": "llm_curated",
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Chocolate_cake_001.jpg/640px-Chocolate_cake_001.jpg"
     },
     {
       "item_name": "Gulab Jamun (2 pc)",
@@ -112,7 +116,8 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.8,
-      "menu_item_source": "llm_curated"
+      "menu_item_source": "llm_curated",
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Chocolate_cake_001.jpg/640px-Chocolate_cake_001.jpg"
     },
     {
       "item_name": "Rasgulla (2 pc)",
@@ -134,7 +139,8 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.8,
-      "menu_item_source": "llm_curated"
+      "menu_item_source": "llm_curated",
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Chocolate_cake_001.jpg/640px-Chocolate_cake_001.jpg"
     },
     {
       "item_name": "Mixed Dry Fruit Barfi",
@@ -160,7 +166,8 @@
       "negative_flags": [
         "contains_palm_oil"
       ],
-      "contains_palm_oil": true
+      "contains_palm_oil": true,
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Chocolate_cake_001.jpg/640px-Chocolate_cake_001.jpg"
     },
     {
       "item_name": "Bhujia Namkeen (50g)",
@@ -186,7 +193,8 @@
       "negative_flags": [
         "contains_palm_oil"
       ],
-      "contains_palm_oil": true
+      "contains_palm_oil": true,
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c0/Various_grains.jpg/640px-Various_grains.jpg"
     }
   ]
 }

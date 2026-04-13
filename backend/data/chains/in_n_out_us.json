@@ -32,7 +32,8 @@
       "negative_flags": [
         "palm_oil_free"
       ],
-      "contains_palm_oil": false
+      "contains_palm_oil": false,
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/45/Tuna_sandwich.jpg/640px-Tuna_sandwich.jpg"
     },
     {
       "item_name": "Chicken Salad",
@@ -57,7 +58,8 @@
       "negative_flags": [
         "palm_oil_free"
       ],
-      "contains_palm_oil": false
+      "contains_palm_oil": false,
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8b/Caesar_salad_%281%29.jpg/640px-Caesar_salad_%281%29.jpg"
     },
     {
       "item_name": "Grilled Chicken Wrap",
@@ -82,7 +84,8 @@
       "negative_flags": [
         "palm_oil_free"
       ],
-      "contains_palm_oil": false
+      "contains_palm_oil": false,
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2a/Chicken_caesar_wrap.jpg/640px-Chicken_caesar_wrap.jpg"
     },
     {
       "item_name": "Side Salad",
@@ -107,7 +110,8 @@
       "negative_flags": [
         "palm_oil_free"
       ],
-      "contains_palm_oil": false
+      "contains_palm_oil": false,
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8b/Caesar_salad_%281%29.jpg/640px-Caesar_salad_%281%29.jpg"
     },
     {
       "item_name": "Veggie Option",
@@ -132,7 +136,8 @@
       "negative_flags": [
         "palm_oil_free"
       ],
-      "contains_palm_oil": false
+      "contains_palm_oil": false,
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
     }
   ]
 }

@@ -1,13 +1,13 @@
 {
-  "brand_name": "Hans im Glück",
+  "brand_name": "Hans im Gl\u00fcck",
   "source_type": "seed_template",
   "source_url": "https://www.hansimglueck-burgergrill.de/menu",
   "store_name_variants": [
     "hans im glueck",
-    "hans im glück",
+    "hans im gl\u00fcck",
     "hans im gluck",
     "hansimglueck",
-    "hansimglück",
+    "hansimgl\u00fcck",
     "hansimgluck"
   ],
   "items": [
@@ -30,7 +30,8 @@
       "contains_soy": false,
       "contains_shellfish": false,
       "contains_egg": false,
-      "contains_sesame": false
+      "contains_sesame": false,
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
     },
     {
       "item_name": "Classic Burger",
@@ -51,7 +52,8 @@
       "contains_soy": false,
       "contains_shellfish": false,
       "contains_egg": false,
-      "contains_sesame": false
+      "contains_sesame": false,
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
     },
     {
       "item_name": "Veggie Burger",
@@ -72,7 +74,8 @@
       "contains_soy": false,
       "contains_shellfish": false,
       "contains_egg": false,
-      "contains_sesame": false
+      "contains_sesame": false,
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
     }
   ]
 }

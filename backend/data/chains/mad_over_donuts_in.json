@@ -32,7 +32,8 @@
       "negative_flags": [
         "contains_palm_oil"
       ],
-      "contains_palm_oil": true
+      "contains_palm_oil": true,
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Chocolate_cake_001.jpg/640px-Chocolate_cake_001.jpg"
     },
     {
       "item_name": "Chocolate Overload Donut",
@@ -57,7 +58,8 @@
       "negative_flags": [
         "contains_palm_oil"
       ],
-      "contains_palm_oil": true
+      "contains_palm_oil": true,
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Chocolate_cake_001.jpg/640px-Chocolate_cake_001.jpg"
     },
     {
       "item_name": "Americano (black)",
@@ -79,7 +81,8 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "negative_flags": []
+      "negative_flags": [],
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/35/Coffee_cup.jpg/640px-Coffee_cup.jpg"
     },
     {
       "item_name": "Chocolate Donut",
@@ -105,7 +108,8 @@
       "negative_flags": [
         "contains_palm_oil"
       ],
-      "contains_palm_oil": true
+      "contains_palm_oil": true,
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Chocolate_cake_001.jpg/640px-Chocolate_cake_001.jpg"
     },
     {
       "item_name": "Jelly Filled Donut",
@@ -131,7 +135,8 @@
       "negative_flags": [
         "contains_palm_oil"
       ],
-      "contains_palm_oil": true
+      "contains_palm_oil": true,
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Chocolate_cake_001.jpg/640px-Chocolate_cake_001.jpg"
     },
     {
       "item_name": "Chicken Donut (savoury)",
@@ -157,7 +162,8 @@
       "negative_flags": [
         "contains_palm_oil"
       ],
-      "contains_palm_oil": true
+      "contains_palm_oil": true,
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
     },
     {
       "item_name": "Hot Chocolate (regular)",
@@ -180,7 +186,8 @@
       "contains_soy": false,
       "confidence": 0.8,
       "menu_item_source": "llm_curated",
-      "negative_flags": []
+      "negative_flags": [],
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/35/Coffee_cup.jpg/640px-Coffee_cup.jpg"
     }
   ]
 }

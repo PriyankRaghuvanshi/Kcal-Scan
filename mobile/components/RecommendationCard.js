@@ -4,7 +4,7 @@
  */
 
 import React from "react";
-import { View, Text, TouchableOpacity, Linking, StyleSheet } from "react-native";
+import { View, Text, TouchableOpacity, Linking, Image, StyleSheet } from "react-native";
 import { colors, spacing, radius, typography } from "../designTokens";
 import { premium } from "../ui/premiumSystem";
 import { ConfidenceBadge, inferConfidenceTier } from "./ConfidenceBadge";
@@ -177,6 +177,12 @@ export function RecommendationCard({
   const goalVariantPills = buildGoalVariantPills(place, bestItem);
   const palmOil = detectPalmOil(place);
   const usualMeal = buildUsualMealPill(place, bestItem);
+  // Top-item thumbnail. Falls back gracefully when the Supabase column is
+  // missing or the image URL doesn't resolve.
+  const topItemImageRaw = String(
+    (topItem && topItem.image_url) || place.best_item_image_url || ""
+  ).trim();
+  const topItemImage = topItemImageRaw.startsWith("https://") ? topItemImageRaw : null;
 
   const resolvedVariant = variant || inferCardVariant(place);
   const needsMenuCheck = shouldShowMenuMayVary(place);
@@ -222,9 +228,26 @@ export function RecommendationCard({
       {/* C. Best item + heuristic suggestion disclaimer for covered chains */}
       {bestItem ? (
         <View>
-          <Text style={[styles.bestItem, { color: textPrimary }]} numberOfLines={2}>
-            {bestItem}
-          </Text>
+          <View style={styles.bestItemRow}>
+            {topItemImage ? (
+              <Image
+                source={{ uri: topItemImage }}
+                style={styles.bestItemThumb}
+                resizeMode="cover"
+                accessible
+                accessibilityIgnoresInvertColors
+              />
+            ) : null}
+            <Text
+              style={[
+                styles.bestItem,
+                { color: textPrimary, flex: topItemImage ? 1 : undefined },
+              ]}
+              numberOfLines={2}
+            >
+              {bestItem}
+            </Text>
+          </View>
           {place.item_provenance === "heuristic_suggestion" && place.covered_chain_key ? (
             <View style={{ marginTop: 4 }}>
               <Text style={{ color: textMuted, fontSize: 11, fontStyle: "italic" }} numberOfLines={1}>
@@ -439,6 +462,18 @@ const styles = StyleSheet.create({
     fontWeight: typography.weight.bold,
     marginTop: spacing.md,
     lineHeight: typography.xl * 1.35,
+  },
+  bestItemRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    marginTop: spacing.md,
+  },
+  bestItemThumb: {
+    width: 56,
+    height: 56,
+    borderRadius: radius.sm,
+    backgroundColor: "rgba(148, 163, 184, 0.18)",
   },
   usualPill: {
     flexDirection: "row",

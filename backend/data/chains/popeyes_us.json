@@ -25,7 +25,8 @@
       "contains_soy": false,
       "contains_shellfish": false,
       "contains_egg": false,
-      "contains_sesame": false
+      "contains_sesame": false,
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/45/Tuna_sandwich.jpg/640px-Tuna_sandwich.jpg"
     },
     {
       "item_name": "Handcrafted Tenders (3pc)",
@@ -46,7 +47,8 @@
       "contains_soy": false,
       "contains_shellfish": false,
       "contains_egg": false,
-      "contains_sesame": false
+      "contains_sesame": false,
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
     },
     {
       "item_name": "Blackened Chicken Tenders (3pc)",
@@ -67,7 +69,8 @@
       "contains_soy": false,
       "contains_shellfish": false,
       "contains_egg": false,
-      "contains_sesame": false
+      "contains_sesame": false,
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
     },
     {
       "item_name": "Red Beans & Rice (regular)",
@@ -88,7 +91,8 @@
       "contains_soy": false,
       "contains_shellfish": false,
       "contains_egg": false,
-      "contains_sesame": false
+      "contains_sesame": false,
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8b/Caesar_salad_%281%29.jpg/640px-Caesar_salad_%281%29.jpg"
     },
     {
       "item_name": "Green Beans",
@@ -109,7 +113,8 @@
       "contains_soy": false,
       "contains_shellfish": false,
       "contains_egg": false,
-      "contains_sesame": false
+      "contains_sesame": false,
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8b/Caesar_salad_%281%29.jpg/640px-Caesar_salad_%281%29.jpg"
     },
     {
       "item_name": "Spicy Chicken Sandwich",
@@ -131,7 +136,8 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.95,
-      "menu_item_source": "official_published"
+      "menu_item_source": "official_published",
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
     },
     {
       "item_name": "Handcrafted Tenders (5pc)",
@@ -153,7 +159,8 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.95,
-      "menu_item_source": "official_published"
+      "menu_item_source": "official_published",
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
     },
     {
       "item_name": "Chicken Breast (mild)",
@@ -175,7 +182,8 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.95,
-      "menu_item_source": "official_published"
+      "menu_item_source": "official_published",
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
     },
     {
       "item_name": "Chicken Breast (spicy)",
@@ -197,7 +205,8 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.95,
-      "menu_item_source": "official_published"
+      "menu_item_source": "official_published",
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
     },
     {
       "item_name": "Chicken Thigh (mild)",
@@ -219,7 +228,8 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.95,
-      "menu_item_source": "official_published"
+      "menu_item_source": "official_published",
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
     },
     {
       "item_name": "Chicken Wing",
@@ -241,7 +251,8 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.95,
-      "menu_item_source": "official_published"
+      "menu_item_source": "official_published",
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
     },
     {
       "item_name": "Drumstick",
@@ -263,7 +274,8 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.95,
-      "menu_item_source": "official_published"
+      "menu_item_source": "official_published",
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
     },
     {
       "item_name": "Red Beans and Rice (regular)",
@@ -285,7 +297,8 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.95,
-      "menu_item_source": "official_published"
+      "menu_item_source": "official_published",
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8b/Caesar_salad_%281%29.jpg/640px-Caesar_salad_%281%29.jpg"
     },
     {
       "item_name": "Cajun Fries (regular)",
@@ -307,7 +320,8 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.95,
-      "menu_item_source": "official_published"
+      "menu_item_source": "official_published",
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8b/Caesar_salad_%281%29.jpg/640px-Caesar_salad_%281%29.jpg"
     },
     {
       "item_name": "Mashed Potatoes & Gravy",
@@ -329,7 +343,8 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.95,
-      "menu_item_source": "official_published"
+      "menu_item_source": "official_published",
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8b/Caesar_salad_%281%29.jpg/640px-Caesar_salad_%281%29.jpg"
     },
     {
       "item_name": "Coleslaw (regular)",
@@ -351,7 +366,8 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.95,
-      "menu_item_source": "official_published"
+      "menu_item_source": "official_published",
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8b/Caesar_salad_%281%29.jpg/640px-Caesar_salad_%281%29.jpg"
     },
     {
       "item_name": "Popeyes Biscuit",
@@ -373,7 +389,8 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.95,
-      "menu_item_source": "official_published"
+      "menu_item_source": "official_published",
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8b/Caesar_salad_%281%29.jpg/640px-Caesar_salad_%281%29.jpg"
     }
   ]
 }

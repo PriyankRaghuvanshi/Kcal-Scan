@@ -1,13 +1,13 @@
 {
-  "brand_name": "Tavuk Dünyası",
+  "brand_name": "Tavuk D\u00fcnyas\u0131",
   "source_type": "seed_template",
   "source_url": "https://www.tavukdunyasi.com/menu",
   "store_name_variants": [
     "tavuk dunyasi",
-    "tavuk dünyası",
+    "tavuk d\u00fcnyas\u0131",
     "tavuk dunyas",
     "tavukdunyasi",
-    "tavukdünyası",
+    "tavukd\u00fcnyas\u0131",
     "tavukdunyas"
   ],
   "items": [
@@ -30,10 +30,11 @@
       "contains_soy": false,
       "contains_shellfish": false,
       "contains_egg": false,
-      "contains_sesame": false
+      "contains_sesame": false,
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
     },
     {
-      "item_name": "Chicken Döner + Rice",
+      "item_name": "Chicken D\u00f6ner + Rice",
       "category": "entree",
       "estimated_calories": 580,
       "estimated_protein_g": 32,
@@ -51,7 +52,8 @@
       "contains_soy": false,
       "contains_shellfish": false,
       "contains_egg": false,
-      "contains_sesame": false
+      "contains_sesame": false,
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
     },
     {
       "item_name": "Chicken Wings (6pc)",
@@ -72,7 +74,8 @@
       "contains_soy": false,
       "contains_shellfish": false,
       "contains_egg": false,
-      "contains_sesame": false
+      "contains_sesame": false,
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
     }
   ]
 }

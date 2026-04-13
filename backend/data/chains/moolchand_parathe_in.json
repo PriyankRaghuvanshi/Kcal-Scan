@@ -29,7 +29,8 @@
       "contains_soy": false,
       "contains_shellfish": false,
       "contains_egg": false,
-      "contains_sesame": false
+      "contains_sesame": false,
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
     },
     {
       "item_name": "Paneer Paratha (1pc)",
@@ -50,7 +51,8 @@
       "contains_soy": false,
       "contains_shellfish": false,
       "contains_egg": false,
-      "contains_sesame": false
+      "contains_sesame": false,
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
     },
     {
       "item_name": "Butter Chicken + 2 Roti",
@@ -71,7 +73,8 @@
       "contains_soy": false,
       "contains_shellfish": false,
       "contains_egg": false,
-      "contains_sesame": false
+      "contains_sesame": false,
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
     },
     {
       "item_name": "Chhole Kulche",
@@ -92,7 +95,8 @@
       "contains_soy": false,
       "contains_shellfish": false,
       "contains_egg": false,
-      "contains_sesame": false
+      "contains_sesame": false,
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
     },
     {
       "item_name": "Aloo Paratha + Curd",
@@ -113,7 +117,8 @@
       "contains_sesame": false,
       "contains_shellfish": false,
       "contains_soy": false,
-      "confidence": 0.9
+      "confidence": 0.9,
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0c/Eggs_benedict.jpg/640px-Eggs_benedict.jpg"
     },
     {
       "item_name": "Paneer Paratha + Curd",
@@ -134,7 +139,8 @@
       "contains_sesame": false,
       "contains_shellfish": false,
       "contains_soy": false,
-      "confidence": 0.9
+      "confidence": 0.9,
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0c/Eggs_benedict.jpg/640px-Eggs_benedict.jpg"
     },
     {
       "item_name": "Egg Paratha + Chai",
@@ -155,7 +161,8 @@
       "contains_sesame": false,
       "contains_shellfish": false,
       "contains_soy": false,
-      "confidence": 0.9
+      "confidence": 0.9,
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0c/Eggs_benedict.jpg/640px-Eggs_benedict.jpg"
     },
     {
       "item_name": "Sweet Lassi (small)",
@@ -176,7 +183,8 @@
       "contains_sesame": false,
       "contains_shellfish": false,
       "contains_soy": false,
-      "confidence": 0.9
+      "confidence": 0.9,
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/35/Coffee_cup.jpg/640px-Coffee_cup.jpg"
     }
   ]
 }

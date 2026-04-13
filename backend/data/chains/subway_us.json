@@ -25,7 +25,8 @@
       "contains_soy": false,
       "contains_shellfish": false,
       "contains_egg": false,
-      "contains_sesame": false
+      "contains_sesame": false,
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
     },
     {
       "item_name": "6-inch Turkey Breast",
@@ -46,7 +47,8 @@
       "contains_soy": false,
       "contains_shellfish": false,
       "contains_egg": false,
-      "contains_sesame": false
+      "contains_sesame": false,
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
     },
     {
       "item_name": "6-inch Veggie Delite",
@@ -67,7 +69,8 @@
       "contains_soy": false,
       "contains_shellfish": false,
       "contains_egg": false,
-      "contains_sesame": false
+      "contains_sesame": false,
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
     },
     {
       "item_name": "Protein Bowl (Chicken)",
@@ -88,7 +91,8 @@
       "contains_soy": false,
       "contains_shellfish": false,
       "contains_egg": false,
-      "contains_sesame": false
+      "contains_sesame": false,
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
     },
     {
       "item_name": "6-inch Italian BMT",
@@ -109,7 +113,8 @@
       "contains_soy": false,
       "contains_shellfish": false,
       "contains_egg": false,
-      "contains_sesame": false
+      "contains_sesame": false,
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
     },
     {
       "item_name": "6-inch Steak & Cheese",
@@ -130,7 +135,8 @@
       "contains_soy": false,
       "contains_shellfish": false,
       "contains_egg": false,
-      "contains_sesame": false
+      "contains_sesame": false,
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
     },
     {
       "item_name": "6-inch Oven Roasted Chicken",
@@ -152,7 +158,8 @@
       "contains_shellfish": false,
       "contains_soy": true,
       "confidence": 0.95,
-      "menu_item_source": "official_published"
+      "menu_item_source": "official_published",
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
     },
     {
       "item_name": "6-inch Rotisserie-Style Chicken",
@@ -174,7 +181,8 @@
       "contains_shellfish": false,
       "contains_soy": true,
       "confidence": 0.95,
-      "menu_item_source": "official_published"
+      "menu_item_source": "official_published",
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
     },
     {
       "item_name": "6-inch Subway Club",
@@ -196,7 +204,8 @@
       "contains_shellfish": false,
       "contains_soy": true,
       "confidence": 0.95,
-      "menu_item_source": "official_published"
+      "menu_item_source": "official_published",
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
     },
     {
       "item_name": "6-inch Black Forest Ham",
@@ -218,7 +227,8 @@
       "contains_shellfish": false,
       "contains_soy": true,
       "confidence": 0.95,
-      "menu_item_source": "official_published"
+      "menu_item_source": "official_published",
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
     },
     {
       "item_name": "6-inch Meatball Marinara",
@@ -240,7 +250,8 @@
       "contains_shellfish": false,
       "contains_soy": true,
       "confidence": 0.95,
-      "menu_item_source": "official_published"
+      "menu_item_source": "official_published",
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
     },
     {
       "item_name": "6-inch Tuna",
@@ -262,7 +273,8 @@
       "contains_shellfish": false,
       "contains_soy": true,
       "confidence": 0.95,
-      "menu_item_source": "official_published"
+      "menu_item_source": "official_published",
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
     },
     {
       "item_name": "6-inch Chicken Bacon Ranch Melt",
@@ -284,7 +296,8 @@
       "contains_shellfish": false,
       "contains_soy": true,
       "confidence": 0.95,
-      "menu_item_source": "official_published"
+      "menu_item_source": "official_published",
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
     },
     {
       "item_name": "Salad (Turkey Breast)",
@@ -306,7 +319,8 @@
       "contains_shellfish": false,
       "contains_soy": true,
       "confidence": 0.95,
-      "menu_item_source": "official_published"
+      "menu_item_source": "official_published",
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8b/Caesar_salad_%281%29.jpg/640px-Caesar_salad_%281%29.jpg"
     },
     {
       "item_name": "Salad (Rotisserie Chicken)",
@@ -328,7 +342,8 @@
       "contains_shellfish": false,
       "contains_soy": true,
       "confidence": 0.95,
-      "menu_item_source": "official_published"
+      "menu_item_source": "official_published",
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8b/Caesar_salad_%281%29.jpg/640px-Caesar_salad_%281%29.jpg"
     },
     {
       "item_name": "Wrap (Chicken Bacon Ranch)",
@@ -350,7 +365,8 @@
       "contains_shellfish": false,
       "contains_soy": true,
       "confidence": 0.95,
-      "menu_item_source": "official_published"
+      "menu_item_source": "official_published",
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
     },
     {
       "item_name": "Kids Ham Sub (4-inch)",
@@ -372,7 +388,8 @@
       "contains_shellfish": false,
       "contains_soy": true,
       "confidence": 0.95,
-      "menu_item_source": "official_published"
+      "menu_item_source": "official_published",
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
     },
     {
       "item_name": "Chocolate Chip Cookie",
@@ -394,7 +411,8 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.95,
-      "menu_item_source": "official_published"
+      "menu_item_source": "official_published",
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Chocolate_cake_001.jpg/640px-Chocolate_cake_001.jpg"
     }
   ]
 }

@@ -28,7 +28,8 @@
       "contains_soy": false,
       "contains_shellfish": false,
       "contains_egg": false,
-      "contains_sesame": false
+      "contains_sesame": false,
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
     },
     {
       "item_name": "Margherita Personal",
@@ -49,7 +50,8 @@
       "contains_soy": false,
       "contains_shellfish": false,
       "contains_egg": false,
-      "contains_sesame": false
+      "contains_sesame": false,
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
     },
     {
       "item_name": "Margherita Pizza (personal)",
@@ -71,7 +73,8 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.8,
-      "menu_item_source": "llm_curated"
+      "menu_item_source": "llm_curated",
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
     },
     {
       "item_name": "Chicken Pizza (personal)",
@@ -93,7 +96,8 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.8,
-      "menu_item_source": "llm_curated"
+      "menu_item_source": "llm_curated",
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
     },
     {
       "item_name": "Thin-Crust Veggie (personal)",
@@ -115,7 +119,8 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.8,
-      "menu_item_source": "llm_curated"
+      "menu_item_source": "llm_curated",
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
     },
     {
       "item_name": "BBQ Chicken Pizza (personal)",
@@ -137,7 +142,8 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.8,
-      "menu_item_source": "llm_curated"
+      "menu_item_source": "llm_curated",
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
     },
     {
       "item_name": "Garlic Bread (4 pc)",
@@ -159,7 +165,8 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.8,
-      "menu_item_source": "llm_curated"
+      "menu_item_source": "llm_curated",
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8b/Caesar_salad_%281%29.jpg/640px-Caesar_salad_%281%29.jpg"
     }
   ]
 }

@@ -29,7 +29,8 @@
       "negative_flags": [
         "contains_palm_oil"
       ],
-      "contains_palm_oil": true
+      "contains_palm_oil": true,
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
     },
     {
       "item_name": "Paneer Wrap",
@@ -51,7 +52,8 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "negative_flags": []
+      "negative_flags": [],
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2a/Chicken_caesar_wrap.jpg/640px-Chicken_caesar_wrap.jpg"
     },
     {
       "item_name": "Rice Bowl",
@@ -76,7 +78,8 @@
       "negative_flags": [
         "contains_palm_oil"
       ],
-      "contains_palm_oil": true
+      "contains_palm_oil": true,
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/aa/Buddha_bowl_with_falafel.jpg/640px-Buddha_bowl_with_falafel.jpg"
     },
     {
       "item_name": "Dal + Roti",
@@ -101,7 +104,8 @@
       "negative_flags": [
         "contains_palm_oil"
       ],
-      "contains_palm_oil": true
+      "contains_palm_oil": true,
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
     }
   ]
 }

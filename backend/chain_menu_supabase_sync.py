@@ -26,6 +26,8 @@ CHAIN_MENU_ITEM_ALLOWED_COLUMNS = {
     "source_url",
     "protein_density_score",
     "fat_loss_fit_score",
+    "image_url",  # optional thumbnail (Wikimedia/CDN). Persisted only after
+                  # the ALTER TABLE in sql/add_image_url_column.sql is applied.
 }
 
 

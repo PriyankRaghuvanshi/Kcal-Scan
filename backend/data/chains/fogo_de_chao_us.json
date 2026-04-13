@@ -1,13 +1,13 @@
 {
-  "brand_name": "Fogo de Chão",
+  "brand_name": "Fogo de Ch\u00e3o",
   "source_type": "seed_template",
   "source_url": "https://fogodechao.com/menu",
   "store_name_variants": [
     "fogo",
     "fogo de chao",
-    "fogo de chão",
+    "fogo de ch\u00e3o",
     "fogodechao",
-    "fogodechão"
+    "fogodech\u00e3o"
   ],
   "items": [
     {
@@ -29,7 +29,8 @@
       "contains_soy": false,
       "contains_shellfish": false,
       "contains_egg": false,
-      "contains_sesame": false
+      "contains_sesame": false,
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
     },
     {
       "item_name": "Market Table Salad",
@@ -50,7 +51,8 @@
       "contains_soy": false,
       "contains_shellfish": false,
       "contains_egg": false,
-      "contains_sesame": false
+      "contains_sesame": false,
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8b/Caesar_salad_%281%29.jpg/640px-Caesar_salad_%281%29.jpg"
     },
     {
       "item_name": "Grilled Chicken Breast",
@@ -71,7 +73,8 @@
       "contains_soy": false,
       "contains_shellfish": false,
       "contains_egg": false,
-      "contains_sesame": false
+      "contains_sesame": false,
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
     }
   ]
 }

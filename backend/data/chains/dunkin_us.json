@@ -30,7 +30,8 @@
       "contains_soy": false,
       "contains_shellfish": false,
       "contains_egg": false,
-      "contains_sesame": false
+      "contains_sesame": false,
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/45/Tuna_sandwich.jpg/640px-Tuna_sandwich.jpg"
     },
     {
       "item_name": "Chicken Salad",
@@ -51,7 +52,8 @@
       "contains_soy": false,
       "contains_shellfish": false,
       "contains_egg": false,
-      "contains_sesame": false
+      "contains_sesame": false,
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8b/Caesar_salad_%281%29.jpg/640px-Caesar_salad_%281%29.jpg"
     },
     {
       "item_name": "Grilled Chicken Wrap",
@@ -72,7 +74,8 @@
       "contains_soy": false,
       "contains_shellfish": false,
       "contains_egg": false,
-      "contains_sesame": false
+      "contains_sesame": false,
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2a/Chicken_caesar_wrap.jpg/640px-Chicken_caesar_wrap.jpg"
     },
     {
       "item_name": "Side Salad",
@@ -93,7 +96,8 @@
       "contains_soy": false,
       "contains_shellfish": false,
       "contains_egg": false,
-      "contains_sesame": false
+      "contains_sesame": false,
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8b/Caesar_salad_%281%29.jpg/640px-Caesar_salad_%281%29.jpg"
     },
     {
       "item_name": "Veggie Option",
@@ -114,7 +118,8 @@
       "contains_soy": false,
       "contains_shellfish": false,
       "contains_egg": false,
-      "contains_sesame": false
+      "contains_sesame": false,
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
     },
     {
       "item_name": "Glazed Donut",
@@ -140,7 +145,8 @@
       "negative_flags": [
         "contains_palm_oil"
       ],
-      "contains_palm_oil": true
+      "contains_palm_oil": true,
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Chocolate_cake_001.jpg/640px-Chocolate_cake_001.jpg"
     },
     {
       "item_name": "Boston Kreme Donut",
@@ -166,7 +172,8 @@
       "negative_flags": [
         "contains_palm_oil"
       ],
-      "contains_palm_oil": true
+      "contains_palm_oil": true,
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Chocolate_cake_001.jpg/640px-Chocolate_cake_001.jpg"
     },
     {
       "item_name": "Old Fashioned Donut",
@@ -192,7 +199,8 @@
       "negative_flags": [
         "contains_palm_oil"
       ],
-      "contains_palm_oil": true
+      "contains_palm_oil": true,
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Chocolate_cake_001.jpg/640px-Chocolate_cake_001.jpg"
     },
     {
       "item_name": "Chocolate Frosted Donut",
@@ -218,7 +226,8 @@
       "negative_flags": [
         "contains_palm_oil"
       ],
-      "contains_palm_oil": true
+      "contains_palm_oil": true,
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Chocolate_cake_001.jpg/640px-Chocolate_cake_001.jpg"
     },
     {
       "item_name": "Plain Bagel",
@@ -240,7 +249,8 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.95,
-      "menu_item_source": "official_published"
+      "menu_item_source": "official_published",
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0c/Eggs_benedict.jpg/640px-Eggs_benedict.jpg"
     },
     {
       "item_name": "Egg & Cheese Wake-Up Wrap",
@@ -263,7 +273,8 @@
       "contains_soy": false,
       "confidence": 0.95,
       "menu_item_source": "official_published",
-      "negative_flags": []
+      "negative_flags": [],
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0c/Eggs_benedict.jpg/640px-Eggs_benedict.jpg"
     },
     {
       "item_name": "Sausage Egg Cheese Croissant",
@@ -289,7 +300,8 @@
       "negative_flags": [
         "contains_palm_oil"
       ],
-      "contains_palm_oil": true
+      "contains_palm_oil": true,
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0c/Eggs_benedict.jpg/640px-Eggs_benedict.jpg"
     },
     {
       "item_name": "Tall Hot Latte (2% milk)",
@@ -311,7 +323,8 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.95,
-      "menu_item_source": "official_published"
+      "menu_item_source": "official_published",
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/35/Coffee_cup.jpg/640px-Coffee_cup.jpg"
     },
     {
       "item_name": "Medium Iced Coffee (black)",
@@ -333,7 +346,8 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.95,
-      "menu_item_source": "official_published"
+      "menu_item_source": "official_published",
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/35/Coffee_cup.jpg/640px-Coffee_cup.jpg"
     },
     {
       "item_name": "Medium Iced Caramel Macchiato",
@@ -355,7 +369,8 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.95,
-      "menu_item_source": "official_published"
+      "menu_item_source": "official_published",
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/35/Coffee_cup.jpg/640px-Coffee_cup.jpg"
     },
     {
       "item_name": "Medium Frozen Caramel Coffee",
@@ -377,7 +392,8 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.95,
-      "menu_item_source": "official_published"
+      "menu_item_source": "official_published",
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/35/Coffee_cup.jpg/640px-Coffee_cup.jpg"
     },
     {
       "item_name": "Munchkins (5 glazed)",
@@ -403,7 +419,8 @@
       "negative_flags": [
         "contains_palm_oil"
       ],
-      "contains_palm_oil": true
+      "contains_palm_oil": true,
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Chocolate_cake_001.jpg/640px-Chocolate_cake_001.jpg"
     }
   ]
 }

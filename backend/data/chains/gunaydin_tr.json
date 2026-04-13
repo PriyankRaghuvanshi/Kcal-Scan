@@ -1,11 +1,11 @@
 {
-  "brand_name": "Günaydın",
+  "brand_name": "G\u00fcnayd\u0131n",
   "source_type": "seed_template",
   "source_url": "https://gunaydin.com.tr/menu",
   "store_name_variants": [
     "gunaydin",
-    "günaydın",
-    "günaydin",
+    "g\u00fcnayd\u0131n",
+    "g\u00fcnaydin",
     "gunaydn"
   ],
   "items": [
@@ -28,7 +28,8 @@
       "contains_soy": false,
       "contains_shellfish": false,
       "contains_egg": false,
-      "contains_sesame": false
+      "contains_sesame": false,
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
     },
     {
       "item_name": "Adana Kebab (1 skewer)",
@@ -49,7 +50,8 @@
       "contains_soy": false,
       "contains_shellfish": false,
       "contains_egg": false,
-      "contains_sesame": false
+      "contains_sesame": false,
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
     },
     {
       "item_name": "Chicken Shish Kebab (1 skewer)",
@@ -70,7 +72,8 @@
       "contains_soy": false,
       "contains_shellfish": false,
       "contains_egg": false,
-      "contains_sesame": false
+      "contains_sesame": false,
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
     }
   ]
 }

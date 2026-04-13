@@ -1,18 +1,18 @@
 {
-  "brand_name": "La Lucha Sanguchería",
+  "brand_name": "La Lucha Sangucher\u00eda",
   "source_type": "seed_template",
   "source_url": "https://www.lalucha.com.pe/menu",
   "store_name_variants": [
     "la lucha",
     "la lucha sangucheria",
-    "la lucha sanguchería",
+    "la lucha sangucher\u00eda",
     "lalucha",
     "laluchasangucheria",
-    "laluchasanguchería"
+    "laluchasangucher\u00eda"
   ],
   "items": [
     {
-      "item_name": "Chicharrón Sandwich",
+      "item_name": "Chicharr\u00f3n Sandwich",
       "category": "entree",
       "estimated_calories": 620,
       "estimated_protein_g": 32,
@@ -30,7 +30,8 @@
       "contains_soy": false,
       "contains_shellfish": false,
       "contains_egg": false,
-      "contains_sesame": false
+      "contains_sesame": false,
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
     },
     {
       "item_name": "Pavo Sandwich (turkey)",
@@ -51,7 +52,8 @@
       "contains_soy": false,
       "contains_shellfish": false,
       "contains_egg": false,
-      "contains_sesame": false
+      "contains_sesame": false,
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
     }
   ]
 }
