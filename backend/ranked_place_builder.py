@@ -6,7 +6,7 @@ and merge the result into the place; do not recompute ranking in lunch_decision,
 """
 from __future__ import annotations
 
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from meal_ranking import (
     LABEL_BEST_PICK,
@@ -54,17 +54,56 @@ def _rank_reason_short(
     recommendation_label: str,
     is_generic_fallback: bool,
     fit_today_score_100: float,
+    *,
+    top_item_name: str = "",
+    remaining_calories: Optional[float] = None,
+    remaining_protein_g: Optional[float] = None,
 ) -> str:
-    """One short deterministic reason line per place (no LLM)."""
+    """One short deterministic reason line per place (no LLM).
+
+    When we have both the specific top item and the user's remaining budget,
+    produce a fit-aware line that cites both (e.g. "Grilled Chicken Sandwich:
+    370 kcal fits within your 620 remaining."). Falls back to the generic
+    tier-based strings if those signals are missing.
+    """
     if is_generic_fallback:
         return "Good fallback, but check menu for best pick."
     if recommendation_label == LABEL_NEEDS_MENU_CHECK:
         return "Needs menu confirmation."
-    if _safe_float(fit_today_score_100, 50) >= 75 and protein_g >= 30:
-        return f"{int(protein_g)}g protein, fits today."
-    if display_rank_score_100 >= 70 and protein_g >= 25:
+
+    item = (top_item_name or "").strip()
+    cal = max(int(calories or 0), 0)
+    prot = int(_safe_float(protein_g, 0.0) or 0.0)
+    rem_kcal = _safe_float(remaining_calories, -1.0) if remaining_calories is not None else -1.0
+    rem_prot = _safe_float(remaining_protein_g, -1.0) if remaining_protein_g is not None else -1.0
+
+    # Prefer a specific reason that cites the item + its fit to the user's
+    # remaining macros, when we have all three signals.
+    if item and cal > 0 and rem_kcal > 0:
+        if cal <= rem_kcal * 0.5:
+            return f"{item}: {cal} kcal — well under your {int(rem_kcal)} remaining."
+        if cal <= rem_kcal * 0.85:
+            return f"{item}: {cal} kcal fits within your {int(rem_kcal)} remaining."
+        if cal <= rem_kcal:
+            return f"{item}: {cal} kcal uses most of your {int(rem_kcal)} remaining."
+        if rem_kcal >= 200:
+            return f"{item}: {cal} kcal exceeds your {int(rem_kcal)} — share or go smaller."
+
+    if item and prot >= 25 and rem_prot > 0:
+        return f"{item}: {prot}g protein, closes ~{int(rem_prot)}g gap."
+
+    if item and prot >= 30:
+        return f"{item}: {prot}g protein pick."
+
+    if item and cal > 0 and cal < 450:
+        return f"{item}: {cal} kcal — lighter option."
+
+    # Generic tier fallbacks (no item or no user budget signals).
+    if _safe_float(fit_today_score_100, 50) >= 75 and prot >= 30:
+        return f"{prot}g protein, fits today."
+    if display_rank_score_100 >= 70 and prot >= 25:
         return "Higher protein, better whole-food option."
-    if calories < 450 and protein_g < 22:
+    if cal < 450 and prot < 22:
         return "Lower calorie but weaker protein."
     if display_rank_score_100 >= 55:
         return "Reasonable option; check menu for exact items."
@@ -162,6 +201,9 @@ def build_ranked_place_profile(
         rec_label,
         is_generic,
         fit_today_100,
+        top_item_name=best_order,
+        remaining_calories=user_context.get("remaining_calories") if isinstance(user_context, dict) else None,
+        remaining_protein_g=user_context.get("remaining_protein_g") if isinstance(user_context, dict) else None,
     )
     why_ranked = why_this_ranked_here_short(
         display_rank_score_100, eligibility_band, rec_label,
