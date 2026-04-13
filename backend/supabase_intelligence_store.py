@@ -22,6 +22,7 @@ TBL_CHAIN_MENU_ITEMS = "chain_menu_items"
 TBL_CHAIN_MENU_PROFILES = "chain_menu_profiles"
 TBL_CHAIN_MATCH_EVENTS = "chain_match_events"
 TBL_CHAIN_REGISTRY = "chain_registry"
+_IMAGE_URL_FALLBACK_WARNED = False
 
 
 def _supabase_available() -> bool:
@@ -247,6 +248,43 @@ def _chain_sync_debug() -> bool:
     return v in ("1", "true", "yes", "on")
 
 
+def _http_error_body(exc: Exception) -> str:
+    """Best-effort extraction of HTTP error body across urllib / requests."""
+    try:
+        if hasattr(exc, "read"):
+            body = exc.read()
+            if isinstance(body, bytes):
+                return body.decode("utf-8", errors="ignore")
+            return str(body or "")
+    except Exception:
+        pass
+    try:
+        response = getattr(exc, "response", None)
+        text = getattr(response, "text", "")
+        if text:
+            return str(text)
+    except Exception:
+        pass
+    return ""
+
+
+def _rows_without_optional_column(rows: List[Dict[str, Any]], column: str) -> List[Dict[str, Any]]:
+    return [{k: v for k, v in row.items() if k != column} for row in rows]
+
+
+def _should_retry_without_image_url(exc: Exception, rows: List[Dict[str, Any]]) -> bool:
+    if not any("image_url" in row for row in rows):
+        return False
+    body = _http_error_body(exc)
+    text = f"{repr(exc)}\n{body}".lower()
+    return "image_url" in text and (
+        "column" in text
+        or "schema cache" in text
+        or "could not find" in text
+        or "does not exist" in text
+    )
+
+
 def upsert_chain_menu_profile(row: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     """Upsert one chain_menu_profiles row. Fail-open: returns None on error."""
     if not _supabase_available():
@@ -339,20 +377,36 @@ def upsert_chain_menu_items(chain_key: str, market_tag: str, items: List[Dict[st
         if _chain_sync_debug():
             print("SUPABASE DEBUG upsert_chain_menu_items POST status:", status)
         return len(rows)
-    except HTTPError as e:
-        if _chain_sync_debug():
-            body = ""
+    except Exception as e:
+        if _should_retry_without_image_url(e, rows):
+            global _IMAGE_URL_FALLBACK_WARNED
+            fallback_rows = _rows_without_optional_column(rows, "image_url")
+            if not _IMAGE_URL_FALLBACK_WARNED:
+                print("SUPABASE WARN chain_menu_items retrying without image_url; run sql/add_image_url_column.sql to persist thumbnails.")
+                _IMAGE_URL_FALLBACK_WARNED = True
+            if _chain_sync_debug():
+                body = _http_error_body(e)
+                print("SUPABASE DEBUG upsert_chain_menu_items retry_without_image_url:", True)
+                print("SUPABASE DEBUG upsert_chain_menu_items ERROR:", repr(e))
+                if body:
+                    print("SUPABASE DEBUG upsert_chain_menu_items ERROR BODY:", body)
             try:
-                body = e.read().decode("utf-8", errors="ignore")
-            except Exception:
-                body = ""
+                status, _ = _http_post_json(url, headers=headers, payload=fallback_rows, params=params, timeout=30)
+                if _chain_sync_debug():
+                    print("SUPABASE DEBUG upsert_chain_menu_items POST status (no image_url):", status)
+                return len(fallback_rows)
+            except Exception as retry_exc:
+                if _chain_sync_debug():
+                    retry_body = _http_error_body(retry_exc)
+                    print("SUPABASE DEBUG upsert_chain_menu_items RETRY ERROR:", repr(retry_exc))
+                    if retry_body:
+                        print("SUPABASE DEBUG upsert_chain_menu_items RETRY ERROR BODY:", retry_body)
+                return 0
+        if _chain_sync_debug():
+            body = _http_error_body(e)
             print("SUPABASE DEBUG upsert_chain_menu_items ERROR:", repr(e))
             if body:
                 print("SUPABASE DEBUG upsert_chain_menu_items ERROR BODY:", body)
-        return 0
-    except Exception as e:
-        if _chain_sync_debug():
-            print("SUPABASE DEBUG upsert_chain_menu_items ERROR:", repr(e))
         return 0
 
 

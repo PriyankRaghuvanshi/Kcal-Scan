@@ -2,7 +2,9 @@
 Tests for chain menu Supabase sync and get_chain_menu_items / list_chain_menu_chain_keys.
 Uses unittest and mocking; no real Supabase required.
 """
+import io
 import unittest
+from urllib.error import HTTPError
 from unittest.mock import patch, MagicMock
 
 from chain_menu_supabase_sync import sync_chain_menu_to_supabase, _seed_items_to_rows
@@ -11,6 +13,7 @@ from supabase_intelligence_store import (
     list_chain_menu_chain_keys,
     TBL_CHAIN_MENU_ITEMS,
     TBL_CHAIN_MENU_PROFILES,
+    upsert_chain_menu_items,
 )
 
 
@@ -129,6 +132,64 @@ class TestSeedItemsToRowsWhitelist(unittest.TestCase):
         self.assertNotIn("contains_egg", row)
         self.assertNotIn("contains_sesame", row)
         self.assertNotIn("contains_palm_oil", row)
+
+
+class TestImageUrlFallback(unittest.TestCase):
+    """Batch retries without image_url when production schema is behind."""
+
+    @patch("supabase_intelligence_store._supabase_available")
+    @patch("supabase_intelligence_store._supabase_base_url")
+    @patch("supabase_intelligence_store._supabase_headers")
+    @patch("supabase_intelligence_store._http_post_json")
+    def test_upsert_chain_menu_items_retries_without_image_url_on_missing_column(
+        self, mock_post_json, mock_headers, mock_base_url, mock_supabase_available
+    ):
+        mock_supabase_available.return_value = True
+        mock_base_url.return_value = "https://example.supabase.co/rest/v1"
+        mock_headers.return_value = {"Content-Type": "application/json"}
+        err = HTTPError(
+            url="https://example.supabase.co/rest/v1/chain_menu_items",
+            code=400,
+            msg="Bad Request",
+            hdrs=None,
+            fp=io.BytesIO(b'{\"message\":\"Could not find the \\\"image_url\\\" column of \\\"chain_menu_items\\\" in the schema cache\"}'),
+        )
+        mock_post_json.side_effect = [
+            err,
+            (201, []),
+        ]
+
+        count = upsert_chain_menu_items(
+            "chipotle",
+            "US",
+            [
+                {
+                    "item_key": "chipotle_high_protein_bowl",
+                    "item_name": "High Protein Bowl",
+                    "category": "bowl",
+                    "estimated_calories": 820,
+                    "estimated_protein_g": 60,
+                    "estimated_carbs_g": 55,
+                    "estimated_fat_g": 35,
+                    "vegetarian_possible": False,
+                    "vegan_possible": False,
+                    "confidence": 0.82,
+                    "negative_flags": [],
+                    "menu_item_source": "seed_estimated",
+                    "source_url": "https://www.chipotle.com/nutrition",
+                    "protein_density_score": 7.32,
+                    "fat_loss_fit_score": 86.3,
+                    "image_url": "https://upload.wikimedia.org/example.jpg",
+                }
+            ],
+        )
+
+        self.assertEqual(count, 1)
+        self.assertEqual(mock_post_json.call_count, 2)
+        first_payload = mock_post_json.call_args_list[0].kwargs["payload"]
+        second_payload = mock_post_json.call_args_list[1].kwargs["payload"]
+        self.assertIn("image_url", first_payload[0])
+        self.assertNotIn("image_url", second_payload[0])
 
 
 class TestSyncChipotleUs(unittest.TestCase):
