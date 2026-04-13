@@ -782,6 +782,23 @@ CHAIN_KEYS: Dict[str, List[str]] = {
     "oishi": ["oishi"],
     "yayoi": ["yayoi"],
     "zizzi": ["zizzi"],
+
+    # --- Wave 3a: confident branded aliases for short/generic chain_keys ---
+    "a2b": ["adyar ananda bhavan", "a2b"],
+    "cpk": ["california pizza kitchen", "cpk"],
+    "dig": ["dig food", "dig inn"],
+    "gbk": ["gourmet burger kitchen", "gbk"],
+    "mtr": ["mavalli tiffin room", "mtr"],
+    "brio": ["brio italian grille", "brio tuscan grille"],
+    "cibo": ["cibo espresso"],
+    "gad": ["gad restaurant"],
+    "grom": ["grom gelato"],
+    "maoz": ["maoz vegetarian"],
+    "social": ["smoke house social", "social clubhouse"],
+    "indigo": ["indigo delicatessen", "indigo deli"],
+    "shiraz": ["shiraz golden"],
+    "bravo": ["bravo cucina italiana", "bravo italian kitchen"],
+    "maxims": ["maxim's caterers", "maxim's cakes"],
 }
 
 _SUFFIX_RE = re.compile(
