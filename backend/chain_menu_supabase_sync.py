@@ -10,6 +10,24 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+CHAIN_MENU_ITEM_ALLOWED_COLUMNS = {
+    "item_key",
+    "item_name",
+    "category",
+    "estimated_calories",
+    "estimated_protein_g",
+    "estimated_carbs_g",
+    "estimated_fat_g",
+    "vegetarian_possible",
+    "vegan_possible",
+    "confidence",
+    "negative_flags",
+    "menu_item_source",
+    "source_url",
+    "protein_density_score",
+    "fat_loss_fit_score",
+}
+
 
 def _slug_for_item_key(name: str) -> str:
     """Derive a safe item_key slug from item_name (lowercase, alphanumeric + underscore)."""
@@ -109,7 +127,7 @@ def _seed_items_to_rows(
                 - (2 * len(item["negative_flags"])),
                 2,
             )
-        rows.append(item)
+        rows.append({k: item[k] for k in CHAIN_MENU_ITEM_ALLOWED_COLUMNS if k in item})
     return rows
 
 

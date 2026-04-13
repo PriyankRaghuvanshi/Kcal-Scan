@@ -297,6 +297,17 @@ def upsert_chain_menu_items(chain_key: str, market_tag: str, items: List[Dict[st
         if _chain_sync_debug():
             print("SUPABASE DEBUG upsert_chain_menu_items POST status:", status)
         return len(rows)
+    except HTTPError as e:
+        if _chain_sync_debug():
+            body = ""
+            try:
+                body = e.read().decode("utf-8", errors="ignore")
+            except Exception:
+                body = ""
+            print("SUPABASE DEBUG upsert_chain_menu_items ERROR:", repr(e))
+            if body:
+                print("SUPABASE DEBUG upsert_chain_menu_items ERROR BODY:", body)
+        return 0
     except Exception as e:
         if _chain_sync_debug():
             print("SUPABASE DEBUG upsert_chain_menu_items ERROR:", repr(e))

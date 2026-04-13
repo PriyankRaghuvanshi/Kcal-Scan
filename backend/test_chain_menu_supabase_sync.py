@@ -5,7 +5,7 @@ Uses unittest and mocking; no real Supabase required.
 import unittest
 from unittest.mock import patch, MagicMock
 
-from chain_menu_supabase_sync import sync_chain_menu_to_supabase
+from chain_menu_supabase_sync import sync_chain_menu_to_supabase, _seed_items_to_rows
 from supabase_intelligence_store import (
     get_chain_menu_items,
     list_chain_menu_chain_keys,
@@ -78,6 +78,57 @@ FAASOS_IN_SEED = {
         },
     ],
 }
+
+
+class TestSeedItemsToRowsWhitelist(unittest.TestCase):
+    """Unknown seed fields are stripped before Supabase upsert."""
+
+    def test_seed_items_to_rows_strips_unpersisted_fields(self):
+        rows = _seed_items_to_rows(
+            [
+                {
+                    "item_name": "McChicken",
+                    "category": "entree",
+                    "estimated_calories": 400,
+                    "estimated_protein_g": 14,
+                    "estimated_carbs_g": 40,
+                    "estimated_fat_g": 21,
+                    "confidence": 0.85,
+                    "vegetarian_possible": False,
+                    "vegan_possible": False,
+                    "halal_possible": True,
+                    "gluten_free_possible": True,
+                    "diet_type": "non_veg",
+                    "contains_nuts": False,
+                    "contains_dairy": False,
+                    "contains_gluten": False,
+                    "contains_soy": False,
+                    "contains_shellfish": False,
+                    "contains_egg": False,
+                    "contains_sesame": False,
+                    "contains_palm_oil": True,
+                }
+            ],
+            "mcdonalds",
+            "US",
+            "https://www.mcdonalds.com/us/en-us/full-menu.html",
+        )
+
+        self.assertEqual(len(rows), 1)
+        row = rows[0]
+        self.assertEqual(row.get("item_name"), "McChicken")
+        self.assertIn("menu_item_source", row)
+        self.assertNotIn("halal_possible", row)
+        self.assertNotIn("gluten_free_possible", row)
+        self.assertNotIn("diet_type", row)
+        self.assertNotIn("contains_nuts", row)
+        self.assertNotIn("contains_dairy", row)
+        self.assertNotIn("contains_gluten", row)
+        self.assertNotIn("contains_soy", row)
+        self.assertNotIn("contains_shellfish", row)
+        self.assertNotIn("contains_egg", row)
+        self.assertNotIn("contains_sesame", row)
+        self.assertNotIn("contains_palm_oil", row)
 
 
 class TestSyncChipotleUs(unittest.TestCase):
