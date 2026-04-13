@@ -24916,71 +24916,132 @@
       "chain_key": "pizza_express",
       "display_name": "Pizza Express",
       "aliases": [
-        "pizza express",
-        "pizza_express"
+        "pizzaexpress",
+        "pizza_express",
+        "pizza express"
       ],
       "market_tags": [
+        "GB",
         "IN"
       ],
-      "cuisine_tags": [],
-      "category_tags": [],
-      "rollout_priority": "p2_regional_growth",
-      "confidence_tier": "tier_3_basic",
-      "coverage_status": "partial",
-      "supports_swaps": false,
+      "cuisine_tags": [
+        "pizza",
+        "italian"
+      ],
+      "category_tags": [
+        "casual_dining",
+        "pizza"
+      ],
+      "rollout_priority": "p1_high_value",
+      "confidence_tier": "tier_2_good",
+      "coverage_status": "live",
+      "supports_swaps": true,
       "menu_template_count": 3,
-      "notes": "Auto-generated from ingested menu data. Hand-curate swaps before promoting to live.",
+      "notes": "Favor Leggera (hole-in-centre salad-filled) pizzas; demote classic doughballs + dolcetti sides.",
       "menu_templates": [
         {
-          "template_key": "pizza_express_grilled_chicken_personal_pizza",
-          "template_name": "Grilled Chicken Personal Pizza",
+          "template_key": "leggera_pollo",
+          "template_name": "Leggera Pollo Ad Astra (hole salad)",
           "item_type": "pizza",
-          "estimated_calories": 520,
+          "estimated_calories": 500,
           "estimated_protein_g": 28,
           "specificity_tier": "chain_registry",
           "cut_friendly": false,
-          "food_quality_tags": [],
-          "negative_flags": [],
-          "default_confidence": 0.82,
-          "markets": [
-            "IN"
+          "food_quality_tags": [
+            "protein_rich",
+            "vegetables"
           ],
-          "recommended_swap_keys": []
+          "negative_flags": [],
+          "default_confidence": 0.86,
+          "markets": [
+            "GB"
+          ],
+          "recommended_swap_keys": [
+            "half_cheese"
+          ]
         },
         {
-          "template_key": "pizza_express_margherita_personal",
-          "template_name": "Margherita Personal",
-          "item_type": "item",
-          "estimated_calories": 440,
-          "estimated_protein_g": 18,
-          "specificity_tier": "chain_registry",
-          "cut_friendly": false,
-          "food_quality_tags": [],
-          "negative_flags": [],
-          "default_confidence": 0.82,
-          "markets": [
-            "IN"
-          ],
-          "recommended_swap_keys": []
-        },
-        {
-          "template_key": "pizza_express_prosciutto_personal",
-          "template_name": "Prosciutto Personal",
-          "item_type": "item",
-          "estimated_calories": 540,
+          "template_key": "salad_ni\u00e7oise",
+          "template_name": "Salad Ni\u00e7oise with Tuna",
+          "item_type": "salad",
+          "estimated_calories": 380,
           "estimated_protein_g": 28,
           "specificity_tier": "chain_registry",
           "cut_friendly": false,
-          "food_quality_tags": [],
-          "negative_flags": [],
-          "default_confidence": 0.82,
-          "markets": [
-            "IN"
+          "food_quality_tags": [
+            "protein_rich",
+            "vegetables"
           ],
-          "recommended_swap_keys": []
+          "negative_flags": [],
+          "default_confidence": 0.84,
+          "markets": [
+            "GB"
+          ],
+          "recommended_swap_keys": [
+            "dressing_on_side"
+          ]
+        },
+        {
+          "template_key": "caesar_chicken_salad",
+          "template_name": "Caesar Chicken Salad",
+          "item_type": "salad",
+          "estimated_calories": 460,
+          "estimated_protein_g": 36,
+          "specificity_tier": "chain_registry",
+          "cut_friendly": false,
+          "food_quality_tags": [
+            "protein_rich",
+            "grilled",
+            "vegetables"
+          ],
+          "negative_flags": [],
+          "default_confidence": 0.84,
+          "markets": [
+            "GB"
+          ],
+          "recommended_swap_keys": [
+            "dressing_on_side"
+          ]
         }
       ],
-      "swap_templates": []
+      "swap_templates": [
+        {
+          "swap_key": "leggera_version",
+          "swap_label": "Order Leggera version where available",
+          "swap_type": "menu_swap",
+          "calories_delta": -220,
+          "protein_delta": -3,
+          "reason": "Lower calorie base recipe",
+          "plausibility_score": 0.88,
+          "markets": [
+            "GB"
+          ]
+        },
+        {
+          "swap_key": "half_cheese",
+          "swap_label": "Half cheese on pizza",
+          "swap_type": "topping_reduce",
+          "calories_delta": -120,
+          "protein_delta": -5,
+          "reason": "Cut saturated fat",
+          "plausibility_score": 0.85,
+          "markets": [
+            "GB"
+          ]
+        },
+        {
+          "swap_key": "dressing_on_side",
+          "swap_label": "Dressing on the side",
+          "swap_type": "prep_change",
+          "calories_delta": -100,
+          "protein_delta": 0,
+          "reason": "Control added fat",
+          "plausibility_score": 0.92,
+          "markets": [
+            "GB"
+          ]
+        }
+      ]
     },
     {
       "chain_key": "potbelly",
@@ -42566,6 +42627,1429 @@
         }
       ],
       "swap_templates": []
+    },
+    {
+      "chain_key": "pret",
+      "display_name": "Pret A Manger",
+      "aliases": [
+        "pret a manger",
+        "pret"
+      ],
+      "market_tags": [
+        "GB"
+      ],
+      "cuisine_tags": [
+        "cafe",
+        "sandwich",
+        "salad"
+      ],
+      "category_tags": [
+        "fast_casual",
+        "cafe"
+      ],
+      "rollout_priority": "p1_high_value",
+      "confidence_tier": "tier_1_strong",
+      "coverage_status": "live",
+      "supports_swaps": true,
+      "menu_template_count": 3,
+      "notes": "Cafe: favor protein-forward salads, wholegrain sandwiches, skip crisps + sweet drinks.",
+      "menu_templates": [
+        {
+          "template_key": "chicken_caesar_salad",
+          "template_name": "Chicken Caesar Salad",
+          "item_type": "salad",
+          "estimated_calories": 430,
+          "estimated_protein_g": 35,
+          "specificity_tier": "chain_registry",
+          "cut_friendly": false,
+          "food_quality_tags": [
+            "protein_rich",
+            "grilled",
+            "vegetables"
+          ],
+          "negative_flags": [],
+          "default_confidence": 0.88,
+          "markets": [
+            "GB"
+          ],
+          "recommended_swap_keys": [
+            "dressing_on_side"
+          ]
+        },
+        {
+          "template_key": "ham_cheese_baguette",
+          "template_name": "Ham & Cheese Baguette, wholegrain",
+          "item_type": "sandwich",
+          "estimated_calories": 530,
+          "estimated_protein_g": 28,
+          "specificity_tier": "chain_registry",
+          "cut_friendly": false,
+          "food_quality_tags": [
+            "protein_rich",
+            "whole_grain"
+          ],
+          "negative_flags": [],
+          "default_confidence": 0.8,
+          "markets": [
+            "GB"
+          ],
+          "recommended_swap_keys": [
+            "wholegrain_bread",
+            "skip_crisps"
+          ]
+        },
+        {
+          "template_key": "balsamic_chicken_avocado",
+          "template_name": "Balsamic Chicken & Avocado Salad",
+          "item_type": "salad",
+          "estimated_calories": 480,
+          "estimated_protein_g": 32,
+          "specificity_tier": "chain_registry",
+          "cut_friendly": false,
+          "food_quality_tags": [
+            "protein_rich",
+            "grilled",
+            "vegetables"
+          ],
+          "negative_flags": [],
+          "default_confidence": 0.86,
+          "markets": [
+            "GB"
+          ],
+          "recommended_swap_keys": [
+            "dressing_on_side"
+          ]
+        }
+      ],
+      "swap_templates": [
+        {
+          "swap_key": "dressing_on_side",
+          "swap_label": "Dressing on the side",
+          "swap_type": "prep_change",
+          "calories_delta": -100,
+          "protein_delta": 0,
+          "reason": "Control added fat",
+          "plausibility_score": 0.92,
+          "markets": [
+            "GB"
+          ]
+        },
+        {
+          "swap_key": "wholegrain_bread",
+          "swap_label": "Wholegrain bread / baguette",
+          "swap_type": "ingredient_swap",
+          "calories_delta": -20,
+          "protein_delta": 3,
+          "reason": "Fiber upgrade",
+          "plausibility_score": 0.9,
+          "markets": [
+            "GB"
+          ]
+        },
+        {
+          "swap_key": "skip_crisps",
+          "swap_label": "Skip crisps add-on",
+          "swap_type": "side_swap",
+          "calories_delta": -150,
+          "protein_delta": -2,
+          "reason": "Avoid fried side",
+          "plausibility_score": 0.95,
+          "markets": [
+            "GB"
+          ]
+        }
+      ]
+    },
+    {
+      "chain_key": "costa",
+      "display_name": "Costa Coffee",
+      "aliases": [
+        "costa",
+        "costa coffee"
+      ],
+      "market_tags": [
+        "GB"
+      ],
+      "cuisine_tags": [
+        "cafe",
+        "coffee"
+      ],
+      "category_tags": [
+        "cafe"
+      ],
+      "rollout_priority": "p1_high_value",
+      "confidence_tier": "tier_2_good",
+      "coverage_status": "live",
+      "supports_swaps": true,
+      "menu_template_count": 3,
+      "notes": "Coffee chain: favor unsweet drinks + wholegrain sandwiches; demote frappes, muffins, cakes.",
+      "menu_templates": [
+        {
+          "template_key": "americano_black",
+          "template_name": "Americano (black)",
+          "item_type": "beverage",
+          "estimated_calories": 10,
+          "estimated_protein_g": 0,
+          "specificity_tier": "chain_registry",
+          "cut_friendly": false,
+          "food_quality_tags": [
+            "unsweet"
+          ],
+          "negative_flags": [],
+          "default_confidence": 0.94,
+          "markets": [
+            "GB"
+          ],
+          "recommended_swap_keys": [
+            "unsweet_drink"
+          ]
+        },
+        {
+          "template_key": "flat_white_skim",
+          "template_name": "Flat White, skimmed milk",
+          "item_type": "beverage",
+          "estimated_calories": 100,
+          "estimated_protein_g": 7,
+          "specificity_tier": "chain_registry",
+          "cut_friendly": false,
+          "food_quality_tags": [
+            "protein_rich"
+          ],
+          "negative_flags": [],
+          "default_confidence": 0.86,
+          "markets": [
+            "GB"
+          ],
+          "recommended_swap_keys": [
+            "skim_milk"
+          ]
+        },
+        {
+          "template_key": "egg_ham_flatbread",
+          "template_name": "Egg & Ham Wholegrain Flatbread",
+          "item_type": "breakfast",
+          "estimated_calories": 340,
+          "estimated_protein_g": 22,
+          "specificity_tier": "chain_registry",
+          "cut_friendly": false,
+          "food_quality_tags": [
+            "protein_rich",
+            "whole_grain"
+          ],
+          "negative_flags": [],
+          "default_confidence": 0.82,
+          "markets": [
+            "GB"
+          ],
+          "recommended_swap_keys": [
+            "skip_pastry"
+          ]
+        }
+      ],
+      "swap_templates": [
+        {
+          "swap_key": "unsweet_drink",
+          "swap_label": "Skip syrups; use no-sugar alternative",
+          "swap_type": "drink_swap",
+          "calories_delta": -120,
+          "protein_delta": 0,
+          "reason": "Cut added sugar",
+          "plausibility_score": 0.96,
+          "markets": [
+            "GB"
+          ]
+        },
+        {
+          "swap_key": "skim_milk",
+          "swap_label": "Skimmed or semi-skimmed milk",
+          "swap_type": "ingredient_swap",
+          "calories_delta": -80,
+          "protein_delta": 1,
+          "reason": "Lower saturated fat",
+          "plausibility_score": 0.92,
+          "markets": [
+            "GB"
+          ]
+        },
+        {
+          "swap_key": "skip_pastry",
+          "swap_label": "Skip pastry / muffin",
+          "swap_type": "course_skip",
+          "calories_delta": -320,
+          "protein_delta": -3,
+          "reason": "Remove added sugar + fat",
+          "plausibility_score": 0.95,
+          "markets": [
+            "GB"
+          ]
+        }
+      ]
+    },
+    {
+      "chain_key": "itsu",
+      "display_name": "Itsu",
+      "aliases": [
+        "itsu"
+      ],
+      "market_tags": [
+        "GB"
+      ],
+      "cuisine_tags": [
+        "asian",
+        "sushi",
+        "bowl"
+      ],
+      "category_tags": [
+        "fast_casual",
+        "asian"
+      ],
+      "rollout_priority": "p1_high_value",
+      "confidence_tier": "tier_2_good",
+      "coverage_status": "live",
+      "supports_swaps": true,
+      "menu_template_count": 3,
+      "notes": "Asian fast-casual: sashimi + brown rice + broths are strongest; demote crispy katsu and sweet bubble drinks.",
+      "menu_templates": [
+        {
+          "template_key": "chicken_noodle_broth",
+          "template_name": "Chicken Noodle Broth",
+          "item_type": "soup",
+          "estimated_calories": 380,
+          "estimated_protein_g": 28,
+          "specificity_tier": "chain_registry",
+          "cut_friendly": false,
+          "food_quality_tags": [
+            "protein_rich",
+            "broth_based"
+          ],
+          "negative_flags": [],
+          "default_confidence": 0.86,
+          "markets": [
+            "GB"
+          ],
+          "recommended_swap_keys": [
+            "extra_veg"
+          ]
+        },
+        {
+          "template_key": "salmon_sashimi_brown_rice",
+          "template_name": "Salmon Sashimi & Brown Rice Bowl",
+          "item_type": "bowl",
+          "estimated_calories": 440,
+          "estimated_protein_g": 30,
+          "specificity_tier": "chain_registry",
+          "cut_friendly": false,
+          "food_quality_tags": [
+            "protein_rich",
+            "whole_grain"
+          ],
+          "negative_flags": [],
+          "default_confidence": 0.88,
+          "markets": [
+            "GB"
+          ],
+          "recommended_swap_keys": [
+            "brown_rice"
+          ]
+        },
+        {
+          "template_key": "veggie_gyoza",
+          "template_name": "Vegetable Gyoza (steamed)",
+          "item_type": "dumpling",
+          "estimated_calories": 280,
+          "estimated_protein_g": 9,
+          "specificity_tier": "chain_registry",
+          "cut_friendly": false,
+          "food_quality_tags": [
+            "steamed",
+            "vegetarian"
+          ],
+          "negative_flags": [],
+          "default_confidence": 0.78,
+          "markets": [
+            "GB"
+          ],
+          "recommended_swap_keys": [
+            "no_mayo"
+          ]
+        }
+      ],
+      "swap_templates": [
+        {
+          "swap_key": "brown_rice",
+          "swap_label": "Brown rice instead of white",
+          "swap_type": "ingredient_swap",
+          "calories_delta": -20,
+          "protein_delta": 2,
+          "reason": "More fiber, steadier GI",
+          "plausibility_score": 0.82,
+          "markets": [
+            "GB"
+          ]
+        },
+        {
+          "swap_key": "no_mayo",
+          "swap_label": "No mayo dip",
+          "swap_type": "sauce_omit",
+          "calories_delta": -80,
+          "protein_delta": 0,
+          "reason": "Reduce added fat",
+          "plausibility_score": 0.95,
+          "markets": [
+            "GB"
+          ]
+        },
+        {
+          "swap_key": "extra_veg",
+          "swap_label": "Add extra edamame/seaweed",
+          "swap_type": "add_on",
+          "calories_delta": 60,
+          "protein_delta": 8,
+          "reason": "Protein + fiber",
+          "plausibility_score": 0.9,
+          "markets": [
+            "GB"
+          ]
+        }
+      ]
+    },
+    {
+      "chain_key": "leon",
+      "display_name": "LEON",
+      "aliases": [
+        "leon restaurants",
+        "leon"
+      ],
+      "market_tags": [
+        "GB"
+      ],
+      "cuisine_tags": [
+        "mediterranean",
+        "healthy",
+        "bowl"
+      ],
+      "category_tags": [
+        "fast_casual",
+        "healthy"
+      ],
+      "rollout_priority": "p1_high_value",
+      "confidence_tier": "tier_1_strong",
+      "coverage_status": "live",
+      "supports_swaps": true,
+      "menu_template_count": 3,
+      "notes": "Healthy-positioned fast-casual: bowls and protein boxes dominate. Promote over chips/fries sides.",
+      "menu_templates": [
+        {
+          "template_key": "chicken_rice_box",
+          "template_name": "Grilled Chicken Rice Box",
+          "item_type": "bowl",
+          "estimated_calories": 520,
+          "estimated_protein_g": 38,
+          "specificity_tier": "chain_registry",
+          "cut_friendly": false,
+          "food_quality_tags": [
+            "protein_rich",
+            "grilled",
+            "whole_grain"
+          ],
+          "negative_flags": [],
+          "default_confidence": 0.88,
+          "markets": [
+            "GB"
+          ],
+          "recommended_swap_keys": [
+            "brown_rice",
+            "extra_slaw"
+          ]
+        },
+        {
+          "template_key": "halloumi_rice_box",
+          "template_name": "Halloumi & Quinoa Rice Box",
+          "item_type": "bowl",
+          "estimated_calories": 540,
+          "estimated_protein_g": 26,
+          "specificity_tier": "chain_registry",
+          "cut_friendly": false,
+          "food_quality_tags": [
+            "whole_grain",
+            "vegetarian"
+          ],
+          "negative_flags": [],
+          "default_confidence": 0.82,
+          "markets": [
+            "GB"
+          ],
+          "recommended_swap_keys": [
+            "extra_slaw"
+          ]
+        },
+        {
+          "template_key": "gobi_power_bowl",
+          "template_name": "Gobi Power Bowl",
+          "item_type": "bowl",
+          "estimated_calories": 480,
+          "estimated_protein_g": 18,
+          "specificity_tier": "chain_registry",
+          "cut_friendly": false,
+          "food_quality_tags": [
+            "vegetables",
+            "plant_protein"
+          ],
+          "negative_flags": [],
+          "default_confidence": 0.8,
+          "markets": [
+            "GB"
+          ],
+          "recommended_swap_keys": [
+            "extra_slaw"
+          ]
+        }
+      ],
+      "swap_templates": [
+        {
+          "swap_key": "brown_rice",
+          "swap_label": "Brown rice instead of white",
+          "swap_type": "ingredient_swap",
+          "calories_delta": -20,
+          "protein_delta": 2,
+          "reason": "More fiber",
+          "plausibility_score": 0.82,
+          "markets": [
+            "GB"
+          ]
+        },
+        {
+          "swap_key": "extra_slaw",
+          "swap_label": "Extra slaw / salad side",
+          "swap_type": "add_on",
+          "calories_delta": 40,
+          "protein_delta": 2,
+          "reason": "Fiber + volume",
+          "plausibility_score": 0.92,
+          "markets": [
+            "GB"
+          ]
+        },
+        {
+          "swap_key": "no_mayo",
+          "swap_label": "Skip chipotle mayo",
+          "swap_type": "sauce_omit",
+          "calories_delta": -80,
+          "protein_delta": 0,
+          "reason": "Reduce added fat",
+          "plausibility_score": 0.94,
+          "markets": [
+            "GB"
+          ]
+        }
+      ]
+    },
+    {
+      "chain_key": "tortilla",
+      "display_name": "Tortilla",
+      "aliases": [
+        "tortilla"
+      ],
+      "market_tags": [
+        "GB"
+      ],
+      "cuisine_tags": [
+        "mexican",
+        "burrito",
+        "bowl"
+      ],
+      "category_tags": [
+        "fast_casual",
+        "mexican"
+      ],
+      "rollout_priority": "p2_regional_growth",
+      "confidence_tier": "tier_2_good",
+      "coverage_status": "live",
+      "supports_swaps": true,
+      "menu_template_count": 3,
+      "notes": "Build-your-own bowls; Chipotle-style rules apply. No sour cream/cheese, half rice, extra salsa.",
+      "menu_templates": [
+        {
+          "template_key": "burrito_bowl_chicken",
+          "template_name": "Chicken Burrito Bowl (brown rice, beans)",
+          "item_type": "bowl",
+          "estimated_calories": 560,
+          "estimated_protein_g": 42,
+          "specificity_tier": "chain_registry",
+          "cut_friendly": false,
+          "food_quality_tags": [
+            "protein_rich",
+            "grilled",
+            "legumes",
+            "whole_grain"
+          ],
+          "negative_flags": [],
+          "default_confidence": 0.86,
+          "markets": [
+            "GB"
+          ],
+          "recommended_swap_keys": [
+            "no_sour_cream",
+            "half_rice"
+          ]
+        },
+        {
+          "template_key": "naked_salad_chicken",
+          "template_name": "Chicken Naked Salad",
+          "item_type": "salad",
+          "estimated_calories": 420,
+          "estimated_protein_g": 38,
+          "specificity_tier": "chain_registry",
+          "cut_friendly": false,
+          "food_quality_tags": [
+            "protein_rich",
+            "grilled",
+            "vegetables"
+          ],
+          "negative_flags": [],
+          "default_confidence": 0.86,
+          "markets": [
+            "GB"
+          ],
+          "recommended_swap_keys": [
+            "dressing_on_side"
+          ]
+        },
+        {
+          "template_key": "veggie_bowl_bean",
+          "template_name": "Veggie & Bean Bowl",
+          "item_type": "bowl",
+          "estimated_calories": 500,
+          "estimated_protein_g": 20,
+          "specificity_tier": "chain_registry",
+          "cut_friendly": false,
+          "food_quality_tags": [
+            "legumes",
+            "whole_grain",
+            "vegetables",
+            "vegetarian"
+          ],
+          "negative_flags": [],
+          "default_confidence": 0.82,
+          "markets": [
+            "GB"
+          ],
+          "recommended_swap_keys": [
+            "no_sour_cream",
+            "half_rice"
+          ]
+        }
+      ],
+      "swap_templates": [
+        {
+          "swap_key": "no_sour_cream",
+          "swap_label": "No sour cream & cheese",
+          "swap_type": "topping_omit",
+          "calories_delta": -220,
+          "protein_delta": -5,
+          "reason": "Cut saturated fat",
+          "plausibility_score": 0.95,
+          "markets": [
+            "GB"
+          ]
+        },
+        {
+          "swap_key": "half_rice",
+          "swap_label": "Half rice, double beans",
+          "swap_type": "portion_change",
+          "calories_delta": -120,
+          "protein_delta": 6,
+          "reason": "Shift carbs to protein/fiber",
+          "plausibility_score": 0.88,
+          "markets": [
+            "GB"
+          ]
+        },
+        {
+          "swap_key": "dressing_on_side",
+          "swap_label": "Dressing on the side",
+          "swap_type": "prep_change",
+          "calories_delta": -100,
+          "protein_delta": 0,
+          "reason": "Control added fat",
+          "plausibility_score": 0.92,
+          "markets": [
+            "GB"
+          ]
+        }
+      ]
+    },
+    {
+      "chain_key": "wasabi",
+      "display_name": "Wasabi",
+      "aliases": [
+        "wasabi"
+      ],
+      "market_tags": [
+        "GB"
+      ],
+      "cuisine_tags": [
+        "asian",
+        "sushi",
+        "bento"
+      ],
+      "category_tags": [
+        "fast_casual",
+        "asian"
+      ],
+      "rollout_priority": "p2_regional_growth",
+      "confidence_tier": "tier_2_good",
+      "coverage_status": "live",
+      "supports_swaps": true,
+      "menu_template_count": 3,
+      "notes": "Fresh sushi + hot bento boxes. Favor chicken katsu bowl with brown rice, sashimi; avoid deep-fried prawn.",
+      "menu_templates": [
+        {
+          "template_key": "chicken_teriyaki_rice",
+          "template_name": "Chicken Teriyaki Rice Box",
+          "item_type": "bowl",
+          "estimated_calories": 520,
+          "estimated_protein_g": 34,
+          "specificity_tier": "chain_registry",
+          "cut_friendly": false,
+          "food_quality_tags": [
+            "protein_rich",
+            "grilled"
+          ],
+          "negative_flags": [],
+          "default_confidence": 0.84,
+          "markets": [
+            "GB"
+          ],
+          "recommended_swap_keys": [
+            "brown_rice",
+            "extra_veg"
+          ]
+        },
+        {
+          "template_key": "salmon_sashimi_box",
+          "template_name": "Salmon Sashimi Box",
+          "item_type": "bowl",
+          "estimated_calories": 380,
+          "estimated_protein_g": 30,
+          "specificity_tier": "chain_registry",
+          "cut_friendly": false,
+          "food_quality_tags": [
+            "protein_rich"
+          ],
+          "negative_flags": [],
+          "default_confidence": 0.88,
+          "markets": [
+            "GB"
+          ],
+          "recommended_swap_keys": [
+            "brown_rice"
+          ]
+        },
+        {
+          "template_key": "chicken_katsu_curry",
+          "template_name": "Chicken Katsu Curry",
+          "item_type": "bowl",
+          "estimated_calories": 720,
+          "estimated_protein_g": 32,
+          "specificity_tier": "chain_registry",
+          "cut_friendly": false,
+          "food_quality_tags": [
+            "protein_rich"
+          ],
+          "negative_flags": [
+            "fried"
+          ],
+          "default_confidence": 0.7,
+          "markets": [
+            "GB"
+          ],
+          "recommended_swap_keys": [
+            "grilled_not_katsu"
+          ]
+        }
+      ],
+      "swap_templates": [
+        {
+          "swap_key": "brown_rice",
+          "swap_label": "Brown rice instead of white",
+          "swap_type": "ingredient_swap",
+          "calories_delta": -20,
+          "protein_delta": 2,
+          "reason": "More fiber",
+          "plausibility_score": 0.82,
+          "markets": [
+            "GB"
+          ]
+        },
+        {
+          "swap_key": "grilled_not_katsu",
+          "swap_label": "Grilled chicken over katsu (breaded fried)",
+          "swap_type": "prep_change",
+          "calories_delta": -260,
+          "protein_delta": 4,
+          "reason": "Avoid fried breading",
+          "plausibility_score": 0.9,
+          "markets": [
+            "GB"
+          ]
+        },
+        {
+          "swap_key": "extra_veg",
+          "swap_label": "Extra edamame/seaweed side",
+          "swap_type": "add_on",
+          "calories_delta": 60,
+          "protein_delta": 8,
+          "reason": "Protein + fiber",
+          "plausibility_score": 0.92,
+          "markets": [
+            "GB"
+          ]
+        }
+      ]
+    },
+    {
+      "chain_key": "dishoom",
+      "display_name": "Dishoom",
+      "aliases": [
+        "dishoom"
+      ],
+      "market_tags": [
+        "GB"
+      ],
+      "cuisine_tags": [
+        "indian",
+        "bombay"
+      ],
+      "category_tags": [
+        "casual_dining",
+        "indian"
+      ],
+      "rollout_priority": "p1_high_value",
+      "confidence_tier": "tier_2_good",
+      "coverage_status": "live",
+      "supports_swaps": true,
+      "menu_template_count": 3,
+      "notes": "Bombay-style cafe. Favor tandoori lamb chops, chicken tikka, house black daal small; demote bacon naan roll with extra cream.",
+      "menu_templates": [
+        {
+          "template_key": "chicken_tikka",
+          "template_name": "Chicken Tikka",
+          "item_type": "indian_starter",
+          "estimated_calories": 380,
+          "estimated_protein_g": 42,
+          "specificity_tier": "chain_registry",
+          "cut_friendly": false,
+          "food_quality_tags": [
+            "protein_rich",
+            "grilled"
+          ],
+          "negative_flags": [],
+          "default_confidence": 0.86,
+          "markets": [
+            "GB"
+          ],
+          "recommended_swap_keys": [
+            "extra_salad"
+          ]
+        },
+        {
+          "template_key": "house_black_daal",
+          "template_name": "House Black Daal (small)",
+          "item_type": "indian_meal",
+          "estimated_calories": 420,
+          "estimated_protein_g": 18,
+          "specificity_tier": "chain_registry",
+          "cut_friendly": false,
+          "food_quality_tags": [
+            "legumes",
+            "vegetarian"
+          ],
+          "negative_flags": [],
+          "default_confidence": 0.82,
+          "markets": [
+            "GB"
+          ],
+          "recommended_swap_keys": [
+            "no_ghee",
+            "extra_salad"
+          ]
+        },
+        {
+          "template_key": "lamb_chops_tandoori",
+          "template_name": "Lamb Chops (Tandoori)",
+          "item_type": "indian_starter",
+          "estimated_calories": 460,
+          "estimated_protein_g": 36,
+          "specificity_tier": "chain_registry",
+          "cut_friendly": false,
+          "food_quality_tags": [
+            "protein_rich",
+            "grilled"
+          ],
+          "negative_flags": [],
+          "default_confidence": 0.84,
+          "markets": [
+            "GB"
+          ],
+          "recommended_swap_keys": [
+            "extra_salad"
+          ]
+        }
+      ],
+      "swap_templates": [
+        {
+          "swap_key": "no_ghee",
+          "swap_label": "Skip extra ghee topping",
+          "swap_type": "prep_change",
+          "calories_delta": -60,
+          "protein_delta": 0,
+          "reason": "Reduce added fat",
+          "plausibility_score": 0.9,
+          "markets": [
+            "GB"
+          ]
+        },
+        {
+          "swap_key": "extra_salad",
+          "swap_label": "Add kachumber salad",
+          "swap_type": "add_on",
+          "calories_delta": 40,
+          "protein_delta": 2,
+          "reason": "Fiber + volume",
+          "plausibility_score": 0.92,
+          "markets": [
+            "GB"
+          ]
+        },
+        {
+          "swap_key": "half_rice",
+          "swap_label": "Half rice, double daal",
+          "swap_type": "portion_change",
+          "calories_delta": -120,
+          "protein_delta": 4,
+          "reason": "Shift carbs",
+          "plausibility_score": 0.88,
+          "markets": [
+            "GB"
+          ]
+        }
+      ]
+    },
+    {
+      "chain_key": "franco_manca",
+      "display_name": "Franco Manca",
+      "aliases": [
+        "franco manca"
+      ],
+      "market_tags": [
+        "GB"
+      ],
+      "cuisine_tags": [
+        "pizza",
+        "italian"
+      ],
+      "category_tags": [
+        "casual_dining",
+        "pizza"
+      ],
+      "rollout_priority": "p2_regional_growth",
+      "confidence_tier": "tier_2_good",
+      "coverage_status": "live",
+      "supports_swaps": true,
+      "menu_template_count": 3,
+      "notes": "Sourdough pizza chain. Keep to plainer toppings; share with salad starter; skip sugary sodas.",
+      "menu_templates": [
+        {
+          "template_key": "margherita",
+          "template_name": "Pizza Margherita",
+          "item_type": "pizza",
+          "estimated_calories": 650,
+          "estimated_protein_g": 26,
+          "specificity_tier": "chain_registry",
+          "cut_friendly": false,
+          "food_quality_tags": [
+            "vegetarian"
+          ],
+          "negative_flags": [],
+          "default_confidence": 0.8,
+          "markets": [
+            "GB"
+          ],
+          "recommended_swap_keys": [
+            "half_cheese",
+            "add_salad"
+          ]
+        },
+        {
+          "template_key": "cured_ham_tomato",
+          "template_name": "Cured Ham & Tomato Pizza",
+          "item_type": "pizza",
+          "estimated_calories": 720,
+          "estimated_protein_g": 32,
+          "specificity_tier": "chain_registry",
+          "cut_friendly": false,
+          "food_quality_tags": [
+            "protein_rich"
+          ],
+          "negative_flags": [],
+          "default_confidence": 0.78,
+          "markets": [
+            "GB"
+          ],
+          "recommended_swap_keys": [
+            "half_cheese",
+            "add_salad"
+          ]
+        },
+        {
+          "template_key": "veg_special",
+          "template_name": "Seasonal Veg Special Pizza",
+          "item_type": "pizza",
+          "estimated_calories": 680,
+          "estimated_protein_g": 24,
+          "specificity_tier": "chain_registry",
+          "cut_friendly": false,
+          "food_quality_tags": [
+            "vegetables",
+            "vegetarian"
+          ],
+          "negative_flags": [],
+          "default_confidence": 0.78,
+          "markets": [
+            "GB"
+          ],
+          "recommended_swap_keys": [
+            "half_cheese",
+            "add_salad"
+          ]
+        }
+      ],
+      "swap_templates": [
+        {
+          "swap_key": "half_cheese",
+          "swap_label": "Half cheese / easy cheese",
+          "swap_type": "topping_reduce",
+          "calories_delta": -120,
+          "protein_delta": -5,
+          "reason": "Cut saturated fat",
+          "plausibility_score": 0.85,
+          "markets": [
+            "GB"
+          ]
+        },
+        {
+          "swap_key": "add_salad",
+          "swap_label": "Add side salad starter",
+          "swap_type": "add_on",
+          "calories_delta": 60,
+          "protein_delta": 2,
+          "reason": "Fiber + volume",
+          "plausibility_score": 0.92,
+          "markets": [
+            "GB"
+          ]
+        },
+        {
+          "swap_key": "share_pizza",
+          "swap_label": "Share pizza, order salad starter",
+          "swap_type": "portion_change",
+          "calories_delta": -300,
+          "protein_delta": -10,
+          "reason": "Right-size portion",
+          "plausibility_score": 0.88,
+          "markets": [
+            "GB"
+          ]
+        }
+      ]
+    },
+    {
+      "chain_key": "byron",
+      "display_name": "Byron",
+      "aliases": [
+        "byron"
+      ],
+      "market_tags": [
+        "GB"
+      ],
+      "cuisine_tags": [
+        "burger",
+        "american"
+      ],
+      "category_tags": [
+        "casual_dining",
+        "burger"
+      ],
+      "rollout_priority": "p2_regional_growth",
+      "confidence_tier": "tier_2_good",
+      "coverage_status": "live",
+      "supports_swaps": true,
+      "menu_template_count": 3,
+      "notes": "Burger chain. Favor Classic Skinny (lettuce wrap) or salad options over loaded stacks.",
+      "menu_templates": [
+        {
+          "template_key": "skinny_burger",
+          "template_name": "Classic Skinny (lettuce wrap)",
+          "item_type": "burger",
+          "estimated_calories": 420,
+          "estimated_protein_g": 32,
+          "specificity_tier": "chain_registry",
+          "cut_friendly": false,
+          "food_quality_tags": [
+            "protein_rich"
+          ],
+          "negative_flags": [],
+          "default_confidence": 0.84,
+          "markets": [
+            "GB"
+          ],
+          "recommended_swap_keys": [
+            "no_mayo",
+            "side_salad"
+          ]
+        },
+        {
+          "template_key": "chicken_burger_grilled",
+          "template_name": "Grilled Chicken Burger",
+          "item_type": "burger",
+          "estimated_calories": 520,
+          "estimated_protein_g": 36,
+          "specificity_tier": "chain_registry",
+          "cut_friendly": false,
+          "food_quality_tags": [
+            "protein_rich",
+            "grilled"
+          ],
+          "negative_flags": [],
+          "default_confidence": 0.82,
+          "markets": [
+            "GB"
+          ],
+          "recommended_swap_keys": [
+            "no_mayo",
+            "side_salad"
+          ]
+        },
+        {
+          "template_key": "chopped_salad",
+          "template_name": "Chopped Cobb Salad",
+          "item_type": "salad",
+          "estimated_calories": 460,
+          "estimated_protein_g": 28,
+          "specificity_tier": "chain_registry",
+          "cut_friendly": false,
+          "food_quality_tags": [
+            "protein_rich",
+            "grilled",
+            "vegetables"
+          ],
+          "negative_flags": [],
+          "default_confidence": 0.82,
+          "markets": [
+            "GB"
+          ],
+          "recommended_swap_keys": [
+            "dressing_on_side"
+          ]
+        }
+      ],
+      "swap_templates": [
+        {
+          "swap_key": "no_mayo",
+          "swap_label": "No mayo",
+          "swap_type": "sauce_omit",
+          "calories_delta": -80,
+          "protein_delta": 0,
+          "reason": "Reduce added fat",
+          "plausibility_score": 0.95,
+          "markets": [
+            "GB"
+          ]
+        },
+        {
+          "swap_key": "side_salad",
+          "swap_label": "Side salad instead of fries",
+          "swap_type": "side_swap",
+          "calories_delta": -240,
+          "protein_delta": 1,
+          "reason": "Replace fried starch",
+          "plausibility_score": 0.94,
+          "markets": [
+            "GB"
+          ]
+        },
+        {
+          "swap_key": "skinny",
+          "swap_label": "Skinny option (lettuce wrap, no bun)",
+          "swap_type": "prep_change",
+          "calories_delta": -180,
+          "protein_delta": 0,
+          "reason": "Cut refined carbs",
+          "plausibility_score": 0.88,
+          "markets": [
+            "GB"
+          ]
+        }
+      ]
+    },
+    {
+      "chain_key": "wetherspoons",
+      "display_name": "Wetherspoons",
+      "aliases": [
+        "wetherspoons",
+        "jd wetherspoon"
+      ],
+      "market_tags": [
+        "GB"
+      ],
+      "cuisine_tags": [
+        "pub",
+        "british"
+      ],
+      "category_tags": [
+        "casual_dining",
+        "pub"
+      ],
+      "rollout_priority": "p2_regional_growth",
+      "confidence_tier": "tier_2_good",
+      "coverage_status": "live",
+      "supports_swaps": true,
+      "menu_template_count": 3,
+      "notes": "Pub chain. Favor grilled chicken breast / tuna salad; demote lasagna/curry with chips + ice cream.",
+      "menu_templates": [
+        {
+          "template_key": "chicken_breast_salad",
+          "template_name": "Chicken Breast Salad Bowl",
+          "item_type": "salad",
+          "estimated_calories": 420,
+          "estimated_protein_g": 38,
+          "specificity_tier": "chain_registry",
+          "cut_friendly": false,
+          "food_quality_tags": [
+            "protein_rich",
+            "grilled",
+            "vegetables"
+          ],
+          "negative_flags": [],
+          "default_confidence": 0.82,
+          "markets": [
+            "GB"
+          ],
+          "recommended_swap_keys": [
+            "dressing_on_side"
+          ]
+        },
+        {
+          "template_key": "jacket_potato_tuna",
+          "template_name": "Jacket Potato with Tuna",
+          "item_type": "bowl",
+          "estimated_calories": 520,
+          "estimated_protein_g": 32,
+          "specificity_tier": "chain_registry",
+          "cut_friendly": false,
+          "food_quality_tags": [
+            "protein_rich",
+            "whole_grain"
+          ],
+          "negative_flags": [],
+          "default_confidence": 0.8,
+          "markets": [
+            "GB"
+          ],
+          "recommended_swap_keys": [
+            "no_mayo",
+            "extra_salad"
+          ]
+        },
+        {
+          "template_key": "gammon_no_chips",
+          "template_name": "Gammon & Egg, salad not chips",
+          "item_type": "meat",
+          "estimated_calories": 460,
+          "estimated_protein_g": 42,
+          "specificity_tier": "chain_registry",
+          "cut_friendly": false,
+          "food_quality_tags": [
+            "protein_rich"
+          ],
+          "negative_flags": [],
+          "default_confidence": 0.78,
+          "markets": [
+            "GB"
+          ],
+          "recommended_swap_keys": [
+            "side_salad_not_chips"
+          ]
+        }
+      ],
+      "swap_templates": [
+        {
+          "swap_key": "side_salad_not_chips",
+          "swap_label": "Side salad instead of chips",
+          "swap_type": "side_swap",
+          "calories_delta": -260,
+          "protein_delta": 2,
+          "reason": "Replace fried starch with fiber",
+          "plausibility_score": 0.94,
+          "markets": [
+            "GB"
+          ]
+        },
+        {
+          "swap_key": "no_mayo",
+          "swap_label": "No mayo",
+          "swap_type": "sauce_omit",
+          "calories_delta": -80,
+          "protein_delta": 0,
+          "reason": "Reduce added fat",
+          "plausibility_score": 0.95,
+          "markets": [
+            "GB"
+          ]
+        },
+        {
+          "swap_key": "extra_salad",
+          "swap_label": "Add coleslaw portion",
+          "swap_type": "add_on",
+          "calories_delta": 60,
+          "protein_delta": 2,
+          "reason": "Fiber + volume",
+          "plausibility_score": 0.88,
+          "markets": [
+            "GB"
+          ]
+        }
+      ]
+    },
+    {
+      "chain_key": "zizzi",
+      "display_name": "Zizzi",
+      "aliases": [
+        "zizzi"
+      ],
+      "market_tags": [
+        "GB"
+      ],
+      "cuisine_tags": [
+        "italian",
+        "pizza",
+        "pasta"
+      ],
+      "category_tags": [
+        "casual_dining",
+        "italian"
+      ],
+      "rollout_priority": "p2_regional_growth",
+      "confidence_tier": "tier_2_good",
+      "coverage_status": "live",
+      "supports_swaps": true,
+      "menu_template_count": 3,
+      "notes": "Italian chain. Favor Rustica thin-crust; share pasta; demote garlic bread + tiramisu combos.",
+      "menu_templates": [
+        {
+          "template_key": "rustica_pollo",
+          "template_name": "Rustica Pollo Piccante (thin crust)",
+          "item_type": "pizza",
+          "estimated_calories": 580,
+          "estimated_protein_g": 32,
+          "specificity_tier": "chain_registry",
+          "cut_friendly": false,
+          "food_quality_tags": [
+            "protein_rich"
+          ],
+          "negative_flags": [],
+          "default_confidence": 0.82,
+          "markets": [
+            "GB"
+          ],
+          "recommended_swap_keys": [
+            "half_cheese",
+            "add_salad"
+          ]
+        },
+        {
+          "template_key": "salmon_salad",
+          "template_name": "Salmon & Avocado Salad",
+          "item_type": "salad",
+          "estimated_calories": 480,
+          "estimated_protein_g": 32,
+          "specificity_tier": "chain_registry",
+          "cut_friendly": false,
+          "food_quality_tags": [
+            "protein_rich",
+            "vegetables"
+          ],
+          "negative_flags": [],
+          "default_confidence": 0.82,
+          "markets": [
+            "GB"
+          ],
+          "recommended_swap_keys": [
+            "dressing_on_side"
+          ]
+        },
+        {
+          "template_key": "chicken_calabrese",
+          "template_name": "Chicken Calabrese Salad",
+          "item_type": "salad",
+          "estimated_calories": 460,
+          "estimated_protein_g": 36,
+          "specificity_tier": "chain_registry",
+          "cut_friendly": false,
+          "food_quality_tags": [
+            "protein_rich",
+            "grilled",
+            "vegetables"
+          ],
+          "negative_flags": [],
+          "default_confidence": 0.82,
+          "markets": [
+            "GB"
+          ],
+          "recommended_swap_keys": [
+            "dressing_on_side"
+          ]
+        }
+      ],
+      "swap_templates": [
+        {
+          "swap_key": "half_cheese",
+          "swap_label": "Half cheese / easy cheese",
+          "swap_type": "topping_reduce",
+          "calories_delta": -120,
+          "protein_delta": -5,
+          "reason": "Cut saturated fat",
+          "plausibility_score": 0.85,
+          "markets": [
+            "GB"
+          ]
+        },
+        {
+          "swap_key": "add_salad",
+          "swap_label": "Add starter salad instead of bread",
+          "swap_type": "side_swap",
+          "calories_delta": -180,
+          "protein_delta": 2,
+          "reason": "Fiber, skip refined carbs",
+          "plausibility_score": 0.88,
+          "markets": [
+            "GB"
+          ]
+        },
+        {
+          "swap_key": "dressing_on_side",
+          "swap_label": "Dressing on the side",
+          "swap_type": "prep_change",
+          "calories_delta": -100,
+          "protein_delta": 0,
+          "reason": "Control added fat",
+          "plausibility_score": 0.92,
+          "markets": [
+            "GB"
+          ]
+        }
+      ]
     }
   ]
 }
