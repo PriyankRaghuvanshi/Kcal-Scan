@@ -28,7 +28,7 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Chocolate_cake_001.jpg/640px-Chocolate_cake_001.jpg",
+      "image_url": "",
       "menu_item_source": "llm_curated",
       "negative_flags": [],
       "contains_palm_oil": false
@@ -53,7 +53,7 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Chocolate_cake_001.jpg/640px-Chocolate_cake_001.jpg",
+      "image_url": "",
       "menu_item_source": "llm_curated",
       "negative_flags": [],
       "contains_palm_oil": false
@@ -78,7 +78,7 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Chocolate_cake_001.jpg/640px-Chocolate_cake_001.jpg",
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/31/Chocolate_ice_cream.jpg/640px-Chocolate_ice_cream.jpg",
       "menu_item_source": "llm_curated",
       "negative_flags": [],
       "contains_palm_oil": false
@@ -103,7 +103,7 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Chocolate_cake_001.jpg/640px-Chocolate_cake_001.jpg",
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/31/Chocolate_ice_cream.jpg/640px-Chocolate_ice_cream.jpg",
       "menu_item_source": "llm_curated",
       "negative_flags": [],
       "contains_palm_oil": false

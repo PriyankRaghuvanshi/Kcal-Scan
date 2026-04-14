@@ -28,7 +28,7 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Chocolate_cake_001.jpg/640px-Chocolate_cake_001.jpg",
+      "image_url": "",
       "menu_item_source": "llm_curated",
       "negative_flags": [],
       "contains_palm_oil": false
@@ -53,7 +53,7 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Chocolate_cake_001.jpg/640px-Chocolate_cake_001.jpg",
+      "image_url": "",
       "menu_item_source": "llm_curated",
       "negative_flags": [],
       "contains_palm_oil": false
@@ -104,7 +104,7 @@
       "contains_soy": false,
       "confidence": 0.8,
       "menu_item_source": "llm_curated",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Chocolate_cake_001.jpg/640px-Chocolate_cake_001.jpg",
+      "image_url": "",
       "negative_flags": [],
       "contains_palm_oil": false
     },
@@ -115,7 +115,7 @@
       "estimated_protein_g": 4,
       "estimated_carbs_g": 42,
       "estimated_fat_g": 14,
-      "diet_type": "non_veg",
+      "diet_type": "vegetarian",
       "vegetarian_possible": true,
       "vegan_possible": false,
       "halal_possible": true,
@@ -140,7 +140,7 @@
       "estimated_protein_g": 6,
       "estimated_carbs_g": 44,
       "estimated_fat_g": 6,
-      "diet_type": "non_veg",
+      "diet_type": "vegetarian",
       "vegetarian_possible": true,
       "vegan_possible": false,
       "halal_possible": true,
@@ -154,7 +154,7 @@
       "contains_soy": false,
       "confidence": 0.8,
       "menu_item_source": "llm_curated",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Chocolate_cake_001.jpg/640px-Chocolate_cake_001.jpg",
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/31/Chocolate_ice_cream.jpg/640px-Chocolate_ice_cream.jpg",
       "negative_flags": [],
       "contains_palm_oil": false
     },
@@ -165,7 +165,7 @@
       "estimated_protein_g": 5,
       "estimated_carbs_g": 42,
       "estimated_fat_g": 16,
-      "diet_type": "non_veg",
+      "diet_type": "vegetarian",
       "vegetarian_possible": true,
       "vegan_possible": false,
       "halal_possible": true,
@@ -204,7 +204,7 @@
       "contains_soy": false,
       "confidence": 0.8,
       "menu_item_source": "llm_curated",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Chocolate_cake_001.jpg/640px-Chocolate_cake_001.jpg",
+      "image_url": "",
       "negative_flags": [
         "contains_palm_oil"
       ],

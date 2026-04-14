@@ -164,9 +164,37 @@ KEYWORD_TO_IMAGE: list[tuple[str, str]] = [
     # --- desserts ---
     ("brownie", f"{W}/e/e6/Chocolate_brownie_%284368624516%29.jpg/640px-Chocolate_brownie_%284368624516%29.jpg"),
     ("cheesecake", f"{W}/d/d2/Raspberry_cheesecake.jpg/640px-Raspberry_cheesecake.jpg"),
+    # Indian dairy desserts: keep specific before the generic "cone" which is
+    # also a word in "ice cream cone".
+    ("shrikhand", f"{W}/3/31/Chocolate_ice_cream.jpg/640px-Chocolate_ice_cream.jpg"),
+    ("rasmalai", f"{W}/3/31/Chocolate_ice_cream.jpg/640px-Chocolate_ice_cream.jpg"),
+    ("rasgulla", f"{W}/3/31/Chocolate_ice_cream.jpg/640px-Chocolate_ice_cream.jpg"),
+    ("gulab jamun", f"{W}/d/d4/Chocolate_cake_001.jpg/640px-Chocolate_cake_001.jpg"),
+    ("jalebi", f"{W}/d/d4/Chocolate_cake_001.jpg/640px-Chocolate_cake_001.jpg"),
+    ("kheer", f"{W}/3/31/Chocolate_ice_cream.jpg/640px-Chocolate_ice_cream.jpg"),
+    ("phirni", f"{W}/3/31/Chocolate_ice_cream.jpg/640px-Chocolate_ice_cream.jpg"),
+    ("rabri", f"{W}/3/31/Chocolate_ice_cream.jpg/640px-Chocolate_ice_cream.jpg"),
+    ("mishti doi", f"{W}/3/31/Chocolate_ice_cream.jpg/640px-Chocolate_ice_cream.jpg"),
+    ("barfi", f"{W}/d/d4/Chocolate_cake_001.jpg/640px-Chocolate_cake_001.jpg"),
+    ("laddu", f"{W}/d/d4/Chocolate_cake_001.jpg/640px-Chocolate_cake_001.jpg"),
+    ("pedha", f"{W}/d/d4/Chocolate_cake_001.jpg/640px-Chocolate_cake_001.jpg"),
+    ("halwa", f"{W}/d/d4/Chocolate_cake_001.jpg/640px-Chocolate_cake_001.jpg"),
+    # Amul / dessert brand-specific names that currently fall through to cake.
+    ("chocobar", f"{W}/3/31/Chocolate_ice_cream.jpg/640px-Chocolate_ice_cream.jpg"),
+    ("vanilla cup", f"{W}/3/31/Chocolate_ice_cream.jpg/640px-Chocolate_ice_cream.jpg"),
+    ("butterscotch cone", f"{W}/3/31/Chocolate_ice_cream.jpg/640px-Chocolate_ice_cream.jpg"),
+    ("kulfi", f"{W}/3/31/Chocolate_ice_cream.jpg/640px-Chocolate_ice_cream.jpg"),
+    ("sundae", f"{W}/3/31/Chocolate_ice_cream.jpg/640px-Chocolate_ice_cream.jpg"),
+    ("ice cream cone", f"{W}/3/31/Chocolate_ice_cream.jpg/640px-Chocolate_ice_cream.jpg"),
+    # Plain "cone" after pizza/burger blocks above so a "Grilled Chicken Cone"
+    # type item still reads as chicken, not ice cream.
+    ("cone", f"{W}/3/31/Chocolate_ice_cream.jpg/640px-Chocolate_ice_cream.jpg"),
     ("ice cream", f"{W}/3/31/Chocolate_ice_cream.jpg/640px-Chocolate_ice_cream.jpg"),
+    ("icecream", f"{W}/3/31/Chocolate_ice_cream.jpg/640px-Chocolate_ice_cream.jpg"),
     ("gelato", f"{W}/3/31/Chocolate_ice_cream.jpg/640px-Chocolate_ice_cream.jpg"),
     ("frozen yogurt", f"{W}/3/31/Chocolate_ice_cream.jpg/640px-Chocolate_ice_cream.jpg"),
+    ("frozen dessert", f"{W}/3/31/Chocolate_ice_cream.jpg/640px-Chocolate_ice_cream.jpg"),
+    ("soft serve", f"{W}/3/31/Chocolate_ice_cream.jpg/640px-Chocolate_ice_cream.jpg"),
     ("donut", f"{W}/9/91/Glazed-Donut.jpg/640px-Glazed-Donut.jpg"),
     ("doughnut", f"{W}/9/91/Glazed-Donut.jpg/640px-Glazed-Donut.jpg"),
     ("cupcake", f"{W}/4/40/Chocolate_cupcake.jpg/640px-Chocolate_cupcake.jpg"),
@@ -231,6 +259,9 @@ GENERIC_MISMATCH = [
     ("Indian_thali", ["thali", "platter", "combo meal"]),
     ("Eggs_benedict", ["egg", "benedict", "breakfast"]),
     ("Spaghetti_aglio_e_olio", ["pasta", "spaghetti", "penne", "ravioli", "linguine", "carbonara"]),
+    # LLM commonly dropped Chocolate_cake_001 on ice-cream / kulfi / shrikhand /
+    # dessert items. Only keep it when the item is actually a cake.
+    ("Chocolate_cake_001", ["chocolate cake", "brownie", "fudge cake", "lava cake", "black forest"]),
 ]
 
 
