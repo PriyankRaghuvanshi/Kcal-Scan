@@ -1,0 +1,6 @@
+
+# April 2026 chain remediation run artifacts (tools/remediate_top_chains.py)
+data/ingest_staging/
+data/ingest_backups/
+data/remediation_run_log.json
+data/remediation_needs_url.json
