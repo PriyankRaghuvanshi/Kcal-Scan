@@ -103,7 +103,7 @@
       "contains_soy": false,
       "confidence": 0.8,
       "menu_item_source": "llm_curated",
-      "image_url": "",
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e1/Butter_chicken-Bhishan_Kitchen_1.jpg/640px-Butter_chicken-Bhishan_Kitchen_1.jpg",
       "negative_flags": [],
       "contains_palm_oil": false
     },
@@ -128,7 +128,7 @@
       "contains_soy": false,
       "confidence": 0.8,
       "menu_item_source": "llm_curated",
-      "image_url": "",
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/cb/Tandoori_chicken_001.jpg/640px-Tandoori_chicken_001.jpg",
       "negative_flags": [],
       "contains_palm_oil": false
     },

@@ -178,7 +178,7 @@
       "contains_soy": false,
       "confidence": 0.8,
       "menu_item_source": "llm_curated",
-      "image_url": "",
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a8/Nachos.jpg/640px-Nachos.jpg",
       "negative_flags": [],
       "contains_palm_oil": false
     }

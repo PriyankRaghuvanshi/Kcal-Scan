@@ -155,7 +155,7 @@
       "contains_soy": false,
       "confidence": 0.8,
       "menu_item_source": "llm_curated",
-      "image_url": "",
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/26/Doner_kebab_Prague.jpg/640px-Doner_kebab_Prague.jpg",
       "negative_flags": [],
       "contains_palm_oil": false
     },

@@ -83,7 +83,7 @@
       "contains_shellfish": false,
       "contains_egg": true,
       "contains_sesame": false,
-      "image_url": "",
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/7/75/Muffin_NIH.jpg/640px-Muffin_NIH.jpg",
       "menu_item_source": "llm_curated",
       "negative_flags": [],
       "contains_palm_oil": false
@@ -623,7 +623,7 @@
       "contains_soy": false,
       "confidence": 0.95,
       "menu_item_source": "official_published",
-      "image_url": "",
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b1/Hot_dog_with_mustard.png/640px-Hot_dog_with_mustard.png",
       "negative_flags": [],
       "contains_palm_oil": false
     },

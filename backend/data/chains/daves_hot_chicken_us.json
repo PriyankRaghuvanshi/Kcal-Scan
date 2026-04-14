@@ -55,7 +55,7 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "",
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0b/RedDot_Burger.jpg/640px-RedDot_Burger.jpg",
       "menu_item_source": "llm_curated",
       "negative_flags": [],
       "contains_palm_oil": false

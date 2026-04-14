@@ -101,7 +101,7 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "",
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/1/13/Phat_Thai_kung_Chang_Khien_street_stall.jpg/640px-Phat_Thai_kung_Chang_Khien_street_stall.jpg",
       "menu_item_source": "llm_curated",
       "negative_flags": [],
       "contains_palm_oil": false

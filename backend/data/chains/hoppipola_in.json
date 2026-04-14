@@ -26,7 +26,7 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "",
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/34/Ensalada_de_pollo_a_la_parrilla.jpg/640px-Ensalada_de_pollo_a_la_parrilla.jpg",
       "menu_item_source": "llm_curated",
       "negative_flags": [],
       "contains_palm_oil": false
@@ -104,7 +104,7 @@
       "contains_soy": false,
       "confidence": 0.8,
       "menu_item_source": "llm_curated",
-      "image_url": "",
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/cb/Tandoori_chicken_001.jpg/640px-Tandoori_chicken_001.jpg",
       "negative_flags": [],
       "contains_palm_oil": false
     },
@@ -129,7 +129,7 @@
       "contains_soy": false,
       "confidence": 0.8,
       "menu_item_source": "llm_curated",
-      "image_url": "",
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a8/Nachos.jpg/640px-Nachos.jpg",
       "negative_flags": [],
       "contains_palm_oil": false
     },
@@ -179,7 +179,7 @@
       "contains_soy": false,
       "confidence": 0.8,
       "menu_item_source": "llm_curated",
-      "image_url": "",
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0b/RedDot_Burger.jpg/640px-RedDot_Burger.jpg",
       "negative_flags": [],
       "contains_palm_oil": false
     },
