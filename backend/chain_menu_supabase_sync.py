@@ -26,9 +26,27 @@ CHAIN_MENU_ITEM_ALLOWED_COLUMNS = {
     "source_url",
     "protein_density_score",
     "fat_loss_fit_score",
-    "image_url",  # optional thumbnail (Wikimedia/CDN). Persisted only after
-                  # the ALTER TABLE in sql/add_image_url_column.sql is applied.
+    "image_url",          # sql/add_image_url_column.sql
+    "contains_palm_oil",  # sql/add_palm_oil_and_diet_type.sql
+    "diet_type",          # sql/add_palm_oil_and_diet_type.sql
 }
+
+_DIET_TYPE_TO_BOOLS = {
+    "vegan": {"vegan_possible": True, "vegetarian_possible": True},
+    "vegetarian": {"vegan_possible": False, "vegetarian_possible": True},
+    "non_veg": {"vegan_possible": False, "vegetarian_possible": False},
+}
+
+
+def _apply_diet_type(item: Dict[str, Any]) -> None:
+    """If diet_type is set to a known value, normalize veg/vegan booleans from it.
+    diet_type is authoritative: seed-level inconsistencies resolve in its favor."""
+    raw = str(item.get("diet_type") or "").strip().lower()
+    mapping = _DIET_TYPE_TO_BOOLS.get(raw)
+    if mapping is None:
+        return
+    for k, v in mapping.items():
+        item[k] = v
 
 
 def _slug_for_item_key(name: str) -> str:
@@ -134,6 +152,12 @@ def _seed_items_to_rows(
         # values become None to satisfy chain_menu_items_image_url_https.
         raw_url = str(item.get("image_url") or "").strip()
         item["image_url"] = raw_url if raw_url.lower().startswith("https://") else None
+        # diet_type drives veg/vegan booleans when present.
+        _apply_diet_type(item)
+        # Bulk-upsert needs matching key sets — explicitly default optional
+        # columns so every row carries the same shape.
+        item.setdefault("contains_palm_oil", None)
+        item.setdefault("diet_type", None)
         rows.append({k: item[k] for k in CHAIN_MENU_ITEM_ALLOWED_COLUMNS if k in item})
     return rows
 

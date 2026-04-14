@@ -285,6 +285,24 @@ def _should_retry_without_image_url(exc: Exception, rows: List[Dict[str, Any]]) 
     )
 
 
+# Optional columns tied to later migrations. If the DB hasn't had the migration
+# applied yet, PostgREST returns a "could not find column ... in schema cache"
+# 400. We catch those and retry with the named column stripped.
+_OPTIONAL_COLUMNS_WITH_MIGRATIONS = ("contains_palm_oil", "diet_type")
+
+
+def _missing_optional_column(exc: Exception, rows: List[Dict[str, Any]]) -> Optional[str]:
+    """Return the optional column name the DB is complaining about, or None."""
+    body = _http_error_body(exc)
+    text = f"{repr(exc)}\n{body}".lower()
+    if not ("schema cache" in text or "could not find" in text or "does not exist" in text):
+        return None
+    for col in _OPTIONAL_COLUMNS_WITH_MIGRATIONS:
+        if col in text and any(col in row for row in rows):
+            return col
+    return None
+
+
 def upsert_chain_menu_profile(row: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     """Upsert one chain_menu_profiles row. Fail-open: returns None on error."""
     if not _supabase_available():
@@ -369,14 +387,35 @@ def upsert_chain_menu_items(chain_key: str, market_tag: str, items: List[Dict[st
         print("SUPABASE DEBUG upsert_chain_menu_items rows_count:", len(rows))
     if not rows:
         return 0
+    url = f"{_supabase_base_url()}/{TBL_CHAIN_MENU_ITEMS}"
+    headers = _supabase_headers("resolution=merge-duplicates,return=minimal")
+    params = {"on_conflict": "chain_key,market_tag,item_key"}
+
+    # Retry loop: if PostgREST complains about a known optional column that
+    # hasn't been migrated yet (image_url, contains_palm_oil, diet_type),
+    # strip it and try again. Max 3 strips — one per optional col.
+    attempt_rows = rows
+    for _ in range(len(_OPTIONAL_COLUMNS_WITH_MIGRATIONS) + 1):
+        try:
+            status, _resp = _http_post_json(url, headers=headers, payload=attempt_rows, params=params, timeout=30)
+            if _chain_sync_debug():
+                print("SUPABASE DEBUG upsert_chain_menu_items POST status:", status)
+            return len(attempt_rows)
+        except Exception as e:
+            missing = _missing_optional_column(e, attempt_rows)
+            if missing is None:
+                break
+            if _chain_sync_debug():
+                print(f"SUPABASE DEBUG upsert_chain_menu_items retrying without {missing} (migration missing?)")
+            print(f"SUPABASE WARN chain_menu_items retrying without {missing}; run sql/add_palm_oil_and_diet_type.sql to persist this column.")
+            attempt_rows = _rows_without_optional_column(attempt_rows, missing)
+    # If we fell out of the retry loop (non-migration error), fall through to
+    # legacy image_url-specific handling + the final error branch below.
     try:
-        url = f"{_supabase_base_url()}/{TBL_CHAIN_MENU_ITEMS}"
-        headers = _supabase_headers("resolution=merge-duplicates,return=minimal")
-        params = {"on_conflict": "chain_key,market_tag,item_key"}
-        status, _ = _http_post_json(url, headers=headers, payload=rows, params=params, timeout=30)
+        status, _resp = _http_post_json(url, headers=headers, payload=attempt_rows, params=params, timeout=30)
         if _chain_sync_debug():
             print("SUPABASE DEBUG upsert_chain_menu_items POST status:", status)
-        return len(rows)
+        return len(attempt_rows)
     except Exception as e:
         if _should_retry_without_image_url(e, rows):
             global _IMAGE_URL_FALLBACK_WARNED

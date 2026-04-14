@@ -81,7 +81,8 @@
       "menu_item_source": "name_verified_pdf_estimated_nutrition",
       "source_url": "https://content.pizzahut.com.au/f/49069/x/2d4768ba6d/allergen-card-december-2023-website.pdf",
       "negative_flags": [],
-      "contains_palm_oil": false
+      "contains_palm_oil": false,
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a3/Eq_it-na_pizza-margherita_sep2005_sml.jpg/640px-Eq_it-na_pizza-margherita_sep2005_sml.jpg"
     },
     {
       "item_name": "Hawaiian (2 slices, large)",
@@ -131,7 +132,8 @@
       "menu_item_source": "name_verified_pdf_estimated_nutrition",
       "source_url": "https://content.pizzahut.com.au/f/49069/x/2d4768ba6d/allergen-card-december-2023-website.pdf",
       "negative_flags": [],
-      "contains_palm_oil": false
+      "contains_palm_oil": false,
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a3/Eq_it-na_pizza-margherita_sep2005_sml.jpg/640px-Eq_it-na_pizza-margherita_sep2005_sml.jpg"
     },
     {
       "item_name": "Cheese Lovers (2 slices, large)",

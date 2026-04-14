@@ -3052,11 +3052,27 @@ export default function App() {
     } catch {}
   }
 
+  // Device-locale-based default tone for first-time users. Returns "indian_coach"
+  // when the device timezone or locale suggests India; otherwise "supportive".
+  // Only consulted when no coach profile has ever been saved — once the user
+  // picks a tone from Settings and saves, AsyncStorage holds their choice and
+  // this helper is never consulted again.
+  function detectDefaultCoachTone() {
+    try {
+      const opts = Intl.DateTimeFormat().resolvedOptions();
+      const tz = String(opts.timeZone || "");
+      const locale = String(opts.locale || "");
+      if (tz === "Asia/Kolkata" || tz === "Asia/Calcutta") return "indian_coach";
+      if (/-IN\b/i.test(locale) || /^hi\b/i.test(locale)) return "indian_coach";
+    } catch {}
+    return "supportive";
+  }
+
   async function loadCoachProfile(uid) {
     if (!uid) return DEFAULT_COACH_PROFILE;
     try {
       const raw = await AsyncStorage.getItem(coachProfileKey(uid));
-      if (!raw) return DEFAULT_COACH_PROFILE;
+      if (!raw) return { ...DEFAULT_COACH_PROFILE, tone_preference: detectDefaultCoachTone() };
       return normalizeCoachProfile(safeParseJson(raw, {}, "coach_profile"));
     } catch {
       return DEFAULT_COACH_PROFILE;

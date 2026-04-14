@@ -30,6 +30,17 @@ KEYWORD_TO_IMAGE: list[tuple[str, str]] = [
     ("margherita", f"{W}/a/a3/Eq_it-na_pizza-margherita_sep2005_sml.jpg/640px-Eq_it-na_pizza-margherita_sep2005_sml.jpg"),
     ("pizza", f"{W}/a/a3/Eq_it-na_pizza-margherita_sep2005_sml.jpg/640px-Eq_it-na_pizza-margherita_sep2005_sml.jpg"),
 
+    # --- veg-burger overrides: these must fire BEFORE the generic "burger"
+    # rule so Paneer Burger / Aloo Tikki Burger / McAloo Tikki / Veggie
+    # Supreme don't land on a beef-burger thumbnail.
+    ("paneer tikka", f"{W}/d/d3/Paneer_tikka_at_Punjabi_Restaurant.jpg/640px-Paneer_tikka_at_Punjabi_Restaurant.jpg"),
+    ("paneer burger", f"{W}/d/d3/Paneer_tikka_at_Punjabi_Restaurant.jpg/640px-Paneer_tikka_at_Punjabi_Restaurant.jpg"),
+    ("paneer", f"{W}/d/d3/Paneer_tikka_at_Punjabi_Restaurant.jpg/640px-Paneer_tikka_at_Punjabi_Restaurant.jpg"),
+    ("aloo tikki", f"{W}/f/f2/Bhajji.jpg/640px-Bhajji.jpg"),
+    ("mcaloo tikki", f"{W}/f/f2/Bhajji.jpg/640px-Bhajji.jpg"),
+    ("veggie burger", f"{W}/3/34/Ensalada_de_pollo_a_la_parrilla.jpg/640px-Ensalada_de_pollo_a_la_parrilla.jpg"),
+    ("veg burger", f"{W}/3/34/Ensalada_de_pollo_a_la_parrilla.jpg/640px-Ensalada_de_pollo_a_la_parrilla.jpg"),
+
     # --- burgers / sliders ---
     ("cheeseburger", f"{W}/0/0b/RedDot_Burger.jpg/640px-RedDot_Burger.jpg"),
     ("hamburger", f"{W}/0/0b/RedDot_Burger.jpg/640px-RedDot_Burger.jpg"),
@@ -40,6 +51,9 @@ KEYWORD_TO_IMAGE: list[tuple[str, str]] = [
     ("chicken nugget", f"{W}/3/3a/Chicken_McNuggets_%28cropped%29.jpg/640px-Chicken_McNuggets_%28cropped%29.jpg"),
     ("chicken wings", f"{W}/1/14/Chicken_wings.jpg/640px-Chicken_wings.jpg"),
     ("hot wings", f"{W}/1/14/Chicken_wings.jpg/640px-Chicken_wings.jpg"),
+    ("peri peri wings", f"{W}/1/14/Chicken_wings.jpg/640px-Chicken_wings.jpg"),
+    ("grilled wings", f"{W}/1/14/Chicken_wings.jpg/640px-Chicken_wings.jpg"),
+    ("wings", f"{W}/1/14/Chicken_wings.jpg/640px-Chicken_wings.jpg"),
     ("fried chicken", f"{W}/5/57/Fried-Chicken-Dinner.jpg/640px-Fried-Chicken-Dinner.jpg"),
 
     # --- fries ---
@@ -189,6 +203,54 @@ def pick_image(item_name: str) -> str:
     return ""
 
 
+# Image fragments that specifically depict meat/chicken/beef. If an item's
+# name is vegetarian (contains a VEG_DISQUALIFIERS keyword) and the image is
+# one of these, the assignment is wrong — clear it so the re-matcher can
+# pick a vegetarian image.
+MEAT_IMAGE_FRAGMENTS = [
+    "Burger_King_Whopper",
+    "Fried-Chicken-Dinner",
+    "Fried_chicken_with_french_fries",
+    "Tandoori_chicken_001",
+    "Chicken_McNuggets",
+    "Ensalada_de_pollo_a_la_parrilla",  # grilled-chicken salad default
+    "Chicken_wings",
+    "Chicken_burger",
+    "Shredded_beef_burrito",
+    "Grilled_Steak",
+]
+
+VEG_DISQUALIFIERS = [
+    "paneer", "veggie", " veg ", "veg ", "(veg)", "aloo tikki", "tofu",
+    "mushroom", "vegetarian", "vegan", "cheese only", "veg supreme",
+    "margherita", "falafel", "hummus", "dal", "chickpea",
+]
+
+# Additional always-wrong specific combinations (old hand-flagged mismatches).
+GENERIC_MISMATCH = [
+    ("Indian_thali", ["thali", "platter", "combo meal"]),
+    ("Eggs_benedict", ["egg", "benedict", "breakfast"]),
+    ("Spaghetti_aglio_e_olio", ["pasta", "spaghetti", "penne", "ravioli", "linguine", "carbonara"]),
+]
+
+
+def clear_if_suspicious(existing_url: str, item_name: str) -> str:
+    """Drop existing image_url when it clearly doesn't match the item name.
+    Returns '' if cleared, otherwise the original."""
+    if not existing_url:
+        return ""
+    n = item_name.lower()
+    # Veg item with a meat image → clear.
+    if any(veg_kw in n for veg_kw in VEG_DISQUALIFIERS):
+        if any(meat_frag in existing_url for meat_frag in MEAT_IMAGE_FRAGMENTS):
+            return ""
+    # Generic category mismatch (thali, benedict, pasta).
+    for fragment, expected_keywords in GENERIC_MISMATCH:
+        if fragment in existing_url and not any(kw in n for kw in expected_keywords):
+            return ""
+    return existing_url
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--dry-run", action="store_true")
@@ -217,9 +279,16 @@ def main():
             if not isinstance(it, dict):
                 continue
             total_items += 1
-            if str(it.get("image_url") or "").strip():
+            name = str(it.get("item_name") or "")
+            existing = str(it.get("image_url") or "").strip()
+            cleaned = clear_if_suspicious(existing, name)
+            if cleaned != existing:
+                it["image_url"] = cleaned
+                file_changed = True
+                existing = cleaned
+            if existing:
                 continue
-            url = pick_image(str(it.get("item_name") or ""))
+            url = pick_image(name)
             if url:
                 it["image_url"] = url
                 assigned += 1

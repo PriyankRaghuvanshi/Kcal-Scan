@@ -135,7 +135,7 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/be/Burger_King_Whopper.jpg/640px-Burger_King_Whopper.jpg",
+      "image_url": "",
       "menu_item_source": "llm_curated",
       "negative_flags": [],
       "contains_palm_oil": false
@@ -211,7 +211,7 @@
       "contains_soy": false,
       "confidence": 0.95,
       "menu_item_source": "official_published",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/be/Burger_King_Whopper.jpg/640px-Burger_King_Whopper.jpg",
+      "image_url": "",
       "negative_flags": [],
       "contains_palm_oil": false
     },
@@ -236,7 +236,7 @@
       "contains_soy": false,
       "confidence": 0.95,
       "menu_item_source": "official_published",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/be/Burger_King_Whopper.jpg/640px-Burger_King_Whopper.jpg",
+      "image_url": "",
       "negative_flags": [],
       "contains_palm_oil": false
     },

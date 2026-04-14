@@ -56,7 +56,8 @@
       "contains_sesame": false,
       "menu_item_source": "llm_curated",
       "negative_flags": [],
-      "contains_palm_oil": false
+      "contains_palm_oil": false,
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f2/Bhajji.jpg/640px-Bhajji.jpg"
     },
     {
       "item_name": "Chole Bhature",

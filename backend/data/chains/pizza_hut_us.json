@@ -153,7 +153,8 @@
       "contains_sesame": false,
       "menu_item_source": "llm_curated",
       "negative_flags": [],
-      "contains_palm_oil": false
+      "contains_palm_oil": false,
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/1/14/Chicken_wings.jpg/640px-Chicken_wings.jpg"
     }
   ]
 }
