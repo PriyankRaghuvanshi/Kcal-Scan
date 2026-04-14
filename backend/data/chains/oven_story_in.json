@@ -10,7 +10,7 @@
   ],
   "items": [
     {
-      "item_name": "Grilled Chicken Personal Pizza",
+      "item_name": "Grilled Chicken (2 slices, personal)",
       "category": "entree",
       "estimated_calories": 520,
       "estimated_protein_g": 28,
@@ -37,7 +37,7 @@
       "contains_palm_oil": true
     },
     {
-      "item_name": "Peri Peri Chicken Personal",
+      "item_name": "Peri Peri Chicken (2 slices, personal)",
       "category": "entree",
       "estimated_calories": 540,
       "estimated_protein_g": 28,
@@ -61,7 +61,7 @@
       "contains_palm_oil": false
     },
     {
-      "item_name": "Veggie Supreme Personal",
+      "item_name": "Veggie Supreme (2 slices, personal)",
       "category": "entree",
       "estimated_calories": 480,
       "estimated_protein_g": 16,
@@ -85,7 +85,7 @@
       "contains_palm_oil": false
     },
     {
-      "item_name": "Margherita Personal",
+      "item_name": "Margherita (2 slices, personal)",
       "category": "entree",
       "estimated_calories": 440,
       "estimated_protein_g": 16,

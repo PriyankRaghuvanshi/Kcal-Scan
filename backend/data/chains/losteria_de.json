@@ -8,7 +8,7 @@
   ],
   "items": [
     {
-      "item_name": "Pizza Margherita",
+      "item_name": "Pizza Margherita (1 serving, small)",
       "category": "entree",
       "estimated_calories": 520,
       "estimated_protein_g": 22,
@@ -35,7 +35,7 @@
       "contains_palm_oil": true
     },
     {
-      "item_name": "Pizza Prosciutto",
+      "item_name": "Pizza Prosciutto (1 serving, small)",
       "category": "entree",
       "estimated_calories": 540,
       "estimated_protein_g": 28,

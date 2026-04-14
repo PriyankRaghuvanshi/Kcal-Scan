@@ -8,7 +8,7 @@
   ],
   "items": [
     {
-      "item_name": "Grilled Chicken Personal Pizza",
+      "item_name": "Grilled Chicken (2 slices, personal)",
       "category": "entree",
       "estimated_calories": 520,
       "estimated_protein_g": 28,
@@ -35,7 +35,7 @@
       "contains_palm_oil": true
     },
     {
-      "item_name": "Margherita Personal",
+      "item_name": "Margherita (2 slices, personal)",
       "category": "entree",
       "estimated_calories": 440,
       "estimated_protein_g": 18,
@@ -60,7 +60,7 @@
       "contains_palm_oil": false
     },
     {
-      "item_name": "Prosciutto Personal",
+      "item_name": "Prosciutto (2 slices, personal)",
       "category": "entree",
       "estimated_calories": 540,
       "estimated_protein_g": 28,
@@ -84,7 +84,7 @@
       "contains_palm_oil": false
     },
     {
-      "item_name": "Leggera Pollo Ad Astra Pizza",
+      "item_name": "Leggera Pollo Ad Astra Pizza (2 slices)",
       "category": "entree",
       "estimated_calories": 500,
       "estimated_protein_g": 28,

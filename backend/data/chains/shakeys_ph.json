@@ -34,7 +34,7 @@
       "contains_palm_oil": false
     },
     {
-      "item_name": "Manager's Choice Personal Pizza",
+      "item_name": "Manager's Choice (2 slices, personal)",
       "category": "entree",
       "estimated_calories": 560,
       "estimated_protein_g": 24,
@@ -61,7 +61,7 @@
       "contains_palm_oil": true
     },
     {
-      "item_name": "Hawaiian Delight Personal",
+      "item_name": "Hawaiian Delight (2 slices, personal)",
       "category": "entree",
       "estimated_calories": 540,
       "estimated_protein_g": 22,

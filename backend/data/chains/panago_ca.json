@@ -9,7 +9,7 @@
   ],
   "items": [
     {
-      "item_name": "Grilled Chicken Personal Pizza",
+      "item_name": "Grilled Chicken (2 slices, personal)",
       "category": "entree",
       "estimated_calories": 520,
       "estimated_protein_g": 28,
@@ -36,7 +36,7 @@
       "contains_palm_oil": true
     },
     {
-      "item_name": "Vegetarian Personal",
+      "item_name": "Vegetarian (2 slices, personal)",
       "category": "entree",
       "estimated_calories": 480,
       "estimated_protein_g": 18,
@@ -60,7 +60,7 @@
       "contains_palm_oil": false
     },
     {
-      "item_name": "BBQ Chicken Personal",
+      "item_name": "BBQ Chicken (2 slices, personal)",
       "category": "entree",
       "estimated_calories": 540,
       "estimated_protein_g": 30,

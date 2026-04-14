@@ -10,7 +10,7 @@
   ],
   "items": [
     {
-      "item_name": "Garden Personal Pizza",
+      "item_name": "Garden (2 slices, personal)",
       "category": "entree",
       "estimated_calories": 480,
       "estimated_protein_g": 18,
@@ -37,7 +37,7 @@
       "contains_palm_oil": true
     },
     {
-      "item_name": "Pepperoni Personal",
+      "item_name": "Pepperoni (2 slices, personal)",
       "category": "entree",
       "estimated_calories": 520,
       "estimated_protein_g": 24,
@@ -62,7 +62,7 @@
       "contains_palm_oil": false
     },
     {
-      "item_name": "Chicken Club Personal",
+      "item_name": "Chicken Club (2 slices, personal)",
       "category": "entree",
       "estimated_calories": 540,
       "estimated_protein_g": 28,

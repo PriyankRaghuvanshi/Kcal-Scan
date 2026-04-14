@@ -9,7 +9,7 @@
   ],
   "items": [
     {
-      "item_name": "Grilled Chicken Personal",
+      "item_name": "Grilled Chicken (2 slices, personal)",
       "category": "entree",
       "estimated_calories": 540,
       "estimated_protein_g": 28,
@@ -34,7 +34,7 @@
       "contains_palm_oil": false
     },
     {
-      "item_name": "Hawaiian Personal",
+      "item_name": "Hawaiian (2 slices, personal)",
       "category": "entree",
       "estimated_calories": 540,
       "estimated_protein_g": 22,

@@ -9,7 +9,7 @@
   ],
   "items": [
     {
-      "item_name": "Grilled Chicken Personal Pizza",
+      "item_name": "Grilled Chicken (2 slices, personal)",
       "category": "entree",
       "estimated_calories": 540,
       "estimated_protein_g": 28,
@@ -36,7 +36,7 @@
       "contains_palm_oil": true
     },
     {
-      "item_name": "Hawaiian Personal",
+      "item_name": "Hawaiian (2 slices, personal)",
       "category": "entree",
       "estimated_calories": 540,
       "estimated_protein_g": 22,
@@ -60,7 +60,7 @@
       "contains_palm_oil": false
     },
     {
-      "item_name": "Vegi Supreme Personal",
+      "item_name": "Vegi Supreme (2 slices, personal)",
       "category": "entree",
       "estimated_calories": 480,
       "estimated_protein_g": 16,

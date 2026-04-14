@@ -10,7 +10,7 @@
   ],
   "items": [
     {
-      "item_name": "BBQ Chicken Personal",
+      "item_name": "BBQ Chicken (2 slices, personal)",
       "category": "entree",
       "estimated_calories": 560,
       "estimated_protein_g": 28,
@@ -34,7 +34,7 @@
       "contains_palm_oil": false
     },
     {
-      "item_name": "Margherita Personal",
+      "item_name": "Margherita (2 slices, personal)",
       "category": "entree",
       "estimated_calories": 480,
       "estimated_protein_g": 18,
@@ -59,7 +59,7 @@
       "contains_palm_oil": false
     },
     {
-      "item_name": "Margherita Pizza (personal)",
+      "item_name": "Margherita Pizza (2 slices, personal)",
       "category": "entree",
       "estimated_calories": 540,
       "estimated_protein_g": 22,
@@ -86,7 +86,7 @@
       "contains_palm_oil": true
     },
     {
-      "item_name": "Chicken Pizza (personal)",
+      "item_name": "Chicken Pizza (2 slices, personal)",
       "category": "entree",
       "estimated_calories": 620,
       "estimated_protein_g": 32,
@@ -113,7 +113,7 @@
       "contains_palm_oil": true
     },
     {
-      "item_name": "Thin-Crust Veggie (personal)",
+      "item_name": "Thin-Crust Veggie (2 slices, personal)",
       "category": "entree",
       "estimated_calories": 480,
       "estimated_protein_g": 18,
@@ -137,7 +137,7 @@
       "contains_palm_oil": false
     },
     {
-      "item_name": "BBQ Chicken Pizza (personal)",
+      "item_name": "BBQ Chicken Pizza (2 slices, personal)",
       "category": "entree",
       "estimated_calories": 680,
       "estimated_protein_g": 34,

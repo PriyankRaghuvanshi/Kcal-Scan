@@ -9,7 +9,7 @@
   ],
   "items": [
     {
-      "item_name": "Toit Pizza Personal",
+      "item_name": "Toit Pizza Personal (1 serving, small)",
       "category": "entree",
       "estimated_calories": 540,
       "estimated_protein_g": 22,
@@ -111,7 +111,7 @@
       "contains_palm_oil": false
     },
     {
-      "item_name": "Chicken Tikka Pizza",
+      "item_name": "Chicken Tikka Pizza (1 serving, small)",
       "category": "entree",
       "estimated_calories": 620,
       "estimated_protein_g": 32,

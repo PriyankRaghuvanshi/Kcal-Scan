@@ -8,7 +8,7 @@
   ],
   "items": [
     {
-      "item_name": "Small Veggie Pizza",
+      "item_name": "Small Veggie Pizza (1 serving, small)",
       "category": "entree",
       "estimated_calories": 480,
       "estimated_protein_g": 18,
@@ -35,7 +35,7 @@
       "contains_palm_oil": true
     },
     {
-      "item_name": "Small Chicken Caesar Pizza",
+      "item_name": "Small Chicken Caesar Pizza (1 serving, small)",
       "category": "entree",
       "estimated_calories": 540,
       "estimated_protein_g": 28,

@@ -8,7 +8,7 @@
   ],
   "items": [
     {
-      "item_name": "Grilled Chicken Personal",
+      "item_name": "Grilled Chicken (2 slices, personal)",
       "category": "entree",
       "estimated_calories": 540,
       "estimated_protein_g": 28,
@@ -58,7 +58,7 @@
       "contains_palm_oil": false
     },
     {
-      "item_name": "Margherita Personal",
+      "item_name": "Margherita (2 slices, personal)",
       "category": "entree",
       "estimated_calories": 480,
       "estimated_protein_g": 18,
@@ -132,7 +132,7 @@
       "contains_palm_oil": false
     },
     {
-      "item_name": "Thin-Crust Veggie (personal)",
+      "item_name": "Thin-Crust Veggie (2 slices, personal)",
       "category": "entree",
       "estimated_calories": 480,
       "estimated_protein_g": 18,
@@ -156,7 +156,7 @@
       "contains_palm_oil": false
     },
     {
-      "item_name": "Chicken BBQ (personal)",
+      "item_name": "Chicken BBQ (2 slices, personal)",
       "category": "entree",
       "estimated_calories": 620,
       "estimated_protein_g": 32,

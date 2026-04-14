@@ -8,7 +8,7 @@
   ],
   "items": [
     {
-      "item_name": "Grilled Chicken Personal",
+      "item_name": "Grilled Chicken (2 slices, personal)",
       "category": "entree",
       "estimated_calories": 520,
       "estimated_protein_g": 28,
@@ -33,7 +33,7 @@
       "contains_palm_oil": false
     },
     {
-      "item_name": "Canadian Personal",
+      "item_name": "Canadian (2 slices, personal)",
       "category": "entree",
       "estimated_calories": 540,
       "estimated_protein_g": 26,
@@ -57,7 +57,7 @@
       "contains_palm_oil": false
     },
     {
-      "item_name": "Veggie Personal",
+      "item_name": "Veggie (2 slices, personal)",
       "category": "entree",
       "estimated_calories": 460,
       "estimated_protein_g": 16,

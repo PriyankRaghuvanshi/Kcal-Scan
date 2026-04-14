@@ -12,7 +12,7 @@
   ],
   "items": [
     {
-      "item_name": "Grilled Chicken Personal Pizza",
+      "item_name": "Grilled Chicken (2 slices, personal)",
       "category": "entree",
       "estimated_calories": 520,
       "estimated_protein_g": 28,
@@ -39,7 +39,7 @@
       "contains_palm_oil": true
     },
     {
-      "item_name": "BBQ Chicken Personal",
+      "item_name": "BBQ Chicken (2 slices, personal)",
       "category": "entree",
       "estimated_calories": 560,
       "estimated_protein_g": 28,
@@ -63,7 +63,7 @@
       "contains_palm_oil": false
     },
     {
-      "item_name": "Paneer Tikka Personal",
+      "item_name": "Paneer Tikka (2 slices, personal)",
       "category": "entree",
       "estimated_calories": 540,
       "estimated_protein_g": 20,
@@ -88,7 +88,7 @@
       "contains_palm_oil": false
     },
     {
-      "item_name": "Veggie Supreme Personal",
+      "item_name": "Veggie Supreme (2 slices, personal)",
       "category": "entree",
       "estimated_calories": 480,
       "estimated_protein_g": 16,

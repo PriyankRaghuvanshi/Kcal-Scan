@@ -9,7 +9,7 @@
   ],
   "items": [
     {
-      "item_name": "BBQ Chicken Personal",
+      "item_name": "BBQ Chicken (2 slices, personal)",
       "category": "entree",
       "estimated_calories": 540,
       "estimated_protein_g": 28,
@@ -33,7 +33,7 @@
       "contains_palm_oil": false
     },
     {
-      "item_name": "Veggie Mediterranean Personal",
+      "item_name": "Veggie Mediterranean (2 slices, personal)",
       "category": "entree",
       "estimated_calories": 480,
       "estimated_protein_g": 16,
@@ -57,7 +57,7 @@
       "contains_palm_oil": false
     },
     {
-      "item_name": "Prosciutto & Rocket Personal",
+      "item_name": "Prosciutto & Rocket (2 slices, personal)",
       "category": "entree",
       "estimated_calories": 520,
       "estimated_protein_g": 26,

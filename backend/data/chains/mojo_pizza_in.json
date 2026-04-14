@@ -9,7 +9,7 @@
   ],
   "items": [
     {
-      "item_name": "Grilled Chicken Personal",
+      "item_name": "Grilled Chicken (2 slices, personal)",
       "category": "entree",
       "estimated_calories": 540,
       "estimated_protein_g": 28,
@@ -34,7 +34,7 @@
       "contains_palm_oil": false
     },
     {
-      "item_name": "BBQ Chicken Personal",
+      "item_name": "BBQ Chicken (2 slices, personal)",
       "category": "entree",
       "estimated_calories": 560,
       "estimated_protein_g": 28,
@@ -58,7 +58,7 @@
       "contains_palm_oil": false
     },
     {
-      "item_name": "Margherita Personal",
+      "item_name": "Margherita (2 slices, personal)",
       "category": "entree",
       "estimated_calories": 460,
       "estimated_protein_g": 18,
@@ -83,7 +83,7 @@
       "contains_palm_oil": false
     },
     {
-      "item_name": "Thin-Crust Margherita (personal)",
+      "item_name": "Thin-Crust Margherita (2 slices, personal)",
       "category": "entree",
       "estimated_calories": 540,
       "estimated_protein_g": 22,
@@ -108,7 +108,7 @@
       "contains_palm_oil": false
     },
     {
-      "item_name": "Chicken Tikka Pizza (personal)",
+      "item_name": "Chicken Tikka Pizza (2 slices, personal)",
       "category": "entree",
       "estimated_calories": 620,
       "estimated_protein_g": 32,
@@ -135,7 +135,7 @@
       "contains_palm_oil": true
     },
     {
-      "item_name": "Veggie Supreme (personal)",
+      "item_name": "Veggie Supreme (2 slices, personal)",
       "category": "entree",
       "estimated_calories": 520,
       "estimated_protein_g": 20,
@@ -159,7 +159,7 @@
       "contains_palm_oil": false
     },
     {
-      "item_name": "Chicken BBQ (personal)",
+      "item_name": "Chicken BBQ (2 slices, personal)",
       "category": "entree",
       "estimated_calories": 640,
       "estimated_protein_g": 32,
