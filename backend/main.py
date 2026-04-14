@@ -3132,8 +3132,24 @@ def _coach_temporal_greeting(
     }
 
 
+_GREETING_STRIP_RE = re.compile(
+    r"^\s*(good\s+(?:morning|afternoon|evening|night))\s*[.,!\-\u2014]*\s*",
+    re.IGNORECASE,
+)
+
+
+def _strip_leading_greeting(line: str) -> str:
+    """Remove any stale 'Good morning/afternoon/evening/night' prefix so a fresh tz-aware greeting can replace it."""
+    s = str(line or "")
+    prev = None
+    while prev != s:
+        prev = s
+        s = _GREETING_STRIP_RE.sub("", s, count=1).lstrip()
+    return s
+
+
 def _prefix_once(base_line: Any, prefix: str, max_chars: int) -> str:
-    line = str(base_line or "").strip()
+    line = _strip_leading_greeting(str(base_line or "").strip())
     pre = str(prefix or "").strip()
     if not pre:
         return _limit_text(line, max_chars)
@@ -12221,6 +12237,88 @@ def _audio_history_normalize(history: Any, limit: int = 8) -> List[Dict[str, str
     return out[-max(1, int(limit)) :]
 
 
+# Short affirmations the user sends after coach already asked / suggested. When the user
+# replies with just "ok" we must NOT re-ask the same thing. Covers English + Hindi/Hinglish.
+_SHORT_AFFIRMATIONS = {
+    "ok", "okay", "oki", "okie", "k", "kk", "kay",
+    "yes", "yeah", "yep", "yup", "ya", "yaa",
+    "sure", "done", "noted", "got it", "gotcha", "alright", "right",
+    "cool", "nice", "great", "thanks", "thank you", "ty",
+    "haan", "han", "haa", "ji", "ji haan", "theek", "theek hai", "thik", "thik hai",
+    "sahi", "sahi hai", "sahi bhai", "ok bhai", "ok bro", "ok sir", "ok yaar",
+    "hmm", "hm", "mm", "mhm", "uh huh", "uh-huh",
+    "pakka", "pakka bhai", "bilkul", "zaroor", "chalega", "chalo", "samajh gaya",
+    "samjh gaya", "samjh", "matlab", "acha", "accha", "achha",
+}
+
+
+def _is_short_affirmation(user_text: str) -> bool:
+    """Detect short acknowledgments so the coach doesn't re-ask its prior question."""
+    t = str(user_text or "").strip().lower()
+    if not t:
+        return False
+    if len(t) > 24:
+        return False
+    cleaned = re.sub(r"[.!?,\s]+", " ", t).strip()
+    if not cleaned:
+        return False
+    if cleaned in _SHORT_AFFIRMATIONS:
+        return True
+    # Handle two-word affirmations like "ok bhai", "haan ji", "thik hai".
+    parts = cleaned.split()
+    if len(parts) <= 3 and all(p in _SHORT_AFFIRMATIONS or p in {"bhai", "bro", "sir", "yaar", "ji"} for p in parts):
+        return True
+    return False
+
+
+def _last_coach_turn(history: List[Dict[str, str]]) -> str:
+    for row in reversed(history or []):
+        if str(row.get("role") or "").strip().lower() == "coach":
+            return str(row.get("text") or "").strip()
+    return ""
+
+
+def _coach_ack_reply(last_coach_text: str) -> Dict[str, str]:
+    """Warm, non-repetitive acknowledgment when user just said 'ok'. Never re-asks."""
+    base = "Great — sounds good."
+    lc = (last_coach_text or "").lower()
+    if "protein" in lc:
+        line = "Great — lock that protein in and we'll regroup after the next meal."
+    elif "yogurt" in lc or "curd" in lc or "dahi" in lc:
+        line = "Perfect — grab the yogurt when you can, and we'll check in later."
+    elif "water" in lc or "hydrat" in lc:
+        line = "Good — keep sipping, I'll check your next meal numbers."
+    elif "walk" in lc or "steps" in lc:
+        line = "Nice — enjoy the walk, ping me after your next meal."
+    elif "sleep" in lc or "rest" in lc:
+        line = "Smart — rest well, we'll pick this up tomorrow."
+    else:
+        line = base
+    return {"coach_reply": line, "next_question": "", "action_hint": ""}
+
+
+def _token_set(text: str) -> set[str]:
+    return {w for w in re.split(r"[^a-z0-9]+", str(text or "").lower()) if len(w) >= 4}
+
+
+def _next_question_repeats_prior(next_q: str, history: List[Dict[str, str]]) -> bool:
+    """If LLM's next_question overlaps heavily with the most recent COACH question, treat as a repeat."""
+    q = _token_set(next_q)
+    if len(q) < 3:
+        return False
+    for row in reversed(history or []):
+        if str(row.get("role") or "").strip().lower() != "coach":
+            continue
+        prev = _token_set(row.get("text"))
+        if not prev:
+            continue
+        overlap = q & prev
+        if len(overlap) >= max(3, int(0.6 * len(q))):
+            return True
+        break  # only check the most recent coach turn
+    return False
+
+
 def _sanitize_transcript_text(raw: Any) -> str:
     txt = str(raw or "").replace("\n", " ").strip()
     txt = re.sub(r"\s+", " ", txt).strip()
@@ -12610,24 +12708,37 @@ def coach_audio_turn(
     user_text = str(req.user_text or "").strip()
     health_ctx = req.health_context if isinstance(req.health_context, dict) else {}
 
-    llm_reply = _coach_chat_llm_reply(
-        user_text=user_text,
-        tone=tone_pref,
-        goals=req.goals or {},
-        consumed=req.consumed or {},
-        protein_gap=protein_gap,
-        fiber_gap=fiber_gap,
-        kcal_delta=kcal_delta,
-        history=history,
-        health_context=health_ctx,
-        profile=req.profile or {},
-        food_preferences=list(req.food_preferences or []),
-        goal_reminders=list(req.goal_reminders or []),
-        signals=req.signals or {},
-        meal_timing=req.meal_timing or {},
-    )
-    reply = llm_reply if llm_reply else _coach_chat_fallback_reply()
-    source = "llm" if llm_reply else "fallback"
+    last_coach_text = _last_coach_turn(history)
+    short_ack = _is_short_affirmation(user_text) and bool(last_coach_text)
+
+    if short_ack:
+        reply = _coach_ack_reply(last_coach_text)
+        source = "ack"
+        llm_reply = None
+    else:
+        llm_reply = _coach_chat_llm_reply(
+            user_text=user_text,
+            tone=tone_pref,
+            goals=req.goals or {},
+            consumed=req.consumed or {},
+            protein_gap=protein_gap,
+            fiber_gap=fiber_gap,
+            kcal_delta=kcal_delta,
+            history=history,
+            health_context=health_ctx,
+            profile=req.profile or {},
+            food_preferences=list(req.food_preferences or []),
+            goal_reminders=list(req.goal_reminders or []),
+            signals=req.signals or {},
+            meal_timing=req.meal_timing or {},
+        )
+        reply = llm_reply if llm_reply else _coach_chat_fallback_reply()
+        source = "llm" if llm_reply else "fallback"
+        # Guard against the LLM re-asking the same question the user just acknowledged.
+        nq = str(reply.get("next_question") or "").strip()
+        if nq and _next_question_repeats_prior(nq, history):
+            reply = dict(reply)
+            reply["next_question"] = ""
     health_context_used = bool(
         health_ctx
         and isinstance(health_ctx, dict)
