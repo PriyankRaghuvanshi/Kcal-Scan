@@ -11574,6 +11574,12 @@ def _build_server_daily_coach_payload(
         },
         "daily_totals_version": str(daily_totals_version),
         "meal_snapshot": meal_snapshot,
+        # Propagate timezone so _build_quick_fli_response can compute a
+        # tz-aware greeting. Without these, the payload has no tz info and
+        # the greeting falls back to server (UTC) local time — which produces
+        # "Good night" in IST midday scenarios.
+        "tz": str(tz or "").strip() or None,
+        "tz_offset_min": tz_offset_min,
     }
     sig_seed = {
         "day": day_iso,
@@ -15743,6 +15749,57 @@ def _macro_override_has_any_field(override: Any) -> bool:
         if v is not None:
             return True
     return False
+
+
+def _restore_stored_manual_overrides(
+    items_raw: List[Dict[str, Any]],
+    results: List[Dict[str, Any]],
+    totals: Dict[str, float],
+    total_micros: Dict[str, float],
+) -> Tuple[List[Dict[str, Any]], Dict[str, float], Dict[str, float]]:
+    """Re-apply manual_macro_override values that were stored on a prior edit.
+
+    Without this, a second rerun silently recomputes nutrition from name/grams
+    and clobbers the user's correction. We match by item_id and copy kcal,
+    macros, and the flag — then re-total.
+    """
+    rows = [dict(x or {}) for x in (results or [])]
+    if not rows or not items_raw:
+        return results, totals, total_micros
+    stored = {}
+    for raw in items_raw:
+        if not isinstance(raw, dict) or not raw.get("manual_macro_override"):
+            continue
+        key = str(raw.get("item_id") or "").strip()
+        if not key:
+            continue
+        macros = raw.get("macros") if isinstance(raw.get("macros"), dict) else {}
+        stored[key] = {
+            "kcal": float(_safe_float(raw.get("kcal"), 0.0) or 0.0),
+            "macros": {
+                "protein_g": float(_safe_float(macros.get("protein_g"), 0.0) or 0.0),
+                "carbs_g": float(_safe_float(macros.get("carbs_g"), 0.0) or 0.0),
+                "fat_g": float(_safe_float(macros.get("fat_g"), 0.0) or 0.0),
+            },
+            "micros": dict(raw.get("micros") or {}) if isinstance(raw.get("micros"), dict) else {},
+        }
+    if not stored:
+        return results, totals, total_micros
+    changed = False
+    for it in rows:
+        iid = str(it.get("item_id") or "").strip()
+        if iid in stored:
+            s = stored[iid]
+            it["kcal"] = s["kcal"]
+            it["macros"] = dict(s["macros"])
+            if s["micros"]:
+                it["micros"] = dict(s["micros"])
+            it["manual_macro_override"] = True
+            changed = True
+    if not changed:
+        return results, totals, total_micros
+    new_totals, new_micros = _retotal_scan_from_item_results(rows)
+    return rows, new_totals, new_micros
 
 
 def _apply_macro_override_to_scan(
@@ -22241,6 +22298,12 @@ def analyze_rerun(
 
     results, totals, total_micros, item_warnings, _ = _compute_scan_nutrition(items_for_nutrition)
     default_iid = _default_item_id_from_analysis_row(existing)
+    # Restore any user macro corrections stored on prior edits — _compute_scan_nutrition
+    # recomputes from name/grams and silently drops the manual_macro_override flag,
+    # which would otherwise cause user fixes to be clobbered on subsequent reruns.
+    results, totals, total_micros = _restore_stored_manual_overrides(
+        items_raw, results, totals, total_micros
+    )
     results, totals, total_micros = _apply_macro_override_to_scan(
         results, totals, total_micros, req.edits.macro_override, default_iid
     )
@@ -22416,7 +22479,9 @@ def analyze_rerun(
         {
             "updated_at": dt.datetime.utcnow().isoformat(),
             "vision_confidence": response.get("vision_confidence"),
-            "items_json": [_model_dump(x) for x in (vision_scan.items or [])],
+            # Persist the corrected results (carries manual_macro_override=True on edited items)
+            # instead of the raw vision_scan items so user corrections survive future reruns.
+            "items_json": [dict(x or {}) for x in (results or [])],
             "nutrition_totals_json": {"totals": totals, "micros": micros_payload},
             "qa_json": _model_dump(meal_qa),
             "data_quality_json": data_quality,
@@ -22433,7 +22498,7 @@ def analyze_rerun(
             "user_id": uid,
             "created_at": existing.get("created_at") or dt.datetime.utcnow().isoformat(),
             "image_hash": str(existing.get("image_hash") or ""),
-            "items_json": [_model_dump(x) for x in (vision_scan.items or [])],
+            "items_json": [dict(x or {}) for x in (results or [])],
             "top_candidates": [_model_dump(x) for x in (vision_scan.top_candidates or [])],
             "vision_confidence": round(_clamp01(vision_scan.vision_confidence, 0.65), 3),
             "payload_hash": hashlib.sha256(
