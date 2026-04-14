@@ -162,7 +162,7 @@ def audit_item(chain_market: str, item: Dict[str, Any]) -> List[Dict[str, Any]]:
             add("high", "macro_kcal_mismatch",
                 f"P+F+C implies {implied:.0f}kcal vs stated {kcal:.0f} (drift {drift*100:.0f}%)")
     if kcal > 0 and p == 0 and f == 0 and c == 0:
-        add("medium", "macros_all_zero", "kcal>0 but all macros=0")
+        add("high", "macros_all_zero", "kcal>0 but all macros=0 (extraction likely dropped macros)")
 
     # --- Source label gap (LOW — systemic, blocks strong-evidence path) ---
     if src != "real_menu":
