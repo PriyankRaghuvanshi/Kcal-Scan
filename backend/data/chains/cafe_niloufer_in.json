@@ -30,7 +30,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/44/Nice_Cup_of_Tea.jpg/640px-Nice_Cup_of_Tea.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/44/Nice_Cup_of_Tea.jpg/640px-Nice_Cup_of_Tea.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Osmania Biscuits (4pc)",
@@ -52,7 +55,12 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0c/Eggs_benedict.jpg/640px-Eggs_benedict.jpg"
+      "image_url": "",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [
+        "contains_palm_oil"
+      ],
+      "contains_palm_oil": true
     },
     {
       "item_name": "Keema Samosa (2pc)",
@@ -74,7 +82,12 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/24/Samosa-3.jpg/640px-Samosa-3.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/24/Samosa-3.jpg/640px-Samosa-3.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [
+        "contains_palm_oil"
+      ],
+      "contains_palm_oil": true
     },
     {
       "item_name": "Chicken Tangdi (2pc)",
@@ -96,7 +109,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
+      "image_url": "",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Mutton Paya (1 bowl)",
@@ -118,7 +134,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/aa/Buddha_bowl_with_falafel.jpg/640px-Buddha_bowl_with_falafel.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/aa/Buddha_bowl_with_falafel.jpg/640px-Buddha_bowl_with_falafel.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     }
   ]
 }

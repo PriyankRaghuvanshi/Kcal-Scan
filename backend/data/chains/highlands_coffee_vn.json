@@ -28,7 +28,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c5/Cappuccino_at_Sightglass_Coffee.jpg/640px-Cappuccino_at_Sightglass_Coffee.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c5/Cappuccino_at_Sightglass_Coffee.jpg/640px-Cappuccino_at_Sightglass_Coffee.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Vietnamese Iced Coffee (less sugar)",
@@ -50,7 +53,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c5/Cappuccino_at_Sightglass_Coffee.jpg/640px-Cappuccino_at_Sightglass_Coffee.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c5/Cappuccino_at_Sightglass_Coffee.jpg/640px-Cappuccino_at_Sightglass_Coffee.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Grilled Chicken Banh Mi",
@@ -72,7 +78,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
+      "image_url": "",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Freeze Chocolate (less sugar)",
@@ -94,7 +103,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8a/Coca_Cola_Glass.jpg/640px-Coca_Cola_Glass.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8a/Coca_Cola_Glass.jpg/640px-Coca_Cola_Glass.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     }
   ]
 }

@@ -26,7 +26,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8a/Coca_Cola_Glass.jpg/640px-Coca_Cola_Glass.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8a/Coca_Cola_Glass.jpg/640px-Coca_Cola_Glass.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Dark Chocolate Bar (50g)",
@@ -48,7 +51,12 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8a/Coca_Cola_Glass.jpg/640px-Coca_Cola_Glass.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8a/Coca_Cola_Glass.jpg/640px-Coca_Cola_Glass.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [
+        "contains_palm_oil"
+      ],
+      "contains_palm_oil": true
     }
   ]
 }

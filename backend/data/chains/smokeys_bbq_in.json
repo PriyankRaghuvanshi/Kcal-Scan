@@ -29,7 +29,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
+      "image_url": "",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "BBQ Ribs (half rack)",
@@ -51,7 +54,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
+      "image_url": "",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Pulled Chicken Sandwich",
@@ -73,7 +79,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d8/Chick-fil-A_Original_Chicken_Sandwich_Combo.jpg/640px-Chick-fil-A_Original_Chicken_Sandwich_Combo.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d8/Chick-fil-A_Original_Chicken_Sandwich_Combo.jpg/640px-Chick-fil-A_Original_Chicken_Sandwich_Combo.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Pork Ribs (share)",
@@ -96,7 +105,9 @@
       "contains_soy": false,
       "confidence": 0.8,
       "menu_item_source": "llm_curated",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
+      "image_url": "",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Grilled Chicken Platter",
@@ -119,7 +130,9 @@
       "contains_soy": false,
       "confidence": 0.8,
       "menu_item_source": "llm_curated",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c5/Cappuccino_at_Sightglass_Coffee.jpg/640px-Cappuccino_at_Sightglass_Coffee.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c5/Cappuccino_at_Sightglass_Coffee.jpg/640px-Cappuccino_at_Sightglass_Coffee.jpg",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Smoked Brisket Plate",
@@ -142,7 +155,9 @@
       "contains_soy": false,
       "confidence": 0.8,
       "menu_item_source": "llm_curated",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
+      "image_url": "",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Coleslaw (side)",
@@ -165,7 +180,9 @@
       "contains_soy": false,
       "confidence": 0.8,
       "menu_item_source": "llm_curated",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
+      "image_url": "",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Corn on the Cob",
@@ -188,7 +205,9 @@
       "contains_soy": false,
       "confidence": 0.8,
       "menu_item_source": "llm_curated",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
+      "image_url": "",
+      "negative_flags": [],
+      "contains_palm_oil": false
     }
   ]
 }

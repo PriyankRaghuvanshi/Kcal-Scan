@@ -28,7 +28,12 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/24/Eq_it-na_pizza-margherita_sep2005_sml.jpg/640px-Eq_it-na_pizza-margherita_sep2005_sml.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/24/Eq_it-na_pizza-margherita_sep2005_sml.jpg/640px-Eq_it-na_pizza-margherita_sep2005_sml.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [
+        "contains_palm_oil"
+      ],
+      "contains_palm_oil": true
     },
     {
       "item_name": "Grilled Chicken Platter",
@@ -50,7 +55,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c5/Cappuccino_at_Sightglass_Coffee.jpg/640px-Cappuccino_at_Sightglass_Coffee.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c5/Cappuccino_at_Sightglass_Coffee.jpg/640px-Cappuccino_at_Sightglass_Coffee.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Caesar Salad (chicken)",
@@ -72,7 +80,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8b/Caesar_salad_%281%29.jpg/640px-Caesar_salad_%281%29.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8b/Caesar_salad_%281%29.jpg/640px-Caesar_salad_%281%29.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Wood-Fired Margherita (personal)",
@@ -95,7 +106,9 @@
       "contains_soy": false,
       "confidence": 0.8,
       "menu_item_source": "llm_curated",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
+      "image_url": "",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Chicken Tikka Pizza",
@@ -118,7 +131,11 @@
       "contains_soy": false,
       "confidence": 0.8,
       "menu_item_source": "llm_curated",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/cb/Tandoori_chicken_001.jpg/640px-Tandoori_chicken_001.jpg"
+      "image_url": "",
+      "negative_flags": [
+        "contains_palm_oil"
+      ],
+      "contains_palm_oil": true
     },
     {
       "item_name": "Toit Shepherd's Pie",
@@ -141,7 +158,9 @@
       "contains_soy": false,
       "confidence": 0.8,
       "menu_item_source": "llm_curated",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
+      "image_url": "",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Grilled Chicken Main",
@@ -164,7 +183,9 @@
       "contains_soy": false,
       "confidence": 0.8,
       "menu_item_source": "llm_curated",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
+      "image_url": "",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Toit Craft Beer (pint)",
@@ -187,7 +208,9 @@
       "contains_soy": false,
       "confidence": 0.8,
       "menu_item_source": "llm_curated",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c5/Cappuccino_at_Sightglass_Coffee.jpg/640px-Cappuccino_at_Sightglass_Coffee.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c5/Cappuccino_at_Sightglass_Coffee.jpg/640px-Cappuccino_at_Sightglass_Coffee.jpg",
+      "negative_flags": [],
+      "contains_palm_oil": false
     }
   ]
 }

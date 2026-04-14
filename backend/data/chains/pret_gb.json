@@ -28,7 +28,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/45/Tuna_sandwich.jpg/640px-Tuna_sandwich.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/45/Tuna_sandwich.jpg/640px-Tuna_sandwich.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Protein Power Bowl",
@@ -50,7 +53,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/aa/Buddha_bowl_with_falafel.jpg/640px-Buddha_bowl_with_falafel.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/aa/Buddha_bowl_with_falafel.jpg/640px-Buddha_bowl_with_falafel.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Egg & Spinach Protein Pot",
@@ -72,7 +78,10 @@
       "contains_shellfish": false,
       "contains_egg": true,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0c/Eggs_benedict.jpg/640px-Eggs_benedict.jpg"
+      "image_url": "",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Veggie Pret Wrap",
@@ -94,7 +103,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2a/Chicken_caesar_wrap.jpg/640px-Chicken_caesar_wrap.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2a/Chicken_caesar_wrap.jpg/640px-Chicken_caesar_wrap.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Salmon & Cream Cheese Baguette",
@@ -116,7 +128,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4c/Grilled_salmon.jpg/640px-Grilled_salmon.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4c/Grilled_salmon.jpg/640px-Grilled_salmon.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Chicken Caesar Wrap",
@@ -138,7 +153,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2a/Chicken_caesar_wrap.jpg/640px-Chicken_caesar_wrap.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2a/Chicken_caesar_wrap.jpg/640px-Chicken_caesar_wrap.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     }
   ]
 }

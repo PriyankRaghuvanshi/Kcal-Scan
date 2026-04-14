@@ -28,7 +28,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/cb/Tandoori_chicken_001.jpg/640px-Tandoori_chicken_001.jpg"
+      "image_url": "",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Tandoori Chicken (half)",
@@ -50,7 +53,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/cb/Tandoori_chicken_001.jpg/640px-Tandoori_chicken_001.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/cb/Tandoori_chicken_001.jpg/640px-Tandoori_chicken_001.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Chicken Shami Kebab (2pc)",
@@ -72,7 +78,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/cb/Tandoori_chicken_001.jpg/640px-Tandoori_chicken_001.jpg"
+      "image_url": "",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Chicken Ghee Roast",
@@ -94,7 +103,10 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.9,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2d/Dosa.JPG/640px-Dosa.JPG"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2d/Dosa.JPG/640px-Dosa.JPG",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Mutton Pepper Fry",
@@ -116,7 +128,10 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.9,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
+      "image_url": "",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Kabab Platter (share)",
@@ -138,7 +153,10 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.9,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c5/Cappuccino_at_Sightglass_Coffee.jpg/640px-Cappuccino_at_Sightglass_Coffee.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c5/Cappuccino_at_Sightglass_Coffee.jpg/640px-Cappuccino_at_Sightglass_Coffee.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     }
   ]
 }

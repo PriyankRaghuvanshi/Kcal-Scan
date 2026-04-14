@@ -27,7 +27,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8b/Caesar_salad_%281%29.jpg/640px-Caesar_salad_%281%29.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8b/Caesar_salad_%281%29.jpg/640px-Caesar_salad_%281%29.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "All Hail Kale Bowl",
@@ -49,7 +52,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/aa/Buddha_bowl_with_falafel.jpg/640px-Buddha_bowl_with_falafel.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/aa/Buddha_bowl_with_falafel.jpg/640px-Buddha_bowl_with_falafel.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Buffalo Wings (vegan)",
@@ -71,7 +77,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Buffalo_wings.jpg/640px-Buffalo_wings.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Buffalo_wings.jpg/640px-Buffalo_wings.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     }
   ]
 }

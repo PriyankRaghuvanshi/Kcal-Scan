@@ -33,7 +33,8 @@
         "palm_oil_free"
       ],
       "contains_palm_oil": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d8/Chick-fil-A_Original_Chicken_Sandwich_Combo.jpg/640px-Chick-fil-A_Original_Chicken_Sandwich_Combo.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d8/Chick-fil-A_Original_Chicken_Sandwich_Combo.jpg/640px-Chick-fil-A_Original_Chicken_Sandwich_Combo.jpg",
+      "menu_item_source": "llm_curated"
     },
     {
       "item_name": "Grilled Nuggets (8ct)",
@@ -59,7 +60,8 @@
         "palm_oil_free"
       ],
       "contains_palm_oil": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/05/Nuggets-McD.jpg/640px-Nuggets-McD.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/05/Nuggets-McD.jpg/640px-Nuggets-McD.jpg",
+      "menu_item_source": "llm_curated"
     },
     {
       "item_name": "Spicy Southwest Salad",
@@ -85,7 +87,8 @@
         "palm_oil_free"
       ],
       "contains_palm_oil": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8b/Caesar_salad_%281%29.jpg/640px-Caesar_salad_%281%29.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8b/Caesar_salad_%281%29.jpg/640px-Caesar_salad_%281%29.jpg",
+      "menu_item_source": "llm_curated"
     },
     {
       "item_name": "Cobb Salad",
@@ -111,7 +114,8 @@
         "palm_oil_free"
       ],
       "contains_palm_oil": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8b/Caesar_salad_%281%29.jpg/640px-Caesar_salad_%281%29.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8b/Caesar_salad_%281%29.jpg/640px-Caesar_salad_%281%29.jpg",
+      "menu_item_source": "llm_curated"
     },
     {
       "item_name": "Egg White Grill",
@@ -137,7 +141,8 @@
         "palm_oil_free"
       ],
       "contains_palm_oil": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0c/Eggs_benedict.jpg/640px-Eggs_benedict.jpg"
+      "image_url": "",
+      "menu_item_source": "llm_curated"
     },
     {
       "item_name": "Grilled Cool Wrap",
@@ -163,7 +168,8 @@
         "palm_oil_free"
       ],
       "contains_palm_oil": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2a/Chicken_caesar_wrap.jpg/640px-Chicken_caesar_wrap.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2a/Chicken_caesar_wrap.jpg/640px-Chicken_caesar_wrap.jpg",
+      "menu_item_source": "llm_curated"
     },
     {
       "item_name": "Market Salad",
@@ -189,7 +195,8 @@
         "palm_oil_free"
       ],
       "contains_palm_oil": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8b/Caesar_salad_%281%29.jpg/640px-Caesar_salad_%281%29.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8b/Caesar_salad_%281%29.jpg/640px-Caesar_salad_%281%29.jpg",
+      "menu_item_source": "llm_curated"
     },
     {
       "item_name": "Chick-fil-A Chicken Sandwich",
@@ -324,7 +331,7 @@
         "palm_oil_free"
       ],
       "contains_palm_oil": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
+      "image_url": ""
     },
     {
       "item_name": "Waffle Potato Fries (medium)",
@@ -486,7 +493,7 @@
         "palm_oil_free"
       ],
       "contains_palm_oil": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0c/Eggs_benedict.jpg/640px-Eggs_benedict.jpg"
+      "image_url": ""
     },
     {
       "item_name": "Chick-n-Minis (4-count)",
@@ -513,7 +520,7 @@
         "palm_oil_free"
       ],
       "contains_palm_oil": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0c/Eggs_benedict.jpg/640px-Eggs_benedict.jpg"
+      "image_url": ""
     },
     {
       "item_name": "Hash Brown Scramble Burrito w/ Nuggets",
@@ -567,7 +574,7 @@
         "palm_oil_free"
       ],
       "contains_palm_oil": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
+      "image_url": ""
     },
     {
       "item_name": "Small Lemonade",

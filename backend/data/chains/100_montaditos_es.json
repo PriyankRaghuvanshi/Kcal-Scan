@@ -10,7 +10,7 @@
   ],
   "items": [
     {
-      "item_name": "Jam\u00f3n Serrano Montadito (2pc)",
+      "item_name": "Jamón Serrano Montadito (2pc)",
       "category": "entree",
       "estimated_calories": 240,
       "estimated_protein_g": 14,
@@ -29,7 +29,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
+      "image_url": "",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Pollo Montadito (chicken, 2pc)",
@@ -51,10 +54,13 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
+      "image_url": "",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
-      "item_name": "Tortilla Espa\u00f1ola (portion)",
+      "item_name": "Tortilla Española (portion)",
       "category": "entree",
       "estimated_calories": 320,
       "estimated_protein_g": 14,
@@ -73,7 +79,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
+      "image_url": "",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     }
   ]
 }

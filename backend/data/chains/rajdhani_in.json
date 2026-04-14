@@ -9,7 +9,7 @@
   ],
   "items": [
     {
-      "item_name": "Rajdhani Thali (unlimited \u2014 eat 1 serving)",
+      "item_name": "Rajdhani Thali (unlimited — eat 1 serving)",
       "category": "entree",
       "estimated_calories": 620,
       "estimated_protein_g": 20,
@@ -28,7 +28,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
+      "image_url": "",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Gujarati Kadhi + Rice",
@@ -50,7 +53,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/40/Hyderabadi_biryani.jpg/640px-Hyderabadi_biryani.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/40/Hyderabadi_biryani.jpg/640px-Hyderabadi_biryani.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Dal Baati Churma (one set)",
@@ -72,7 +78,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/cb/Dal_makhani.jpg/640px-Dal_makhani.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/cb/Dal_makhani.jpg/640px-Dal_makhani.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Unlimited Gujarati Thali",
@@ -95,7 +104,9 @@
       "contains_soy": false,
       "confidence": 0.78,
       "menu_item_source": "llm_curated",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
+      "image_url": "",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Unlimited Rajasthani Thali",
@@ -118,7 +129,9 @@
       "contains_soy": false,
       "confidence": 0.78,
       "menu_item_source": "llm_curated",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
+      "image_url": "",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Mini Thali (single portion)",
@@ -141,7 +154,9 @@
       "contains_soy": false,
       "confidence": 0.82,
       "menu_item_source": "llm_curated",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
+      "image_url": "",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Dal Khichdi + Kadhi",
@@ -164,7 +179,9 @@
       "contains_soy": false,
       "confidence": 0.78,
       "menu_item_source": "llm_curated",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/40/Hyderabadi_biryani.jpg/640px-Hyderabadi_biryani.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/40/Hyderabadi_biryani.jpg/640px-Hyderabadi_biryani.jpg",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Bajra Rotla + Sabzi",
@@ -187,7 +204,9 @@
       "contains_soy": false,
       "confidence": 0.78,
       "menu_item_source": "llm_curated",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
+      "image_url": "",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Buttermilk (chaas)",
@@ -210,7 +229,9 @@
       "contains_soy": false,
       "confidence": 0.88,
       "menu_item_source": "llm_curated",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c5/Cappuccino_at_Sightglass_Coffee.jpg/640px-Cappuccino_at_Sightglass_Coffee.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c5/Cappuccino_at_Sightglass_Coffee.jpg/640px-Cappuccino_at_Sightglass_Coffee.jpg",
+      "negative_flags": [],
+      "contains_palm_oil": false
     }
   ]
 }

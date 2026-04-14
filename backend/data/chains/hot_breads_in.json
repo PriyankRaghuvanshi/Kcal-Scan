@@ -27,7 +27,12 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
+      "image_url": "",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [
+        "contains_palm_oil"
+      ],
+      "contains_palm_oil": true
     },
     {
       "item_name": "Veg Puff",
@@ -49,7 +54,12 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
+      "image_url": "",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [
+        "contains_palm_oil"
+      ],
+      "contains_palm_oil": true
     },
     {
       "item_name": "Grilled Chicken Sandwich",
@@ -71,7 +81,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d8/Chick-fil-A_Original_Chicken_Sandwich_Combo.jpg/640px-Chick-fil-A_Original_Chicken_Sandwich_Combo.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d8/Chick-fil-A_Original_Chicken_Sandwich_Combo.jpg/640px-Chick-fil-A_Original_Chicken_Sandwich_Combo.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Cream Donut",
@@ -93,7 +106,12 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2a/Glazed-Donut.jpg/640px-Glazed-Donut.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2a/Glazed-Donut.jpg/640px-Glazed-Donut.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [
+        "contains_palm_oil"
+      ],
+      "contains_palm_oil": true
     }
   ]
 }

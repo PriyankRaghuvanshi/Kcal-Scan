@@ -33,7 +33,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d8/Chick-fil-A_Original_Chicken_Sandwich_Combo.jpg/640px-Chick-fil-A_Original_Chicken_Sandwich_Combo.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d8/Chick-fil-A_Original_Chicken_Sandwich_Combo.jpg/640px-Chick-fil-A_Original_Chicken_Sandwich_Combo.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Grilled Chicken Sandwich",
@@ -55,7 +58,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d8/Chick-fil-A_Original_Chicken_Sandwich_Combo.jpg/640px-Chick-fil-A_Original_Chicken_Sandwich_Combo.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d8/Chick-fil-A_Original_Chicken_Sandwich_Combo.jpg/640px-Chick-fil-A_Original_Chicken_Sandwich_Combo.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Egg McMuffin",
@@ -77,7 +83,10 @@
       "contains_shellfish": false,
       "contains_egg": true,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0c/Eggs_benedict.jpg/640px-Eggs_benedict.jpg"
+      "image_url": "",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "6pc Chicken McNuggets",
@@ -99,7 +108,12 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/05/Nuggets-McD.jpg/640px-Nuggets-McD.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/05/Nuggets-McD.jpg/640px-Nuggets-McD.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [
+        "contains_palm_oil"
+      ],
+      "contains_palm_oil": true
     },
     {
       "item_name": "Big Mac",
@@ -121,7 +135,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/be/Burger_King_Whopper.jpg/640px-Burger_King_Whopper.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/be/Burger_King_Whopper.jpg/640px-Burger_King_Whopper.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Southwest Grilled Chicken Salad",
@@ -143,7 +160,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8b/Caesar_salad_%281%29.jpg/640px-Caesar_salad_%281%29.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8b/Caesar_salad_%281%29.jpg/640px-Caesar_salad_%281%29.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Fruit & Yogurt Parfait",
@@ -165,7 +185,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/02/Yogurt_in_a_jar.jpg/640px-Yogurt_in_a_jar.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/02/Yogurt_in_a_jar.jpg/640px-Yogurt_in_a_jar.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Quarter Pounder with Cheese",
@@ -188,7 +211,9 @@
       "contains_soy": false,
       "confidence": 0.95,
       "menu_item_source": "official_published",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/be/Burger_King_Whopper.jpg/640px-Burger_King_Whopper.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/be/Burger_King_Whopper.jpg/640px-Burger_King_Whopper.jpg",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Double Quarter Pounder with Cheese",
@@ -211,7 +236,9 @@
       "contains_soy": false,
       "confidence": 0.95,
       "menu_item_source": "official_published",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/be/Burger_King_Whopper.jpg/640px-Burger_King_Whopper.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/be/Burger_King_Whopper.jpg/640px-Burger_King_Whopper.jpg",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Hamburger",
@@ -234,7 +261,9 @@
       "contains_soy": false,
       "confidence": 0.95,
       "menu_item_source": "official_published",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/be/Burger_King_Whopper.jpg/640px-Burger_King_Whopper.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/be/Burger_King_Whopper.jpg/640px-Burger_King_Whopper.jpg",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Cheeseburger",
@@ -257,7 +286,9 @@
       "contains_soy": false,
       "confidence": 0.95,
       "menu_item_source": "official_published",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Cheeseburger.jpg/640px-Cheeseburger.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Cheeseburger.jpg/640px-Cheeseburger.jpg",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "McDouble",
@@ -280,7 +311,9 @@
       "contains_soy": false,
       "confidence": 0.95,
       "menu_item_source": "official_published",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Cheeseburger.jpg/640px-Cheeseburger.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Cheeseburger.jpg/640px-Cheeseburger.jpg",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Filet-O-Fish",
@@ -303,7 +336,9 @@
       "contains_soy": false,
       "confidence": 0.95,
       "menu_item_source": "official_published",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4c/Grilled_salmon.jpg/640px-Grilled_salmon.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4c/Grilled_salmon.jpg/640px-Grilled_salmon.jpg",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Chicken McNuggets (10 pc)",
@@ -326,7 +361,11 @@
       "contains_soy": false,
       "confidence": 0.95,
       "menu_item_source": "official_published",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/05/Nuggets-McD.jpg/640px-Nuggets-McD.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/05/Nuggets-McD.jpg/640px-Nuggets-McD.jpg",
+      "negative_flags": [
+        "contains_palm_oil"
+      ],
+      "contains_palm_oil": true
     },
     {
       "item_name": "Chicken McNuggets (6 pc)",
@@ -349,7 +388,11 @@
       "contains_soy": false,
       "confidence": 0.95,
       "menu_item_source": "official_published",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/05/Nuggets-McD.jpg/640px-Nuggets-McD.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/05/Nuggets-McD.jpg/640px-Nuggets-McD.jpg",
+      "negative_flags": [
+        "contains_palm_oil"
+      ],
+      "contains_palm_oil": true
     },
     {
       "item_name": "Chicken McNuggets (4 pc)",
@@ -372,7 +415,11 @@
       "contains_soy": false,
       "confidence": 0.95,
       "menu_item_source": "official_published",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/05/Nuggets-McD.jpg/640px-Nuggets-McD.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/05/Nuggets-McD.jpg/640px-Nuggets-McD.jpg",
+      "negative_flags": [
+        "contains_palm_oil"
+      ],
+      "contains_palm_oil": true
     },
     {
       "item_name": "Crispy Chicken Sandwich",
@@ -395,7 +442,9 @@
       "contains_soy": false,
       "confidence": 0.95,
       "menu_item_source": "official_published",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d8/Chick-fil-A_Original_Chicken_Sandwich_Combo.jpg/640px-Chick-fil-A_Original_Chicken_Sandwich_Combo.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d8/Chick-fil-A_Original_Chicken_Sandwich_Combo.jpg/640px-Chick-fil-A_Original_Chicken_Sandwich_Combo.jpg",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "McCrispy",
@@ -418,7 +467,9 @@
       "contains_soy": false,
       "confidence": 0.95,
       "menu_item_source": "official_published",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d8/Chick-fil-A_Original_Chicken_Sandwich_Combo.jpg/640px-Chick-fil-A_Original_Chicken_Sandwich_Combo.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d8/Chick-fil-A_Original_Chicken_Sandwich_Combo.jpg/640px-Chick-fil-A_Original_Chicken_Sandwich_Combo.jpg",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Side Salad",
@@ -441,7 +492,9 @@
       "contains_soy": false,
       "confidence": 0.95,
       "menu_item_source": "official_published",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8b/Caesar_salad_%281%29.jpg/640px-Caesar_salad_%281%29.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8b/Caesar_salad_%281%29.jpg/640px-Caesar_salad_%281%29.jpg",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Fries (small)",
@@ -545,7 +598,9 @@
       "contains_soy": false,
       "confidence": 0.95,
       "menu_item_source": "official_published",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/1/15/Red_Apple.jpg/640px-Red_Apple.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/1/15/Red_Apple.jpg/640px-Red_Apple.jpg",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Sausage McMuffin with Egg",
@@ -568,7 +623,9 @@
       "contains_soy": false,
       "confidence": 0.95,
       "menu_item_source": "official_published",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0c/Eggs_benedict.jpg/640px-Eggs_benedict.jpg"
+      "image_url": "",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Bacon, Egg & Cheese Biscuit",
@@ -591,7 +648,11 @@
       "contains_soy": false,
       "confidence": 0.95,
       "menu_item_source": "official_published",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0c/Eggs_benedict.jpg/640px-Eggs_benedict.jpg"
+      "image_url": "",
+      "negative_flags": [
+        "contains_palm_oil"
+      ],
+      "contains_palm_oil": true
     },
     {
       "item_name": "Hotcakes (3)",
@@ -614,7 +675,9 @@
       "contains_soy": false,
       "confidence": 0.95,
       "menu_item_source": "official_published",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/85/Waffles_with_Strawberries.jpg/640px-Waffles_with_Strawberries.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/85/Waffles_with_Strawberries.jpg/640px-Waffles_with_Strawberries.jpg",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Sausage Burrito",
@@ -637,7 +700,9 @@
       "contains_soy": false,
       "confidence": 0.95,
       "menu_item_source": "official_published",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/89/Burrito.jpg/640px-Burrito.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/89/Burrito.jpg/640px-Burrito.jpg",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Sausage McGriddles",
@@ -660,7 +725,9 @@
       "contains_soy": false,
       "confidence": 0.95,
       "menu_item_source": "official_published",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/85/Waffles_with_Strawberries.jpg/640px-Waffles_with_Strawberries.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/85/Waffles_with_Strawberries.jpg/640px-Waffles_with_Strawberries.jpg",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Hash Browns",
@@ -710,7 +777,9 @@
       "contains_soy": false,
       "confidence": 0.95,
       "menu_item_source": "official_published",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8a/Coca_Cola_Glass.jpg/640px-Coca_Cola_Glass.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8a/Coca_Cola_Glass.jpg/640px-Coca_Cola_Glass.jpg",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Diet Coke (medium)",
@@ -733,7 +802,9 @@
       "contains_soy": false,
       "confidence": 0.95,
       "menu_item_source": "official_published",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c5/Cappuccino_at_Sightglass_Coffee.jpg/640px-Cappuccino_at_Sightglass_Coffee.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c5/Cappuccino_at_Sightglass_Coffee.jpg/640px-Cappuccino_at_Sightglass_Coffee.jpg",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Iced Coffee (medium)",
@@ -756,7 +827,9 @@
       "contains_soy": false,
       "confidence": 0.95,
       "menu_item_source": "official_published",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c5/Cappuccino_at_Sightglass_Coffee.jpg/640px-Cappuccino_at_Sightglass_Coffee.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c5/Cappuccino_at_Sightglass_Coffee.jpg/640px-Cappuccino_at_Sightglass_Coffee.jpg",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Apple Pie",

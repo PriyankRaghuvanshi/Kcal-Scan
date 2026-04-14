@@ -28,7 +28,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/be/Burger_King_Whopper.jpg/640px-Burger_King_Whopper.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/be/Burger_King_Whopper.jpg/640px-Burger_King_Whopper.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "BK Chicken Burger",
@@ -50,7 +53,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/cd/Chicken_burger.jpg/640px-Chicken_burger.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/cd/Chicken_burger.jpg/640px-Chicken_burger.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Paneer Royale",
@@ -72,7 +78,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d3/Paneer_tikka_at_Punjabi_Restaurant.jpg/640px-Paneer_tikka_at_Punjabi_Restaurant.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d3/Paneer_tikka_at_Punjabi_Restaurant.jpg/640px-Paneer_tikka_at_Punjabi_Restaurant.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Crispy Veg Burger",
@@ -94,7 +103,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/be/Burger_King_Whopper.jpg/640px-Burger_King_Whopper.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/be/Burger_King_Whopper.jpg/640px-Burger_King_Whopper.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "4pc Chicken Nuggets",
@@ -116,7 +128,12 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/05/Nuggets-McD.jpg/640px-Nuggets-McD.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/05/Nuggets-McD.jpg/640px-Nuggets-McD.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [
+        "contains_palm_oil"
+      ],
+      "contains_palm_oil": true
     },
     {
       "item_name": "BK Veggie Strips",
@@ -138,7 +155,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0c/Eggs_benedict.jpg/640px-Eggs_benedict.jpg"
+      "image_url": "",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     }
   ]
 }

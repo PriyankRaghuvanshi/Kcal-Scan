@@ -29,7 +29,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/89/Burrito.jpg/640px-Burrito.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/89/Burrito.jpg/640px-Burrito.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Steak Taco (1pc)",
@@ -51,7 +54,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Tacos_-_Roberto%27s_Taco_Shop_-_Stockton%2C_CA.jpg/640px-Tacos_-_Roberto%27s_Taco_Shop_-_Stockton%2C_CA.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Tacos_-_Roberto%27s_Taco_Shop_-_Stockton%2C_CA.jpg/640px-Tacos_-_Roberto%27s_Taco_Shop_-_Stockton%2C_CA.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Veggie Burrito",
@@ -73,7 +79,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/89/Burrito.jpg/640px-Burrito.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/89/Burrito.jpg/640px-Burrito.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     }
   ]
 }

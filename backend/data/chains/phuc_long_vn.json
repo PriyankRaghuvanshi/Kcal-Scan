@@ -4,9 +4,9 @@
   "source_url": "https://phuclong.com.vn/menu",
   "store_name_variants": [
     "phuc long",
-    "ph\u00fac long",
+    "phúc long",
     "phuclong",
-    "ph\u00faclong"
+    "phúclong"
   ],
   "items": [
     {
@@ -29,7 +29,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/44/Nice_Cup_of_Tea.jpg/640px-Nice_Cup_of_Tea.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/44/Nice_Cup_of_Tea.jpg/640px-Nice_Cup_of_Tea.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Peach Tea (unsweetened)",
@@ -51,7 +54,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/44/Nice_Cup_of_Tea.jpg/640px-Nice_Cup_of_Tea.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/44/Nice_Cup_of_Tea.jpg/640px-Nice_Cup_of_Tea.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Lotus Seed Tea",
@@ -73,7 +79,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/44/Nice_Cup_of_Tea.jpg/640px-Nice_Cup_of_Tea.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/44/Nice_Cup_of_Tea.jpg/640px-Nice_Cup_of_Tea.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     }
   ]
 }

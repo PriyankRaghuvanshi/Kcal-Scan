@@ -33,7 +33,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d8/Chick-fil-A_Original_Chicken_Sandwich_Combo.jpg/640px-Chick-fil-A_Original_Chicken_Sandwich_Combo.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d8/Chick-fil-A_Original_Chicken_Sandwich_Combo.jpg/640px-Chick-fil-A_Original_Chicken_Sandwich_Combo.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Big Mac (no sauce)",
@@ -55,7 +58,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/be/Burger_King_Whopper.jpg/640px-Burger_King_Whopper.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/be/Burger_King_Whopper.jpg/640px-Burger_King_Whopper.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     }
   ]
 }

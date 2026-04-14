@@ -1,13 +1,13 @@
 {
-  "brand_name": "Caff\u00e8 Artigiano",
+  "brand_name": "Caffè Artigiano",
   "source_type": "seed_template",
   "source_url": "https://www.caffeartigiano.com/menu",
   "store_name_variants": [
     "artigiano",
     "caffe artigiano",
-    "caff\u00e8 artigiano",
+    "caffè artigiano",
     "caffeartigiano",
-    "caff\u00e8artigiano"
+    "caffèartigiano"
   ],
   "items": [
     {
@@ -30,7 +30,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c5/Cappuccino_at_Sightglass_Coffee.jpg/640px-Cappuccino_at_Sightglass_Coffee.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c5/Cappuccino_at_Sightglass_Coffee.jpg/640px-Cappuccino_at_Sightglass_Coffee.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Flat White (no sugar)",
@@ -52,7 +55,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c5/Cappuccino_at_Sightglass_Coffee.jpg/640px-Cappuccino_at_Sightglass_Coffee.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c5/Cappuccino_at_Sightglass_Coffee.jpg/640px-Cappuccino_at_Sightglass_Coffee.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     }
   ]
 }

@@ -27,7 +27,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/40/Hyderabadi_biryani.jpg/640px-Hyderabadi_biryani.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/40/Hyderabadi_biryani.jpg/640px-Hyderabadi_biryani.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Fish Pollichathu",
@@ -49,7 +52,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4c/Grilled_salmon.jpg/640px-Grilled_salmon.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4c/Grilled_salmon.jpg/640px-Grilled_salmon.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Chicken Biryani (half)",
@@ -72,7 +78,9 @@
       "contains_soy": false,
       "confidence": 0.8,
       "menu_item_source": "llm_curated",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/40/Hyderabadi_biryani.jpg/640px-Hyderabadi_biryani.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/40/Hyderabadi_biryani.jpg/640px-Hyderabadi_biryani.jpg",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Mutton Biryani (half)",
@@ -95,7 +103,9 @@
       "contains_soy": false,
       "confidence": 0.8,
       "menu_item_source": "llm_curated",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/40/Hyderabadi_biryani.jpg/640px-Hyderabadi_biryani.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/40/Hyderabadi_biryani.jpg/640px-Hyderabadi_biryani.jpg",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Chicken Kebab (4 pc)",
@@ -118,7 +128,9 @@
       "contains_soy": false,
       "confidence": 0.8,
       "menu_item_source": "llm_curated",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/cb/Tandoori_chicken_001.jpg/640px-Tandoori_chicken_001.jpg"
+      "image_url": "",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Raita (100ml)",
@@ -141,7 +153,9 @@
       "contains_soy": false,
       "confidence": 0.8,
       "menu_item_source": "llm_curated",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
+      "image_url": "",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Gulab Jamun (2 pc)",
@@ -164,7 +178,9 @@
       "contains_soy": false,
       "confidence": 0.8,
       "menu_item_source": "llm_curated",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c0/Gulab_jamun_with_pista.jpg/640px-Gulab_jamun_with_pista.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c0/Gulab_jamun_with_pista.jpg/640px-Gulab_jamun_with_pista.jpg",
+      "negative_flags": [],
+      "contains_palm_oil": false
     }
   ]
 }

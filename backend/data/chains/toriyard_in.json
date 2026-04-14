@@ -26,7 +26,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
+      "image_url": "",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Chicken Katsu Curry",
@@ -48,7 +51,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/cb/Dal_makhani.jpg/640px-Dal_makhani.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/cb/Dal_makhani.jpg/640px-Dal_makhani.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Chicken Teriyaki Donburi",
@@ -71,7 +77,9 @@
       "contains_soy": true,
       "confidence": 0.8,
       "menu_item_source": "llm_curated",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
+      "image_url": "",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Salmon Teriyaki Bowl",
@@ -94,7 +102,9 @@
       "contains_soy": true,
       "confidence": 0.8,
       "menu_item_source": "llm_curated",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/aa/Buddha_bowl_with_falafel.jpg/640px-Buddha_bowl_with_falafel.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/aa/Buddha_bowl_with_falafel.jpg/640px-Buddha_bowl_with_falafel.jpg",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Vegetable Yakisoba",
@@ -117,7 +127,9 @@
       "contains_soy": true,
       "confidence": 0.8,
       "menu_item_source": "llm_curated",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
+      "image_url": "",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Edamame (starter)",
@@ -140,7 +152,9 @@
       "contains_soy": true,
       "confidence": 0.8,
       "menu_item_source": "llm_curated",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
+      "image_url": "",
+      "negative_flags": [],
+      "contains_palm_oil": false
     }
   ]
 }

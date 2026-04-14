@@ -28,7 +28,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/40/Hyderabadi_biryani.jpg/640px-Hyderabadi_biryani.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/40/Hyderabadi_biryani.jpg/640px-Hyderabadi_biryani.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Mutton Biryani",
@@ -50,7 +53,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/40/Hyderabadi_biryani.jpg/640px-Hyderabadi_biryani.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/40/Hyderabadi_biryani.jpg/640px-Hyderabadi_biryani.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Chicken Tangdi",
@@ -72,7 +78,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
+      "image_url": "",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Nayab Chicken Biryani (half)",
@@ -94,7 +103,10 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.9,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/40/Hyderabadi_biryani.jpg/640px-Hyderabadi_biryani.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/40/Hyderabadi_biryani.jpg/640px-Hyderabadi_biryani.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Nayab Mutton Biryani (half)",
@@ -116,7 +128,10 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.9,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/40/Hyderabadi_biryani.jpg/640px-Hyderabadi_biryani.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/40/Hyderabadi_biryani.jpg/640px-Hyderabadi_biryani.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Naan Khaliya (portion)",
@@ -138,7 +153,10 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.9,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2a/Naan.jpg/640px-Naan.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2a/Naan.jpg/640px-Naan.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Qubani-ka-Meetha (small)",
@@ -160,7 +178,10 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.9,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Chocolate_cake_001.jpg/640px-Chocolate_cake_001.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Chocolate_cake_001.jpg/640px-Chocolate_cake_001.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     }
   ]
 }

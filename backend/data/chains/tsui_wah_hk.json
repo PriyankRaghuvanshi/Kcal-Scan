@@ -4,7 +4,7 @@
   "source_url": "https://www.tsuiwahrestaurant.com/menu",
   "store_name_variants": [
     "tsui wah",
-    "\u7fe0\u83ef",
+    "翠華",
     "tsuiwah"
   ],
   "items": [
@@ -28,7 +28,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Buffalo_wings.jpg/640px-Buffalo_wings.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Buffalo_wings.jpg/640px-Buffalo_wings.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Baked Pork Chop Rice",
@@ -50,7 +53,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/40/Hyderabadi_biryani.jpg/640px-Hyderabadi_biryani.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/40/Hyderabadi_biryani.jpg/640px-Hyderabadi_biryani.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Instant Noodles + Chicken Wings",
@@ -72,7 +78,12 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Buffalo_wings.jpg/640px-Buffalo_wings.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Buffalo_wings.jpg/640px-Buffalo_wings.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [
+        "contains_palm_oil"
+      ],
+      "contains_palm_oil": true
     },
     {
       "item_name": "Crispy Bun + Condensed Milk",
@@ -94,7 +105,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Chocolate_cake_001.jpg/640px-Chocolate_cake_001.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Chocolate_cake_001.jpg/640px-Chocolate_cake_001.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     }
   ]
 }

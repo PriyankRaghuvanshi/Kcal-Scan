@@ -28,7 +28,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/33/Lassi.jpg/640px-Lassi.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/33/Lassi.jpg/640px-Lassi.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Mushroom Burger (vegan)",
@@ -50,7 +53,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/be/Burger_King_Whopper.jpg/640px-Burger_King_Whopper.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/be/Burger_King_Whopper.jpg/640px-Burger_King_Whopper.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Beer Battered Fries (small)",
@@ -72,7 +78,12 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/29/French_fries_2.jpg/640px-French_fries_2.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/29/French_fries_2.jpg/640px-French_fries_2.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [
+        "contains_palm_oil"
+      ],
+      "contains_palm_oil": true
     }
   ]
 }

@@ -28,7 +28,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/be/Burger_King_Whopper.jpg/640px-Burger_King_Whopper.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/be/Burger_King_Whopper.jpg/640px-Burger_King_Whopper.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Grilled Chicken Sandwich",
@@ -50,7 +53,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d8/Chick-fil-A_Original_Chicken_Sandwich_Combo.jpg/640px-Chick-fil-A_Original_Chicken_Sandwich_Combo.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d8/Chick-fil-A_Original_Chicken_Sandwich_Combo.jpg/640px-Chick-fil-A_Original_Chicken_Sandwich_Combo.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "4pc Chicken Nuggets",
@@ -72,7 +78,12 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/05/Nuggets-McD.jpg/640px-Nuggets-McD.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/05/Nuggets-McD.jpg/640px-Nuggets-McD.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [
+        "contains_palm_oil"
+      ],
+      "contains_palm_oil": true
     },
     {
       "item_name": "Impossible Whopper",
@@ -94,7 +105,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/be/Burger_King_Whopper.jpg/640px-Burger_King_Whopper.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/be/Burger_King_Whopper.jpg/640px-Burger_King_Whopper.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "BK Royal Crispy Chicken",
@@ -116,7 +130,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d6/Fried_chicken_with_french_fries.jpg/640px-Fried_chicken_with_french_fries.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d6/Fried_chicken_with_french_fries.jpg/640px-Fried_chicken_with_french_fries.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Garden Side Salad",
@@ -138,7 +155,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8b/Caesar_salad_%281%29.jpg/640px-Caesar_salad_%281%29.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8b/Caesar_salad_%281%29.jpg/640px-Caesar_salad_%281%29.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Whopper",
@@ -161,7 +181,9 @@
       "contains_soy": false,
       "confidence": 0.95,
       "menu_item_source": "official_published",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/be/Burger_King_Whopper.jpg/640px-Burger_King_Whopper.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/be/Burger_King_Whopper.jpg/640px-Burger_King_Whopper.jpg",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Whopper Jr.",
@@ -184,7 +206,9 @@
       "contains_soy": false,
       "confidence": 0.95,
       "menu_item_source": "official_published",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/be/Burger_King_Whopper.jpg/640px-Burger_King_Whopper.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/be/Burger_King_Whopper.jpg/640px-Burger_King_Whopper.jpg",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Single Cheeseburger",
@@ -207,7 +231,9 @@
       "contains_soy": false,
       "confidence": 0.95,
       "menu_item_source": "official_published",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Cheeseburger.jpg/640px-Cheeseburger.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Cheeseburger.jpg/640px-Cheeseburger.jpg",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Bacon King",
@@ -230,7 +256,9 @@
       "contains_soy": false,
       "confidence": 0.95,
       "menu_item_source": "official_published",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/be/Burger_King_Whopper.jpg/640px-Burger_King_Whopper.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/be/Burger_King_Whopper.jpg/640px-Burger_King_Whopper.jpg",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Chicken Fries (9pc)",
@@ -253,7 +281,11 @@
       "contains_soy": false,
       "confidence": 0.95,
       "menu_item_source": "official_published",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/05/Nuggets-McD.jpg/640px-Nuggets-McD.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/05/Nuggets-McD.jpg/640px-Nuggets-McD.jpg",
+      "negative_flags": [
+        "contains_palm_oil"
+      ],
+      "contains_palm_oil": true
     },
     {
       "item_name": "Original Chicken Sandwich",
@@ -276,7 +308,9 @@
       "contains_soy": false,
       "confidence": 0.95,
       "menu_item_source": "official_published",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d8/Chick-fil-A_Original_Chicken_Sandwich_Combo.jpg/640px-Chick-fil-A_Original_Chicken_Sandwich_Combo.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d8/Chick-fil-A_Original_Chicken_Sandwich_Combo.jpg/640px-Chick-fil-A_Original_Chicken_Sandwich_Combo.jpg",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Crispy Chicken Sandwich",
@@ -299,7 +333,9 @@
       "contains_soy": false,
       "confidence": 0.95,
       "menu_item_source": "official_published",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d8/Chick-fil-A_Original_Chicken_Sandwich_Combo.jpg/640px-Chick-fil-A_Original_Chicken_Sandwich_Combo.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d8/Chick-fil-A_Original_Chicken_Sandwich_Combo.jpg/640px-Chick-fil-A_Original_Chicken_Sandwich_Combo.jpg",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "8pc Chicken Nuggets",
@@ -322,7 +358,11 @@
       "contains_soy": false,
       "confidence": 0.95,
       "menu_item_source": "official_published",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/05/Nuggets-McD.jpg/640px-Nuggets-McD.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/05/Nuggets-McD.jpg/640px-Nuggets-McD.jpg",
+      "negative_flags": [
+        "contains_palm_oil"
+      ],
+      "contains_palm_oil": true
     },
     {
       "item_name": "Small Fries",
@@ -345,7 +385,11 @@
       "contains_soy": false,
       "confidence": 0.95,
       "menu_item_source": "official_published",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/29/French_fries_2.jpg/640px-French_fries_2.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/29/French_fries_2.jpg/640px-French_fries_2.jpg",
+      "negative_flags": [
+        "contains_palm_oil"
+      ],
+      "contains_palm_oil": true
     },
     {
       "item_name": "Medium Fries",
@@ -368,7 +412,11 @@
       "contains_soy": false,
       "confidence": 0.95,
       "menu_item_source": "official_published",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/29/French_fries_2.jpg/640px-French_fries_2.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/29/French_fries_2.jpg/640px-French_fries_2.jpg",
+      "negative_flags": [
+        "contains_palm_oil"
+      ],
+      "contains_palm_oil": true
     },
     {
       "item_name": "Onion Rings (medium)",
@@ -391,7 +439,9 @@
       "contains_soy": false,
       "confidence": 0.95,
       "menu_item_source": "official_published",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
+      "image_url": "",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Hash Browns (small)",
@@ -414,7 +464,11 @@
       "contains_soy": false,
       "confidence": 0.95,
       "menu_item_source": "official_published",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/29/French_fries_2.jpg/640px-French_fries_2.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/29/French_fries_2.jpg/640px-French_fries_2.jpg",
+      "negative_flags": [
+        "contains_palm_oil"
+      ],
+      "contains_palm_oil": true
     },
     {
       "item_name": "Croissan'wich Sausage Egg Cheese",
@@ -437,7 +491,9 @@
       "contains_soy": false,
       "confidence": 0.95,
       "menu_item_source": "official_published",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0c/Eggs_benedict.jpg/640px-Eggs_benedict.jpg"
+      "image_url": "",
+      "negative_flags": [],
+      "contains_palm_oil": false
     }
   ]
 }

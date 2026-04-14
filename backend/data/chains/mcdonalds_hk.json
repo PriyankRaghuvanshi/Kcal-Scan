@@ -5,7 +5,7 @@
   "store_name_variants": [
     "mcdonalds",
     "mcdonald's",
-    "\u9ea5\u7576\u52de",
+    "麥當勞",
     "maccas",
     "mcd",
     "mickey d's",
@@ -34,7 +34,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2a/Chicken_caesar_wrap.jpg/640px-Chicken_caesar_wrap.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2a/Chicken_caesar_wrap.jpg/640px-Chicken_caesar_wrap.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "McChicken",
@@ -56,7 +59,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d8/Chick-fil-A_Original_Chicken_Sandwich_Combo.jpg/640px-Chick-fil-A_Original_Chicken_Sandwich_Combo.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d8/Chick-fil-A_Original_Chicken_Sandwich_Combo.jpg/640px-Chick-fil-A_Original_Chicken_Sandwich_Combo.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Filet-O-Fish",
@@ -78,7 +84,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4c/Grilled_salmon.jpg/640px-Grilled_salmon.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4c/Grilled_salmon.jpg/640px-Grilled_salmon.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Garden Salad",
@@ -100,7 +109,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8b/Caesar_salad_%281%29.jpg/640px-Caesar_salad_%281%29.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8b/Caesar_salad_%281%29.jpg/640px-Caesar_salad_%281%29.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     }
   ]
 }

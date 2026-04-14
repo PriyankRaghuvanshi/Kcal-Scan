@@ -27,7 +27,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/cb/Tandoori_chicken_001.jpg/640px-Tandoori_chicken_001.jpg"
+      "image_url": "",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Protein Paneer Bowl",
@@ -49,7 +52,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/aa/Buddha_bowl_with_falafel.jpg/640px-Buddha_bowl_with_falafel.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/aa/Buddha_bowl_with_falafel.jpg/640px-Buddha_bowl_with_falafel.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Chicken Shawarma Wrap",
@@ -71,7 +77,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2a/Chicken_caesar_wrap.jpg/640px-Chicken_caesar_wrap.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2a/Chicken_caesar_wrap.jpg/640px-Chicken_caesar_wrap.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Chicken Biryani (half)",
@@ -94,7 +103,9 @@
       "contains_soy": false,
       "confidence": 0.8,
       "menu_item_source": "llm_curated",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/40/Hyderabadi_biryani.jpg/640px-Hyderabadi_biryani.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/40/Hyderabadi_biryani.jpg/640px-Hyderabadi_biryani.jpg",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Amritsari Kulcha (paneer)",
@@ -117,7 +128,9 @@
       "contains_soy": false,
       "confidence": 0.8,
       "menu_item_source": "llm_curated",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d3/Paneer_tikka_at_Punjabi_Restaurant.jpg/640px-Paneer_tikka_at_Punjabi_Restaurant.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d3/Paneer_tikka_at_Punjabi_Restaurant.jpg/640px-Paneer_tikka_at_Punjabi_Restaurant.jpg",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Egg Curry + 2 Roti",
@@ -140,7 +153,9 @@
       "contains_soy": false,
       "confidence": 0.8,
       "menu_item_source": "llm_curated",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/cb/Dal_makhani.jpg/640px-Dal_makhani.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/cb/Dal_makhani.jpg/640px-Dal_makhani.jpg",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Dal Makhani (small)",
@@ -163,7 +178,9 @@
       "contains_soy": false,
       "confidence": 0.8,
       "menu_item_source": "llm_curated",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/cb/Dal_makhani.jpg/640px-Dal_makhani.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/cb/Dal_makhani.jpg/640px-Dal_makhani.jpg",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Sweet Lassi (200ml)",
@@ -186,7 +203,9 @@
       "contains_soy": false,
       "confidence": 0.8,
       "menu_item_source": "llm_curated",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/33/Lassi.jpg/640px-Lassi.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/33/Lassi.jpg/640px-Lassi.jpg",
+      "negative_flags": [],
+      "contains_palm_oil": false
     }
   ]
 }

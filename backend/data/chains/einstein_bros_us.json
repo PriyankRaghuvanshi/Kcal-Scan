@@ -31,7 +31,10 @@
       "contains_shellfish": false,
       "contains_egg": true,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/9/96/Bagel.jpg/640px-Bagel.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/9/96/Bagel.jpg/640px-Bagel.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Plain Bagel with Light Cream Cheese",
@@ -53,7 +56,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/9/96/Bagel.jpg/640px-Bagel.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/9/96/Bagel.jpg/640px-Bagel.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Turkey Sandwich",
@@ -75,7 +81,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/45/Tuna_sandwich.jpg/640px-Tuna_sandwich.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/45/Tuna_sandwich.jpg/640px-Tuna_sandwich.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     }
   ]
 }

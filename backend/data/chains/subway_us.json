@@ -26,7 +26,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/9/97/Roti.jpg/640px-Roti.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/9/97/Roti.jpg/640px-Roti.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "6-inch Turkey Breast",
@@ -48,7 +51,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
+      "image_url": "",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "6-inch Veggie Delite",
@@ -70,7 +76,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/45/Tuna_sandwich.jpg/640px-Tuna_sandwich.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/45/Tuna_sandwich.jpg/640px-Tuna_sandwich.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Protein Bowl (Chicken)",
@@ -92,7 +101,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/aa/Buddha_bowl_with_falafel.jpg/640px-Buddha_bowl_with_falafel.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/aa/Buddha_bowl_with_falafel.jpg/640px-Buddha_bowl_with_falafel.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "6-inch Italian BMT",
@@ -114,7 +126,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/45/Tuna_sandwich.jpg/640px-Tuna_sandwich.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/45/Tuna_sandwich.jpg/640px-Tuna_sandwich.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "6-inch Steak & Cheese",
@@ -136,7 +151,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/44/Nice_Cup_of_Tea.jpg/640px-Nice_Cup_of_Tea.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/44/Nice_Cup_of_Tea.jpg/640px-Nice_Cup_of_Tea.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "6-inch Oven Roasted Chicken",
@@ -159,7 +177,9 @@
       "contains_soy": true,
       "confidence": 0.95,
       "menu_item_source": "official_published",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
+      "image_url": "",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "6-inch Rotisserie-Style Chicken",
@@ -182,7 +202,9 @@
       "contains_soy": true,
       "confidence": 0.95,
       "menu_item_source": "official_published",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d8/Chick-fil-A_Original_Chicken_Sandwich_Combo.jpg/640px-Chick-fil-A_Original_Chicken_Sandwich_Combo.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d8/Chick-fil-A_Original_Chicken_Sandwich_Combo.jpg/640px-Chick-fil-A_Original_Chicken_Sandwich_Combo.jpg",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "6-inch Subway Club",
@@ -205,7 +227,9 @@
       "contains_soy": true,
       "confidence": 0.95,
       "menu_item_source": "official_published",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/45/Tuna_sandwich.jpg/640px-Tuna_sandwich.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/45/Tuna_sandwich.jpg/640px-Tuna_sandwich.jpg",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "6-inch Black Forest Ham",
@@ -228,7 +252,9 @@
       "contains_soy": true,
       "confidence": 0.95,
       "menu_item_source": "official_published",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
+      "image_url": "",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "6-inch Meatball Marinara",
@@ -251,7 +277,9 @@
       "contains_soy": true,
       "confidence": 0.95,
       "menu_item_source": "official_published",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/45/Tuna_sandwich.jpg/640px-Tuna_sandwich.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/45/Tuna_sandwich.jpg/640px-Tuna_sandwich.jpg",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "6-inch Tuna",
@@ -274,7 +302,9 @@
       "contains_soy": true,
       "confidence": 0.95,
       "menu_item_source": "official_published",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
+      "image_url": "",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "6-inch Chicken Bacon Ranch Melt",
@@ -297,7 +327,9 @@
       "contains_soy": true,
       "confidence": 0.95,
       "menu_item_source": "official_published",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
+      "image_url": "",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Salad (Turkey Breast)",
@@ -320,7 +352,9 @@
       "contains_soy": true,
       "confidence": 0.95,
       "menu_item_source": "official_published",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8b/Caesar_salad_%281%29.jpg/640px-Caesar_salad_%281%29.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8b/Caesar_salad_%281%29.jpg/640px-Caesar_salad_%281%29.jpg",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Salad (Rotisserie Chicken)",
@@ -343,7 +377,9 @@
       "contains_soy": true,
       "confidence": 0.95,
       "menu_item_source": "official_published",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/9/97/Roti.jpg/640px-Roti.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/9/97/Roti.jpg/640px-Roti.jpg",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Wrap (Chicken Bacon Ranch)",
@@ -366,7 +402,9 @@
       "contains_soy": true,
       "confidence": 0.95,
       "menu_item_source": "official_published",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2a/Chicken_caesar_wrap.jpg/640px-Chicken_caesar_wrap.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2a/Chicken_caesar_wrap.jpg/640px-Chicken_caesar_wrap.jpg",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Kids Ham Sub (4-inch)",
@@ -389,7 +427,9 @@
       "contains_soy": true,
       "confidence": 0.95,
       "menu_item_source": "official_published",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/45/Tuna_sandwich.jpg/640px-Tuna_sandwich.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/45/Tuna_sandwich.jpg/640px-Tuna_sandwich.jpg",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Chocolate Chip Cookie",
@@ -412,7 +452,11 @@
       "contains_soy": false,
       "confidence": 0.95,
       "menu_item_source": "official_published",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/30/Choco_chip_cookie.jpg/640px-Choco_chip_cookie.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/30/Choco_chip_cookie.jpg/640px-Choco_chip_cookie.jpg",
+      "negative_flags": [
+        "contains_palm_oil"
+      ],
+      "contains_palm_oil": true
     }
   ]
 }

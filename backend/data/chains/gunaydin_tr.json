@@ -1,11 +1,11 @@
 {
-  "brand_name": "G\u00fcnayd\u0131n",
+  "brand_name": "Günaydın",
   "source_type": "seed_template",
   "source_url": "https://gunaydin.com.tr/menu",
   "store_name_variants": [
     "gunaydin",
-    "g\u00fcnayd\u0131n",
-    "g\u00fcnaydin",
+    "günaydın",
+    "günaydin",
     "gunaydn"
   ],
   "items": [
@@ -29,7 +29,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
+      "image_url": "",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Adana Kebab (1 skewer)",
@@ -51,7 +54,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/cb/Tandoori_chicken_001.jpg/640px-Tandoori_chicken_001.jpg"
+      "image_url": "",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Chicken Shish Kebab (1 skewer)",
@@ -73,7 +79,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/cb/Tandoori_chicken_001.jpg/640px-Tandoori_chicken_001.jpg"
+      "image_url": "",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     }
   ]
 }

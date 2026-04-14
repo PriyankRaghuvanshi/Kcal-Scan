@@ -1,12 +1,12 @@
 {
-  "brand_name": "Poulet R\u00e9ti",
+  "brand_name": "Poulet Réti",
   "source_type": "seed_template",
   "source_url": "https://www.pouletreti.fr/menu",
   "store_name_variants": [
     "poulet reti",
-    "poulet r\u00e9ti",
+    "poulet réti",
     "pouletreti",
-    "pouletr\u00e9ti"
+    "pouletréti"
   ],
   "items": [
     {
@@ -29,7 +29,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/9/97/Roti.jpg/640px-Roti.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/9/97/Roti.jpg/640px-Roti.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Grilled Chicken Thigh + Salad",
@@ -51,7 +54,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8b/Caesar_salad_%281%29.jpg/640px-Caesar_salad_%281%29.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8b/Caesar_salad_%281%29.jpg/640px-Caesar_salad_%281%29.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     }
   ]
 }

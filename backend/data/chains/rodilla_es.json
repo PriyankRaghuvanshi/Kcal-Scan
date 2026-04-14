@@ -26,7 +26,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/45/Tuna_sandwich.jpg/640px-Tuna_sandwich.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/45/Tuna_sandwich.jpg/640px-Tuna_sandwich.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Sandwich Vegetal (veg)",
@@ -48,10 +51,13 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/45/Tuna_sandwich.jpg/640px-Tuna_sandwich.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/45/Tuna_sandwich.jpg/640px-Tuna_sandwich.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
-      "item_name": "Jam\u00f3n Ib\u00e9rico Sandwich",
+      "item_name": "Jamón Ibérico Sandwich",
       "category": "entree",
       "estimated_calories": 380,
       "estimated_protein_g": 22,
@@ -70,7 +76,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/45/Tuna_sandwich.jpg/640px-Tuna_sandwich.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/45/Tuna_sandwich.jpg/640px-Tuna_sandwich.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     }
   ]
 }

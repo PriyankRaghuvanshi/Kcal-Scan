@@ -27,7 +27,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/45/Strawberry_milkshake_in_glass.jpg/640px-Strawberry_milkshake_in_glass.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/45/Strawberry_milkshake_in_glass.jpg/640px-Strawberry_milkshake_in_glass.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Peanut Butter Shake",
@@ -49,7 +52,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/45/Strawberry_milkshake_in_glass.jpg/640px-Strawberry_milkshake_in_glass.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/45/Strawberry_milkshake_in_glass.jpg/640px-Strawberry_milkshake_in_glass.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Chocolate Thickshake (regular)",
@@ -72,7 +78,9 @@
       "contains_soy": false,
       "confidence": 0.8,
       "menu_item_source": "llm_curated",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/45/Strawberry_milkshake_in_glass.jpg/640px-Strawberry_milkshake_in_glass.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/45/Strawberry_milkshake_in_glass.jpg/640px-Strawberry_milkshake_in_glass.jpg",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Strawberry Thickshake",
@@ -95,7 +103,9 @@
       "contains_soy": false,
       "confidence": 0.8,
       "menu_item_source": "llm_curated",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/45/Strawberry_milkshake_in_glass.jpg/640px-Strawberry_milkshake_in_glass.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/45/Strawberry_milkshake_in_glass.jpg/640px-Strawberry_milkshake_in_glass.jpg",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Oreo Shake",
@@ -118,7 +128,9 @@
       "contains_soy": false,
       "confidence": 0.8,
       "menu_item_source": "llm_curated",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/45/Strawberry_milkshake_in_glass.jpg/640px-Strawberry_milkshake_in_glass.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/45/Strawberry_milkshake_in_glass.jpg/640px-Strawberry_milkshake_in_glass.jpg",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Cold Brew Coffee Shake",
@@ -141,7 +153,9 @@
       "contains_soy": false,
       "confidence": 0.8,
       "menu_item_source": "llm_curated",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/45/Strawberry_milkshake_in_glass.jpg/640px-Strawberry_milkshake_in_glass.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/45/Strawberry_milkshake_in_glass.jpg/640px-Strawberry_milkshake_in_glass.jpg",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Mango Shake",
@@ -164,7 +178,9 @@
       "contains_soy": false,
       "confidence": 0.8,
       "menu_item_source": "llm_curated",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/45/Strawberry_milkshake_in_glass.jpg/640px-Strawberry_milkshake_in_glass.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/45/Strawberry_milkshake_in_glass.jpg/640px-Strawberry_milkshake_in_glass.jpg",
+      "negative_flags": [],
+      "contains_palm_oil": false
     }
   ]
 }

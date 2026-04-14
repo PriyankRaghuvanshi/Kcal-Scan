@@ -1,18 +1,18 @@
 {
-  "brand_name": "La Lucha Sangucher\u00eda",
+  "brand_name": "La Lucha Sanguchería",
   "source_type": "seed_template",
   "source_url": "https://www.lalucha.com.pe/menu",
   "store_name_variants": [
     "la lucha",
     "la lucha sangucheria",
-    "la lucha sangucher\u00eda",
+    "la lucha sanguchería",
     "lalucha",
     "laluchasangucheria",
-    "laluchasangucher\u00eda"
+    "laluchasanguchería"
   ],
   "items": [
     {
-      "item_name": "Chicharr\u00f3n Sandwich",
+      "item_name": "Chicharrón Sandwich",
       "category": "entree",
       "estimated_calories": 620,
       "estimated_protein_g": 32,
@@ -31,7 +31,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/45/Tuna_sandwich.jpg/640px-Tuna_sandwich.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/45/Tuna_sandwich.jpg/640px-Tuna_sandwich.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Pavo Sandwich (turkey)",
@@ -53,7 +56,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/45/Tuna_sandwich.jpg/640px-Tuna_sandwich.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/45/Tuna_sandwich.jpg/640px-Tuna_sandwich.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     }
   ]
 }

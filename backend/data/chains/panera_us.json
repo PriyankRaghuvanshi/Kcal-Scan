@@ -30,7 +30,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8b/Caesar_salad_%281%29.jpg/640px-Caesar_salad_%281%29.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8b/Caesar_salad_%281%29.jpg/640px-Caesar_salad_%281%29.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Mediterranean Bowl with Chicken",
@@ -52,7 +55,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/aa/Buddha_bowl_with_falafel.jpg/640px-Buddha_bowl_with_falafel.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/aa/Buddha_bowl_with_falafel.jpg/640px-Buddha_bowl_with_falafel.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Frontega Chicken Panini",
@@ -74,7 +80,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/45/Tuna_sandwich.jpg/640px-Tuna_sandwich.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/45/Tuna_sandwich.jpg/640px-Tuna_sandwich.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Caesar Salad with Grilled Chicken",
@@ -96,7 +105,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8b/Caesar_salad_%281%29.jpg/640px-Caesar_salad_%281%29.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8b/Caesar_salad_%281%29.jpg/640px-Caesar_salad_%281%29.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Fuji Apple Chicken Salad (whole)",
@@ -119,7 +131,9 @@
       "contains_soy": false,
       "confidence": 0.95,
       "menu_item_source": "official_published",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8b/Caesar_salad_%281%29.jpg/640px-Caesar_salad_%281%29.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8b/Caesar_salad_%281%29.jpg/640px-Caesar_salad_%281%29.jpg",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Greek Salad with Chicken (whole)",
@@ -142,7 +156,9 @@
       "contains_soy": false,
       "confidence": 0.95,
       "menu_item_source": "official_published",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8b/Caesar_salad_%281%29.jpg/640px-Caesar_salad_%281%29.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8b/Caesar_salad_%281%29.jpg/640px-Caesar_salad_%281%29.jpg",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Caesar Salad with Chicken (whole)",
@@ -165,7 +181,9 @@
       "contains_soy": false,
       "confidence": 0.95,
       "menu_item_source": "official_published",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8b/Caesar_salad_%281%29.jpg/640px-Caesar_salad_%281%29.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8b/Caesar_salad_%281%29.jpg/640px-Caesar_salad_%281%29.jpg",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Green Goddess Cobb Salad w/ Chicken",
@@ -188,7 +206,9 @@
       "contains_soy": false,
       "confidence": 0.95,
       "menu_item_source": "official_published",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8b/Caesar_salad_%281%29.jpg/640px-Caesar_salad_%281%29.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8b/Caesar_salad_%281%29.jpg/640px-Caesar_salad_%281%29.jpg",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Mediterranean Veggie Sandwich",
@@ -211,7 +231,9 @@
       "contains_soy": false,
       "confidence": 0.95,
       "menu_item_source": "official_published",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/45/Tuna_sandwich.jpg/640px-Tuna_sandwich.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/45/Tuna_sandwich.jpg/640px-Tuna_sandwich.jpg",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Turkey BLT (whole)",
@@ -234,7 +256,9 @@
       "contains_soy": false,
       "confidence": 0.95,
       "menu_item_source": "official_published",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
+      "image_url": "",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Smoked Turkey Breast Sandwich",
@@ -257,7 +281,9 @@
       "contains_soy": false,
       "confidence": 0.95,
       "menu_item_source": "official_published",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/45/Tuna_sandwich.jpg/640px-Tuna_sandwich.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/45/Tuna_sandwich.jpg/640px-Tuna_sandwich.jpg",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Chipotle Chicken Avocado Melt",
@@ -280,7 +306,9 @@
       "contains_soy": false,
       "confidence": 0.95,
       "menu_item_source": "official_published",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
+      "image_url": "",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "You Pick Two (half sandwich + cup soup)",
@@ -303,7 +331,9 @@
       "contains_soy": false,
       "confidence": 0.95,
       "menu_item_source": "official_published",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/45/Tuna_sandwich.jpg/640px-Tuna_sandwich.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/45/Tuna_sandwich.jpg/640px-Tuna_sandwich.jpg",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Broccoli Cheddar Soup (cup)",
@@ -326,7 +356,9 @@
       "contains_soy": false,
       "confidence": 0.95,
       "menu_item_source": "official_published",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8c/Noodle_soup.jpg/640px-Noodle_soup.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8c/Noodle_soup.jpg/640px-Noodle_soup.jpg",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Creamy Tomato Soup (cup)",
@@ -349,7 +381,9 @@
       "contains_soy": false,
       "confidence": 0.95,
       "menu_item_source": "official_published",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8c/Noodle_soup.jpg/640px-Noodle_soup.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8c/Noodle_soup.jpg/640px-Noodle_soup.jpg",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Autumn Squash Soup (cup)",
@@ -372,7 +406,9 @@
       "contains_soy": false,
       "confidence": 0.95,
       "menu_item_source": "official_published",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8c/Noodle_soup.jpg/640px-Noodle_soup.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8c/Noodle_soup.jpg/640px-Noodle_soup.jpg",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Chicken Noodle Soup (cup)",
@@ -395,7 +431,9 @@
       "contains_soy": false,
       "confidence": 0.95,
       "menu_item_source": "official_published",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8c/Noodle_soup.jpg/640px-Noodle_soup.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8c/Noodle_soup.jpg/640px-Noodle_soup.jpg",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Black Bean Soup (cup)",
@@ -418,7 +456,9 @@
       "contains_soy": false,
       "confidence": 0.95,
       "menu_item_source": "official_published",
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8c/Noodle_soup.jpg/640px-Noodle_soup.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8c/Noodle_soup.jpg/640px-Noodle_soup.jpg",
+      "negative_flags": [],
+      "contains_palm_oil": false
     }
   ]
 }

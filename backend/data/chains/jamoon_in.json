@@ -26,7 +26,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c0/Gulab_jamun_with_pista.jpg/640px-Gulab_jamun_with_pista.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c0/Gulab_jamun_with_pista.jpg/640px-Gulab_jamun_with_pista.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Rasmalai (2pc)",
@@ -48,7 +51,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Chocolate_cake_001.jpg/640px-Chocolate_cake_001.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Chocolate_cake_001.jpg/640px-Chocolate_cake_001.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Gulab Jamun (2 pc)",
@@ -70,7 +76,10 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.9,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c0/Gulab_jamun_with_pista.jpg/640px-Gulab_jamun_with_pista.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c0/Gulab_jamun_with_pista.jpg/640px-Gulab_jamun_with_pista.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Kala Jamun (2 pc)",
@@ -92,7 +101,10 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.9,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Chocolate_cake_001.jpg/640px-Chocolate_cake_001.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Chocolate_cake_001.jpg/640px-Chocolate_cake_001.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Rabri Gulab Jamun (1+rabri)",
@@ -114,7 +126,10 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.9,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c0/Gulab_jamun_with_pista.jpg/640px-Gulab_jamun_with_pista.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c0/Gulab_jamun_with_pista.jpg/640px-Gulab_jamun_with_pista.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     }
   ]
 }

@@ -1,13 +1,13 @@
 {
-  "brand_name": "Kahve D\u00fcnyas\u0131",
+  "brand_name": "Kahve Dünyası",
   "source_type": "seed_template",
   "source_url": "https://www.kahvedunyasi.com/menu",
   "store_name_variants": [
     "kahve dunyasi",
-    "kahve d\u00fcnyas\u0131",
+    "kahve dünyası",
     "kahve dunyas",
     "kahvedunyasi",
-    "kahved\u00fcnyas\u0131",
+    "kahvedünyası",
     "kahvedunyas"
   ],
   "items": [
@@ -31,7 +31,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c5/Cappuccino_at_Sightglass_Coffee.jpg/640px-Cappuccino_at_Sightglass_Coffee.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c5/Cappuccino_at_Sightglass_Coffee.jpg/640px-Cappuccino_at_Sightglass_Coffee.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Americano",
@@ -53,7 +56,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c5/Cappuccino_at_Sightglass_Coffee.jpg/640px-Cappuccino_at_Sightglass_Coffee.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c5/Cappuccino_at_Sightglass_Coffee.jpg/640px-Cappuccino_at_Sightglass_Coffee.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Chocolate Bar (50g)",
@@ -75,7 +81,12 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8a/Coca_Cola_Glass.jpg/640px-Coca_Cola_Glass.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8a/Coca_Cola_Glass.jpg/640px-Coca_Cola_Glass.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [
+        "contains_palm_oil"
+      ],
+      "contains_palm_oil": true
     }
   ]
 }

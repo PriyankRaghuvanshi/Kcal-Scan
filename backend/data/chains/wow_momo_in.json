@@ -29,7 +29,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/9/91/Buuz_-_dumplings_in_Mongolia.jpg/640px-Buuz_-_dumplings_in_Mongolia.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/9/91/Buuz_-_dumplings_in_Mongolia.jpg/640px-Buuz_-_dumplings_in_Mongolia.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Chicken Darjeeling Momos (6pc)",
@@ -51,7 +54,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/9/91/Buuz_-_dumplings_in_Mongolia.jpg/640px-Buuz_-_dumplings_in_Mongolia.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/9/91/Buuz_-_dumplings_in_Mongolia.jpg/640px-Buuz_-_dumplings_in_Mongolia.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Veg Steamed Momos (6pc)",
@@ -73,7 +79,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/9/91/Buuz_-_dumplings_in_Mongolia.jpg/640px-Buuz_-_dumplings_in_Mongolia.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/9/91/Buuz_-_dumplings_in_Mongolia.jpg/640px-Buuz_-_dumplings_in_Mongolia.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Chicken Momo Burger",
@@ -95,7 +104,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/9/91/Buuz_-_dumplings_in_Mongolia.jpg/640px-Buuz_-_dumplings_in_Mongolia.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/9/91/Buuz_-_dumplings_in_Mongolia.jpg/640px-Buuz_-_dumplings_in_Mongolia.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Paneer Steamed Momos (6pc)",
@@ -117,7 +129,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/9/91/Buuz_-_dumplings_in_Mongolia.jpg/640px-Buuz_-_dumplings_in_Mongolia.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/9/91/Buuz_-_dumplings_in_Mongolia.jpg/640px-Buuz_-_dumplings_in_Mongolia.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     }
   ]
 }

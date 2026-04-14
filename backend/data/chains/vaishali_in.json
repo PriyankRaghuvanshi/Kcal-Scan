@@ -28,7 +28,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2d/Dosa.JPG/640px-Dosa.JPG"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2d/Dosa.JPG/640px-Dosa.JPG",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Idli Sambar (4pc)",
@@ -50,7 +53,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/82/Idli_sambar.jpg/640px-Idli_sambar.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/82/Idli_sambar.jpg/640px-Idli_sambar.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Misal Pav",
@@ -72,7 +78,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
+      "image_url": "",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Rava Idli (2pc)",
@@ -94,7 +103,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/82/Idli_sambar.jpg/640px-Idli_sambar.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/82/Idli_sambar.jpg/640px-Idli_sambar.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     }
   ]
 }

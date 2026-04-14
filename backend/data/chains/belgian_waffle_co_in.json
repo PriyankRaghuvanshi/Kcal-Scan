@@ -35,7 +35,8 @@
         "contains_palm_oil"
       ],
       "contains_palm_oil": true,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/85/Waffles_with_Strawberries.jpg/640px-Waffles_with_Strawberries.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/85/Waffles_with_Strawberries.jpg/640px-Waffles_with_Strawberries.jpg",
+      "menu_item_source": "llm_curated"
     },
     {
       "item_name": "Nutella Waffle",
@@ -61,7 +62,8 @@
         "contains_palm_oil"
       ],
       "contains_palm_oil": true,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/85/Waffles_with_Strawberries.jpg/640px-Waffles_with_Strawberries.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/85/Waffles_with_Strawberries.jpg/640px-Waffles_with_Strawberries.jpg",
+      "menu_item_source": "llm_curated"
     },
     {
       "item_name": "Cheese Waffle",
@@ -87,7 +89,8 @@
         "contains_palm_oil"
       ],
       "contains_palm_oil": true,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/85/Waffles_with_Strawberries.jpg/640px-Waffles_with_Strawberries.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/85/Waffles_with_Strawberries.jpg/640px-Waffles_with_Strawberries.jpg",
+      "menu_item_source": "llm_curated"
     },
     {
       "item_name": "Classic Chocolate Waffle (regular)",

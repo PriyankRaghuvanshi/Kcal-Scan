@@ -31,7 +31,8 @@
         "contains_palm_oil"
       ],
       "contains_palm_oil": true,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2a/Glazed-Donut.jpg/640px-Glazed-Donut.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2a/Glazed-Donut.jpg/640px-Glazed-Donut.jpg",
+      "menu_item_source": "llm_curated"
     },
     {
       "item_name": "Americano (black)",
@@ -54,7 +55,9 @@
       "contains_egg": false,
       "contains_sesame": false,
       "negative_flags": [],
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c5/Cappuccino_at_Sightglass_Coffee.jpg/640px-Cappuccino_at_Sightglass_Coffee.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c5/Cappuccino_at_Sightglass_Coffee.jpg/640px-Cappuccino_at_Sightglass_Coffee.jpg",
+      "menu_item_source": "llm_curated",
+      "contains_palm_oil": false
     },
     {
       "item_name": "Cappuccino (no sugar)",
@@ -77,7 +80,9 @@
       "contains_egg": false,
       "contains_sesame": false,
       "negative_flags": [],
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c5/Cappuccino_at_Sightglass_Coffee.jpg/640px-Cappuccino_at_Sightglass_Coffee.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c5/Cappuccino_at_Sightglass_Coffee.jpg/640px-Cappuccino_at_Sightglass_Coffee.jpg",
+      "menu_item_source": "llm_curated",
+      "contains_palm_oil": false
     },
     {
       "item_name": "Original Glazed Donut",

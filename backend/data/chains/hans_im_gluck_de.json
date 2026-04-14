@@ -1,13 +1,13 @@
 {
-  "brand_name": "Hans im Gl\u00fcck",
+  "brand_name": "Hans im Glück",
   "source_type": "seed_template",
   "source_url": "https://www.hansimglueck-burgergrill.de/menu",
   "store_name_variants": [
     "hans im glueck",
-    "hans im gl\u00fcck",
+    "hans im glück",
     "hans im gluck",
     "hansimglueck",
-    "hansimgl\u00fcck",
+    "hansimglück",
     "hansimgluck"
   ],
   "items": [
@@ -31,7 +31,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/cd/Chicken_burger.jpg/640px-Chicken_burger.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/cd/Chicken_burger.jpg/640px-Chicken_burger.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Classic Burger",
@@ -53,7 +56,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/33/Lassi.jpg/640px-Lassi.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/33/Lassi.jpg/640px-Lassi.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Veggie Burger",
@@ -75,7 +81,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/be/Burger_King_Whopper.jpg/640px-Burger_King_Whopper.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/be/Burger_King_Whopper.jpg/640px-Burger_King_Whopper.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     }
   ]
 }

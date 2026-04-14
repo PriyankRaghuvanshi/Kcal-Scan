@@ -26,7 +26,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/89/Jalebi_in_Indore_2014.jpg/640px-Jalebi_in_Indore_2014.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/89/Jalebi_in_Indore_2014.jpg/640px-Jalebi_in_Indore_2014.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Rabri + Jalebi (portion)",
@@ -48,7 +51,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/89/Jalebi_in_Indore_2014.jpg/640px-Jalebi_in_Indore_2014.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/89/Jalebi_in_Indore_2014.jpg/640px-Jalebi_in_Indore_2014.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Rabri Jalebi (100g)",
@@ -70,7 +76,10 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.9,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/89/Jalebi_in_Indore_2014.jpg/640px-Jalebi_in_Indore_2014.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/89/Jalebi_in_Indore_2014.jpg/640px-Jalebi_in_Indore_2014.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Jalebi + Fafda (share)",
@@ -92,7 +101,10 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.9,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/89/Jalebi_in_Indore_2014.jpg/640px-Jalebi_in_Indore_2014.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/89/Jalebi_in_Indore_2014.jpg/640px-Jalebi_in_Indore_2014.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     }
   ]
 }

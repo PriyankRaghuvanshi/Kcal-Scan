@@ -5,7 +5,7 @@
   "store_name_variants": [
     "nene chicken",
     "nene",
-    "\ub124\ub124\uce58\ud0a8",
+    "네네치킨",
     "nenechicken"
   ],
   "items": [
@@ -29,7 +29,12 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d6/Fried_chicken_with_french_fries.jpg/640px-Fried_chicken_with_french_fries.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d6/Fried_chicken_with_french_fries.jpg/640px-Fried_chicken_with_french_fries.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [
+        "contains_palm_oil"
+      ],
+      "contains_palm_oil": true
     },
     {
       "item_name": "Snowing Cheese Chicken (half)",
@@ -51,7 +56,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
+      "image_url": "",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Soy Garlic Chicken (half)",
@@ -73,7 +81,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
+      "image_url": "",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     }
   ]
 }

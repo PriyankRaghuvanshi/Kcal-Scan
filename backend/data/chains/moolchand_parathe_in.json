@@ -30,7 +30,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3c/Aloo_paratha.jpg/640px-Aloo_paratha.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3c/Aloo_paratha.jpg/640px-Aloo_paratha.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Paneer Paratha (1pc)",
@@ -52,7 +55,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3c/Aloo_paratha.jpg/640px-Aloo_paratha.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3c/Aloo_paratha.jpg/640px-Aloo_paratha.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Butter Chicken + 2 Roti",
@@ -74,7 +80,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/cb/Tandoori_chicken_001.jpg/640px-Tandoori_chicken_001.jpg"
+      "image_url": "",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Chhole Kulche",
@@ -96,7 +105,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
+      "image_url": "",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Aloo Paratha + Curd",
@@ -118,7 +130,10 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.9,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3c/Aloo_paratha.jpg/640px-Aloo_paratha.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3c/Aloo_paratha.jpg/640px-Aloo_paratha.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Paneer Paratha + Curd",
@@ -140,7 +155,10 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.9,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3c/Aloo_paratha.jpg/640px-Aloo_paratha.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3c/Aloo_paratha.jpg/640px-Aloo_paratha.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Egg Paratha + Chai",
@@ -162,7 +180,10 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.9,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3c/Aloo_paratha.jpg/640px-Aloo_paratha.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3c/Aloo_paratha.jpg/640px-Aloo_paratha.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Sweet Lassi (small)",
@@ -184,7 +205,10 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.9,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/33/Lassi.jpg/640px-Lassi.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/33/Lassi.jpg/640px-Lassi.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     }
   ]
 }

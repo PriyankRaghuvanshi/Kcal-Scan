@@ -1,13 +1,13 @@
 {
-  "brand_name": "Tavuk D\u00fcnyas\u0131",
+  "brand_name": "Tavuk Dünyası",
   "source_type": "seed_template",
   "source_url": "https://www.tavukdunyasi.com/menu",
   "store_name_variants": [
     "tavuk dunyasi",
-    "tavuk d\u00fcnyas\u0131",
+    "tavuk dünyası",
     "tavuk dunyas",
     "tavukdunyasi",
-    "tavukd\u00fcnyas\u0131",
+    "tavukdünyası",
     "tavukdunyas"
   ],
   "items": [
@@ -31,10 +31,13 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Indian_thali.jpg/640px-Indian_thali.jpg"
+      "image_url": "",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
-      "item_name": "Chicken D\u00f6ner + Rice",
+      "item_name": "Chicken Döner + Rice",
       "category": "entree",
       "estimated_calories": 580,
       "estimated_protein_g": 32,
@@ -53,7 +56,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/40/Hyderabadi_biryani.jpg/640px-Hyderabadi_biryani.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/40/Hyderabadi_biryani.jpg/640px-Hyderabadi_biryani.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     },
     {
       "item_name": "Chicken Wings (6pc)",
@@ -75,7 +81,10 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Buffalo_wings.jpg/640px-Buffalo_wings.jpg"
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Buffalo_wings.jpg/640px-Buffalo_wings.jpg",
+      "menu_item_source": "llm_curated",
+      "negative_flags": [],
+      "contains_palm_oil": false
     }
   ]
 }
