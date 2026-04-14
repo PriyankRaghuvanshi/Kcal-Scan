@@ -141,7 +141,6 @@
         "palm_oil_free"
       ],
       "contains_palm_oil": false,
-      "image_url": "",
       "menu_item_source": "llm_curated"
     },
     {
@@ -330,8 +329,7 @@
       "negative_flags": [
         "palm_oil_free"
       ],
-      "contains_palm_oil": false,
-      "image_url": ""
+      "contains_palm_oil": false
     },
     {
       "item_name": "Waffle Potato Fries (medium)",
@@ -492,8 +490,7 @@
       "negative_flags": [
         "palm_oil_free"
       ],
-      "contains_palm_oil": false,
-      "image_url": ""
+      "contains_palm_oil": false
     },
     {
       "item_name": "Chick-n-Minis (4-count)",
@@ -519,8 +516,7 @@
       "negative_flags": [
         "palm_oil_free"
       ],
-      "contains_palm_oil": false,
-      "image_url": ""
+      "contains_palm_oil": false
     },
     {
       "item_name": "Hash Brown Scramble Burrito w/ Nuggets",
@@ -573,8 +569,7 @@
       "negative_flags": [
         "palm_oil_free"
       ],
-      "contains_palm_oil": false,
-      "image_url": ""
+      "contains_palm_oil": false
     },
     {
       "item_name": "Small Lemonade",

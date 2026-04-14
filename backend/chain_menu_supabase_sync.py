@@ -129,6 +129,11 @@ def _seed_items_to_rows(
                 - (2 * len(item["negative_flags"])),
                 2,
             )
+        # Normalize image_url uniformly on every row so PostgREST bulk upsert
+        # (PGRST102 "All object keys must match") succeeds. Empty / non-https
+        # values become None to satisfy chain_menu_items_image_url_https.
+        raw_url = str(item.get("image_url") or "").strip()
+        item["image_url"] = raw_url if raw_url.lower().startswith("https://") else None
         rows.append({k: item[k] for k in CHAIN_MENU_ITEM_ALLOWED_COLUMNS if k in item})
     return rows
 

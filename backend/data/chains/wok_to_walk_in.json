@@ -205,7 +205,6 @@
       "contains_soy": true,
       "confidence": 0.8,
       "menu_item_source": "llm_curated",
-      "image_url": "",
       "negative_flags": [],
       "contains_palm_oil": false
     }

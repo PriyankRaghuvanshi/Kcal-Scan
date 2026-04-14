@@ -491,8 +491,7 @@
       "negative_flags": [
         "palm_oil_free"
       ],
-      "contains_palm_oil": false,
-      "image_url": ""
+      "contains_palm_oil": false
     },
     {
       "item_name": "Chips + Guac",
@@ -518,8 +517,7 @@
       "negative_flags": [
         "palm_oil_free"
       ],
-      "contains_palm_oil": false,
-      "image_url": ""
+      "contains_palm_oil": false
     },
     {
       "item_name": "Chips + Tomato Salsa",
@@ -545,8 +543,7 @@
       "negative_flags": [
         "palm_oil_free"
       ],
-      "contains_palm_oil": false,
-      "image_url": ""
+      "contains_palm_oil": false
     },
     {
       "item_name": "Guac (2oz)",
@@ -572,8 +569,7 @@
       "negative_flags": [
         "palm_oil_free"
       ],
-      "contains_palm_oil": false,
-      "image_url": ""
+      "contains_palm_oil": false
     },
     {
       "item_name": "Queso Blanco (side)",
@@ -599,8 +595,7 @@
       "negative_flags": [
         "palm_oil_free"
       ],
-      "contains_palm_oil": false,
-      "image_url": ""
+      "contains_palm_oil": false
     },
     {
       "item_name": "Sour Cream (2oz)",
@@ -626,8 +621,7 @@
       "negative_flags": [
         "palm_oil_free"
       ],
-      "contains_palm_oil": false,
-      "image_url": ""
+      "contains_palm_oil": false
     },
     {
       "item_name": "Cheese (1oz)",
@@ -653,8 +647,7 @@
       "negative_flags": [
         "palm_oil_free"
       ],
-      "contains_palm_oil": false,
-      "image_url": ""
+      "contains_palm_oil": false
     },
     {
       "item_name": "Fajita Veggies (free add-on)",
@@ -680,8 +673,7 @@
       "negative_flags": [
         "palm_oil_free"
       ],
-      "contains_palm_oil": false,
-      "image_url": ""
+      "contains_palm_oil": false
     },
     {
       "item_name": "Chicken (4oz protein)",
@@ -707,8 +699,7 @@
       "negative_flags": [
         "palm_oil_free"
       ],
-      "contains_palm_oil": false,
-      "image_url": ""
+      "contains_palm_oil": false
     },
     {
       "item_name": "Steak (4oz protein)",

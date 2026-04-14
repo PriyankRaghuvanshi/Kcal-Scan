@@ -51,7 +51,6 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "",
       "menu_item_source": "llm_curated",
       "negative_flags": [],
       "contains_palm_oil": false
@@ -76,7 +75,6 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "",
       "menu_item_source": "llm_curated",
       "negative_flags": [],
       "contains_palm_oil": false
@@ -126,7 +124,6 @@
       "contains_shellfish": false,
       "contains_egg": false,
       "contains_sesame": false,
-      "image_url": "",
       "menu_item_source": "llm_curated",
       "negative_flags": [],
       "contains_palm_oil": false
@@ -177,7 +174,6 @@
       "contains_soy": false,
       "confidence": 0.95,
       "menu_item_source": "official_published",
-      "image_url": "",
       "negative_flags": [],
       "contains_palm_oil": false
     },
@@ -202,7 +198,6 @@
       "contains_soy": false,
       "confidence": 0.95,
       "menu_item_source": "official_published",
-      "image_url": "",
       "negative_flags": [],
       "contains_palm_oil": false
     },
@@ -227,7 +222,6 @@
       "contains_soy": false,
       "confidence": 0.95,
       "menu_item_source": "official_published",
-      "image_url": "",
       "negative_flags": [],
       "contains_palm_oil": false
     },
@@ -252,7 +246,6 @@
       "contains_soy": false,
       "confidence": 0.95,
       "menu_item_source": "official_published",
-      "image_url": "",
       "negative_flags": [],
       "contains_palm_oil": false
     },
@@ -429,7 +422,6 @@
       "contains_soy": false,
       "confidence": 0.95,
       "menu_item_source": "official_published",
-      "image_url": "",
       "negative_flags": [
         "contains_palm_oil"
       ],

@@ -104,7 +104,6 @@
       "contains_shellfish": false,
       "contains_soy": false,
       "confidence": 0.9,
-      "image_url": "",
       "menu_item_source": "llm_curated",
       "negative_flags": [],
       "contains_palm_oil": false
