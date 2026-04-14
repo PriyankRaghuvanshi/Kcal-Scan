@@ -110,11 +110,13 @@ function buildGoalVariantPills(place, bestItemName) {
     const key = norm(name);
     if (key === primary || seen.has(key)) return;
     seen.add(key);
+    const rawImg = String(variant.image_url || "").trim();
     out.push({
       label,
       name,
       kcal: Number.isFinite(Number(variant.estimated_calories)) ? Math.round(Number(variant.estimated_calories)) : null,
       protein: Number.isFinite(Number(variant.estimated_protein_g)) ? Math.round(Number(variant.estimated_protein_g)) : null,
+      image: rawImg.startsWith("https://") ? rawImg : null,
     });
   };
   // Order: high protein, lowest cal, fat_loss (if distinct from both)
@@ -299,24 +301,39 @@ export function RecommendationCard({
         </View>
       ) : null}
 
-      {/* C-b. Alternative picks by goal (high-protein / lowest-cal) */}
+      {/* C-b. Alternative picks by goal (high-protein / lowest-cal).
+          Only render pills that have a usable item name — bare label text
+          without the item is confusing UX. Thumb shown when available. */}
       {goalVariantPills.length > 0 && !isScreenshot ? (
         <View style={styles.variantsRow}>
           {goalVariantPills.map((v, idx) => (
             <View key={`gv-${idx}-${v.label}`} style={styles.variantPill}>
-              <Text style={[styles.variantLabel, { color: textMuted }]} numberOfLines={1}>
-                {v.label}:
-              </Text>
-              <Text style={[styles.variantName, { color: textPrimary }]} numberOfLines={1}>
-                {v.name}
-              </Text>
-              {(v.kcal != null || v.protein != null) ? (
-                <Text style={[styles.variantMacros, { color: textMuted }]} numberOfLines={1}>
-                  {v.kcal != null ? `${v.kcal} kcal` : ""}
-                  {(v.kcal != null && v.protein != null) ? " · " : ""}
-                  {v.protein != null ? `${v.protein}g p` : ""}
+              {v.image ? (
+                <Image
+                  source={{ uri: v.image }}
+                  style={styles.variantThumb}
+                  resizeMode="cover"
+                  accessible
+                  accessibilityIgnoresInvertColors
+                />
+              ) : (
+                <View style={[styles.variantThumb, styles.variantThumbFallback]} />
+              )}
+              <View style={styles.variantTextCol}>
+                <Text style={[styles.variantLabel, { color: textMuted }]} numberOfLines={1}>
+                  {v.label}
                 </Text>
-              ) : null}
+                <Text style={[styles.variantName, { color: textPrimary }]} numberOfLines={2}>
+                  {v.name}
+                </Text>
+                {(v.kcal != null || v.protein != null) ? (
+                  <Text style={[styles.variantMacros, { color: textMuted }]} numberOfLines={1}>
+                    {v.kcal != null ? `${v.kcal} kcal` : ""}
+                    {(v.kcal != null && v.protein != null) ? " · " : ""}
+                    {v.protein != null ? `${v.protein}g p` : ""}
+                  </Text>
+                ) : null}
+              </View>
             </View>
           ))}
         </View>
@@ -528,31 +545,43 @@ const styles = StyleSheet.create({
   variantPill: {
     flexDirection: "row",
     alignItems: "center",
+    gap: spacing.sm,
     paddingHorizontal: 10,
-    paddingVertical: 6,
+    paddingVertical: 8,
     borderRadius: radius.sm,
     borderWidth: 1,
     borderColor: "rgba(148, 163, 184, 0.30)",
     backgroundColor: "rgba(15, 23, 42, 0.35)",
-    maxWidth: "48%",
-    minWidth: "44%",
-    flexGrow: 1,
+    width: "100%",
+  },
+  variantThumb: {
+    width: 44,
+    height: 44,
+    borderRadius: radius.sm,
+    backgroundColor: "rgba(148, 163, 184, 0.18)",
+  },
+  variantThumbFallback: {
+    backgroundColor: "rgba(148, 163, 184, 0.12)",
+  },
+  variantTextCol: {
+    flex: 1,
+    flexDirection: "column",
   },
   variantLabel: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: typography.weight.semibold,
-    marginRight: 6,
     textTransform: "uppercase",
     letterSpacing: 0.4,
+    marginBottom: 2,
   },
   variantName: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: typography.weight.semibold,
     flexShrink: 1,
   },
   variantMacros: {
     fontSize: 11,
-    marginLeft: 6,
+    marginTop: 2,
   },
   menuMayVary: {
     fontSize: typography.xs,
