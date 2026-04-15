@@ -22526,3 +22526,158 @@ def analyze_rerun(
     )
     response["latency_ms"] = int(max(0, round((time.time() - started) * 1000)))
     return _attach_debug_schema(response, bool(debug))
+
+
+class AnalyzeMacroUpdateRequest(BaseModel):
+    analysis_id: str
+    item_id: Optional[str] = None
+    kcal: Optional[float] = None
+    protein_g: Optional[float] = None
+    carbs_g: Optional[float] = None
+    fat_g: Optional[float] = None
+
+
+@app.post("/analyze/macro-update")
+def analyze_macro_update(
+    payload: Dict[str, Any] = Body(...),
+    user_id: Optional[str] = None,
+    tz: Optional[str] = None,
+    tz_offset_min: Optional[int] = None,
+    debug: Optional[bool] = False,
+    x_user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
+):
+    """Macro-only correction path — persists user's kcal/macros without re-running vision.
+
+    This is the lightweight path for "Fix Result" in the mobile app when the
+    user just wants to adjust kcal/protein/carbs/fat on an existing scan.
+    /analyze/rerun remains for full reruns (vision re-run + portion / ingredient
+    edits / clarifying answers).
+
+    Behavior:
+    - Recomputes nutrition from stored name/grams (consistent micros baseline).
+    - Re-applies prior manual overrides (uses the same _restore_stored_manual_overrides
+      helper as /analyze/rerun so earlier edits survive).
+    - Applies this request's override to the target item (default item if item_id omitted).
+    - Persists corrected results to items_json with manual_macro_override=True.
+    - Refreshes fat_loss_intelligence with current tz so the greeting is correct.
+    """
+    uid = require_user_id(x_user_id, user_id)
+    started = time.time()
+
+    try:
+        req = _model_validate(AnalyzeMacroUpdateRequest, payload or {})
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=_friendly_rerun_validation_error(e))
+
+    analysis_id = str(req.analysis_id or "").strip()
+    if not analysis_id:
+        raise HTTPException(status_code=400, detail={"error": "missing_analysis_id"})
+    if req.kcal is None and req.protein_g is None and req.carbs_g is None and req.fat_g is None:
+        raise HTTPException(status_code=400, detail={"error": "missing_macro_fields"})
+
+    existing = _get_meal_analysis(uid, analysis_id)
+    if not existing:
+        raise HTTPException(status_code=404, detail={"error": "analysis_not_found", "analysis_id": analysis_id})
+
+    items_raw = _parse_jsonish(existing.get("items_json"), [])
+    if not isinstance(items_raw, list) or not items_raw:
+        llm_raw = _parse_jsonish(existing.get("llm_outputs_json"), {})
+        if isinstance(llm_raw, dict):
+            vision_raw = llm_raw.get("vision") if isinstance(llm_raw.get("vision"), dict) else {}
+            items_raw = vision_raw.get("items") if isinstance(vision_raw.get("items"), list) else []
+    if not isinstance(items_raw, list) or not items_raw:
+        raise HTTPException(status_code=400, detail={"error": "analysis_has_no_editable_items"})
+
+    day_iso = _day_iso(existing.get("day"), tz=tz, tz_offset_min=tz_offset_min)
+
+    items_for_compute = [dict(x or {}) for x in items_raw]
+    results, totals, total_micros, _item_warnings, _ = _compute_scan_nutrition(items_for_compute)
+
+    # Re-apply any previously stored overrides so multi-edit sessions don't clobber earlier fixes.
+    results, totals, total_micros = _restore_stored_manual_overrides(
+        items_raw, results, totals, total_micros
+    )
+
+    # Apply this request's override.
+    default_iid = _default_item_id_from_analysis_row(existing)
+    override_obj = ItemMacroOverrideEdit(
+        item_id=str(req.item_id or default_iid or ""),
+        kcal=req.kcal,
+        protein_g=req.protein_g,
+        carbs_g=req.carbs_g,
+        fat_g=req.fat_g,
+    )
+    results, totals, total_micros = _apply_macro_override_to_scan(
+        results, totals, total_micros, override_obj, default_iid
+    )
+    micros_payload = _build_micros_payload(total_micros)
+
+    # Persist corrected results + totals (same items_json shape as /analyze/rerun).
+    _patch_meal_analysis(
+        analysis_id,
+        uid,
+        {
+            "updated_at": dt.datetime.utcnow().isoformat(),
+            "items_json": [dict(x or {}) for x in (results or [])],
+            "nutrition_totals_json": {"totals": totals, "micros": micros_payload},
+        },
+    )
+    _store_analysis_memory(
+        {
+            "analysis_id": analysis_id,
+            "user_id": uid,
+            "created_at": existing.get("created_at") or dt.datetime.utcnow().isoformat(),
+            "image_hash": str(existing.get("image_hash") or ""),
+            "items_json": [dict(x or {}) for x in (results or [])],
+            "top_candidates": [],
+            "vision_confidence": round(_clamp01(existing.get("vision_confidence"), 0.65), 3),
+        }
+    )
+    _store_meal_edit(
+        {
+            "edit_id": str(uuid.uuid4()),
+            "analysis_id": analysis_id,
+            "user_id": uid,
+            "created_at": dt.datetime.utcnow().isoformat(),
+            "edit_patch_json": {"macro_update": _model_dump(override_obj)},
+        }
+    )
+
+    response: Dict[str, Any] = {
+        "analysis_id": analysis_id,
+        "items": results,
+        "totals": totals,
+        "micros": micros_payload,
+        "latest_scan_id": analysis_id,
+        "latest_scan_ts": dt.datetime.utcnow().isoformat(),
+    }
+
+    # Build a fresh fat_loss_intelligence so the greeting + tone update immediately.
+    try:
+        coach_payload = _build_server_daily_coach_payload(uid, day_iso, tz=tz, tz_offset_min=tz_offset_min)
+        coach_tone_pref = _normalize_daily_tone_id(
+            ((coach_payload.get("profile") or {}).get("tone_preference") if isinstance(coach_payload.get("profile"), dict) else "")
+            or "supportive"
+        )
+        quick_fli = _build_quick_fli_response(
+            coach_payload,
+            latest_scan_id=analysis_id,
+            latest_scan_ts=response["latest_scan_ts"],
+            tone_preference=coach_tone_pref,
+            user_id=uid,
+        )
+        response["fat_loss_intelligence"] = quick_fli
+        response["fat_loss_intelligence_status"] = "pending" if GEMINI_API_KEY else "ready"
+        response["fat_loss_intelligence_updated_at"] = quick_fli.get("updatedAt")
+        response["daily_totals_version"] = str(
+            coach_payload.get("daily_totals_version")
+            or ((coach_payload.get("_state") or {}).get("daily_totals_version"))
+            or ""
+        )
+        response["state_signature"] = str(coach_payload.get("_state_signature") or "")
+        response["today_totals"] = coach_payload.get("consumed", {})
+    except Exception as e:
+        logger.warning(f"Macro-update FLI payload build skipped: {e}")
+
+    response["latency_ms"] = int(max(0, round((time.time() - started) * 1000)))
+    return _attach_debug_schema(response, bool(debug))

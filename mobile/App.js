@@ -2652,6 +2652,14 @@ export default function App() {
         }
         // Play Billing can come up late after resume; refresh offerings when app returns foreground.
         void refreshRevenueCatState("app_active");
+        // Coach + FLI cards share in-memory state; without a resume-refresh the
+        // greeting + daypart copy go stale after a phone-lock across day-parts
+        // (user sees "Good afternoon" in FLI while Coach Summary shows "Good
+        // morning"). Force a fresh /coach/daily so both cards re-read the same
+        // tz-aware greeting from backend.
+        if (userId) {
+          void ensureDailyCoach(true, { trigger: "app_resume", refreshServer: true });
+        }
       }
     });
     return () => sub?.remove?.();
@@ -6774,10 +6782,83 @@ async function openCamera(mode = "meal") {
       return;
     }
 
+    // Macro-only fast path: when the user just corrected kcal/protein/carbs/fat
+    // on an existing scan, skip the full /analyze/rerun (which re-runs Gemini
+    // vision) and call the lightweight /analyze/macro-update endpoint instead.
+    // Much faster (~50ms vs ~10s), no vision tokens spent, no risk of the
+    // LLM re-interpreting the image differently.
+    const mo = editPatch && typeof editPatch === "object" ? editPatch.macro_override : null;
+    const hasMacroFields =
+      mo && typeof mo === "object" &&
+      (mo.kcal != null || mo.protein_g != null || mo.carbs_g != null || mo.fat_g != null);
+    const otherEditKeys = [
+      "portion_multiplier","set_cooking_method","set_oil_added_tsp","swap_item",
+      "swap_candidate","set_item_grams","clarifying_answer","clarifying_answers",
+      "ingredient_edits",
+    ];
+    const hasOtherEdits = editPatch && typeof editPatch === "object" &&
+      otherEditKeys.some((k) => editPatch[k] != null);
+    const macroOnly = hasMacroFields && !hasOtherEdits;
+
     const rerunSeq = Number(rerunReqSeqRef.current || 0) + 1;
     rerunReqSeqRef.current = rerunSeq;
     setRerunBusy(true);
     try {
+      if (macroOnly) {
+        const macroUrl = withTimezoneQuery(`${API_BASE}/analyze/macro-update?user_id=${encodeURIComponent(userId)}`);
+        const macroPayload = {
+          analysis_id: analysisId,
+          item_id: String(mo.item_id || "").trim() || undefined,
+          kcal: mo.kcal != null ? Number(mo.kcal) : undefined,
+          protein_g: mo.protein_g != null ? Number(mo.protein_g) : undefined,
+          carbs_g: mo.carbs_g != null ? Number(mo.carbs_g) : undefined,
+          fat_g: mo.fat_g != null ? Number(mo.fat_g) : undefined,
+        };
+        const mres = await fetch(macroUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", accept: "application/json" },
+          body: JSON.stringify(macroPayload),
+        });
+        console.log("[macro-update] payload", JSON.stringify(macroPayload));
+        const mdata = await safeJson(mres);
+        console.log("[macro-update] response", mres?.status, JSON.stringify(mdata || {}));
+        if (!mres?.ok) {
+          const detail = mdata?.detail;
+          const backendMsg = errorToMessage(
+            mdata?.message || mdata?.error || mdata?.error_code ||
+              detail?.message || detail?.error || detail ||
+              `Macro update failed (${mres?.status || 400}).`,
+            0
+          );
+          throw new Error(backendMsg || `Macro update failed (${mres?.status || 400}).`);
+        }
+        if (rerunSeq !== Number(rerunReqSeqRef.current || 0)) return;
+        const normalized = normalizeAnalyzeResult(mdata);
+        setResult(normalized);
+        if (mdata?.fat_loss_intelligence && typeof mdata.fat_loss_intelligence === "object") {
+          const quickCoach = sanitizeCoachForDiet(normalizeCoachDaily(mdata.fat_loss_intelligence, localDayISO()));
+          setCoachDaily(quickCoach);
+          setCoachErr("");
+        }
+        // Refresh the daily summary card (totals) so edited kcal/macros
+        // propagate to the main dashboard without a manual pull-to-refresh.
+        try { await fetchDailySummary(userId); } catch (_) {}
+        try {
+          scheduleDailyCoachRefresh({
+            latestScanId: analysisId,
+            latestScanTs: String(mdata?.latest_scan_ts || nowISO()),
+            mealId: analysisId,
+            analysisId: analysisId,
+            dailyTotalsVersion: normalizeVersionToken(mdata?.daily_totals_version || mdata?.state_signature || ""),
+            pollForLatest: false,
+            refreshServer: true,
+            fastMode: true,
+            trigger: "macro_update",
+          });
+        } catch (_) {}
+        return;
+      }
+
       const rerunUrl = withTimezoneQuery(`${API_BASE}/analyze/rerun?user_id=${encodeURIComponent(userId)}`);
       const normalizedPatch = normalizeRerunPatch(editPatch, result?.editable_context?.items || []);
       const rerunActions = rerunPatchToActions(normalizedPatch);
