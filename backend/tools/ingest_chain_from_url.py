@@ -95,8 +95,10 @@ CRITICAL RULES the validator will enforce — items violating these will be reje
 3. If item_name contains 'sub', 'bread', 'wrap', 'burger', 'pizza', 'pasta', 'naan', 'roti', 'paratha', 'taco', 'sandwich', 'panini' — contains_gluten MUST be true and gluten_free_possible MUST be false (unless explicitly a gluten-free variant).
 4. **estimated_calories MUST be in kcal (kilocalories), NOT kJ (kilojoules).** Many international sites (AU, NZ, UK, EU) show energy in kJ primarily. If you see a kJ value, divide by 4.184 to convert (e.g. 2060 kJ = 492 kcal). Typical menu-item range: 100–1500 kcal; NEVER 1000–10000 (that's kJ). Also satisfy: |kcal_stated - (4*P + 4*C + 9*F)| / kcal_stated < 0.30. If P+F+C implies ~500 but you have 2000 stored, you stored the kJ value — convert it.
 5. Don't use generic names like "Protein Bowl" or "Lean Wrap" — use the exact menu name.
+6. **SKIP items where you cannot find real P/F/C macros.** Do NOT emit an item with estimated_protein_g/carbs_g/fat_g all set to 0 just to fill the array — that fails validation and wastes the whole ingest run. Better to return 8 verified items than 20 with made-up zeros. If the source gives only kcal, skip that item.
+7. **If you cannot find reliable menu data after searching, return the literal JSON array `[]`.** Do NOT write prose explaining what you couldn't find, do NOT return an error message, do NOT apologize. Just `[]`. The caller treats `[]` as "no data" gracefully; it treats prose as a hard pipeline failure.
 
-Return ONLY the JSON array. No prose, no markdown fences. Aim for 15–35 items per market."""
+Return ONLY the JSON array (possibly empty). No prose before or after, no markdown fences, no commentary. Aim for 15–35 items per market when data is available; return `[]` when it isn't."""
 
 REPAIR_PROMPT_PREFIX = """You returned items that failed validation. Fix the specific issues below and return the corrected JSON array. Do not remove items unless they cannot be fixed — fix them.
 
@@ -173,16 +175,33 @@ def call_llm(prompt: str, page_text: str = "") -> str:
 
 
 def parse_json_array(text: str) -> List[Dict[str, Any]]:
-    """Extract a JSON array from model output, tolerating prose around it."""
-    text = text.strip()
+    """Extract a JSON array from model output, tolerating prose around it.
+
+    Returns [] when the model genuinely found no data (either an explicit
+    empty array, or prose explaining it couldn't find anything). Only raises
+    ValueError on truly malformed JSON.
+    """
+    text = str(text or "").strip()
+    if not text:
+        return []
     # Strip markdown fences if present
     if text.startswith("```"):
         text = re.sub(r"^```(?:json)?\s*", "", text)
         text = re.sub(r"\s*```\s*$", "", text)
+    # Prefer the LAST balanced top-level array in the output (model may add
+    # a prose preamble before a final JSON payload).
     match = re.search(r"\[[\s\S]*\]", text)
     if not match:
-        raise ValueError("No JSON array found in model output")
-    return json.loads(match.group())
+        # No array at all — treat prose-only output as "no data found".
+        return []
+    payload = match.group()
+    try:
+        parsed = json.loads(payload)
+    except json.JSONDecodeError as e:
+        raise ValueError(f"Malformed JSON array in model output: {e}")
+    if not isinstance(parsed, list):
+        return []
+    return parsed
 
 
 def normalize_item(raw: Dict[str, Any], chain_key: str, market: str,

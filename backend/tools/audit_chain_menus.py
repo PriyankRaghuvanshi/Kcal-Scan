@@ -39,9 +39,12 @@ PORK_TOKENS = (
 )
 AMBIGUOUS_VEG_NONVEG = ("tikka", "kebab", "kabab", "kofta", "shami", "tandoori")
 DAIRY_TOKENS = (
-    "cheese", "paneer", "butter", "ghee", "cream", "yogurt", "yoghurt",
-    "milk", "lassi", "kulfi", "kheer", "rabri", "ranch", "alfredo",
-    "mozzarella", "cheddar", "parmesan", "feta", "ricotta",
+    "cheese", "paneer", "butter", "cream", "yogurt", "yoghurt",
+    "alfredo", "mozzarella", "cheddar", "parmesan", "ricotta",
+    # Short / common-substring names — wrap with spaces so "lassi" doesn't
+    # match "c-lassi-c", "ghee" doesn't match "g-hee-r", etc.
+    " ghee ", " milk ", " lassi ", " kulfi ", " kheer ", " rabri ",
+    " ranch ", " feta ",
 )
 EGG_TOKENS = (" egg ", " eggs ", " egg,", "omelet", "omelette", "frittata", "quiche", "scrambled")
 NUT_TOKENS = ("peanut", "cashew", "almond", "walnut", "pecan", "pistachio", "hazelnut", "macadamia", " nut ", " nuts ", " satay ")
@@ -58,6 +61,18 @@ GENERIC_BANNED = (
     "greek yogurt protein bowl", "grilled protein bowl",
     "protein bowl", "protein plate", "lean wrap", "healthy plate",
 )
+
+# Chains that are 100% plant-based — meat-named items here ("Nuggets",
+# "Fried Chick'n", "Beyond Burger") are plant-based by chain identity, so
+# skip meat-token diet-contradiction rules for them.
+VEGAN_ONLY_CHAINS = {
+    "lord_of_the_fries",
+    "veganburg",
+    "by_chloe",
+    "next_level_burger",
+    "the_butchers_son",
+    "plant_power",
+}
 
 
 def _name_has(name: str, tokens: Tuple[str, ...]) -> bool:
@@ -96,20 +111,23 @@ def audit_item(chain_market: str, item: Dict[str, Any]) -> List[Dict[str, Any]]:
         })
 
     # --- Diet contradictions (CRITICAL — wrong info to user) ---
-    if diet in ("vegetarian", "vegan") and _name_has(name_lc, NON_VEG_TOKENS):
-        add("critical", "diet_contradicts_name",
-            f"diet_type={diet!r} but name contains meat token")
-    if item.get("vegetarian_possible") is True and _name_has(name_lc, NON_VEG_TOKENS):
-        add("critical", "vegetarian_possible_meat",
-            "vegetarian_possible=true but name contains meat token")
+    chain_key_norm = chain_market.split("::", 1)[0].strip().lower() if "::" in chain_market else chain_market
+    is_vegan_chain = chain_key_norm in VEGAN_ONLY_CHAINS
+    if not is_vegan_chain:
+        if diet in ("vegetarian", "vegan") and _name_has(name_lc, NON_VEG_TOKENS):
+            add("critical", "diet_contradicts_name",
+                f"diet_type={diet!r} but name contains meat token")
+        if item.get("vegetarian_possible") is True and _name_has(name_lc, NON_VEG_TOKENS):
+            add("critical", "vegetarian_possible_meat",
+                "vegetarian_possible=true but name contains meat token")
     if item.get("vegan_possible") is True:
-        if _name_has(name_lc, NON_VEG_TOKENS):
+        if not is_vegan_chain and _name_has(name_lc, NON_VEG_TOKENS):
             add("critical", "vegan_possible_meat",
                 "vegan_possible=true but name contains meat token")
-        elif _name_has(name_lc, DAIRY_TOKENS):
+        elif not is_vegan_chain and _name_has(name_lc, DAIRY_TOKENS):
             add("critical", "vegan_possible_dairy",
                 "vegan_possible=true but name contains dairy")
-        elif _name_has(name_lc, EGG_TOKENS):
+        elif not is_vegan_chain and _name_has(name_lc, EGG_TOKENS):
             add("critical", "vegan_possible_egg",
                 "vegan_possible=true but name contains egg")
     if item.get("halal_possible") is True and _name_has(name_lc, PORK_TOKENS):
