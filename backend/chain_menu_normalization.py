@@ -135,6 +135,11 @@ def to_registry_menu_item(ingested: Dict[str, Any], chain_entry: Optional[Dict[s
     for use in resolve_chain_menu_for_place.
     """
     entry = chain_entry or {}
+    # Preserve high-trust source tags ("real_menu") through the transform.
+    # menu_item_scoring.py blends 75% source_anchor for real_menu vs 28% for
+    # generic ingested_chain_item — overwriting real_menu here loses that boost.
+    raw_source = str(ingested.get("menu_item_source") or "").strip().lower()
+    effective_source = raw_source if raw_source in {"real_menu", "official_published", "user_scan"} else SOURCE_INGESTED_CHAIN_ITEM
     return {
         "item_name": ingested.get("item_name"),
         "category": ingested.get("category"),
@@ -145,9 +150,9 @@ def to_registry_menu_item(ingested: Dict[str, Any], chain_entry: Optional[Dict[s
         "estimated_satiety": "high" if (ingested.get("estimated_protein_g") or 0) >= 25 else "medium",
         "confidence": ingested.get("confidence", 0.86),
         "menu_confidence": ingested.get("confidence", 0.86),
-        "source": SOURCE_INGESTED_CHAIN_ITEM,
-        "menu_source": SOURCE_INGESTED_CHAIN_ITEM,
-        "menu_item_source": SOURCE_INGESTED_CHAIN_ITEM,
+        "source": effective_source,
+        "menu_source": effective_source,
+        "menu_item_source": effective_source,
         "menu_item_confidence": ingested.get("confidence", 0.86),
         "source_url": ingested.get("source_url") or str(entry.get("official_menu_source_url") or ""),
         "extraction_method": "chain_menu_ingestion",
