@@ -113,7 +113,17 @@ def audit_item(chain_market: str, item: Dict[str, Any]) -> List[Dict[str, Any]]:
     # --- Diet contradictions (CRITICAL — wrong info to user) ---
     chain_key_norm = chain_market.split("::", 1)[0].strip().lower() if "::" in chain_market else chain_market
     is_vegan_chain = chain_key_norm in VEGAN_ONLY_CHAINS
-    if not is_vegan_chain:
+    # Plant-based / alternative meat items: name explicitly labels the item as
+    # a plant-based replacement (e.g. "Vegan Sausage-Alternative Roll",
+    # "Plant-Based Chicken Burger", "Beyond Burger"). Skip meat-token checks.
+    is_plant_alt = any(
+        p in name_lc for p in (
+            "alternative", "plant-based", "plant based", "plant-powered",
+            "beyond ", "impossible ", "vegan ", "meat-free", "meat free",
+            "chick'n", "chik'n", "no-beef", "no beef",
+        )
+    )
+    if not is_vegan_chain and not is_plant_alt:
         if diet in ("vegetarian", "vegan") and _name_has(name_lc, NON_VEG_TOKENS):
             add("critical", "diet_contradicts_name",
                 f"diet_type={diet!r} but name contains meat token")
@@ -121,7 +131,7 @@ def audit_item(chain_market: str, item: Dict[str, Any]) -> List[Dict[str, Any]]:
             add("critical", "vegetarian_possible_meat",
                 "vegetarian_possible=true but name contains meat token")
     if item.get("vegan_possible") is True:
-        if not is_vegan_chain and _name_has(name_lc, NON_VEG_TOKENS):
+        if not is_vegan_chain and not is_plant_alt and _name_has(name_lc, NON_VEG_TOKENS):
             add("critical", "vegan_possible_meat",
                 "vegan_possible=true but name contains meat token")
         elif not is_vegan_chain and _name_has(name_lc, DAIRY_TOKENS):
