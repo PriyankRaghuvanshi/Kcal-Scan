@@ -135,12 +135,18 @@ def audit_item(chain_market: str, item: Dict[str, Any]) -> List[Dict[str, Any]]:
             "halal_possible=true but name contains pork/bacon/ham")
 
     # --- Allergen flag inconsistencies (HIGH — filter routes wrongly) ---
-    if item.get("contains_gluten") is False and _name_has(name_lc, GLUTEN_TOKENS):
-        add("high", "gluten_flag_wrong",
-            "contains_gluten=false but name implies wheat/bread")
-    if item.get("gluten_free_possible") is True and _name_has(name_lc, GLUTEN_TOKENS):
-        add("high", "gluten_free_wrong",
-            "gluten_free_possible=true but name implies wheat/bread")
+    # Exempt naturally gluten-free corn/rice forms of wheat-associated items:
+    # e.g. "Corn Tortilla", "Corn Tortilla Chips", "Rice Noodles", "Rice Paper Roll".
+    corn_or_rice_gf = ("corn" in name_lc or "rice" in name_lc) and _name_has(
+        name_lc, ("tortilla", "noodle", "paper", "chip")
+    )
+    if not corn_or_rice_gf:
+        if item.get("contains_gluten") is False and _name_has(name_lc, GLUTEN_TOKENS):
+            add("high", "gluten_flag_wrong",
+                "contains_gluten=false but name implies wheat/bread")
+        if item.get("gluten_free_possible") is True and _name_has(name_lc, GLUTEN_TOKENS):
+            add("high", "gluten_free_wrong",
+                "gluten_free_possible=true but name implies wheat/bread")
     if item.get("contains_dairy") is False and _name_has(name_lc, DAIRY_TOKENS):
         add("high", "dairy_flag_wrong",
             "contains_dairy=false but name implies dairy")
