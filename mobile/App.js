@@ -7521,7 +7521,7 @@ async function openCamera(mode = "meal") {
       <ScrollView
         ref={mainScrollRef}
         style={styles.mainScrollFlex}
-        contentContainerStyle={[styles.container, homeMainVisible ? styles.containerAboveBottomTabs : null]}
+        contentContainerStyle={[styles.container, styles.containerAboveBottomTabs]}
         refreshControl={
           activeScreen === "healthy_nearby" ? (
             <RefreshControl
@@ -11535,50 +11535,63 @@ async function openCamera(mode = "meal") {
 
       </ScrollView>
 
-      {homeMainVisible ? (
-        <View style={styles.homeBottomTabBarOuter}>
-          <LinearGradient
-            colors={["rgba(147,197,253,0.5)", "rgba(34,197,94,0.45)", "rgba(34,197,94,0)"]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={styles.homeBottomTabBarHairline}
-            pointerEvents="none"
-          />
-          <View style={styles.homeBottomTabBar} accessibilityRole="tablist">
-            {[
-              { key: "today", label: "Today", icon: "⌂" },
-              { key: "coach", label: "Coach", icon: "◎", badge: coachTabShowDot },
-              { key: "plan", label: "Plan", icon: "≡", badgeDot: planTabShowBadge },
-              { key: "more", label: "More", icon: "···" },
-            ].map((t) => (
+      <View style={styles.homeBottomTabBarOuter}>
+        <LinearGradient
+          colors={["rgba(147,197,253,0.5)", "rgba(34,197,94,0.45)", "rgba(34,197,94,0)"]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+          style={styles.homeBottomTabBarHairline}
+          pointerEvents="none"
+        />
+        <View style={styles.homeBottomTabBar} accessibilityRole="tablist">
+          {[
+            { key: "today", label: "Home", icon: "⌂", screen: "home" },
+            { key: "_scan", label: "Scan", icon: "📷", screen: "_scan" },
+            { key: "_nearby", label: "Nearby", icon: "📍", screen: "healthy_nearby" },
+            { key: "coach", label: "Coach", icon: "◎", badge: coachTabShowDot, screen: "home" },
+            { key: "more", label: "More", icon: "···", screen: "home" },
+          ].map((t) => {
+            const isActive = t.key === "_nearby"
+              ? activeScreen === "healthy_nearby"
+              : t.key === "_scan"
+              ? false
+              : (activeScreen !== "healthy_nearby" && homeHubTab === t.key);
+            return (
               <TouchableOpacity
                 key={t.key}
-                style={[styles.homeBottomTabItem, homeHubTab === t.key ? styles.homeBottomTabItemActive : null]}
+                style={[styles.homeBottomTabItem, isActive ? styles.homeBottomTabItemActive : null]}
                 onPress={() => {
+                  if (t.key === "_scan") {
+                    void openCamera("meal");
+                    return;
+                  }
+                  if (t.key === "_nearby") {
+                    setActiveScreen("healthy_nearby");
+                    return;
+                  }
+                  setActiveScreen("home");
                   setHomeHubTab(t.key);
-                  try {
-                    mainScrollRef.current?.scrollTo({ y: 0, animated: true });
-                  } catch (_) {}
+                  try { mainScrollRef.current?.scrollTo({ y: 0, animated: true }); } catch (_) {}
                 }}
                 accessibilityRole="tab"
                 accessibilityLabel={t.label}
-                accessibilityState={{ selected: homeHubTab === t.key }}
+                accessibilityState={{ selected: isActive }}
                 activeOpacity={0.88}
               >
                 <View style={styles.homeBottomTabIconWrap}>
-                  <Text style={[styles.homeBottomTabIcon, homeHubTab === t.key ? styles.homeBottomTabIconActive : null]}>
+                  <Text style={[styles.homeBottomTabIcon, isActive ? styles.homeBottomTabIconActive : null]}>
                     {t.icon}
                   </Text>
                   {(t.badge || t.badgeDot) ? <View style={styles.homeBottomTabBadgeDot} /> : null}
                 </View>
-                <Text style={[styles.homeBottomTabLabel, homeHubTab === t.key ? styles.homeBottomTabLabelActive : null]}>
+                <Text style={[styles.homeBottomTabLabel, isActive ? styles.homeBottomTabLabelActive : null]}>
                   {t.label}
                 </Text>
               </TouchableOpacity>
-            ))}
-          </View>
+            );
+          })}
         </View>
-      ) : null}
+      </View>
 
       <MealFeedbackPrompt
         visible={!!showMealFeedbackPrompt && !!pendingMealFeedback}
