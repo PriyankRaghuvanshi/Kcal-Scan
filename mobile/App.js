@@ -11,6 +11,7 @@ import {
   FlatList,
   StyleSheet,
   ScrollView,
+  RefreshControl,
   TextInput,
   SafeAreaView,
   KeyboardAvoidingView,
@@ -7506,6 +7507,16 @@ async function openCamera(mode = "meal") {
         ref={mainScrollRef}
         style={styles.mainScrollFlex}
         contentContainerStyle={[styles.container, homeMainVisible ? styles.containerAboveBottomTabs : null]}
+        refreshControl={
+          activeScreen === "healthy_nearby" ? (
+            <RefreshControl
+              refreshing={healthyPlacesBusy}
+              onRefresh={() => void loadHealthyPlacesNearby({ preserveFilter: true })}
+              tintColor="#93c5fd"
+              colors={["#93c5fd"]}
+            />
+          ) : undefined
+        }
       >
         {homeMainVisible ? (
         <View style={styles.topRow}>
@@ -9445,6 +9456,24 @@ async function openCamera(mode = "meal") {
         <>
         <View style={[styles.card, styles.healthyNearbyHeroCard]}>
           <Text style={styles.nearbyScreenSubtitle}>Find the best meal near you right now.</Text>
+          {(remainingToday?.kcal != null || remainingToday?.protein_g != null) ? (
+            <View style={styles.remainingMacrosBar}>
+              {remainingToday?.kcal != null ? (
+                <View style={styles.remainingMacroPill}>
+                  <Text style={styles.remainingMacroIcon}>🔥</Text>
+                  <Text style={styles.remainingMacroValue}>{Math.max(0, Math.round(remainingToday.kcal))}</Text>
+                  <Text style={styles.remainingMacroLabel}> kcal left</Text>
+                </View>
+              ) : null}
+              {remainingToday?.protein_g != null ? (
+                <View style={styles.remainingMacroPill}>
+                  <Text style={styles.remainingMacroIcon}>💪</Text>
+                  <Text style={styles.remainingMacroValue}>{Math.max(0, Math.round(remainingToday.protein_g))}</Text>
+                  <Text style={styles.remainingMacroLabel}>g protein left</Text>
+                </View>
+              ) : null}
+            </View>
+          ) : null}
           <View style={styles.nearbyTabsRowTop}>
             <TouchableOpacity
               style={[styles.nearbyTabPill, healthyNearbyTab === "decision" ? styles.nearbyTabPillActive : null]}
@@ -12322,6 +12351,35 @@ const styles = StyleSheet.create({
     backgroundColor: "#060e1c",
     padding: 16,
     gap: 14,
+  },
+  remainingMacrosBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    backgroundColor: "#0f1a2e",
+    borderWidth: 1,
+    borderColor: "#1e3a5f",
+  },
+  remainingMacroPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  remainingMacroIcon: {
+    fontSize: 14,
+  },
+  remainingMacroValue: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#f8fafc",
+  },
+  remainingMacroLabel: {
+    fontSize: 12,
+    fontWeight: "500",
+    color: "#94a3b8",
   },
   nearbyTabsRowTop: {
     flexDirection: "row",
