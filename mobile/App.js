@@ -73,6 +73,8 @@ import { PlaceDetailSheet } from "./components/PlaceDetailSheet";
 import { QuickAddSheet } from "./components/QuickAddSheet";
 import { SkeletonCardList } from "./components/SkeletonCard";
 import { DailyMacroRings } from "./components/MacroRing";
+import { EmptyState } from "./components/EmptyState";
+import { BrandedSplash } from "./components/BrandedSplash";
 import { HealthyNearbyDecisionShowcase } from "./components/HealthyNearbyDecisionShowcase";
 import { AdminOpsDashboard } from "./components/AdminOpsDashboard";
 import { ScanConfirmationChips } from "./components/ScanConfirmationChips";
@@ -2039,6 +2041,15 @@ export default function App() {
   const [placeDetailPlace, setPlaceDetailPlace] = useState(null);
   const [quickAddVisible, setQuickAddVisible] = useState(false);
   const [quickAddBusy, setQuickAddBusy] = useState(false);
+  const [splashVisible, setSplashVisible] = useState(true);
+  const [splashGone, setSplashGone] = useState(false);
+
+  useEffect(() => {
+    if (fontsLoaded && session !== undefined) {
+      const t = setTimeout(() => setSplashVisible(false), 600);
+      return () => clearTimeout(t);
+    }
+  }, [fontsLoaded, session]);
   const [lunchDecisionBusy, setLunchDecisionBusy] = useState(false);
   const [lunchDecisionError, setLunchDecisionError] = useState("");
   const [lunchDecision, setLunchDecision] = useState(null);
@@ -10661,7 +10672,11 @@ async function openCamera(mode = "meal") {
                     </View>
                   ));
                 }
-                return (healthyVisiblePlaces || []).slice(0, 8).map((place, idx) => renderPlaceCard(place, idx));
+                const flat = (healthyVisiblePlaces || []).slice(0, 8);
+                if (!flat.length && !healthyPlacesBusy) {
+                  return <EmptyState preset={healthyPlacesError ? "loading_error" : "no_places"} ctaLabel="Refresh" onCta={() => void loadHealthyPlacesNearby()} />;
+                }
+                return flat.map((place, idx) => renderPlaceCard(place, idx));
               })()
             : null}
         </View>
@@ -11646,6 +11661,13 @@ async function openCamera(mode = "meal") {
           }
         }}
       />
+
+      {!splashGone && (
+        <BrandedSplash
+          visible={splashVisible}
+          onFadeComplete={() => setSplashGone(true)}
+        />
+      )}
 
       <VenueContributionSheet
         visible={contributionSheetVisible}
