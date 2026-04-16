@@ -17,6 +17,7 @@ import {
 import { colors, spacing, radius, typography } from "../designTokens";
 import { ScoreBadge } from "./ScoreBadge";
 import { ConfidenceBadge } from "./ConfidenceBadge";
+import { PressableScale } from "./PressableScale";
 
 const { height: SCREEN_H } = Dimensions.get("window");
 const SHEET_H = SCREEN_H * 0.72;
@@ -165,13 +166,13 @@ export function PlaceDetailSheet({ visible, place, onClose, onOpenInMaps }) {
             ) : null}
 
             {/* CTA */}
-            <TouchableOpacity
+            <PressableScale
               style={s.cta}
               onPress={() => { onOpenInMaps?.(place); onClose?.(); }}
-              activeOpacity={0.8}
+              haptic
             >
               <Text style={s.ctaText}>📍 Open in Maps</Text>
-            </TouchableOpacity>
+            </PressableScale>
 
             <View style={{ height: 40 }} />
           </ScrollView>
