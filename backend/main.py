@@ -15313,18 +15313,27 @@ def _menu_scan_ocr_from_image(
 
     prompt = """
 You are an OCR + parser assistant for restaurant menus.
+The image may be a photo of a PHYSICAL menu board, a DIGITAL screen menu,
+a printed menu card, or a menu displayed on a wall/counter. Handle all formats.
+
 Return ONLY valid JSON:
 {
   "raw_text": "full OCR text",
-  "menu_lines": ["line1", "line2"],
-  "ocr_confidence": 0.0
+  "menu_lines": ["item1", "item2"],
+  "ocr_confidence": 0.0,
+  "detected_brand": ""
 }
 
 Rules:
-- Extract likely menu item lines only where possible.
-- Keep lines short and readable.
-- Exclude obvious headers, prices-only lines, and decorative text when possible.
-- ocr_confidence must be 0..1.
+- Extract food/drink item names from the menu. Include items even if partially visible.
+- For digital menu boards (McDonald's, KFC, etc.): read item names from the lit panels.
+- For handwritten menus: do your best to read items.
+- Keep each menu_line as a single food item name (e.g. "Big Mac", "McChicken", "Latte").
+- Include prices if clearly visible, as part of the item line.
+- Exclude pure decorative text but include section headers if they help identify items.
+- detected_brand: if you can identify the restaurant brand (logo, name, branding), include it.
+- ocr_confidence: 0..1. Be generous — even partial reads of 3+ items should be 0.4+.
+- If the image shows a recognizable chain restaurant menu, set confidence to at least 0.5.
 """.strip()
 
     try:
@@ -15348,10 +15357,12 @@ Rules:
         if not raw_text and menu_lines:
             raw_text = "\n".join(menu_lines)
         conf = _clamp01(parsed.get("ocr_confidence"), 0.58)
+        detected_brand = str(parsed.get("detected_brand") or "").strip()
         return {
             "raw_text": raw_text,
             "menu_lines": menu_lines,
             "ocr_confidence": conf,
+            "detected_brand": detected_brand,
         }
 
     # Fallback: treat raw text response as OCR text.
@@ -19609,11 +19620,16 @@ async def scan_menu_endpoint(
     else:
         ocr_payload = _menu_scan_ocr_from_image(image_bytes, request_id=request_id)
 
+    # Use detected_brand from OCR as restaurant_name fallback when mobile didn't send one
+    effective_restaurant_name = str(restaurant_name or "").strip()
+    if not effective_restaurant_name:
+        effective_restaurant_name = str(ocr_payload.get("detected_brand") or "").strip()
+
     menu_scan = build_menu_scan_response(
         raw_menu_text=str(ocr_payload.get("raw_text") or ""),
         ocr_lines=ocr_payload.get("menu_lines") if isinstance(ocr_payload.get("menu_lines"), list) else None,
         ocr_confidence=float(_safe_float(ocr_payload.get("ocr_confidence"), 0.0) or 0.0),
-        restaurant_name=str(restaurant_name or "").strip(),
+        restaurant_name=effective_restaurant_name,
         place_id=str(place_id or "").strip(),
         cuisine=str(cuisine or "").strip(),
         assume_sauce_included=bool(assume_sauce_included) if assume_sauce_included is not None else False,

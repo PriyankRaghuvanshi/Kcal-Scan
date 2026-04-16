@@ -609,6 +609,27 @@ def build_menu_scan_response(
     mode = _resolve_mode(goal_token, bool(cut_mode))
     goal_value = personalization_goal_value(normalize_personalization_goal(goal_token))
 
+    # Chain fallback: if OCR/parse failed but we know the restaurant is a chain
+    # with real_menu data, serve our database items instead of showing an error.
+    if len(parsed) < 1 and restaurant_name:
+        try:
+            from chain_menu_registry import match_chain_key
+            from chain_menu_ingestion import get_chain_items
+            matched_key = match_chain_key(restaurant_name)
+            if matched_key:
+                chain_items = get_chain_items(matched_key)
+                if chain_items:
+                    parsed = [
+                        str(it.get("item_name") or "").strip()
+                        for it in chain_items[:24]
+                        if it.get("item_name")
+                    ]
+                    structured_parsed = chain_items[:24]
+                    parse_method = "chain_db_fallback"
+                    parser_confidence = 0.88
+        except Exception:
+            pass
+
     if len(parsed) < 1:
         fallback_response = {
             "title": "Menu scan needs a clearer photo",
