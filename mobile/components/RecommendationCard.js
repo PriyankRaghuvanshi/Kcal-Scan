@@ -5,6 +5,7 @@
 
 import React from "react";
 import { View, Text, TouchableOpacity, Linking, Image, StyleSheet } from "react-native";
+import { PressableScale } from "./PressableScale";
 import { colors, spacing, radius, typography } from "../designTokens";
 import { premium } from "../ui/premiumSystem";
 import { ConfidenceBadge, inferConfidenceTier } from "./ConfidenceBadge";
@@ -410,9 +411,9 @@ export function RecommendationCard({
 
   if (onPress) {
     return (
-      <TouchableOpacity style={cardStyle} onPress={onPress} activeOpacity={0.9}>
+      <PressableScale style={cardStyle} onPress={onPress} scaleDown={0.98} haptic>
         {content}
-      </TouchableOpacity>
+      </PressableScale>
     );
   }
 
