@@ -7568,17 +7568,17 @@ async function openCamera(mode = "meal") {
           </View>
         </LinearGradient>
         ) : (
-        <View style={styles.nearbyScreenHeader}>
-          <TouchableOpacity
-            style={styles.nearbyBackBtn}
-            onPress={() => { setActiveScreen("home"); _scrollToTop(); }}
-            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-          >
-            <Text style={styles.nearbyBackBtnText}>‹ Back</Text>
-          </TouchableOpacity>
-          <Text style={styles.nearbyScreenTitle}>{activeScreen === "saved_recipes" ? "Saved recipes" : "Healthy Nearby"}</Text>
-          <View style={{ width: 60 }} />
-        </View>
+        <LinearGradient
+          colors={["rgba(15,22,36,0.95)", "rgba(0,0,0,0)"]}
+          style={styles.headerGradient}
+          pointerEvents="none"
+        >
+          <View style={styles.nearbyScreenHeader}>
+            <Text style={styles.nearbyScreenTitle}>
+              {activeScreen === "saved_recipes" ? "Saved recipes" : "📍 Healthy Nearby"}
+            </Text>
+          </View>
+        </LinearGradient>
         )}
 
         {activeScreen === "healthy_nearby" ? (
@@ -12416,10 +12416,10 @@ const styles = StyleSheet.create({
   nearbyScreenHeader: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 4,
-    paddingVertical: 10,
-    marginBottom: 2,
+    justifyContent: "center",
+    paddingHorizontal: tSpacing.base,
+    paddingVertical: tSpacing.sm,
+    marginBottom: tSpacing.xxs,
   },
   nearbyBackBtn: {
     paddingVertical: 7,
@@ -12438,10 +12438,11 @@ const styles = StyleSheet.create({
     letterSpacing: 0.2,
   },
   nearbyScreenTitle: {
-    color: "#ffffff",
-    fontSize: 20,
+    color: dt.text.primary,
+    fontSize: 22,
     fontWeight: "900",
-    letterSpacing: 0.1,
+    letterSpacing: 0.2,
+    fontFamily: "Inter_800ExtraBold",
   },
   nearbyScreenSubtitle: {
     color: "#7b93b4",
