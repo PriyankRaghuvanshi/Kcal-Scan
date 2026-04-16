@@ -189,11 +189,26 @@ export function PlaceDetailSheet({ visible, place, onClose, onOpenInMaps }) {
               </View>
             )}
 
-            {/* Your Usual */}
+            {/* Your Usual — with smart comparison */}
             {usualName ? (
-              <View style={s.usualPill}>
-                <Text style={s.usualLabel}>👤 Your usual:</Text>
-                <Text style={s.usualName} numberOfLines={1}>{usualName}</Text>
+              <View style={s.usualCard}>
+                <Text style={s.usualHeader}>YOUR HISTORY AT THIS PLACE</Text>
+                <View style={s.usualRow}>
+                  <Text style={s.usualLabel}>👤 Last order:</Text>
+                  <Text style={s.usualName} numberOfLines={1}>{usualName}</Text>
+                </View>
+                {num(usual?.estimated_calories) != null && (
+                  <Text style={s.usualMacro}>
+                    {Math.round(usual.estimated_calories)} kcal · {Math.round(usual?.estimated_protein_g || 0)}g protein
+                  </Text>
+                )}
+                {bestItem && usualName.toLowerCase() !== bestItem.toLowerCase() && (
+                  <View style={s.usualSwapHint}>
+                    <Text style={s.usualSwapText}>
+                      💡 Today try "{bestItem}" instead — better fit for your remaining macros
+                    </Text>
+                  </View>
+                )}
               </View>
             ) : null}
 
@@ -306,9 +321,28 @@ const s = StyleSheet.create({
   variantName: { flex: 1, fontSize: 13, color: "#f8fafc", fontWeight: "500" },
   variantMacro: { fontSize: 12, color: "#94a3b8", fontWeight: "500" },
 
-  usualPill: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 10, paddingHorizontal: 14, borderRadius: 10, backgroundColor: "#1a1a2e", marginBottom: 20 },
+  usualCard: {
+    backgroundColor: "#0a1018",
+    borderRadius: 12,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: "rgba(167, 139, 250, 0.2)",
+    marginBottom: 20,
+    gap: 6,
+  },
+  usualHeader: { fontSize: 10, fontWeight: "700", color: "#7c3aed", letterSpacing: 1, fontFamily: "Inter_700Bold" },
+  usualRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   usualLabel: { fontSize: 13, color: "#a78bfa", fontWeight: "600" },
   usualName: { fontSize: 13, color: "#f8fafc", fontWeight: "500", flex: 1 },
+  usualMacro: { fontSize: 12, color: "#94a3b8" },
+  usualSwapHint: {
+    marginTop: 4,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    backgroundColor: "rgba(34, 197, 94, 0.08)",
+  },
+  usualSwapText: { fontSize: 12, color: "#4ade80", lineHeight: 16 },
 
   menuItemRow: {
     flexDirection: "row",
