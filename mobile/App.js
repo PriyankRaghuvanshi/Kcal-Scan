@@ -69,6 +69,7 @@ import { HealthyNearbyMapScreen } from "./components/HealthyNearbyMapScreen";
 import { HealthyNearbyDiscoverLayout } from "./components/HealthyNearbyDiscoverLayout";
 import { HealthyPlaceListCard } from "./components/HealthyPlaceListCard";
 import { PlaceDetailSheet } from "./components/PlaceDetailSheet";
+import { SkeletonCardList } from "./components/SkeletonCard";
 import { HealthyNearbyDecisionShowcase } from "./components/HealthyNearbyDecisionShowcase";
 import { AdminOpsDashboard } from "./components/AdminOpsDashboard";
 import { ScanConfirmationChips } from "./components/ScanConfirmationChips";
@@ -10576,6 +10577,10 @@ async function openCamera(mode = "meal") {
               formatDistanceFromMeters={formatDistanceFromMeters}
               getPlaceStableId={healthyPlaceStableId}
             />
+          ) : null}
+
+          {healthyViewMode === "list" && healthyPlacesBusy && !(healthyVisiblePlaces?.length) && !(healthySectionsFiltered?.length) ? (
+            <SkeletonCardList count={4} />
           ) : null}
 
           {healthyViewMode === "list"
