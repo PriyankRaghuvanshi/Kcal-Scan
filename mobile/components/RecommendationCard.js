@@ -241,15 +241,22 @@ export function RecommendationCard({
                 accessibilityIgnoresInvertColors
               />
             ) : null}
-            <Text
-              style={[
-                styles.bestItem,
-                { color: textPrimary, flex: topItemImage ? 1 : undefined },
-              ]}
-              numberOfLines={2}
-            >
-              {bestItem}
-            </Text>
+            <View style={{ flex: topItemImage ? 1 : undefined }}>
+              <Text
+                style={[
+                  styles.bestItem,
+                  { color: textPrimary },
+                ]}
+                numberOfLines={2}
+              >
+                {bestItem}
+              </Text>
+              {num(place.protein_fill_pct) != null && place.protein_fill_pct > 0 ? (
+                <Text style={styles.fitLabel}>
+                  Fills {place.protein_fill_pct}% of protein gap
+                </Text>
+              ) : null}
+            </View>
           </View>
           {place.item_provenance === "heuristic_suggestion" && place.covered_chain_key ? (
             <View style={{ marginTop: 4 }}>
@@ -480,6 +487,12 @@ const styles = StyleSheet.create({
     fontWeight: typography.weight.bold,
     marginTop: spacing.md,
     lineHeight: typography.xl * 1.35,
+  },
+  fitLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: colors.success.text,
+    marginTop: 3,
   },
   bestItemRow: {
     flexDirection: "row",
