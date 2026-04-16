@@ -1,5 +1,6 @@
 // bundle-stamp: 2026-03-10 — bump when verifying App Store / EAS ships latest JS
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import { useFonts, Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold, Inter_800ExtraBold } from "@expo-google-fonts/inter";
 import {
   View,
   Text,
@@ -1944,6 +1945,14 @@ function Meter({ label, value, max = 100, help, locked, lockedText }) {
 }
 
 export default function App() {
+  const [fontsLoaded] = useFonts({
+    Inter_400Regular,
+    Inter_500Medium,
+    Inter_600SemiBold,
+    Inter_700Bold,
+    Inter_800ExtraBold,
+  });
+
   // ===== Phase 1: local caches (consent + nearby snapshot) =====
   const AI_CONSENT_CACHE_KEY = "ai_consent_v1";
   const NEARBY_SNAPSHOT_CACHE_VERSION = 1;
@@ -11832,7 +11841,7 @@ const styles = StyleSheet.create({
   },
   homeMoreRowText: { fontSize: 16, color: "#e2e8f0", fontWeight: "600" },
   homeMoreChevron: { fontSize: 20, color: "#64748b", fontWeight: "300" },
-  h1: { fontSize: 26, fontWeight: "900", color: "#fff", lineHeight: 31, letterSpacing: 0.2 },
+  h1: { fontSize: 26, fontWeight: "900", color: "#fff", lineHeight: 31, letterSpacing: 0.2, fontFamily: "Inter_800ExtraBold" },
   p: { fontSize: 14, color: "#cfd7e3", lineHeight: 21 },
   tiny: { fontSize: 12, color: "#92a0b3", lineHeight: 17 },
   muted: { fontSize: 12, color: "#aab4c4", lineHeight: 17 },
@@ -12361,6 +12370,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
     fontWeight: "500",
+    fontFamily: "Inter_500Medium",
   },
   // ── Hero card ────────────────────────────────────────────────────────────
   healthyNearbyHeroCard: {
@@ -12392,11 +12402,13 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "700",
     color: "#f8fafc",
+    fontFamily: "Inter_700Bold",
   },
   remainingMacroLabel: {
     fontSize: 12,
     fontWeight: "500",
     color: "#94a3b8",
+    fontFamily: "Inter_500Medium",
   },
   nearbyTabsRowTop: {
     flexDirection: "row",
