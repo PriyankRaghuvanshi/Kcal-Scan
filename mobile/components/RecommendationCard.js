@@ -254,6 +254,16 @@ export function RecommendationCard({
               {num(place.protein_fill_pct) != null && place.protein_fill_pct > 0 ? (
                 <Text style={styles.fitLabel}>
                   Fills {place.protein_fill_pct}% of protein gap
+                  {num(place.calorie_use_pct) != null && place.calorie_use_pct <= 50
+                    ? ` · ${place.calorie_use_pct}% of cal budget`
+                    : num(place.calorie_use_pct) != null && place.calorie_use_pct > 80
+                    ? ""
+                    : ""}
+                </Text>
+              ) : null}
+              {num(place.calorie_use_pct) != null && place.calorie_use_pct > 90 ? (
+                <Text style={styles.overBudgetLabel}>
+                  ⚠️ Uses {place.calorie_use_pct}% of remaining calories
                 </Text>
               ) : null}
             </View>
@@ -493,6 +503,12 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: colors.success.text,
     marginTop: 3,
+  },
+  overBudgetLabel: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: colors.amber.primary,
+    marginTop: 2,
   },
   bestItemRow: {
     flexDirection: "row",
