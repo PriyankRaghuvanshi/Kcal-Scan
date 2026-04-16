@@ -15,6 +15,8 @@ import {
   PanResponder,
   StyleSheet,
 } from "react-native";
+import { BlurView } from "expo-blur";
+import { PressableScale } from "./PressableScale";
 
 export function QuickAddSheet({ visible, onClose, onSubmit, busy }) {
   const [text, setText] = useState("");
@@ -50,7 +52,13 @@ export function QuickAddSheet({ visible, onClose, onSubmit, busy }) {
         style={s.overlay}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
-        <TouchableOpacity style={s.backdrop} activeOpacity={1} onPress={handleClose} />
+        {Platform.OS === "ios" ? (
+          <BlurView intensity={40} tint="dark" style={StyleSheet.absoluteFill}>
+            <TouchableOpacity style={s.backdrop} activeOpacity={1} onPress={handleClose} />
+          </BlurView>
+        ) : (
+          <TouchableOpacity style={s.backdrop} activeOpacity={1} onPress={handleClose} />
+        )}
         <View style={s.sheet} {...panRef.panHandlers}>
           <View style={s.handleRow}>
             <View style={s.handle} />
@@ -88,18 +96,18 @@ export function QuickAddSheet({ visible, onClose, onSubmit, busy }) {
               </TouchableOpacity>
             </View>
           ) : (
-            <TouchableOpacity
+            <PressableScale
               style={[s.cta, (!text.trim() || busy) && s.ctaDisabled]}
               onPress={handleSubmit}
-              activeOpacity={0.8}
               disabled={!text.trim() || busy}
+              haptic
             >
               {busy ? (
                 <ActivityIndicator color="#052e16" size="small" />
               ) : (
                 <Text style={s.ctaText}>Log This Meal</Text>
               )}
-            </TouchableOpacity>
+            </PressableScale>
           )}
         </View>
       </KeyboardAvoidingView>
@@ -124,20 +132,22 @@ const s = StyleSheet.create({
   subtitle: { fontSize: 14, color: "#94a3b8", marginTop: 4, marginBottom: 16, fontFamily: "Inter_400Regular" },
 
   input: {
-    backgroundColor: "#1e293b",
+    backgroundColor: "#0c1220",
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 14,
     fontSize: 16,
     color: "#f8fafc",
-    borderWidth: 1,
-    borderColor: "#334155",
+    borderWidth: 1.5,
+    borderColor: "#1e293b",
     marginBottom: 16,
+    fontFamily: "Inter_400Regular",
+    minHeight: 50,
   },
 
-  cta: { backgroundColor: "#22c55e", paddingVertical: 16, borderRadius: 14, alignItems: "center" },
+  cta: { backgroundColor: "#22c55e", paddingVertical: 16, borderRadius: 14, alignItems: "center", minHeight: 52 },
   ctaDisabled: { opacity: 0.4 },
-  ctaText: { fontSize: 16, fontWeight: "700", color: "#052e16" },
+  ctaText: { fontSize: 16, fontWeight: "700", color: "#052e16", fontFamily: "Inter_700Bold" },
 
   resultCard: {
     backgroundColor: "#0a1628",
