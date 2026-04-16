@@ -670,24 +670,24 @@ function clampPct(v) {
 }
 function scoreTone(score) {
   const s = Math.round(num(score));
-  if (s >= 80) return { label: "Excellent", color: "#22c55e", bg: "#0f2617" };
+  if (s >= 80) return { label: "Excellent", color: dt.success.primary, bg: "#0f2617" };
   if (s >= 65) return { label: "Good", color: "#34d399", bg: "#10281f" };
-  if (s >= 50) return { label: "Improving", color: "#f59e0b", bg: "#2d210b" };
+  if (s >= 50) return { label: "Improving", color: dt.amber.primary, bg: "#2d210b" };
   if (s >= 35) return { label: "Needs focus", color: "#fb923c", bg: "#2f1a0d" };
-  return { label: "At risk", color: "#ef4444", bg: "#2b1212" };
+  return { label: "At risk", color: dt.warning.primary, bg: "#2b1212" };
 }
 function riskLevelTone(level) {
   const l = String(level || "").toLowerCase();
-  if (l === "high") return { color: "#ef4444", bg: "#2c1111" };
-  if (l === "medium") return { color: "#f59e0b", bg: "#2a210f" };
-  return { color: "#22c55e", bg: "#11271a" };
+  if (l === "high") return { color: dt.warning.primary, bg: "#2c1111" };
+  if (l === "medium") return { color: dt.amber.primary, bg: "#2a210f" };
+  return { color: dt.success.primary, bg: "#11271a" };
 }
 function supplementScoreTone(score) {
   const s = Math.round(num(score));
-  if (s >= 80) return { label: "High Confidence", color: "#22c55e", bg: "#0f2617" };
-  if (s >= 60) return { label: "Moderate", color: "#f59e0b", bg: "#2d210b" };
+  if (s >= 80) return { label: "High Confidence", color: dt.success.primary, bg: "#0f2617" };
+  if (s >= 60) return { label: "Moderate", color: dt.amber.primary, bg: "#2d210b" };
   if (s >= 40) return { label: "Low Confidence", color: "#fb923c", bg: "#2f1a0d" };
-  return { label: "High Risk", color: "#ef4444", bg: "#2b1212" };
+  return { label: "High Risk", color: dt.warning.primary, bg: "#2b1212" };
 }
 function supplementRiskTone(level) {
   const tag = String(level || "").toLowerCase();
@@ -697,10 +697,10 @@ function supplementRiskTone(level) {
 }
 function healthyPlaceTone(score) {
   const s = Math.max(1, Math.min(10, num(score)));
-  if (s >= 8) return { color: "#22c55e", badge: "Excellent" };
+  if (s >= 8) return { color: dt.success.primary, badge: "Excellent" };
   if (s >= 6.5) return { color: "#84cc16", badge: "Good" };
-  if (s >= 5) return { color: "#f59e0b", badge: "Moderate" };
-  return { color: "#ef4444", badge: "Lower" };
+  if (s >= 5) return { color: dt.amber.primary, badge: "Moderate" };
+  return { color: dt.warning.primary, badge: "Lower" };
 }
 function normalizePlaceNameKey(value) {
   return String(value || "")
@@ -802,14 +802,14 @@ function healthyPlaceBand(place) {
 }
 function healthyMapPinTone(place) {
   const explicit = String(place?.map_pin_color || "").trim().toLowerCase();
-  if (explicit === "green") return { color: "#22c55e", badge: "Best" };
-  if (explicit === "yellow") return { color: "#f59e0b", badge: "Okay" };
-  if (explicit === "red") return { color: "#ef4444", badge: "Hard" };
+  if (explicit === "green") return { color: dt.success.primary, badge: "Best" };
+  if (explicit === "yellow") return { color: dt.amber.primary, badge: "Okay" };
+  if (explicit === "red") return { color: dt.warning.primary, badge: "Hard" };
 
   const band = healthyPlaceBand(place);
-  if (band === "high") return { color: "#22c55e", badge: "Best" };
-  if (band === "medium") return { color: "#f59e0b", badge: "Okay" };
-  return { color: "#ef4444", badge: "Hard" };
+  if (band === "high") return { color: dt.success.primary, badge: "Best" };
+  if (band === "medium") return { color: dt.amber.primary, badge: "Okay" };
+  return { color: dt.warning.primary, badge: "Hard" };
 }
 function healthyPlaceBadges(place) {
   const source = Array.isArray(place?.badges)
@@ -8794,7 +8794,7 @@ async function openCamera(mode = "meal") {
               </View>
               {!!scanLoadingFactLine ? (
                 <Text
-                  style={[styles.tiny, { marginTop: 10, color: "#94a3b8", fontStyle: "italic", lineHeight: 18 }]}
+                  style={[styles.tiny, { marginTop: 10, color: dt.text.muted, fontStyle: "italic", lineHeight: 18 }]}
                 >
                   {scanLoadingFactLine}
                 </Text>
@@ -9669,7 +9669,7 @@ async function openCamera(mode = "meal") {
               <Text style={[styles.tiny, { marginTop: 8 }]}>Reading menu and finding best picks…</Text>
               {!!scanLoadingFactLine ? (
                 <Text
-                  style={[styles.tiny, { marginTop: 6, color: "#94a3b8", fontStyle: "italic", lineHeight: 18 }]}
+                  style={[styles.tiny, { marginTop: 6, color: dt.text.muted, fontStyle: "italic", lineHeight: 18 }]}
                 >
                   {scanLoadingFactLine}
                 </Text>
@@ -9834,10 +9834,10 @@ async function openCamera(mode = "meal") {
           ) : null}
           {effectiveLunchDecision && Array.isArray(effectiveLunchDecision.cards) && !effectiveLunchDecision.cards.length && !lunchDecisionBusy ? (
             <View style={{ marginTop: 14, paddingVertical: 12, paddingHorizontal: 4 }}>
-              <Text style={[styles.p, { color: "#94a3b8", textAlign: "center" }]}>
+              <Text style={[styles.p, { color: dt.text.muted, textAlign: "center" }]}>
                 No exact macro-fit picks found nearby.
               </Text>
-              <Text style={[styles.tiny, { color: "#64748b", textAlign: "center", marginTop: 4 }]}>
+              <Text style={[styles.tiny, { color: dt.slate.primary, textAlign: "center", marginTop: 4 }]}>
                 Nearby places may still have good options — check the Map tab.
               </Text>
               <TouchableOpacity
@@ -11338,7 +11338,7 @@ async function openCamera(mode = "meal") {
                         {item}
                       </Text>
                       <TouchableOpacity onPress={() => removeCoachFoodPreference(idx)} hitSlop={{ top: 10, bottom: 10, left: 8, right: 8 }}>
-                        <Text style={{ color: "#94a3b8", fontSize: 16, fontWeight: "700" }}>×</Text>
+                        <Text style={{ color: dt.text.muted, fontSize: 16, fontWeight: "700" }}>×</Text>
                       </TouchableOpacity>
                     </View>
                   ))}
@@ -11369,7 +11369,7 @@ async function openCamera(mode = "meal") {
                         {item}
                       </Text>
                       <TouchableOpacity onPress={() => removeCoachGoalReminder(idx)} hitSlop={{ top: 10, bottom: 10, left: 8, right: 8 }}>
-                        <Text style={{ color: "#94a3b8", fontSize: 16, fontWeight: "700" }}>×</Text>
+                        <Text style={{ color: dt.text.muted, fontSize: 16, fontWeight: "700" }}>×</Text>
                       </TouchableOpacity>
                     </View>
                   ))}
@@ -11767,19 +11767,19 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(34, 197, 94, 0.45)",
   },
-  homeHubSegmentText: { fontSize: 13, fontWeight: "700", color: "#64748b", letterSpacing: 0.2 },
+  homeHubSegmentText: { fontSize: 13, fontWeight: "700", color: dt.slate.primary, letterSpacing: 0.2 },
   homeHubSegmentTextActive: { color: "#ecfdf5" },
   homeHubSegmentHint: {
     marginTop: 8,
     fontSize: 12,
-    color: "#64748b",
+    color: dt.slate.primary,
     lineHeight: 17,
     textAlign: "center",
     letterSpacing: 0.15,
   },
   topRowHint: {
     fontSize: 11,
-    color: "#64748b",
+    color: dt.slate.primary,
     maxWidth: 200,
     textAlign: "right",
     lineHeight: 15,
@@ -11889,15 +11889,15 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: "rgba(148, 163, 184, 0.15)",
   },
-  homeMoreRowText: { fontSize: 16, color: "#e2e8f0", fontWeight: "600" },
-  homeMoreChevron: { fontSize: 20, color: "#64748b", fontWeight: "300" },
+  homeMoreRowText: { fontSize: 16, color: dt.text.secondary, fontWeight: "600" },
+  homeMoreChevron: { fontSize: 20, color: dt.slate.primary, fontWeight: "300" },
   h1: { fontSize: 26, fontWeight: "900", color: dt.text.primary, lineHeight: 31, letterSpacing: 0.2, fontFamily: "Inter_800ExtraBold" },
   quickAddBtn: {
     marginTop: 10,
     paddingVertical: 12,
     paddingHorizontal: 16,
     borderRadius: 12,
-    backgroundColor: "#1e293b",
+    backgroundColor: dt.surface.elevated,
     borderWidth: 1,
     borderColor: "#334155",
     alignItems: "center",
@@ -11905,13 +11905,13 @@ const styles = StyleSheet.create({
   quickAddBtnText: {
     fontSize: 14,
     fontWeight: "600",
-    color: "#93c5fd",
+    color: dt.accent.primary,
     fontFamily: "Inter_600SemiBold",
   },
   p: { fontSize: 14, color: dt.text.secondary, lineHeight: 21, fontFamily: "Inter_400Regular" },
   tiny: { fontSize: 12, color: "#92a0b3", lineHeight: 17 },
   muted: { fontSize: 12, color: "#aab4c4", lineHeight: 17 },
-  plan: { color: "#fff", fontWeight: "800" },
+  plan: { color: dt.text.primary, fontWeight: "800" },
 
   topRow: {
     flexDirection: "row",
@@ -11965,7 +11965,7 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
   },
   launcherQuestion: {
-    color: "#fff",
+    color: dt.text.primary,
     fontSize: 28,
     fontWeight: "900",
     lineHeight: 34,
@@ -12013,10 +12013,10 @@ const styles = StyleSheet.create({
     ...dsh.sm,
   },
   launcherActionIcon: { fontSize: 20, marginTop: 2 },
-  launcherActionTitle: { color: "#fff", fontSize: 18, fontWeight: "800", lineHeight: 22 },
+  launcherActionTitle: { color: dt.text.primary, fontSize: 18, fontWeight: "800", lineHeight: 22 },
   launcherActionSubtitle: { color: "#aac0de", fontSize: 13, marginTop: 2, lineHeight: 18 },
   launcherSecondaryTitle: { color: "#e5e7eb", fontSize: 15, fontWeight: "700" },
-  launcherSecondarySubtitle: { color: "#94a3b8", fontSize: 12, marginTop: 2, lineHeight: 16 },
+  launcherSecondarySubtitle: { color: dt.text.muted, fontSize: 12, marginTop: 2, lineHeight: 16 },
   launcherCoachLine: { color: "#c6daf6", fontSize: 12, lineHeight: 18, marginTop: 3 },
   launcherUtilityRow: {
     flexDirection: "row",
@@ -12030,9 +12030,9 @@ const styles = StyleSheet.create({
   launcherValueText: { color: "#94b8d9", fontSize: 13, lineHeight: 18 },
   launcherValueBtn: { marginTop: 8, alignSelf: "flex-start", paddingVertical: 6, paddingHorizontal: 12, borderRadius: 8, backgroundColor: "rgba(34, 197, 94, 0.2)", borderWidth: 1, borderColor: "#22c55e" },
   launcherValueBtnText: { color: "#4ade80", fontSize: 13, fontWeight: "700" },
-  socialProofLine: { fontSize: 12, color: "#86efac", fontStyle: "italic", marginTop: 4 },
-  cardTitle: { color: "#fff", fontWeight: "800", fontSize: 18, lineHeight: 23, letterSpacing: 0.2 },
-  big: { color: "#fff", fontWeight: "800", fontSize: 20, lineHeight: 25, marginTop: 7 },
+  socialProofLine: { fontSize: 12, color: dt.success.text, fontStyle: "italic", marginTop: 4 },
+  cardTitle: { color: dt.text.primary, fontWeight: "800", fontSize: 18, lineHeight: 23, letterSpacing: 0.2 },
+  big: { color: dt.text.primary, fontWeight: "800", fontSize: 20, lineHeight: 25, marginTop: 7 },
 
   scansLowBanner: {
     flexDirection: "row",
@@ -12063,7 +12063,7 @@ const styles = StyleSheet.create({
   compactHeaderRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   compactHeaderActions: { marginLeft: 10, flexDirection: "row", alignItems: "center" },
   compactTitle: { color: "#e5e7eb", fontSize: 13, fontWeight: "800", letterSpacing: 0.2 },
-  compactValue: { color: "#fff", fontSize: 18, fontWeight: "900", marginTop: 4 },
+  compactValue: { color: dt.text.primary, fontSize: 18, fontWeight: "900", marginTop: 4 },
   // compactGhostBtn/Text migrated to premium.ctaGhost / premium.ctaGhostText
   compactActionsRow: { flexDirection: "row", alignItems: "center", marginTop: 10 },
   // compactPillBtn/Text migrated to premium.ctaGhost / premium.ctaGhostText
@@ -12087,8 +12087,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(34, 197, 94, 0.35)",
   },
-  trialEndingText: { fontSize: 13, color: "#86efac", lineHeight: 19 },
-  trialEndingBtn: { marginTop: 10, paddingVertical: 10, paddingHorizontal: 14, borderRadius: 10, backgroundColor: "#22c55e", alignItems: "center" },
+  trialEndingText: { fontSize: 13, color: dt.success.text, lineHeight: 19 },
+  trialEndingBtn: { marginTop: 10, paddingVertical: 10, paddingHorizontal: 14, borderRadius: 10, backgroundColor: dt.success.primary, alignItems: "center" },
   trialEndingBtnText: { fontSize: 14, fontWeight: "700", color: "#fff" },
 
   unlockProBtn: {
@@ -12104,13 +12104,13 @@ const styles = StyleSheet.create({
   unlockProBtnText: { fontSize: 15, fontWeight: "700", color: "#fff" },
 
   input: {
-    backgroundColor: "#111",
+    backgroundColor: dt.surface.primary,
     borderWidth: 1,
     borderColor: "#222",
     borderRadius: 14,
     paddingHorizontal: 14,
     paddingVertical: 12,
-    color: "#fff",
+    color: dt.text.primary,
     marginTop: 8,
   },
 
@@ -12176,7 +12176,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  btnText: { color: "#fff", fontWeight: "800", fontSize: 14, letterSpacing: 0.2 },
+  btnText: { color: dt.text.primary, fontWeight: "800", fontSize: 14, letterSpacing: 0.2 },
   label: { color: "#d7d7d7", marginTop: 8, fontSize: 13, fontWeight: "700" },
 
   // NEW: Google button
@@ -12237,7 +12237,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#8a1d1d",
   },
-  smallBtnText: { color: "#fff", fontWeight: "700", fontSize: 12, lineHeight: 16 },
+  smallBtnText: { color: dt.text.primary, fontWeight: "700", fontSize: 12, lineHeight: 16 },
 
   preview: { width: "100%", height: 220, borderRadius: 16, marginTop: 10 },
   previewEmpty: {
@@ -12245,7 +12245,7 @@ const styles = StyleSheet.create({
     height: 220,
     borderRadius: 16,
     marginTop: 10,
-    backgroundColor: "#111",
+    backgroundColor: dt.surface.primary,
     borderWidth: 1,
     borderColor: "#222",
     justifyContent: "center",
@@ -12271,7 +12271,7 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   suppAuthorityBadgeText: {
-    color: "#cbd5e1",
+    color: dt.text.secondary,
     fontSize: 11,
     fontWeight: "700",
     letterSpacing: 0.5,
@@ -12289,7 +12289,7 @@ const styles = StyleSheet.create({
   progressFill: {
     height: "100%",
     borderRadius: 999,
-    backgroundColor: "#22c55e",
+    backgroundColor: dt.success.primary,
   },
   suppPreviewSingle: { width: "100%", height: 170, borderRadius: 12, marginTop: 8 },
   suppPreviewEmptySingle: {
@@ -12297,7 +12297,7 @@ const styles = StyleSheet.create({
     height: 170,
     borderRadius: 12,
     marginTop: 8,
-    backgroundColor: "#111",
+    backgroundColor: dt.surface.primary,
     borderWidth: 1,
     borderColor: "#222",
     justifyContent: "center",
@@ -12421,7 +12421,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   nearbyBackBtnText: {
-    color: "#93c5fd",
+    color: dt.accent.primary,
     fontSize: 15,
     fontWeight: "700",
     letterSpacing: 0.2,
@@ -12468,13 +12468,13 @@ const styles = StyleSheet.create({
   remainingMacroValue: {
     fontSize: 16,
     fontWeight: "700",
-    color: "#f8fafc",
+    color: dt.text.primary,
     fontFamily: "Inter_700Bold",
   },
   remainingMacroLabel: {
     fontSize: 12,
     fontWeight: "500",
-    color: "#94a3b8",
+    color: dt.text.muted,
     fontFamily: "Inter_500Medium",
   },
   nearbyTabsRowTop: {
@@ -12570,7 +12570,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#0d2c1a",
   },
   nearbyTabText: {
-    color: "#cbd5e1",
+    color: dt.text.secondary,
     fontSize: 13,
     fontWeight: "700",
   },
@@ -12582,7 +12582,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   nearbySectionHeader: {
-    color: "#f8fafc",
+    color: dt.text.primary,
     fontSize: 18,
     fontWeight: "800",
     lineHeight: 22,
@@ -12600,7 +12600,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   lunchSummaryLine: {
-    color: "#86efac",
+    color: dt.success.text,
     fontSize: 13,
     fontWeight: "700",
   },
@@ -12639,7 +12639,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.6,
   },
   dayCoachScoreLabel: {
-    color: "#86efac",
+    color: dt.success.text,
     fontSize: 11,
     fontWeight: "800",
     marginTop: 2,
@@ -12717,14 +12717,14 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   weeklyCoachInsightBullet: {
-    color: "#93c5fd",
+    color: dt.accent.primary,
     width: 14,
     fontSize: 12,
     fontWeight: "800",
     lineHeight: 16,
   },
   weeklyCoachInsightTitle: {
-    color: "#e2e8f0",
+    color: dt.text.secondary,
     fontSize: 12,
     fontWeight: "700",
   },
@@ -12763,7 +12763,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.4,
   },
   lunchFitGood: {
-    color: "#86efac",
+    color: dt.success.text,
     marginTop: 4,
     fontWeight: "700",
   },
@@ -12837,7 +12837,7 @@ const styles = StyleSheet.create({
   nearbyFeedbackToggleText: {
     fontSize: 12,
     fontWeight: "700",
-    color: "#93c5fd",
+    color: dt.accent.primary,
   },
   nearbyFeedbackBody: {
     marginTop: 8,
@@ -13021,7 +13021,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.6,
   },
   healthyPanelItemName: {
-    color: "#f8fafc",
+    color: dt.text.primary,
     fontSize: 16,
     fontWeight: "800",
     lineHeight: 21,
@@ -13033,7 +13033,7 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   mapCoachSupport: {
-    color: "#cbd5e1",
+    color: dt.text.secondary,
     fontSize: 11,
     lineHeight: 16,
   },
@@ -13062,7 +13062,7 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   mapDecisionBadgeYes: {
-    color: "#86efac",
+    color: dt.success.text,
     backgroundColor: "#0e3a21",
     borderWidth: 1,
     borderColor: "#1f8f4d",
@@ -13080,7 +13080,7 @@ const styles = StyleSheet.create({
     borderColor: "#b91c1c",
   },
   mapCoachToneEncouraging: {
-    color: "#86efac",
+    color: dt.success.text,
     backgroundColor: "#0f3a21",
     borderWidth: 1,
     borderColor: "#15803d",
@@ -13113,19 +13113,19 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   suppProcessingTitle: {
-    color: "#e2e8f0",
+    color: dt.text.secondary,
     fontSize: 18,
     fontWeight: "800",
     marginBottom: 10,
   },
   suppProcessingLine: {
-    color: "#cbd5e1",
+    color: dt.text.secondary,
     fontSize: 14,
     lineHeight: 22,
   },
 
   itemRow: { marginTop: 8, paddingBottom: 8, borderBottomWidth: 1, borderBottomColor: "#161616" },
-  itemName: { color: "#fff", fontWeight: "800", fontSize: 16, lineHeight: 21 },
+  itemName: { color: dt.text.primary, fontWeight: "800", fontSize: 16, lineHeight: 21 },
   itemMeta: { color: "#9aa4b5", marginTop: 3, fontSize: 12, lineHeight: 17 },
 
   lockedBox: {
@@ -13136,7 +13136,7 @@ const styles = StyleSheet.create({
     borderColor: "#222",
     padding: 12,
   },
-  lockedTitle: { color: "#fff", fontWeight: "900", marginBottom: 6 },
+  lockedTitle: { color: dt.text.primary, fontWeight: "900", marginBottom: 6 },
 
   meter: {
     marginTop: 10,
@@ -13147,14 +13147,14 @@ const styles = StyleSheet.create({
     borderColor: "#1c1c1c",
   },
   meterTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  meterLabel: { color: "#fff", fontWeight: "900" },
-  meterValue: { color: "#fff", fontWeight: "800" },
+  meterLabel: { color: dt.text.primary, fontWeight: "900" },
+  meterValue: { color: dt.text.primary, fontWeight: "800" },
   meterHelp: { color: "#9c9c9c", marginTop: 6, fontSize: 12, lineHeight: 18 },
   barOuter: { height: 10, backgroundColor: "#1a1a1a", borderRadius: 999, marginTop: 10, overflow: "hidden" },
-  barFill: { height: 10, backgroundColor: "#22c55e", borderRadius: 999 },
+  barFill: { height: 10, backgroundColor: dt.success.primary, borderRadius: 999 },
 
   lockedTag: {
-    color: "#fff",
+    color: dt.text.primary,
     fontWeight: "800",
     backgroundColor: "#2a2a2a",
     paddingHorizontal: 10,
@@ -13165,17 +13165,17 @@ const styles = StyleSheet.create({
   manualRow: { marginTop: 10, flexDirection: "row", gap: 10, alignItems: "center" },
   manualInput: {
     flex: 1,
-    backgroundColor: "#111",
+    backgroundColor: dt.surface.primary,
     borderWidth: 1,
     borderColor: "#222",
     borderRadius: 12,
     paddingHorizontal: 12,
     paddingVertical: 10,
-    color: "#fff",
+    color: dt.text.primary,
   },
 
   histRow: { paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: "#151515" },
-  histTitle: { color: "#fff", fontWeight: "800" },
+  histTitle: { color: dt.text.primary, fontWeight: "800" },
   intelHeader: {
     flexDirection: "column",
     rowGap: 8,
@@ -13223,7 +13223,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 0 },
     elevation: 3,
   },
-  scoreOrbValue: { color: "#fff", fontSize: 28, fontWeight: "900", lineHeight: 32 },
+  scoreOrbValue: { color: dt.text.primary, fontSize: 28, fontWeight: "900", lineHeight: 32 },
   scoreOrbUnit: { color: "#9fb0cf", fontSize: 11, fontWeight: "800" },
   intelKicker: { color: "#d7e2ff", fontSize: 13, fontWeight: "800", marginBottom: 6 },
   intelBadge: {
@@ -13361,9 +13361,9 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     borderColor: "#262626",
-    backgroundColor: "#111",
+    backgroundColor: dt.surface.primary,
   },
-  riskType: { color: "#fff", fontWeight: "800", fontSize: 12, marginBottom: 4 },
+  riskType: { color: dt.text.primary, fontWeight: "800", fontSize: 12, marginBottom: 4 },
   actionBox: {
     marginTop: 8,
     padding: 10,
@@ -13404,7 +13404,7 @@ const styles = StyleSheet.create({
     padding: 14,
   },
   modalTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 12 },
-  modalTitle: { color: "#fff", fontWeight: "900", fontSize: 16 },
+  modalTitle: { color: dt.text.primary, fontWeight: "900", fontSize: 16 },
   camera: { flex: 1 },
   modalBottom: { padding: 12, paddingBottom: 48, backgroundColor: "#000" },
   captureBtn: {
@@ -13440,13 +13440,13 @@ const styles = StyleSheet.create({
   coachRecoveryBadgeGreen: { borderColor: "rgba(34,197,94,0.5)", backgroundColor: "rgba(34,197,94,0.14)" },
   coachRecoveryBadgeAmber: { borderColor: "rgba(245,158,11,0.5)", backgroundColor: "rgba(245,158,11,0.14)" },
   coachRecoveryBadgeRed: { borderColor: "rgba(239,68,68,0.55)", backgroundColor: "rgba(239,68,68,0.14)" },
-  coachRecoveryBadgeText: { color: "#e2e8f0", fontSize: 11, fontWeight: "700" },
+  coachRecoveryBadgeText: { color: dt.text.secondary, fontSize: 11, fontWeight: "700" },
   coachRecoveryPanel: {
     marginTop: 8, marginBottom: 4, borderRadius: 10, borderWidth: 1,
     borderColor: "rgba(148,163,184,0.24)", backgroundColor: "rgba(2,6,23,0.35)",
     paddingVertical: 8, paddingHorizontal: 10,
   },
-  coachRecoveryPanelText: { color: "#cbd5e1", fontSize: 12, lineHeight: 18 },
+  coachRecoveryPanelText: { color: dt.text.secondary, fontSize: 12, lineHeight: 18 },
   coachChatFeed: {
     marginTop: 10, maxHeight: 300, borderWidth: 1,
     borderColor: "rgba(148, 163, 184, 0.22)", borderRadius: 12,
@@ -13470,12 +13470,12 @@ const styles = StyleSheet.create({
     borderRadius: 999, borderWidth: 1, borderColor: "rgba(148, 163, 184, 0.30)",
     backgroundColor: "rgba(15, 23, 42, 0.45)", paddingHorizontal: 10, paddingVertical: 6,
   },
-  coachQuickChipText: { color: "#cbd5e1", fontSize: 12, fontWeight: "600" },
+  coachQuickChipText: { color: dt.text.secondary, fontSize: 12, fontWeight: "600" },
   coachChatComposerRow: { marginTop: 10, flexDirection: "row", alignItems: "flex-end", gap: 8 },
   coachChatInputField: {
     flex: 1, minHeight: 42, maxHeight: 110, borderWidth: 1,
     borderColor: "rgba(148, 163, 184, 0.24)", borderRadius: 10,
-    color: "#f8fafc", paddingHorizontal: 12, paddingVertical: 9,
+    color: dt.text.primary, paddingHorizontal: 12, paddingVertical: 9,
     backgroundColor: "rgba(15, 23, 42, 0.55)",
   },
   coachChatSendBtn: { paddingHorizontal: 16, minHeight: 42 },
