@@ -1,5 +1,6 @@
 // bundle-stamp: 2026-03-10 — bump when verifying App Store / EAS ships latest JS
 import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import { StatusBar } from "expo-status-bar";
 import { useFonts, Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold, Inter_800ExtraBold } from "@expo-google-fonts/inter";
 import {
   View,
@@ -7528,6 +7529,8 @@ async function openCamera(mode = "meal") {
   })();
 
   return (
+    <>
+    <StatusBar style="light" backgroundColor="#000000" />
     <SafeAreaView
       style={[
         styles.safe,
@@ -11726,10 +11729,12 @@ async function openCamera(mode = "meal") {
         </SafeAreaView>
       </Modal>
     </SafeAreaView>
+    </>
   );
 }
 
 const styles = StyleSheet.create({
+  statusBarSpacer: { height: Platform.OS === "ios" ? 50 : 0 },
   safe: { flex: 1, backgroundColor: "#000000", paddingBottom: 24 },
   safeFlex: { flex: 1 },
   mainScrollFlex: { flex: 1 },

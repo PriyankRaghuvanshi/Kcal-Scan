@@ -47,23 +47,32 @@ export function AnimatedTabBar({
         {tabs.map((t, idx) => {
           const isActive = idx === activeIndex;
           const hasBadge = badge?.[t.key];
+          const isScan = t.key === "_scan";
           return (
             <PressableScale
               key={t.key}
-              style={s.tab}
+              style={[s.tab, isScan && s.scanTab]}
               onPress={() => onTabPress(t, idx)}
-              scaleDown={0.92}
+              scaleDown={isScan ? 0.88 : 0.92}
               haptic
             >
-              <View style={s.iconWrap}>
-                <Text style={[s.icon, isActive && s.iconActive]}>
-                  {t.icon}
-                </Text>
-                {hasBadge ? <View style={s.badgeDot} /> : null}
-              </View>
-              <Text style={[s.label, isActive && s.labelActive]}>
-                {t.label}
-              </Text>
+              {isScan ? (
+                <View style={s.scanFab}>
+                  <Text style={s.scanFabIcon}>{t.icon}</Text>
+                </View>
+              ) : (
+                <>
+                  <View style={s.iconWrap}>
+                    <Text style={[s.icon, isActive && s.iconActive]}>
+                      {t.icon}
+                    </Text>
+                    {hasBadge ? <View style={s.badgeDot} /> : null}
+                  </View>
+                  <Text style={[s.label, isActive && s.labelActive]}>
+                    {t.label}
+                  </Text>
+                </>
+              )}
             </PressableScale>
           );
         })}
@@ -137,5 +146,27 @@ const s = StyleSheet.create({
     backgroundColor: "#f59e0b",
     borderWidth: 1,
     borderColor: "#000",
+  },
+  scanTab: {
+    marginTop: -18,
+  },
+  scanFab: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: "#22c55e",
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#22c55e",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
+    elevation: 8,
+    borderWidth: 3,
+    borderColor: "#000",
+  },
+  scanFabIcon: {
+    fontSize: 22,
+    color: "#052e16",
   },
 });
