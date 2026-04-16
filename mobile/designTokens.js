@@ -7,13 +7,13 @@
 // ─── Colors ─────────────────────────────────────────────────────────────
 
 export const colors = {
-  // Primary surface (dark theme dominant in app)
+  // Primary surface — OLED-optimized (true black saves battery on OLED screens)
   surface: {
-    primary: "#0a0f18",
-    elevated: "#0f1624",
-    card: "#060e1c",
+    primary: "#000000",
+    elevated: "#0c1220",
+    card: "#0a1018",
     cardBorder: "#1a2642",
-    overlay: "rgba(0,15,30,0.92)",
+    overlay: "rgba(0,0,0,0.85)",
   },
   // Light theme surfaces (Smart Alerts, some cards)
   surfaceLight: {

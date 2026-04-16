@@ -72,6 +72,7 @@ import { HealthyPlaceListCard } from "./components/HealthyPlaceListCard";
 import { PlaceDetailSheet } from "./components/PlaceDetailSheet";
 import { QuickAddSheet } from "./components/QuickAddSheet";
 import { SkeletonCardList } from "./components/SkeletonCard";
+import { DailyMacroRings } from "./components/MacroRing";
 import { HealthyNearbyDecisionShowcase } from "./components/HealthyNearbyDecisionShowcase";
 import { AdminOpsDashboard } from "./components/AdminOpsDashboard";
 import { ScanConfirmationChips } from "./components/ScanConfirmationChips";
@@ -9484,20 +9485,12 @@ async function openCamera(mode = "meal") {
           <Text style={styles.nearbyScreenSubtitle}>Find the best meal near you right now.</Text>
           {(remainingToday?.kcal != null || remainingToday?.protein_g != null) ? (
             <View style={styles.remainingMacrosBar}>
-              {remainingToday?.kcal != null ? (
-                <View style={styles.remainingMacroPill}>
-                  <Text style={styles.remainingMacroIcon}>🔥</Text>
-                  <Text style={styles.remainingMacroValue}>{Math.max(0, Math.round(remainingToday.kcal))}</Text>
-                  <Text style={styles.remainingMacroLabel}> kcal left</Text>
-                </View>
-              ) : null}
-              {remainingToday?.protein_g != null ? (
-                <View style={styles.remainingMacroPill}>
-                  <Text style={styles.remainingMacroIcon}>💪</Text>
-                  <Text style={styles.remainingMacroValue}>{Math.max(0, Math.round(remainingToday.protein_g))}</Text>
-                  <Text style={styles.remainingMacroLabel}>g protein left</Text>
-                </View>
-              ) : null}
+              <DailyMacroRings
+                kcalCurrent={Math.max(0, (goals?.daily_calories || 2000) - (remainingToday?.kcal || 0))}
+                kcalTarget={goals?.daily_calories || 2000}
+                proteinCurrent={Math.max(0, (goals?.daily_protein_g || 120) - (remainingToday?.protein_g || 0))}
+                proteinTarget={goals?.daily_protein_g || 120}
+              />
             </View>
           ) : null}
           <View style={styles.nearbyTabsRowTop}>
@@ -11564,6 +11557,7 @@ async function openCamera(mode = "meal") {
                 key={t.key}
                 style={[styles.homeBottomTabItem, isActive ? styles.homeBottomTabItemActive : null]}
                 onPress={() => {
+                  void hapticLight({ key: `tab:${t.key}`, cooldownMs: 200 });
                   if (t.key === "_scan") {
                     void openCamera("meal");
                     return;
@@ -11738,10 +11732,10 @@ async function openCamera(mode = "meal") {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: "#0a0f18", paddingBottom: 24 },
+  safe: { flex: 1, backgroundColor: "#000000", paddingBottom: 24 },
   safeFlex: { flex: 1 },
   mainScrollFlex: { flex: 1 },
-  nearbyScreenBg: { backgroundColor: "#0a0f18" },
+  nearbyScreenBg: { backgroundColor: "#000000" },
   container: { padding: tSpacing.lg, gap: tSpacing.base, paddingBottom: 36 },
   containerAboveBottomTabs: { paddingBottom: 100 },
   // Phase 1 home spacing (token-based): use wrapper views, avoid large refactors.

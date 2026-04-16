@@ -12,8 +12,10 @@ import {
   Image,
   PanResponder,
   Dimensions,
+  Platform,
   StyleSheet,
 } from "react-native";
+import { BlurView } from "expo-blur";
 import { colors, spacing, radius, typography } from "../designTokens";
 import { ScoreBadge } from "./ScoreBadge";
 import { ConfidenceBadge } from "./ConfidenceBadge";
@@ -96,7 +98,13 @@ export function PlaceDetailSheet({ visible, place, onClose, onOpenInMaps }) {
   return (
     <Modal visible transparent animationType="slide" onRequestClose={onClose}>
       <View style={s.overlay}>
-        <TouchableOpacity style={s.backdrop} activeOpacity={1} onPress={onClose} />
+        {Platform.OS === "ios" ? (
+          <BlurView intensity={40} tint="dark" style={StyleSheet.absoluteFill}>
+            <TouchableOpacity style={s.backdrop} activeOpacity={1} onPress={onClose} />
+          </BlurView>
+        ) : (
+          <TouchableOpacity style={s.backdrop} activeOpacity={1} onPress={onClose} />
+        )}
         <View style={s.sheet} {...panRef.panHandlers}>
           <View style={s.handleRow}>
             <View style={s.handle} />
