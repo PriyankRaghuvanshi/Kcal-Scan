@@ -21924,6 +21924,110 @@ async def analyze(
     return JSONResponse(status_code=202, content=out)
 
 
+class QuickAddRequest(BaseModel):
+    text: str
+    user_id: Optional[str] = None
+    tz: Optional[str] = None
+    tz_offset_min: Optional[int] = None
+
+
+@app.post("/analyze/text")
+async def analyze_text(
+    body: QuickAddRequest,
+    x_user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
+):
+    """Quick Add — estimate macros from text description and log as a meal."""
+    uid = require_user_id(x_user_id, body.user_id)
+    require_ai_consent(uid)
+    text = str(body.text or "").strip()
+    if not text or len(text) < 2:
+        raise HTTPException(status_code=400, detail="Text description too short")
+
+    request_id = _new_request_id()
+    analysis_id = str(uuid.uuid4())
+    today_local = _today_date(tz=body.tz, tz_offset_min=body.tz_offset_min)
+    day_iso = today_local.isoformat()
+
+    # 1. Try chain DB exact/fuzzy match
+    from chain_menu_ingestion import get_chain_items, list_ingested_chain_keys
+    chain_match = None
+    text_lc = text.lower()
+    for ck_market in list_ingested_chain_keys():
+        items = get_chain_items(ck_market.split("::")[0], ck_market.split("::")[-1] if "::" in ck_market else "")
+        for it in items:
+            iname = str(it.get("item_name") or "").strip().lower()
+            if iname and (text_lc == iname or text_lc in iname or iname in text_lc):
+                chain_match = it
+                break
+        if chain_match:
+            break
+
+    if chain_match:
+        cal = float(chain_match.get("estimated_calories") or 0)
+        pro = float(chain_match.get("estimated_protein_g") or 0)
+        carbs = float(chain_match.get("estimated_carbs_g") or 0)
+        fat = float(chain_match.get("estimated_fat_g") or 0)
+        item_name = chain_match.get("item_name", text)
+        source = "chain_db_match"
+        confidence = 0.92
+    else:
+        # 2. LLM estimation
+        from llm_macro_estimator import maybe_estimate_unknown_meal_macros
+        llm = maybe_estimate_unknown_meal_macros(
+            item_name=text,
+            cuisine_hint="",
+            has_known_nutrition=False,
+            profile_hit_count=0,
+        )
+        est = llm.get("estimate") or {} if llm.get("used") else {}
+        cal = float(est.get("estimated_calories") or est.get("calories") or 0)
+        pro = float(est.get("estimated_protein_g") or est.get("protein_g") or 0)
+        carbs = float(est.get("estimated_carbs_g") or est.get("carbs_g") or 0)
+        fat = float(est.get("estimated_fat_g") or est.get("fat_g") or 0)
+        item_name = text
+        source = "llm_text_estimate" if llm.get("used") else "user_text_entry"
+        confidence = 0.7 if llm.get("used") else 0.5
+
+    result = {
+        "analysis_id": analysis_id,
+        "scan_id": analysis_id,
+        "request_id": request_id,
+        "status": "done",
+        "items": [
+            {
+                "item_name": item_name,
+                "estimated_calories": round(cal),
+                "estimated_protein_g": round(pro, 1),
+                "estimated_carbs_g": round(carbs, 1),
+                "estimated_fat_g": round(fat, 1),
+                "confidence": confidence,
+                "source": source,
+            }
+        ],
+        "total_calories": round(cal),
+        "total_protein_g": round(pro, 1),
+        "total_carbs_g": round(carbs, 1),
+        "total_fat_g": round(fat, 1),
+        "meal_name": item_name,
+        "source": source,
+        "input_type": "text",
+        "day": day_iso,
+        "created_at": _now_utc_naive().isoformat(),
+    }
+
+    _store_meal_analysis({
+        "analysis_id": analysis_id,
+        "scan_id": analysis_id,
+        "user_id": uid,
+        "day": day_iso,
+        "created_at": _now_utc_naive().isoformat(),
+        "updated_at": _now_utc_naive().isoformat(),
+        **result,
+    })
+
+    return result
+
+
 @app.post("/analyze/upf")
 async def analyze_upf(
     file: UploadFile = File(...),

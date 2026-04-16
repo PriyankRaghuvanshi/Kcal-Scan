@@ -70,6 +70,7 @@ import { HealthyNearbyMapScreen } from "./components/HealthyNearbyMapScreen";
 import { HealthyNearbyDiscoverLayout } from "./components/HealthyNearbyDiscoverLayout";
 import { HealthyPlaceListCard } from "./components/HealthyPlaceListCard";
 import { PlaceDetailSheet } from "./components/PlaceDetailSheet";
+import { QuickAddSheet } from "./components/QuickAddSheet";
 import { SkeletonCardList } from "./components/SkeletonCard";
 import { HealthyNearbyDecisionShowcase } from "./components/HealthyNearbyDecisionShowcase";
 import { AdminOpsDashboard } from "./components/AdminOpsDashboard";
@@ -2035,6 +2036,8 @@ export default function App() {
   const [homeHubTab, setHomeHubTab] = useState("today");
   const [healthyNearbyTab, setHealthyNearbyTab] = useState("decision");
   const [placeDetailPlace, setPlaceDetailPlace] = useState(null);
+  const [quickAddVisible, setQuickAddVisible] = useState(false);
+  const [quickAddBusy, setQuickAddBusy] = useState(false);
   const [lunchDecisionBusy, setLunchDecisionBusy] = useState(false);
   const [lunchDecisionError, setLunchDecisionError] = useState("");
   const [lunchDecision, setLunchDecision] = useState(null);
@@ -7597,6 +7600,14 @@ async function openCamera(mode = "meal") {
             onScanPress={() => openCamera("meal")}
             onLetsGoPress={() => setLetsGoModalVisible(true)}
           />
+          {/* Quick Add — type instead of scan */}
+          <TouchableOpacity
+            style={styles.quickAddBtn}
+            onPress={() => setQuickAddVisible(true)}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.quickAddBtnText}>✍️ Forgot to scan? Type it instead</Text>
+          </TouchableOpacity>
         </View>
         ) : null}
 
@@ -11600,6 +11611,32 @@ async function openCamera(mode = "meal") {
         }}
       />
 
+      <QuickAddSheet
+        visible={quickAddVisible}
+        busy={quickAddBusy}
+        onClose={() => { setQuickAddVisible(false); setQuickAddBusy(false); }}
+        onSubmit={async (text) => {
+          setQuickAddBusy(true);
+          try {
+            const uid = userId || (session?.user?.id ?? null);
+            const res = await fetch(`${API_BASE}/analyze/text`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json", "X-User-Id": uid || "" },
+              body: JSON.stringify({ text, user_id: uid }),
+            });
+            const data = await res.json();
+            if (data?.items?.length) {
+              void refreshHistory();
+            }
+            return data;
+          } catch (e) {
+            return null;
+          } finally {
+            setQuickAddBusy(false);
+          }
+        }}
+      />
+
       <VenueContributionSheet
         visible={contributionSheetVisible}
         onClose={() => setContributionSheetVisible(false)}
@@ -11842,6 +11879,22 @@ const styles = StyleSheet.create({
   homeMoreRowText: { fontSize: 16, color: "#e2e8f0", fontWeight: "600" },
   homeMoreChevron: { fontSize: 20, color: "#64748b", fontWeight: "300" },
   h1: { fontSize: 26, fontWeight: "900", color: "#fff", lineHeight: 31, letterSpacing: 0.2, fontFamily: "Inter_800ExtraBold" },
+  quickAddBtn: {
+    marginTop: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    backgroundColor: "#1e293b",
+    borderWidth: 1,
+    borderColor: "#334155",
+    alignItems: "center",
+  },
+  quickAddBtnText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#93c5fd",
+    fontFamily: "Inter_600SemiBold",
+  },
   p: { fontSize: 14, color: "#cfd7e3", lineHeight: 21 },
   tiny: { fontSize: 12, color: "#92a0b3", lineHeight: 17 },
   muted: { fontSize: 12, color: "#aab4c4", lineHeight: 17 },
