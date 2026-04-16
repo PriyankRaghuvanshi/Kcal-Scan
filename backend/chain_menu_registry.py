@@ -237,6 +237,7 @@ CHAIN_KEYS: Dict[str, List[str]] = {
     "sagar_gaire": ["sagar gaire"],
     "keventers": ["keventers"],
     "burger_singh": ["burger singh"],
+    "wow_china": ["wow china", "wow! china", "wow china by wow momo"],
     "wagamama": ["wagamama"],
     "wasabi": ["wasabi"],
     "whataburger": ["whataburger"],
