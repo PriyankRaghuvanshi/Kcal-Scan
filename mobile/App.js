@@ -68,6 +68,7 @@ import { SmartAlertSettings } from "./components/SmartAlertSettings";
 import { HealthyNearbyMapScreen } from "./components/HealthyNearbyMapScreen";
 import { HealthyNearbyDiscoverLayout } from "./components/HealthyNearbyDiscoverLayout";
 import { HealthyPlaceListCard } from "./components/HealthyPlaceListCard";
+import { PlaceDetailSheet } from "./components/PlaceDetailSheet";
 import { HealthyNearbyDecisionShowcase } from "./components/HealthyNearbyDecisionShowcase";
 import { AdminOpsDashboard } from "./components/AdminOpsDashboard";
 import { ScanConfirmationChips } from "./components/ScanConfirmationChips";
@@ -2023,6 +2024,7 @@ export default function App() {
   /** Home hub: split the main feed into focused surfaces (premium IA — avoid one endless scroll). */
   const [homeHubTab, setHomeHubTab] = useState("today");
   const [healthyNearbyTab, setHealthyNearbyTab] = useState("decision");
+  const [placeDetailPlace, setPlaceDetailPlace] = useState(null);
   const [lunchDecisionBusy, setLunchDecisionBusy] = useState(false);
   const [lunchDecisionError, setLunchDecisionError] = useState("");
   const [lunchDecision, setLunchDecision] = useState(null);
@@ -10624,6 +10626,7 @@ async function openCamera(mode = "meal") {
                         place={place}
                         indexInSection={idx}
                         onOpenInMaps={handleOpenInMaps}
+                        onPress={() => setPlaceDetailPlace(place)}
                         onFeedbackImprove={(p) => openContributionSheet(p, "healthy_nearby_list")}
                       />
                     </View>
@@ -11571,6 +11574,15 @@ async function openCamera(mode = "meal") {
           }
           setShowMealFeedbackPrompt(false);
           setPendingMealFeedback(null);
+        }}
+      />
+
+      <PlaceDetailSheet
+        visible={!!placeDetailPlace}
+        place={placeDetailPlace}
+        onClose={() => setPlaceDetailPlace(null)}
+        onOpenInMaps={(p) => {
+          void openPlaceInMaps(p);
         }}
       />
 
