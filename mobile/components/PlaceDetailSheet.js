@@ -95,6 +95,23 @@ export function PlaceDetailSheet({ visible, place, onClose, onOpenInMaps }) {
   const usual = place.usual_meal;
   const usualName = usual && String(usual.item_name || "").trim();
 
+  // Full menu items (all chain items, not just best pick)
+  const allMenuItems = (
+    place.top_menu_items || place.best_menu_items || []
+  ).filter(it => it && typeof it === "object" && it.item_name);
+  // Add macro fit pct to each
+  const remainingPro = num(place.remaining_protein_g);
+  const remainingCal = num(place.remaining_calories);
+  const menuWithFit = allMenuItems.map(it => {
+    const pro = num(it.estimated_protein_g);
+    const cal = num(it.estimated_calories);
+    return {
+      ...it,
+      protein_fill_pct: remainingPro > 0 && pro > 0 ? Math.min(100, Math.round((pro / remainingPro) * 100)) : null,
+      calorie_use_pct: remainingCal > 0 && cal > 0 ? Math.min(100, Math.round((cal / remainingCal) * 100)) : null,
+    };
+  }).sort((a, b) => (b.protein_fill_pct || 0) - (a.protein_fill_pct || 0));
+
   return (
     <Modal visible transparent animationType="slide" onRequestClose={onClose}>
       <View style={s.overlay}>
@@ -180,6 +197,40 @@ export function PlaceDetailSheet({ visible, place, onClose, onOpenInMaps }) {
               </View>
             ) : null}
 
+            {/* Full Menu — all items ranked by macro fit */}
+            {menuWithFit.length > 1 && (
+              <View style={s.section}>
+                <Text style={s.kicker}>FULL MENU — RANKED FOR YOU</Text>
+                {menuWithFit.slice(0, 12).map((it, i) => (
+                  <View key={`mi-${i}`} style={s.menuItemRow}>
+                    <View style={s.menuItemRank}>
+                      <Text style={s.menuItemRankText}>{i + 1}</Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.menuItemName} numberOfLines={1}>
+                        {it.item_name}
+                      </Text>
+                      <View style={{ flexDirection: "row", gap: 8 }}>
+                        {num(it.estimated_calories) != null && (
+                          <Text style={s.menuItemMacro}>{Math.round(it.estimated_calories)} kcal</Text>
+                        )}
+                        {num(it.estimated_protein_g) != null && (
+                          <Text style={s.menuItemMacro}>{Math.round(it.estimated_protein_g)}g P</Text>
+                        )}
+                      </View>
+                    </View>
+                    {it.protein_fill_pct != null && (
+                      <View style={[s.fitPill, it.protein_fill_pct >= 50 && s.fitPillStrong]}>
+                        <Text style={[s.fitPillText, it.protein_fill_pct >= 50 && s.fitPillTextStrong]}>
+                          {it.protein_fill_pct}%
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                ))}
+              </View>
+            )}
+
             {/* CTA */}
             <PressableScale
               style={s.cta}
@@ -258,6 +309,37 @@ const s = StyleSheet.create({
   usualPill: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 10, paddingHorizontal: 14, borderRadius: 10, backgroundColor: "#1a1a2e", marginBottom: 20 },
   usualLabel: { fontSize: 13, color: "#a78bfa", fontWeight: "600" },
   usualName: { fontSize: 13, color: "#f8fafc", fontWeight: "500", flex: 1 },
+
+  menuItemRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingVertical: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "rgba(148, 163, 184, 0.12)",
+  },
+  menuItemRank: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: "rgba(148, 163, 184, 0.12)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  menuItemRankText: { fontSize: 11, fontWeight: "700", color: "#94a3b8" },
+  menuItemName: { fontSize: 14, fontWeight: "600", color: "#f8fafc", marginBottom: 2 },
+  menuItemMacro: { fontSize: 12, color: "#94a3b8", fontWeight: "500" },
+  fitPill: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    backgroundColor: "rgba(148, 163, 184, 0.12)",
+  },
+  fitPillStrong: {
+    backgroundColor: "rgba(34, 197, 94, 0.15)",
+  },
+  fitPillText: { fontSize: 12, fontWeight: "700", color: "#94a3b8" },
+  fitPillTextStrong: { color: "#4ade80" },
 
   cta: { backgroundColor: "#22c55e", paddingVertical: 16, borderRadius: 14, alignItems: "center" },
   ctaText: { fontSize: 16, fontWeight: "700", color: "#052e16" },
