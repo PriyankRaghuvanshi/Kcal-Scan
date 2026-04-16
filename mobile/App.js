@@ -7534,19 +7534,22 @@ async function openCamera(mode = "meal") {
         }
       >
         {homeMainVisible ? (
-        <View style={styles.topRow}>
-          <View style={styles.topRowTitle}>
-            <Text style={styles.h1} numberOfLines={1} ellipsizeMode="tail">
-              CalorieClick.ai
-            </Text>
-            <Text style={styles.p} numberOfLines={1} ellipsizeMode="tail">
-              Plan: <Text style={styles.plan}>{plan}</Text>
-            </Text>
+        <LinearGradient
+          colors={["rgba(15,22,36,0.95)", "rgba(10,15,24,0)"]}
+          style={styles.headerGradient}
+          pointerEvents="none"
+        >
+          <View style={styles.topRow}>
+            <View style={styles.topRowTitle}>
+              <Text style={styles.h1} numberOfLines={1} ellipsizeMode="tail">
+                CalorieClick.ai
+              </Text>
+              <Text style={styles.p} numberOfLines={1} ellipsizeMode="tail">
+                Plan: <Text style={styles.plan}>{plan}</Text>
+              </Text>
+            </View>
           </View>
-          <View style={styles.topRowActions}>
-            <Text style={styles.topRowHint}>Use the More tab for account & saved recipes</Text>
-          </View>
-        </View>
+        </LinearGradient>
         ) : (
         <View style={styles.nearbyScreenHeader}>
           <TouchableOpacity
@@ -11913,14 +11916,23 @@ const styles = StyleSheet.create({
   muted: { fontSize: 12, color: "#aab4c4", lineHeight: 17 },
   plan: { color: dt.text.primary, fontWeight: "800" },
 
+  headerGradient: {
+    paddingTop: tSpacing.sm,
+    paddingBottom: tSpacing.lg,
+    paddingHorizontal: tSpacing.xs,
+    marginHorizontal: -tSpacing.lg,
+    marginTop: -tSpacing.lg,
+    marginBottom: tSpacing.sm,
+  },
   topRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    gap: 10,
-    rowGap: 8,
+    gap: tSpacing.sm,
+    rowGap: tSpacing.sm,
     flexWrap: "wrap",
     width: "100%",
+    paddingHorizontal: tSpacing.base,
   },
   topRowTitle: {
     flexGrow: 1,
@@ -12118,11 +12130,13 @@ const styles = StyleSheet.create({
     backgroundColor: "#2563eb",
     borderWidth: 1,
     borderColor: "#3a7dff",
-    paddingVertical: 13,
-    paddingHorizontal: 16,
-    borderRadius: 14,
+    paddingVertical: 14,
+    paddingHorizontal: tSpacing.lg,
+    borderRadius: dr.lg,
     alignItems: "center",
+    justifyContent: "center",
     flex: 1,
+    minHeight: 48,
   },
   mapCtaBtn: {
     marginTop: 12,
@@ -12160,67 +12174,72 @@ const styles = StyleSheet.create({
     color: "#111827",
   },
   secondaryBtn: {
-    backgroundColor: "#121721",
+    backgroundColor: dt.surface.elevated,
     borderWidth: 1,
-    borderColor: "#2a3445",
+    borderColor: dt.surface.cardBorder,
     paddingVertical: 12,
-    paddingHorizontal: 14,
-    borderRadius: 14,
+    paddingHorizontal: tSpacing.lg,
+    borderRadius: dr.lg,
     alignItems: "center",
+    minHeight: 44,
   },
   btn: {
     backgroundColor: "#2563eb",
     paddingVertical: 12,
-    paddingHorizontal: 14,
-    borderRadius: 14,
+    paddingHorizontal: tSpacing.lg,
+    borderRadius: dr.lg,
     alignItems: "center",
     justifyContent: "center",
+    minHeight: 44,
   },
-  btnText: { color: dt.text.primary, fontWeight: "800", fontSize: 14, letterSpacing: 0.2 },
+  btnText: { color: dt.text.primary, fontWeight: "800", fontSize: 14, letterSpacing: 0.2, fontFamily: "Inter_700Bold" },
   label: { color: "#d7d7d7", marginTop: 8, fontSize: 13, fontWeight: "700" },
 
   // NEW: Google button
   googleBtn: {
-    backgroundColor: "#151515",
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    borderRadius: 14,
+    backgroundColor: dt.surface.elevated,
+    paddingVertical: 14,
+    paddingHorizontal: tSpacing.lg,
+    borderRadius: dr.lg,
     alignItems: "center",
-    marginTop: 10,
+    marginTop: tSpacing.sm,
     borderWidth: 1,
-    borderColor: "#2a2a2a",
+    borderColor: dt.surface.cardBorder,
+    minHeight: 48,
   },
   appleBtn: {
-    backgroundColor: "#151515",
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    borderRadius: 14,
+    backgroundColor: dt.surface.elevated,
+    paddingVertical: 14,
+    paddingHorizontal: tSpacing.lg,
+    borderRadius: dr.lg,
     alignItems: "center",
-    marginTop: 10,
+    marginTop: tSpacing.sm,
     borderWidth: 1,
-    borderColor: "#2a2a2a",
+    borderColor: dt.surface.cardBorder,
+    minHeight: 48,
   },
 
   // NEW: divider
   dividerRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
-    marginTop: 14,
-    marginBottom: 4,
+    gap: tSpacing.sm,
+    marginTop: tSpacing.base,
+    marginBottom: tSpacing.xxs,
   },
-  dividerLine: { flex: 1, height: 1, backgroundColor: "#1e1e1e" },
-  dividerText: { color: "#8c8c8c", fontSize: 12, fontWeight: "700" },
+  dividerLine: { flex: 1, height: 1, backgroundColor: dt.surface.cardBorder },
+  dividerText: { color: dt.text.muted, fontSize: 12, fontWeight: "700", fontFamily: "Inter_700Bold" },
 
   smallBtn: {
-    backgroundColor: "#121721",
+    backgroundColor: dt.surface.elevated,
     borderWidth: 1,
-    borderColor: "#2a3445",
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 12,
+    borderColor: dt.surface.cardBorder,
+    paddingVertical: tSpacing.sm,
+    paddingHorizontal: tSpacing.base,
+    borderRadius: dr.md,
     alignItems: "center",
     flexShrink: 1,
+    minHeight: 36,
   },
   consentOnBtn: {
     backgroundColor: "#15432c",
