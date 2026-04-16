@@ -409,6 +409,14 @@ def _attach_fit(
     row["fits_remaining_calories"] = fit.get("fits_remaining_calories")
     row["fits_remaining_protein"] = fit.get("fits_remaining_protein")
     row["decision_confidence"] = fit.get("decision_confidence")
+
+    # Macro fit percentages — the "fills X% of your gap" differentiator
+    item_cal = _safe_float(row.get("estimated_calories"), 0)
+    item_pro = _safe_float(row.get("estimated_protein_g"), 0)
+    if remaining_protein_g and remaining_protein_g > 0 and item_pro > 0:
+        row["protein_fill_pct"] = min(100, round((item_pro / remaining_protein_g) * 100))
+    if remaining_calories and remaining_calories > 0 and item_cal > 0:
+        row["calorie_use_pct"] = min(100, round((item_cal / remaining_calories) * 100))
     return row
 
 

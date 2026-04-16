@@ -813,6 +813,16 @@ def rank_one_healthy_nearby_place(p: Dict[str, Any], ctx: HealthyNearbyRankConte
         "fits_remaining_calories": decision_today.get("fits_remaining_calories"),
         "fits_remaining_protein": decision_today.get("fits_remaining_protein"),
         "decision_confidence": decision_today.get("decision_confidence"),
+        "protein_fill_pct": (
+            min(100, round((estimated_protein_g / remaining_protein_g) * 100))
+            if remaining_protein_g and remaining_protein_g > 0 and estimated_protein_g and estimated_protein_g > 0
+            else None
+        ),
+        "calorie_use_pct": (
+            min(100, round((estimated_calories / remaining_calories) * 100))
+            if remaining_calories and remaining_calories > 0 and estimated_calories and estimated_calories > 0
+            else None
+        ),
         "reality_check": reality_check,
         "reality_check_share_card": (
             reality_check.get("share_card") if isinstance(reality_check.get("share_card"), dict) else None

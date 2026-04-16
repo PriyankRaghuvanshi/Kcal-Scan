@@ -140,6 +140,13 @@ export function PlaceDetailSheet({ visible, place, onClose, onOpenInMaps }) {
                       <View style={s.chip}><Text style={s.chipText}>💪 {Math.round(protein)}g protein</Text></View>
                     )}
                   </View>
+                  {num(place.protein_fill_pct) != null ? (
+                    <View style={s.fitBadge}>
+                      <Text style={s.fitBadgeText}>
+                        Fills {place.protein_fill_pct}% of your protein gap
+                      </Text>
+                    </View>
+                  ) : null}
                 </View>
               </View>
               {reason ? <Text style={s.reason} numberOfLines={2}>{reason}</Text> : null}
@@ -218,6 +225,22 @@ const s = StyleSheet.create({
   chip: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999, backgroundColor: "#1e293b" },
   chipText: { fontSize: 12, fontWeight: "600", color: "#e2e8f0" },
   reason: { fontSize: 13, color: "#94a3b8", marginTop: 8, lineHeight: 18 },
+  fitBadge: {
+    marginTop: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    backgroundColor: "rgba(34, 197, 94, 0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(34, 197, 94, 0.25)",
+    alignSelf: "flex-start",
+  },
+  fitBadgeText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#4ade80",
+    fontFamily: "Inter_700Bold",
+  },
 
   macroBarWrap: { marginBottom: 20 },
   macroBarTrack: { flexDirection: "row", height: 8, borderRadius: 4, overflow: "hidden", backgroundColor: "#1e293b" },
