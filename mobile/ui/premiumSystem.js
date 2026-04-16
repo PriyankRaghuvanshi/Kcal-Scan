@@ -197,6 +197,94 @@ export const premium = StyleSheet.create({
     color: colors.accent.primary,
   },
 
+  // ─── Button sizes (44px minimum tap target per Apple HIG) ─────────────
+  btnLg: {
+    paddingVertical: 16,
+    paddingHorizontal: spacing.xl,
+    borderRadius: radius.lg,
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: 52,
+  },
+  btnMd: {
+    paddingVertical: 12,
+    paddingHorizontal: spacing.lg,
+    borderRadius: radius.md,
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: 44,
+  },
+  btnSm: {
+    paddingVertical: 8,
+    paddingHorizontal: spacing.base,
+    borderRadius: radius.sm,
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: 36,
+  },
+  btnTextLg: { fontSize: 16, fontWeight: typography.weight.bold, fontFamily: "Inter_700Bold" },
+  btnTextMd: { fontSize: 14, fontWeight: typography.weight.semibold, fontFamily: "Inter_600SemiBold" },
+  btnTextSm: { fontSize: 12, fontWeight: typography.weight.semibold, fontFamily: "Inter_600SemiBold" },
+
+  // ─── Input / Form fields ─────────────────────────────────────────────
+  input: {
+    backgroundColor: colors.surface.elevated,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.surface.cardBorder,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: 14,
+    fontSize: typography.md,
+    color: colors.text.primary,
+    minHeight: 48,
+  },
+  inputFocused: {
+    borderColor: colors.accent.primary,
+    borderWidth: 1.5,
+  },
+
+  // ─── Dividers ────────────────────────────────────────────────────────
+  divider: {
+    height: 1,
+    backgroundColor: colors.surface.cardBorder,
+    marginVertical: spacing.lg,
+  },
+  dividerThin: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: "rgba(148, 163, 184, 0.15)",
+    marginVertical: spacing.base,
+  },
+
+  // ─── List items ──────────────────────────────────────────────────────
+  listItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: spacing.base,
+    paddingHorizontal: spacing.lg,
+    gap: spacing.base,
+    minHeight: 48,
+  },
+  listItemText: {
+    fontSize: typography.md,
+    color: colors.text.primary,
+    fontWeight: typography.weight.medium,
+    flex: 1,
+  },
+  listItemMuted: {
+    fontSize: typography.sm,
+    color: colors.text.muted,
+    fontWeight: typography.weight.regular,
+  },
+
+  // ─── Modal/Sheet footer ──────────────────────────────────────────────
+  sheetFooter: {
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.lg,
+    borderTopWidth: 1,
+    borderTopColor: colors.surface.cardBorder,
+    backgroundColor: colors.surface.card,
+  },
+
   // ─── Icon utility button (consistent ⚙ / ⋯ / close) ───────────────────
   iconBtn: {
     width: 34,
