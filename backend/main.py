@@ -19642,6 +19642,35 @@ async def scan_menu_endpoint(
     menu_scan["request_id"] = request_id
     menu_scan["ocr_confidence"] = round(float(_safe_float(ocr_payload.get("ocr_confidence"), 0.0) or 0.0), 2)
 
+    # Scan & Save: persist scanned items to menu_intelligence_store.
+    # Next user at the same restaurant sees these items without scanning.
+    scan_place_id = str(place_id or "").strip()
+    scan_items = menu_scan.get("top_choices") or menu_scan.get("top_recommendations") or []
+    if scan_place_id and scan_items and len(scan_items) >= 1:
+        try:
+            save_items = [
+                {
+                    "item_name": str(it.get("item_name") or "").strip(),
+                    "estimated_calories": it.get("estimated_calories"),
+                    "estimated_protein_g": it.get("estimated_protein_g"),
+                    "estimated_carbs_g": it.get("estimated_carbs_g"),
+                    "estimated_fat_g": it.get("estimated_fat_g"),
+                    "confidence": it.get("confidence") or it.get("item_confidence") or 0.65,
+                }
+                for it in scan_items
+                if str(it.get("item_name") or "").strip()
+            ]
+            if save_items:
+                ingest_menu_intelligence(
+                    place_id=scan_place_id,
+                    restaurant_name=effective_restaurant_name,
+                    cuisine=str(cuisine or "").strip(),
+                    menu_items=save_items,
+                    source="user_scan",
+                )
+        except Exception:
+            pass  # fail silently — scan result still returned
+
     return {"menu_scan": menu_scan}
 
 
