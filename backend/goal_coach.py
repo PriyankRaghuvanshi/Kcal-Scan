@@ -490,15 +490,18 @@ def build_progress_reminder(
             "cta_label": "Log weight",
         }
 
-    if today and not has_photo_this_week and today.weekday() >= 2:
-        return {
-            "kind": "photo",
-            "priority": "normal",
-            "message": (
-                "Add a progress photo this week—same spot and lighting makes before/afters easier to trust."
-            ),
-            "cta_label": "Compare photos",
-        }
+    # Progress-photo nudge disabled — mobile app doesn't have a progress-photo
+    # feature yet. Re-enable when PlaceDetailSheet-style photo capture + storage
+    # + coach comparison is built. See memory: project_coach_photo_gap.md.
+    # if today and not has_photo_this_week and today.weekday() >= 2:
+    #     return {
+    #         "kind": "photo",
+    #         "priority": "normal",
+    #         "message": (
+    #             "Add a progress photo this week—same spot and lighting makes before/afters easier to trust."
+    #         ),
+    #         "cta_label": "Compare photos",
+    #     }
 
     return None
 
