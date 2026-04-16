@@ -7276,24 +7276,54 @@ async function openCamera(mode = "meal") {
     }
   }, [healthyMapFilter, effectivePlaces, selectedHealthyPlaceId, healthySections, healthySortMode]);
 
-  // ===================== RENDER: LOGIN =====================
+  // ===================== RENDER: LOGIN (Premium) =====================
   if (!session) {
     return (
-      <SafeAreaView style={styles.safe}>
+      <>
+      <StatusBar style="light" backgroundColor="#000000" />
+      <SafeAreaView style={[styles.safe, { backgroundColor: "#000000" }]}>
         <KeyboardAvoidingView style={styles.safe} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-          <View style={styles.container}>
-            <Text style={styles.h1}>CalorieClick.ai</Text>
-            <Text style={styles.p}>Log in to scan meals and track your history.</Text>
+          <ScrollView
+            contentContainerStyle={styles.loginContainer}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
+            {/* Hero branding */}
+            <View style={styles.loginHero}>
+              <Text style={styles.loginLogo}>CalorieClick</Text>
+              <Text style={styles.loginLogoAccent}>.ai</Text>
+              <Text style={styles.loginTagline}>Real menu data. Personalized to you.</Text>
+            </View>
 
+            {/* Value props */}
+            <View style={styles.loginFeatures}>
+              <View style={styles.loginFeatureRow}>
+                <Text style={styles.loginFeatureIcon}>📍</Text>
+                <Text style={styles.loginFeatureText}>Find healthy meals at 3,000+ restaurants</Text>
+              </View>
+              <View style={styles.loginFeatureRow}>
+                <Text style={styles.loginFeatureIcon}>🔥</Text>
+                <Text style={styles.loginFeatureText}>Track calories & protein with AI-powered scanning</Text>
+              </View>
+              <View style={styles.loginFeatureRow}>
+                <Text style={styles.loginFeatureIcon}>🎯</Text>
+                <Text style={styles.loginFeatureText}>Personalized coaching to hit your goals</Text>
+              </View>
+            </View>
+
+            {/* Social login — primary actions */}
             {Platform.OS === "ios" ? (
-              <TouchableOpacity style={styles.appleBtn} onPress={signInWithApple} disabled={authBusy}>
-                {authBusy ? <ActivityIndicator /> : <Text style={styles.btnText}>Continue with Apple</Text>}
+              <TouchableOpacity style={styles.loginSocialBtn} onPress={signInWithApple} disabled={authBusy} activeOpacity={0.85}>
+                {authBusy ? <ActivityIndicator color="#fff" /> : (
+                  <Text style={styles.loginSocialBtnText}> Continue with Apple</Text>
+                )}
               </TouchableOpacity>
             ) : null}
 
-            {/* Google login */}
-            <TouchableOpacity style={styles.googleBtn} onPress={signInWithGoogle} disabled={authBusy}>
-              {authBusy ? <ActivityIndicator /> : <Text style={styles.btnText}>Continue with Google</Text>}
+            <TouchableOpacity style={styles.loginSocialBtn} onPress={signInWithGoogle} disabled={authBusy} activeOpacity={0.85}>
+              {authBusy ? <ActivityIndicator color="#fff" /> : (
+                <Text style={styles.loginSocialBtnText}>Continue with Google</Text>
+              )}
             </TouchableOpacity>
 
             {/* Divider */}
@@ -7303,54 +7333,49 @@ async function openCamera(mode = "meal") {
               <View style={styles.dividerLine} />
             </View>
 
-
+            {/* Email fields */}
             <TextInput
-              style={styles.input}
+              style={styles.loginInput}
               placeholder="Email"
-              placeholderTextColor="#777"
+              placeholderTextColor="#64748b"
               autoCapitalize="none"
+              keyboardType="email-address"
               value={authEmail}
               onChangeText={setAuthEmail}
             />
             <TextInput
-              style={styles.input}
+              style={styles.loginInput}
               placeholder="Password"
-              placeholderTextColor="#777"
+              placeholderTextColor="#64748b"
               secureTextEntry
               value={authPass}
               onChangeText={setAuthPass}
             />
 
             <View style={{ flexDirection: "row", gap: 10 }}>
-              <TouchableOpacity style={styles.primaryBtn} onPress={signIn} disabled={authBusy}>
-                {authBusy ? <ActivityIndicator /> : <Text style={styles.btnText}>Login</Text>}
+              <TouchableOpacity style={styles.loginPrimaryBtn} onPress={signIn} disabled={authBusy} activeOpacity={0.85}>
+                {authBusy ? <ActivityIndicator color="#052e16" /> : <Text style={styles.loginPrimaryBtnText}>Log in</Text>}
               </TouchableOpacity>
-              <TouchableOpacity style={styles.secondaryBtn} onPress={signUp} disabled={authBusy}>
-                <Text style={styles.btnText}>Sign up</Text>
+              <TouchableOpacity style={styles.loginSecondaryBtn} onPress={signUp} disabled={authBusy} activeOpacity={0.85}>
+                <Text style={styles.loginSecondaryBtnText}>Sign up</Text>
               </TouchableOpacity>
             </View>
 
             {!HAS_SUPABASE ? (
-              <Text style={[styles.p, { marginTop: 14, color: "#ffbdbd" }]}>
-                Missing Supabase env vars. Add EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY.
+              <Text style={[styles.p, { marginTop: 14, color: "#fca5a5" }]}>
+                Missing Supabase env vars.
               </Text>
             ) : null}
-            <Text
-              style={{
-                marginTop: 18,
-                fontSize: 11,
-                color: "#9ca3af",
-                textAlign: "center",
-              }}
-              testID="app-build-fingerprint"
-            >
+
+            <Text style={styles.loginBuildTag} testID="app-build-fingerprint">
               {`Build ${String(Constants.expoConfig?.version || "?")}${
                 Constants.nativeBuildVersion ? ` · ${String(Constants.nativeBuildVersion)}` : ""
               }`}
             </Text>
-          </View>
+          </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>
+      </>
     );
   }
 
@@ -11734,6 +11759,128 @@ async function openCamera(mode = "meal") {
 }
 
 const styles = StyleSheet.create({
+  // ─── Login Screen (Premium) ──────────────────────────────────────────
+  loginContainer: {
+    flexGrow: 1,
+    justifyContent: "center",
+    paddingHorizontal: 28,
+    paddingVertical: 40,
+    gap: 16,
+  },
+  loginHero: {
+    alignItems: "center",
+    marginBottom: 24,
+  },
+  loginLogo: {
+    fontSize: 38,
+    fontWeight: "900",
+    color: "#f8fafc",
+    fontFamily: "Inter_800ExtraBold",
+    letterSpacing: 0.3,
+  },
+  loginLogoAccent: {
+    fontSize: 38,
+    fontWeight: "900",
+    color: "#22c55e",
+    fontFamily: "Inter_800ExtraBold",
+    marginTop: -12,
+  },
+  loginTagline: {
+    fontSize: 15,
+    color: "#94a3b8",
+    fontFamily: "Inter_400Regular",
+    marginTop: 8,
+    textAlign: "center",
+  },
+  loginFeatures: {
+    gap: 12,
+    marginBottom: 28,
+  },
+  loginFeatureRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingHorizontal: 8,
+  },
+  loginFeatureIcon: {
+    fontSize: 20,
+    width: 28,
+    textAlign: "center",
+  },
+  loginFeatureText: {
+    fontSize: 14,
+    color: "#e2e8f0",
+    fontFamily: "Inter_500Medium",
+    flex: 1,
+    lineHeight: 20,
+  },
+  loginSocialBtn: {
+    backgroundColor: "#0c1220",
+    borderWidth: 1.5,
+    borderColor: "#1e293b",
+    paddingVertical: 16,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: 52,
+  },
+  loginSocialBtnText: {
+    color: "#f8fafc",
+    fontSize: 16,
+    fontWeight: "700",
+    fontFamily: "Inter_700Bold",
+  },
+  loginInput: {
+    backgroundColor: "#0c1220",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#1e293b",
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontSize: 16,
+    color: "#f8fafc",
+    fontFamily: "Inter_400Regular",
+    minHeight: 50,
+  },
+  loginPrimaryBtn: {
+    backgroundColor: "#22c55e",
+    paddingVertical: 16,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    flex: 1,
+    minHeight: 52,
+  },
+  loginPrimaryBtnText: {
+    color: "#052e16",
+    fontSize: 16,
+    fontWeight: "800",
+    fontFamily: "Inter_700Bold",
+  },
+  loginSecondaryBtn: {
+    backgroundColor: "#0c1220",
+    borderWidth: 1.5,
+    borderColor: "#1e293b",
+    paddingVertical: 16,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    flex: 1,
+    minHeight: 52,
+  },
+  loginSecondaryBtnText: {
+    color: "#93c5fd",
+    fontSize: 16,
+    fontWeight: "700",
+    fontFamily: "Inter_700Bold",
+  },
+  loginBuildTag: {
+    marginTop: 24,
+    fontSize: 11,
+    color: "#475569",
+    textAlign: "center",
+    fontFamily: "Inter_400Regular",
+  },
   statusBarSpacer: { height: Platform.OS === "ios" ? 50 : 0 },
   safe: { flex: 1, backgroundColor: "#000000", paddingBottom: 24 },
   safeFlex: { flex: 1 },
