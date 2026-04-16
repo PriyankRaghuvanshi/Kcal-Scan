@@ -75,6 +75,7 @@ import { SkeletonCardList } from "./components/SkeletonCard";
 import { DailyMacroRings } from "./components/MacroRing";
 import { EmptyState } from "./components/EmptyState";
 import { BrandedSplash } from "./components/BrandedSplash";
+import { AnimatedTabBar } from "./components/AnimatedTabBar";
 import { HealthyNearbyDecisionShowcase } from "./components/HealthyNearbyDecisionShowcase";
 import { AdminOpsDashboard } from "./components/AdminOpsDashboard";
 import { ScanConfirmationChips } from "./components/ScanConfirmationChips";
@@ -2034,7 +2035,11 @@ export default function App() {
   const [healthyMapFilter, setHealthyMapFilter] = useState("all");
   const [selectedHealthyPlaceId, setSelectedHealthyPlaceId] = useState("");
   const [healthyNearbyRefreshing, setHealthyNearbyRefreshing] = useState(false);
-  const [activeScreen, setActiveScreen] = useState("home");
+  const [activeScreen, _setActiveScreenRaw] = useState("home");
+  const setActiveScreen = useCallback((s) => {
+    layoutEaseInOut();
+    _setActiveScreenRaw(s);
+  }, []);
   /** Home hub: split the main feed into focused surfaces (premium IA — avoid one endless scroll). */
   const [homeHubTab, setHomeHubTab] = useState("today");
   const [healthyNearbyTab, setHealthyNearbyTab] = useState("decision");
@@ -11546,64 +11551,35 @@ async function openCamera(mode = "meal") {
 
       </ScrollView>
 
-      <View style={styles.homeBottomTabBarOuter}>
-        <LinearGradient
-          colors={["rgba(147,197,253,0.5)", "rgba(34,197,94,0.45)", "rgba(34,197,94,0)"]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 0 }}
-          style={styles.homeBottomTabBarHairline}
-          pointerEvents="none"
-        />
-        <View style={styles.homeBottomTabBar} accessibilityRole="tablist">
-          {[
-            { key: "today", label: "Home", icon: "⌂", screen: "home" },
-            { key: "_scan", label: "Scan", icon: "📷", screen: "_scan" },
-            { key: "_nearby", label: "Nearby", icon: "📍", screen: "healthy_nearby" },
-            { key: "coach", label: "Coach", icon: "◎", badge: coachTabShowDot, screen: "home" },
-            { key: "more", label: "More", icon: "···", screen: "home" },
-          ].map((t) => {
-            const isActive = t.key === "_nearby"
-              ? activeScreen === "healthy_nearby"
-              : t.key === "_scan"
-              ? false
-              : (activeScreen !== "healthy_nearby" && homeHubTab === t.key);
-            return (
-              <TouchableOpacity
-                key={t.key}
-                style={[styles.homeBottomTabItem, isActive ? styles.homeBottomTabItemActive : null]}
-                onPress={() => {
-                  void hapticLight({ key: `tab:${t.key}`, cooldownMs: 200 });
-                  if (t.key === "_scan") {
-                    void openCamera("meal");
-                    return;
-                  }
-                  if (t.key === "_nearby") {
-                    setActiveScreen("healthy_nearby");
-                    return;
-                  }
-                  setActiveScreen("home");
-                  setHomeHubTab(t.key);
-                  try { mainScrollRef.current?.scrollTo({ y: 0, animated: true }); } catch (_) {}
-                }}
-                accessibilityRole="tab"
-                accessibilityLabel={t.label}
-                accessibilityState={{ selected: isActive }}
-                activeOpacity={0.88}
-              >
-                <View style={styles.homeBottomTabIconWrap}>
-                  <Text style={[styles.homeBottomTabIcon, isActive ? styles.homeBottomTabIconActive : null]}>
-                    {t.icon}
-                  </Text>
-                  {(t.badge || t.badgeDot) ? <View style={styles.homeBottomTabBadgeDot} /> : null}
-                </View>
-                <Text style={[styles.homeBottomTabLabel, isActive ? styles.homeBottomTabLabelActive : null]}>
-                  {t.label}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-      </View>
+      <AnimatedTabBar
+        tabs={[
+          { key: "today", label: "Home", icon: "⌂" },
+          { key: "_scan", label: "Scan", icon: "📷" },
+          { key: "_nearby", label: "Nearby", icon: "📍" },
+          { key: "coach", label: "Coach", icon: "◎" },
+          { key: "more", label: "More", icon: "···" },
+        ]}
+        activeIndex={
+          activeScreen === "healthy_nearby" ? 2
+          : homeHubTab === "coach" ? 3
+          : homeHubTab === "more" ? 4
+          : 0
+        }
+        badge={{ coach: coachTabShowDot }}
+        onTabPress={(t) => {
+          if (t.key === "_scan") {
+            void openCamera("meal");
+            return;
+          }
+          if (t.key === "_nearby") {
+            setActiveScreen("healthy_nearby");
+            return;
+          }
+          setActiveScreen("home");
+          setHomeHubTab(t.key);
+          try { mainScrollRef.current?.scrollTo({ y: 0, animated: true }); } catch (_) {}
+        }}
+      />
 
       <MealFeedbackPrompt
         visible={!!showMealFeedbackPrompt && !!pendingMealFeedback}
