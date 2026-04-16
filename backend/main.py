@@ -21987,22 +21987,35 @@ async def analyze_text(
         source = "chain_db_match"
         confidence = 0.92
     else:
-        # 2. LLM estimation
-        from llm_macro_estimator import maybe_estimate_unknown_meal_macros
-        llm = maybe_estimate_unknown_meal_macros(
-            item_name=text,
-            cuisine_hint="",
-            has_known_nutrition=False,
-            profile_hit_count=0,
-        )
-        est = llm.get("estimate") or {} if llm.get("used") else {}
-        cal = float(est.get("estimated_calories") or est.get("calories") or 0)
-        pro = float(est.get("estimated_protein_g") or est.get("protein_g") or 0)
-        carbs = float(est.get("estimated_carbs_g") or est.get("carbs_g") or 0)
-        fat = float(est.get("estimated_fat_g") or est.get("fat_g") or 0)
-        item_name = text
-        source = "llm_text_estimate" if llm.get("used") else "user_text_entry"
-        confidence = 0.7 if llm.get("used") else 0.5
+        # 2. USDA FoodData Central lookup (±15% accuracy, science-backed)
+        from nutrition_db_lookup import lookup_nutrition, estimate_serving_size
+        serving = estimate_serving_size(text)
+        usda = lookup_nutrition(text, serving_g=serving)
+        if usda and usda.get("estimated_calories", 0) > 0:
+            cal = float(usda["estimated_calories"])
+            pro = float(usda["estimated_protein_g"])
+            carbs = float(usda["estimated_carbs_g"])
+            fat = float(usda["estimated_fat_g"])
+            item_name = text
+            source = "usda_database"
+            confidence = 0.78
+        else:
+            # 3. LLM estimation fallback (±25-40%)
+            from llm_macro_estimator import maybe_estimate_unknown_meal_macros
+            llm = maybe_estimate_unknown_meal_macros(
+                item_name=text,
+                cuisine_hint="",
+                has_known_nutrition=False,
+                profile_hit_count=0,
+            )
+            est = llm.get("estimate") or {} if llm.get("used") else {}
+            cal = float(est.get("estimated_calories") or est.get("calories") or 0)
+            pro = float(est.get("estimated_protein_g") or est.get("protein_g") or 0)
+            carbs = float(est.get("estimated_carbs_g") or est.get("carbs_g") or 0)
+            fat = float(est.get("estimated_fat_g") or est.get("fat_g") or 0)
+            item_name = text
+            source = "llm_text_estimate" if llm.get("used") else "user_text_entry"
+            confidence = 0.7 if llm.get("used") else 0.5
 
     result = {
         "analysis_id": analysis_id,
