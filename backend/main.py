@@ -17420,8 +17420,26 @@ async def healthy_places(
         scored = [rank_one_healthy_nearby_place(p, rank_ctx) for p in places_to_rank]
 
     # Personal memory is merged in rank_one_healthy_nearby_place (mem_dict + ranking_fields).
-    # Avoid a second pass that re-fetched the same stores N times.
 
+    # 🔥 ULTRA INSTINCT — Personal Learning reranks based on user's patterns.
+    # The system gets smarter with every choice. Favorite chains boosted,
+    # protein preference applied, calorie habits factored in.
+    try:
+        from personal_learning import build_user_food_profile, apply_personal_learning
+        from meal_feedback_store import list_meal_feedback_events
+        from meal_decision_event_store import list_meal_decision_events
+        if uid:
+            feedback = list_meal_feedback_events(user_id=uid, limit=100)
+            decisions = list_meal_decision_events(user_id=uid, limit=100)
+            if len(feedback) + len(decisions) >= 5:
+                user_profile = build_user_food_profile(feedback, decisions)
+                scored = apply_personal_learning(
+                    scored,
+                    user_profile,
+                    remaining_protein_g=remaining_protein_g,
+                )
+    except Exception:
+        pass  # fail silently — unlearned ranking still works
 
     t_rank_ms = round((time.perf_counter() - t_rank_start) * 1000, 1)
     t_total_ms = round((time.perf_counter() - t_start) * 1000, 1)

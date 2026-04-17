@@ -147,3 +147,67 @@ def apply_personal_learning(
     # Sort by personal score (highest first)
     scored.sort(key=lambda x: x.get("_personal_score", 0), reverse=True)
     return scored
+
+
+def build_community_patterns(
+    all_decision_events: List[Dict[str, Any]],
+) -> Dict[str, Any]:
+    """
+    Aggregate patterns across ALL users to find community intelligence.
+    "42 CalorieClick users chose Grilled Chicken here this week"
+    """
+    place_item_counts: Dict[str, Counter] = {}
+    chain_item_counts: Dict[str, Counter] = {}
+    time_patterns: Dict[str, Counter] = {}
+
+    for event in (all_decision_events or []):
+        place_id = str(event.get("place_id") or "").strip()
+        chain_key = str(event.get("chain_key") or "").strip()
+        item_name = str(event.get("best_item_name") or event.get("selected_item_name") or "").strip()
+        hour = event.get("hour")
+
+        if place_id and item_name:
+            if place_id not in place_item_counts:
+                place_item_counts[place_id] = Counter()
+            place_item_counts[place_id][item_name] += 1
+
+        if chain_key and item_name:
+            if chain_key not in chain_item_counts:
+                chain_item_counts[chain_key] = Counter()
+            chain_item_counts[chain_key][item_name] += 1
+
+        if hour is not None and item_name:
+            bucket = "breakfast" if 5 <= int(hour) < 11 else "lunch" if 11 <= int(hour) < 15 else "dinner" if 15 <= int(hour) < 21 else "late_night"
+            if bucket not in time_patterns:
+                time_patterns[bucket] = Counter()
+            time_patterns[bucket][item_name] += 1
+
+    return {
+        "place_popular_items": {
+            pid: [{"item": name, "count": count} for name, count in counter.most_common(5)]
+            for pid, counter in place_item_counts.items()
+        },
+        "chain_popular_items": {
+            ck: [{"item": name, "count": count} for name, count in counter.most_common(5)]
+            for ck, counter in chain_item_counts.items()
+        },
+        "time_patterns": {
+            bucket: [{"item": name, "count": count} for name, count in counter.most_common(5)]
+            for bucket, counter in time_patterns.items()
+        },
+    }
+
+
+def get_popular_item_label(
+    chain_key: str,
+    community_patterns: Dict[str, Any],
+) -> Optional[str]:
+    """
+    Returns a community signal label like "Most popular with CalorieClick users"
+    for the top item at a chain.
+    """
+    chain_popular = community_patterns.get("chain_popular_items", {}).get(chain_key, [])
+    if chain_popular and chain_popular[0].get("count", 0) >= 3:
+        top = chain_popular[0]
+        return f"{top['count']} users chose {top['item']} here"
+    return None
