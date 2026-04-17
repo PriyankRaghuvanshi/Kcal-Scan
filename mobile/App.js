@@ -7593,6 +7593,13 @@ async function openCamera(mode = "meal") {
                 Plan: <Text style={styles.plan}>{plan}</Text>
               </Text>
             </View>
+            <TouchableOpacity
+              style={styles.editGoalsBtn}
+              onPress={() => { setActiveScreen("home"); setHomeHubTab("more"); }}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.editGoalsBtnText}>⚙️ Goals</Text>
+            </TouchableOpacity>
           </View>
         </LinearGradient>
         ) : (
@@ -11772,18 +11779,18 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   loginLogo: {
-    fontSize: 38,
+    fontSize: 32,
     fontWeight: "900",
     color: "#f8fafc",
     fontFamily: "Inter_800ExtraBold",
-    letterSpacing: 0.3,
+    letterSpacing: 0.2,
   },
   loginLogoAccent: {
-    fontSize: 38,
+    fontSize: 32,
     fontWeight: "900",
     color: "#22c55e",
     fontFamily: "Inter_800ExtraBold",
-    marginTop: -12,
+    marginTop: -8,
   },
   loginTagline: {
     fontSize: 15,
@@ -11887,7 +11894,7 @@ const styles = StyleSheet.create({
   mainScrollFlex: { flex: 1 },
   nearbyScreenBg: { backgroundColor: "#000000" },
   container: { padding: tSpacing.lg, gap: tSpacing.base, paddingBottom: 36 },
-  containerAboveBottomTabs: { paddingBottom: 100 },
+  containerAboveBottomTabs: { paddingBottom: 120 },
   // Phase 1 home spacing (token-based): use wrapper views, avoid large refactors.
   homeSection: { marginTop: tSpacing.section },
   homeSectionTight: { marginTop: tSpacing.xl },
@@ -12039,6 +12046,20 @@ const styles = StyleSheet.create({
   homeMoreRowText: { fontSize: 16, color: dt.text.secondary, fontWeight: "600" },
   homeMoreChevron: { fontSize: 20, color: dt.slate.primary, fontWeight: "300" },
   h1: { fontSize: 26, fontWeight: "900", color: dt.text.primary, lineHeight: 31, letterSpacing: 0.2, fontFamily: "Inter_800ExtraBold" },
+  editGoalsBtn: {
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    backgroundColor: "rgba(148, 163, 184, 0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(148, 163, 184, 0.2)",
+  },
+  editGoalsBtnText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#94a3b8",
+    fontFamily: "Inter_600SemiBold",
+  },
   quickAddBtn: {
     marginTop: 10,
     paddingVertical: 12,

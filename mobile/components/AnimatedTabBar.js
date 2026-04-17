@@ -95,8 +95,8 @@ const s = StyleSheet.create({
     flexDirection: "row",
     alignItems: "stretch",
     justifyContent: "space-between",
-    paddingTop: 6,
-    paddingBottom: Platform.OS === "ios" ? 22 : 10,
+    paddingTop: 8,
+    paddingBottom: Platform.OS === "ios" ? 34 : 14,
     position: "relative",
   },
   indicator: {
@@ -119,7 +119,7 @@ const s = StyleSheet.create({
     minHeight: 22,
   },
   icon: {
-    fontSize: 17,
+    fontSize: 22,
     color: "#64748b",
     fontWeight: "800",
   },
@@ -127,10 +127,10 @@ const s = StyleSheet.create({
     color: "#4ade80",
   },
   label: {
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: "700",
     color: "#64748b",
-    marginTop: 2,
+    marginTop: 3,
     fontFamily: "Inter_700Bold",
   },
   labelActive: {
@@ -148,12 +148,12 @@ const s = StyleSheet.create({
     borderColor: "#000",
   },
   scanTab: {
-    marginTop: -18,
+    marginTop: -22,
   },
   scanFab: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
     backgroundColor: "#22c55e",
     alignItems: "center",
     justifyContent: "center",
@@ -166,7 +166,7 @@ const s = StyleSheet.create({
     borderColor: "#000",
   },
   scanFabIcon: {
-    fontSize: 22,
+    fontSize: 26,
     color: "#052e16",
   },
 });
