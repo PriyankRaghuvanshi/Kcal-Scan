@@ -16,7 +16,7 @@
     "ios": {
       "icon": "./assets/CalorieClick.png",
       "bundleIdentifier": "com.priyank.calorieclick",
-      "buildNumber": "9",
+      "buildNumber": "11",
       "supportsTablet": true,
       "infoPlist": {
         "NSCameraUsageDescription": "We need camera access to scan meals and barcodes.",
@@ -30,7 +30,7 @@
     },
     "android": {
       "package": "com.priyank.calorieclick",
-      "versionCode": 196,
+      "versionCode": 198,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"

@@ -6,8 +6,8 @@
 
 /** User-facing trust labels */
 export const TRUST_LABELS = {
-  verified: "Verified",
-  chain_backed: "Chain-backed",
+  verified: "Verified at this location",
+  chain_backed: "Chain menu · may vary by store",
   local_favorite: "Local favorite",
   estimated: "Estimated",
   needs_menu_check: "Needs menu check",
@@ -72,29 +72,32 @@ export function getAlertTrustLabel(alertOrPlace) {
   if (tier === "generic_fallback") return TRUST_LABELS.needs_menu_check;
   if (tier === "heuristic_cuisine_match_weak") return TRUST_LABELS.needs_menu_check;
 
-  // A. Verified – exact/cache or very strong trusted source.
-  // `official_published` = item came from the brand's own published
-  // nutrition data (McDonald's, Chipotle, etc.) — highest-trust tier.
+  // A. Verified – location-specific data (user scan, cache, intelligence store).
   if (conf === "Verified") return TRUST_LABELS.verified;
   if (
     source &&
     [
-      "real_menu",
       "user_scan",
       "exact_menu_cache",
       "menu_intelligence_store",
-      "structured_menu",
       "official_published",
     ].includes(source)
   ) {
     return TRUST_LABELS.verified;
+  }
+  // real_menu / structured_menu from chain data → Chain menu (not Verified)
+  if (
+    source &&
+    ["real_menu", "structured_menu"].includes(source)
+  ) {
+    return TRUST_LABELS.chain_backed;
   }
   if (tier === "exact_menu_match" && (usedCache || source === "exact_menu_cache")) {
     return TRUST_LABELS.verified;
   }
 
   // B. Chain-backed – ingested chain item or strong chain registry
-  if (conf === "Chain-backed") return TRUST_LABELS.chain_backed;
+  if (conf === "Chain-backed" || conf === "Chain menu") return TRUST_LABELS.chain_backed;
   if (
     source &&
     ["ingested_chain_item", "chain_registry"].includes(source)
@@ -145,13 +148,10 @@ export function getAlertTrustLabel(alertOrPlace) {
  */
 export function getAlertTrustTone(alertOrPlace) {
   const label = getAlertTrustLabel(alertOrPlace);
-  if (
-    label === TRUST_LABELS.verified ||
-    label === TRUST_LABELS.chain_backed ||
-    label === TRUST_LABELS.local_favorite
-  ) {
+  if (label === TRUST_LABELS.verified || label === TRUST_LABELS.local_favorite) {
     return TRUST_TONES.strong;
   }
+  if (label === TRUST_LABELS.chain_backed) return TRUST_TONES.medium;
   if (label === TRUST_LABELS.estimated) return TRUST_TONES.medium;
   return TRUST_TONES.weak;
 }
@@ -163,7 +163,7 @@ export function getAlertTrustTone(alertOrPlace) {
  */
 export function shouldShowMenuMayVary(alertOrPlace) {
   const label = getAlertTrustLabel(alertOrPlace);
-  return label === TRUST_LABELS.needs_menu_check;
+  return label === TRUST_LABELS.needs_menu_check || label === TRUST_LABELS.chain_backed;
 }
 
 /**

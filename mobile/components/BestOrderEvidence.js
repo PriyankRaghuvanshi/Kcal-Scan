@@ -17,7 +17,7 @@ function safeNum(v) {
 function mapConfidenceLabelToTier(confidenceLabel) {
   const lbl = safeStr(confidenceLabel);
   if (lbl === "Verified") return "verified";
-  if (lbl === "Chain-backed") return "chain_backed";
+  if (lbl === "Chain-backed" || lbl === "Chain menu") return "chain_backed";
   if (lbl === "Estimated") return "estimated";
   if (lbl === "Needs menu check") return "needs_menu_check";
   return "";
@@ -59,7 +59,7 @@ function resolveEvidenceFields(payload, mode) {
 
 function tierLabel(tier) {
   if (tier === "verified") return "Verified";
-  if (tier === "chain_backed") return "Chain-backed";
+  if (tier === "chain_backed") return "Chain menu";
   if (tier === "estimated") return "Estimated";
   if (tier === "needs_menu_check") return "Needs menu check";
   return "";

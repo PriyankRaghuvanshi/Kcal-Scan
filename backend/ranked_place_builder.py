@@ -31,17 +31,22 @@ def _safe_float(v: Any, default: float = 0.0) -> float:
         return float(default)
 
 
-def _confidence_label(menu_item_source: str, menu_item_confidence: float, diet_preference: str = "") -> str:
-    """Deterministic: Verified | Estimated | Needs menu check. Vegan + weak inference -> prefer weaker label."""
+def _confidence_label(menu_item_source: str, menu_item_confidence: float, diet_preference: str = "", item_provenance: str = "") -> str:
+    """Deterministic: Verified | Chain menu | Estimated | Needs menu check."""
     source = str(menu_item_source or "heuristic").strip().lower()
     conf = _safe_float(menu_item_confidence, 0.5)
     diet = str(diet_preference or "").strip().lower()
+    prov = str(item_provenance or "").strip().lower()
     if diet == "vegan" and source == "heuristic" and conf < 0.60:
         return "Needs menu check"
-    if source in ("real_menu", "user_scan", "menu_intelligence_store", "structured_menu", "exact_menu_cache", "chain_registry", "ingested_chain_item") and conf >= 0.72:
+    if source in ("user_scan", "menu_intelligence_store", "exact_menu_cache") and conf >= 0.72:
         return "Verified"
+    if source in ("real_menu", "structured_menu", "chain_registry", "ingested_chain_item") and conf >= 0.72:
+        return "Chain menu"
+    if prov == "exact_chain_menu":
+        return "Chain menu"
     if source in ("chain_registry", "ingested_chain_item") and conf >= 0.60:
-        return "Chain-backed"
+        return "Chain menu"
     if conf >= 0.55 or source == "llm_inferred":
         return "Estimated"
     return "Needs menu check"
@@ -189,8 +194,7 @@ def build_ranked_place_profile(
         venue_prior_score_100 = int(round(display_rank_score_100))
 
     diet_pref = str(user_context.get("diet_preference") or "").strip() or ""
-    confidence_lbl = _confidence_label(place_profile["menu_item_source"], place_profile["menu_item_confidence"], diet_preference=diet_pref)
-    # Override confidence label for heuristic suggestion on covered chain
+    confidence_lbl = _confidence_label(place_profile["menu_item_source"], place_profile["menu_item_confidence"], diet_preference=diet_pref, item_provenance=item_provenance)
     if item_provenance == "heuristic_suggestion":
         confidence_lbl = "Estimated"
     fit_today_100 = _safe_float(place.get("fit_today_score_100") or ctx.get("fit_today_score_100"), 50.0)

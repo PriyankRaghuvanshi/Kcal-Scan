@@ -29,10 +29,9 @@ function inferConfidenceTier(place) {
 function getBadgeStyle(tier) {
   switch (tier) {
     case "verified":
-      return badge.strong;
-    case "chain_backed":
     case "local_favorite":
       return badge.strong;
+    case "chain_backed":
     case "estimated":
       return badge.estimated;
     default:

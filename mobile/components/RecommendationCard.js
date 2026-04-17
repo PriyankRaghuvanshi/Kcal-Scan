@@ -268,21 +268,21 @@ export function RecommendationCard({
               ) : null}
             </View>
           </View>
-          {place.item_provenance === "heuristic_suggestion" && place.covered_chain_key ? (
-            <View style={{ marginTop: 4 }}>
-              <Text style={{ color: textMuted, fontSize: 11, fontStyle: "italic" }} numberOfLines={1}>
-                Suggested pick — not from official menu
+          {place.item_provenance === "heuristic_suggestion" ? (
+            <View style={styles.heuristicBanner}>
+              <Text style={styles.heuristicText} numberOfLines={2}>
+                {"\u26A0\uFE0F"} Estimated pick — verify with restaurant before ordering
               </Text>
-              {String(place.covered_chain_menu_url || "").trim() ? (
+              {place.covered_chain_key && String(place.covered_chain_menu_url || "").trim() ? (
                 <TouchableOpacity
                   onPress={() => {
                     const url = String(place.covered_chain_menu_url).trim();
                     if (url.startsWith("http")) Linking.openURL(url).catch(() => {});
                   }}
-                  style={{ marginTop: 3 }}
+                  style={{ marginTop: 4 }}
                 >
-                  <Text style={{ color: colors.success.text, fontSize: 11, fontWeight: "600" }}>
-                    View {String(place.covered_chain_display_name || "official").trim()} menu
+                  <Text style={{ color: colors.success.text, fontSize: 12, fontWeight: "700" }}>
+                    View {String(place.covered_chain_display_name || "official").trim()} menu →
                   </Text>
                 </TouchableOpacity>
               ) : null}
@@ -612,6 +612,21 @@ const styles = StyleSheet.create({
   variantMacros: {
     fontSize: 11,
     marginTop: 2,
+  },
+  heuristicBanner: {
+    marginTop: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: "rgba(245, 158, 11, 0.5)",
+    backgroundColor: "rgba(245, 158, 11, 0.12)",
+  },
+  heuristicText: {
+    fontSize: 12,
+    fontWeight: typography.weight.semibold,
+    color: "#f59e0b",
+    lineHeight: 17,
   },
   menuMayVary: {
     fontSize: typography.xs,
