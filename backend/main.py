@@ -17497,6 +17497,19 @@ async def healthy_places(
         sort_mode=healthy_sort_mode,
     )
 
+    # Track restaurant views for Restaurant Profile analytics
+    try:
+        from restaurant_profiles import track_restaurant_view
+        for row in scored:
+            if isinstance(row, dict):
+                track_restaurant_view(
+                    place_id=str(row.get("place_id") or ""),
+                    chain_key=str(row.get("chain_key") or ""),
+                    place_name=str(row.get("place_name") or row.get("name") or ""),
+                )
+    except Exception:
+        pass
+
     # Additive evidence/trust fields for "best order right now" (no ranking changes).
     if evidence_flag_enabled():
         for row in scored:
@@ -19731,6 +19744,39 @@ async def scan_menu_endpoint(
             pass  # fail silently — scan result still returned
 
     return {"menu_scan": menu_scan}
+
+
+@app.get("/restaurant/profile/{chain_key}")
+def restaurant_profile_endpoint(chain_key: str):
+    """Public restaurant profile — the feature that makes restaurants come to us."""
+    from restaurant_profiles import build_restaurant_profile, get_restaurant_analytics
+    from chain_menu_ingestion import get_chain_items
+    key = str(chain_key or "").strip().lower()
+    if not key:
+        raise HTTPException(status_code=400, detail="chain_key required")
+    items = get_chain_items(key)
+    if not items:
+        return {"ok": False, "error": "restaurant_not_found"}
+    best = items[0] if items else {}
+    profile = build_restaurant_profile(
+        place_id=key,
+        place_name=str(best.get("chain_key") or key).replace("_", " ").title(),
+        chain_key=key,
+        health_score=75,
+        best_item_name=str(best.get("item_name") or ""),
+        best_item_calories=float(best.get("estimated_calories") or 0),
+        best_item_protein=float(best.get("estimated_protein_g") or 0),
+        menu_items=items,
+    )
+    analytics = get_restaurant_analytics(key)
+    return {"ok": True, "profile": profile, "analytics": analytics}
+
+
+@app.get("/restaurant/top-viewed")
+def top_viewed_restaurants_endpoint(limit: int = 20):
+    """Top viewed restaurants — shows demand to restaurant owners."""
+    from restaurant_profiles import get_top_viewed_restaurants
+    return {"ok": True, "restaurants": get_top_viewed_restaurants(limit)}
 
 
 @app.post("/places/menu-intelligence/ingest")
