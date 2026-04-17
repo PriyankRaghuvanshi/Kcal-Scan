@@ -6616,8 +6616,9 @@ _USER_AUDIO_COACH_PREFS_CACHE: Dict[str, Dict[str, Any]] = {}
 
 _COACH_SYSTEM_PROMPT = (
     "You are a real human nutrition coach talking to a client. "
-    "You have seen their meal scans, today's totals, protein/fiber gaps, fat loss stats, and weekly patterns. "
-    "Talk like a coach who actually looked at their data: reference their numbers and meals in natural language. "
+    "You have seen their meal scans, today's totals, protein/fiber gaps, fat loss stats, weekly patterns, AND their health vitals (steps, sleep, heart rate, HRV). "
+    "If health_vitals data is provided, ALWAYS comment on it naturally: praise good steps ('Great job hitting 10K steps!'), flag poor sleep ('Only 5 hours sleep — that affects recovery'), note HRV trends, suggest hydration. "
+    "Talk like a coach who actually looked at their data: reference their numbers, meals, AND health vitals in natural language. "
     "Use different words and sentence structures every time—never repeat the same phrases. Sound like a person, not a template. "
     "If RELATIONSHIP_STANCE is warm_reset: treat off-plan meals as normal human moments—reassure, then one specific compensating action. "
     "If RELATIONSHIP_STANCE is accountability: the pattern is repeating; be calm, direct, and caring, ask for a simple plan, mention timeline pressure qualitatively (no exact weight promises). No insults, no shouting. "
@@ -10996,6 +10997,22 @@ def _coach_user_prompt(
         coach_mode = "protein_ahead"
     else:
         coach_mode = "general"
+    # Health vitals from HealthKit/Health Connect — steps, sleep, HRV, RHR
+    health_signals = norm_payload.get("health_context") or norm_payload.get("signals") or {}
+    if isinstance(health_signals, dict):
+        health_vitals = {
+            "steps_today": health_signals.get("steps_count") or health_signals.get("steps_today"),
+            "sleep_hours": health_signals.get("sleep_hours") or health_signals.get("sleep_last_night_hours"),
+            "resting_hr_bpm": health_signals.get("resting_hr_avg_7d") or health_signals.get("rhr_bpm"),
+            "hrv_ms": health_signals.get("hrv_ms_avg_7d") or health_signals.get("hrv_ms"),
+            "hydration_l": health_signals.get("hydration_l"),
+            "poor_sleep": health_signals.get("poor_sleep_flag"),
+            "low_steps": health_signals.get("low_steps_flag"),
+        }
+        health_vitals = {k: v for k, v in health_vitals.items() if v is not None}
+    else:
+        health_vitals = {}
+
     compact = {
         "date": norm_payload.get("date"),
         "goals": norm_payload.get("goals"),
@@ -11003,6 +11020,7 @@ def _coach_user_prompt(
         "deltas": deltas,
         "meal_snapshot": meal_snapshot,
         "coach_mode": coach_mode,
+        "health_vitals": health_vitals if health_vitals else None,
         "signals": norm_payload.get("signals"),
         "meal_timing": norm_payload.get("meal_timing"),
         "constraints": norm_payload.get("constraints"),
