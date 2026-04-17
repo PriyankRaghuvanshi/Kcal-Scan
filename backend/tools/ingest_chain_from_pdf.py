@@ -52,7 +52,7 @@ from ingest_chain_from_url import (  # noqa: E402
 )
 
 EXTRACTOR_VERSION = "gemini_pdf_v1"
-MODEL = "gemini-2.5-pro"
+MODEL = "gemini-2.5-flash"  # switched from pro to flash — 10x cheaper
 PDF_DIR = os.path.join(REPO_ROOT, "data", "chain_pdfs")
 
 

@@ -55,7 +55,7 @@ STAGING_DIR = os.path.join(REPO_ROOT, "data", "ingest_staging")
 BACKUP_DIR = os.path.join(REPO_ROOT, "data", "ingest_backups")
 
 EXTRACTOR_VERSION = "gemini_grounded_v1"
-MODEL = "gemini-2.5-pro"  # 2.5-flash is faster/cheaper; pro for accuracy
+MODEL = "gemini-2.5-flash"  # switched from pro to flash — 10x cheaper, accuracy is good enough
 MAX_HTML_CHARS = 80_000
 MAX_RETRIES = 2
 
