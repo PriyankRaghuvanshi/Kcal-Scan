@@ -21,7 +21,7 @@
       "autoIncrement": true,
       "cache": {
         "disabled": false,
-        "key": "production-v11-20260417-vc195"
+        "key": "production-v12-20260417-vc200"
       },
       "env": {
         "EXPO_PUBLIC_SUPABASE_URL": "https://mgrwrthvhjpmbrvmvkeo.supabase.co",
