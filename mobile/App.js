@@ -6091,7 +6091,8 @@ async function openCamera(mode = "meal") {
     setLunchDecisionBusy(true);
     setLunchDecisionError("");
     try {
-      const coords = healthyPlaceCoords || (await getCurrentCoords());
+      // Always get fresh GPS — user may have moved since last check
+      const coords = await getCurrentCoords();
       if (reqSeq !== lunchDecisionReqSeqRef.current) return;
       const lat = num(coords?.lat);
       const lng = num(coords?.lng);

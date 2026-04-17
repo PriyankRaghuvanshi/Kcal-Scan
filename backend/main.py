@@ -3222,7 +3222,7 @@ DAILY_VALUE_ALIASES = {
 DAILY_STORAGE_MODERN = {k: k for k in DAILY_VALUE_ALIASES.keys()}
 DAILY_STORAGE_LEGACY = {**DAILY_STORAGE_MODERN, "total_kcal": "kcal"}
 DAILY_VALUE_EPS = 1e-9
-COACH_CACHE_TTL_HOURS = 48
+COACH_CACHE_TTL_HOURS = 4  # was 48 — too long, FLI got stuck for days
 
 
 def _utc_from_iso(raw: Any) -> Optional[dt.datetime]:
