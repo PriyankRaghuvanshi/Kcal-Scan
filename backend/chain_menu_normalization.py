@@ -161,4 +161,5 @@ def to_registry_menu_item(ingested: Dict[str, Any], chain_entry: Optional[Dict[s
         "chain_key": ingested.get("chain_key"),
         "chosen_candidate_specificity_tier": ingested.get("chosen_candidate_specificity_tier", TIER_EXACT_MENU_MATCH),
         "last_ingested_at": ingested.get("last_ingested_at"),
+        "image_url": ingested.get("image_url") or None,
     }

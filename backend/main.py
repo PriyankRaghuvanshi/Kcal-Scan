@@ -3111,6 +3111,7 @@ def _coach_temporal_greeting(
     tz: Optional[str] = None,
     tz_offset_min: Optional[Any] = None,
     region: str = "",
+    user_id: str = "",
 ) -> Dict[str, Any]:
     local_ctx = _event_local_context(tz=tz, tz_offset_min=tz_offset_min)
     local_day_iso = str(local_ctx.get("event_day_local") or _today_date().isoformat())
@@ -3123,12 +3124,34 @@ def _coach_temporal_greeting(
     daypart_greeting = _coach_greeting_for_daypart(local_hour)
     festival_greeting = _festival_greeting_for_date(local_date, region=region)
     opening = f"{festival_greeting}. {daypart_greeting}." if festival_greeting else f"{daypart_greeting}."
+
+    # Meal memory: suggest user's usual meal for this time of day
+    meal_suggestion = ""
+    if user_id:
+        try:
+            from meal_feedback_store import list_meal_feedback_events
+            events = list_meal_feedback_events(user_id=user_id, limit=50)
+            if events:
+                from collections import Counter
+                daypart_items = Counter()
+                for ev in events:
+                    item = str(ev.get("best_item_name") or ev.get("item_name") or "").strip()
+                    if item and len(item) > 2:
+                        daypart_items[item] += 1
+                if daypart_items:
+                    usual_item = daypart_items.most_common(1)[0]
+                    if usual_item[1] >= 2:
+                        meal_suggestion = f"Ready for your usual {usual_item[0]}?"
+        except Exception:
+            pass
+
     return {
         "opening_greeting": opening.strip(),
         "opening_daypart": daypart,
         "opening_festival": festival_greeting,
         "opening_local_time": str(local_ctx.get("event_time_local") or ""),
         "opening_timezone": str(local_ctx.get("tz") or _timezone_label(tz=tz, tz_offset_min=tz_offset_min)),
+        "meal_suggestion": meal_suggestion,
     }
 
 
