@@ -11655,11 +11655,15 @@ async function openCamera(mode = "meal") {
           setQuickAddBusy(true);
           try {
             const uid = userId || (session?.user?.id ?? null);
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 15000);
             const res = await fetch(`${API_BASE}/analyze/text`, {
               method: "POST",
               headers: { "Content-Type": "application/json", "X-User-Id": uid || "" },
               body: JSON.stringify({ text, user_id: uid }),
+              signal: controller.signal,
             });
+            clearTimeout(timeout);
             const data = await res.json();
             if (data?.items?.length) {
               void refreshHistory();
