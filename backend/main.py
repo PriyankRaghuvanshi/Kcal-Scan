@@ -19230,6 +19230,17 @@ async def internal_job_coach_nudges_health(
     }
 
 
+@app.get("/admin/dashboard")
+async def admin_dashboard_page():
+    """Serve the admin dashboard HTML page."""
+    from fastapi.responses import HTMLResponse
+    from pathlib import Path as _P
+    html_path = _P(__file__).resolve().parent / "admin_dashboard.html"
+    if not html_path.exists():
+        raise HTTPException(status_code=404, detail="Dashboard not found")
+    return HTMLResponse(content=html_path.read_text(encoding="utf-8"), status_code=200)
+
+
 @app.get("/admin/stats")
 async def admin_stats(authorization: Optional[str] = Header(default=None)):
     """

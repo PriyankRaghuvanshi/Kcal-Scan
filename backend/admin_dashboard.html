@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CalorieClick Admin Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0a0a0a; color: #f0f0f0; }
+.login-wrap { display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+.login-box { background: #141414; padding: 40px; border-radius: 16px; width: 360px; }
+.login-box h1 { font-size: 24px; margin-bottom: 8px; color: #22c55e; }
+.login-box p { font-size: 14px; color: #64748b; margin-bottom: 24px; }
+.login-box input { width: 100%; padding: 12px 16px; border-radius: 10px; border: 1px solid #1e293b; background: #0c1220; color: #f0f0f0; font-size: 15px; margin-bottom: 12px; }
+.login-box button { width: 100%; padding: 14px; border-radius: 12px; background: #22c55e; color: #052e16; font-size: 16px; font-weight: 700; border: none; cursor: pointer; }
+.login-box button:hover { background: #16a34a; }
+.login-error { color: #ef4444; font-size: 13px; margin-top: 8px; }
+.dashboard { display: none; max-width: 1200px; margin: 0 auto; padding: 24px; }
+.header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 32px; }
+.header h1 { font-size: 28px; color: #22c55e; }
+.header .meta { font-size: 13px; color: #64748b; }
+.logout { padding: 8px 16px; border-radius: 8px; background: #1e293b; color: #94a3b8; border: none; cursor: pointer; font-size: 13px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px; margin-bottom: 32px; }
+.card { background: #141414; border-radius: 14px; padding: 20px; border: 1px solid #1e293b; }
+.card .label { font-size: 12px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+.card .value { font-size: 32px; font-weight: 800; color: #f8fafc; }
+.card .sub { font-size: 13px; color: #22c55e; margin-top: 4px; }
+.card.green .value { color: #22c55e; }
+.card.amber .value { color: #f59e0b; }
+.card.blue .value { color: #3b82f6; }
+.section { background: #141414; border-radius: 14px; padding: 24px; border: 1px solid #1e293b; margin-bottom: 24px; }
+.section h2 { font-size: 18px; font-weight: 700; margin-bottom: 16px; color: #f8fafc; }
+table { width: 100%; border-collapse: collapse; }
+th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #1e293b; font-size: 14px; }
+th { color: #64748b; font-weight: 600; font-size: 12px; text-transform: uppercase; }
+.chart-wrap { height: 250px; }
+.badge { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 11px; font-weight: 600; }
+.badge-green { background: rgba(34,197,94,0.15); color: #22c55e; }
+.badge-amber { background: rgba(245,158,11,0.15); color: #f59e0b; }
+.badge-blue { background: rgba(59,130,246,0.15); color: #3b82f6; }
+.refresh-btn { padding: 8px 16px; border-radius: 8px; background: #22c55e; color: #052e16; border: none; cursor: pointer; font-weight: 600; font-size: 13px; }
+</style>
+</head>
+<body>
+
+<div class="login-wrap" id="loginWrap">
+  <div class="login-box">
+    <h1>CalorieClick Admin</h1>
+    <p>World's #1 AI Food Decision Engine</p>
+    <input type="text" id="username" placeholder="Username" autocomplete="username">
+    <input type="password" id="password" placeholder="Password" autocomplete="current-password">
+    <button onclick="login()">Sign In</button>
+    <div class="login-error" id="loginError"></div>
+  </div>
+</div>
+
+<div class="dashboard" id="dashboard">
+  <div class="header">
+    <div>
+      <h1>CalorieClick Dashboard</h1>
+      <div class="meta" id="lastUpdated"></div>
+    </div>
+    <div>
+      <button class="refresh-btn" onclick="loadStats()">Refresh</button>
+      <button class="logout" onclick="logout()">Logout</button>
+    </div>
+  </div>
+
+  <div class="grid" id="topCards"></div>
+
+  <div class="section">
+    <h2>Intelligence Coverage</h2>
+    <div class="chart-wrap"><canvas id="intelChart"></canvas></div>
+  </div>
+
+  <div class="section">
+    <h2>Data Quality</h2>
+    <div class="chart-wrap"><canvas id="qualityChart"></canvas></div>
+  </div>
+
+  <div class="section">
+    <h2>Intelligence Details</h2>
+    <table id="intelTable"></table>
+  </div>
+
+  <div class="section">
+    <h2>Venue Contributions</h2>
+    <table id="contribTable"></table>
+  </div>
+</div>
+
+<script>
+const API = window.location.origin;
+let token = localStorage.getItem('admin_token') || '';
+
+async function login() {
+  const u = document.getElementById('username').value;
+  const p = document.getElementById('password').value;
+  try {
+    const r = await fetch(`${API}/admin/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: u, password: p })
+    });
+    const d = await r.json();
+    if (d.token) {
+      token = d.token;
+      localStorage.setItem('admin_token', token);
+      showDashboard();
+    } else {
+      document.getElementById('loginError').textContent = d.detail?.error || 'Login failed';
+    }
+  } catch (e) {
+    document.getElementById('loginError').textContent = 'Connection error';
+  }
+}
+
+function logout() {
+  token = '';
+  localStorage.removeItem('admin_token');
+  document.getElementById('loginWrap').style.display = 'flex';
+  document.getElementById('dashboard').style.display = 'none';
+}
+
+function showDashboard() {
+  document.getElementById('loginWrap').style.display = 'none';
+  document.getElementById('dashboard').style.display = 'block';
+  loadStats();
+}
+
+async function loadStats() {
+  try {
+    const r = await fetch(`${API}/admin/stats`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (r.status === 401) { logout(); return; }
+    const d = await r.json();
+    renderDashboard(d);
+  } catch (e) {
+    console.error('Failed to load stats:', e);
+  }
+}
+
+function renderDashboard(d) {
+  const c = d.chain_data || {};
+  const i = d.intelligence || {};
+  const v = d.venue_contributions || {};
+
+  document.getElementById('lastUpdated').textContent = `Last updated: ${new Date(d.generated_at).toLocaleString()}`;
+
+  // Top cards
+  document.getElementById('topCards').innerHTML = `
+    <div class="card green"><div class="label">Total Items</div><div class="value">${(c.total_items||0).toLocaleString()}</div><div class="sub">Real menu data</div></div>
+    <div class="card blue"><div class="label">Real Menu</div><div class="value">${(c.real_menu_items||0).toLocaleString()}</div><div class="sub">${c.quality_ratio||0}% quality</div></div>
+    <div class="card"><div class="label">Chains</div><div class="value">${c.total_chains||0}</div><div class="sub">${c.total_markets||0} markets</div></div>
+    <div class="card amber"><div class="label">Smart Swaps</div><div class="value">${(i.smart_swaps||0).toLocaleString()}</div><div class="sub">Healthier alternatives</div></div>
+    <div class="card"><div class="label">Sugar Bombs</div><div class="value">${i.sugar_bombs||0}</div><div class="sub">Flagged items</div></div>
+    <div class="card"><div class="label">Palm Oil Tagged</div><div class="value">${i.palm_oil_tagged||0}</div><div class="sub">Health transparency</div></div>
+    <div class="card green"><div class="label">Best Picks</div><div class="value">${i.best_picks||0}</div><div class="sub">Per chain</div></div>
+    <div class="card"><div class="label">Contributions</div><div class="value">${v.total||0}</div><div class="sub">${v.pending||0} pending</div></div>
+  `;
+
+  // Intelligence chart
+  const ictx = document.getElementById('intelChart').getContext('2d');
+  if (window.intelChartObj) window.intelChartObj.destroy();
+  window.intelChartObj = new Chart(ictx, {
+    type: 'bar',
+    data: {
+      labels: ['Protein Tagged', 'Diet Tagged', 'Smart Swaps', 'Sugar Bombs', 'Palm Oil', 'Best Picks'],
+      datasets: [{
+        data: [i.protein_tagged, i.diet_tagged, i.smart_swaps, i.sugar_bombs, i.palm_oil_tagged, i.best_picks],
+        backgroundColor: ['#22c55e', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'],
+        borderRadius: 8,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: { y: { grid: { color: '#1e293b' }, ticks: { color: '#64748b' } }, x: { grid: { display: false }, ticks: { color: '#94a3b8' } } }
+    }
+  });
+
+  // Quality donut
+  const qctx = document.getElementById('qualityChart').getContext('2d');
+  if (window.qualityChartObj) window.qualityChartObj.destroy();
+  window.qualityChartObj = new Chart(qctx, {
+    type: 'doughnut',
+    data: {
+      labels: ['Real Menu', 'Other Sources'],
+      datasets: [{
+        data: [c.real_menu_items, c.total_items - c.real_menu_items],
+        backgroundColor: ['#22c55e', '#1e293b'],
+        borderWidth: 0,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, cutout: '70%',
+      plugins: { legend: { position: 'bottom', labels: { color: '#94a3b8' } } }
+    }
+  });
+
+  // Intelligence table
+  document.getElementById('intelTable').innerHTML = `
+    <tr><th>Feature</th><th>Count</th><th>Status</th></tr>
+    <tr><td>Protein Density Scores</td><td>${(i.protein_tagged||0).toLocaleString()}</td><td><span class="badge badge-green">Active</span></td></tr>
+    <tr><td>Diet Tags (keto, high protein, etc)</td><td>${(i.diet_tagged||0).toLocaleString()}</td><td><span class="badge badge-green">Active</span></td></tr>
+    <tr><td>Smart Swap Suggestions</td><td>${(i.smart_swaps||0).toLocaleString()}</td><td><span class="badge badge-green">Active</span></td></tr>
+    <tr><td>Hidden Sugar Bomb Warnings</td><td>${i.sugar_bombs||0}</td><td><span class="badge badge-amber">Flagged</span></td></tr>
+    <tr><td>Palm Oil Transparency</td><td>${i.palm_oil_tagged||0}</td><td><span class="badge badge-blue">Tagged</span></td></tr>
+    <tr><td>Best Protein Pick Per Chain</td><td>${i.best_picks||0}</td><td><span class="badge badge-green">Active</span></td></tr>
+  `;
+
+  // Contributions table
+  document.getElementById('contribTable').innerHTML = `
+    <tr><th>Metric</th><th>Count</th></tr>
+    <tr><td>Total User Reports</td><td>${v.total||0}</td></tr>
+    <tr><td>Pending Review</td><td>${v.pending||0}</td></tr>
+  `;
+}
+
+// Auto-login if token exists
+if (token) { showDashboard(); }
+</script>
+</body>
+</html>
