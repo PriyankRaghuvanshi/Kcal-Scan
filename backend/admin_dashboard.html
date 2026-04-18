@@ -85,6 +85,12 @@ th { color: #64748b; font-weight: 600; font-size: 12px; text-transform: uppercas
   </div>
 
   <div class="section">
+    <h2>Healthy Nearby Searches</h2>
+    <div id="nearbyStats"></div>
+    <table id="nearbyTable"></table>
+  </div>
+
+  <div class="section">
     <h2>Venue Contributions</h2>
     <table id="contribTable"></table>
   </div>
@@ -221,6 +227,31 @@ function renderDashboard(d) {
     <tr><td>Palm Oil Transparency</td><td>${i.palm_oil_tagged||0}</td><td><span class="badge badge-blue">Tagged</span></td></tr>
     <tr><td>Best Protein Pick Per Chain</td><td>${i.best_picks||0}</td><td><span class="badge badge-green">Active</span></td></tr>
   `;
+
+  // Healthy Nearby section
+  const n = d.healthy_nearby || {};
+  const topAreas = n.top_areas || [];
+  const recentSearches = n.recent || [];
+  document.getElementById('nearbyStats').innerHTML = `
+    <div class="grid" style="margin-bottom:16px">
+      <div class="card green"><div class="label">Total Searches</div><div class="value">${n.total||0}</div></div>
+    </div>
+  `;
+  let nearbyRows = '<tr><th>Area</th><th>Searches</th><th>Top Restaurant</th><th>Time</th></tr>';
+  if (topAreas.length) {
+    topAreas.forEach(a => { nearbyRows += `<tr><td>${a.area||'—'}</td><td>${a.searches||0}</td><td>—</td><td>—</td></tr>`; });
+  }
+  if (recentSearches.length) {
+    nearbyRows += '<tr><th colspan="4" style="padding-top:16px">Recent Searches</th></tr>';
+    recentSearches.forEach(r => {
+      const t = r.created_at ? new Date(r.created_at).toLocaleString() : '—';
+      nearbyRows += `<tr><td>${r.area_key||'—'}</td><td>1</td><td>${r.top_place_name||'—'}</td><td>${t}</td></tr>`;
+    });
+  }
+  if (!topAreas.length && !recentSearches.length) {
+    nearbyRows += '<tr><td colspan="4" style="color:#64748b">No searches recorded yet. Data starts collecting after this deploy.</td></tr>';
+  }
+  document.getElementById('nearbyTable').innerHTML = nearbyRows;
 
   // Contributions table
   document.getElementById('contribTable').innerHTML = `

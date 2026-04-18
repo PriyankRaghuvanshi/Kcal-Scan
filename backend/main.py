@@ -17541,6 +17541,32 @@ async def healthy_places(
     except Exception:
         pass
 
+    # Log to Supabase analytics (persistent across deploys)
+    try:
+        if _sb_available():
+            top_place = scored[0] if scored else {}
+            session_row = {
+                "user_id": str(uid or "").strip(),
+                "lat": float(_safe_float(lat, 0.0) or 0.0),
+                "lng": float(_safe_float(lng, 0.0) or 0.0),
+                "area_key": str(top_place.get("area_key") or top_place.get("normalized_area_key") or "").strip().lower(),
+                "places_returned": len(scored),
+                "top_place_name": str(top_place.get("place_name") or top_place.get("name") or "").strip(),
+                "top_place_chain_key": str(top_place.get("chain_key") or "").strip(),
+            }
+            import threading
+            threading.Thread(
+                target=lambda: requests.post(
+                    f"{SUPABASE_URL}/rest/v1/healthy_nearby_sessions",
+                    headers={**supabase_headers(), "Prefer": "return=minimal"},
+                    data=json.dumps(session_row),
+                    timeout=10,
+                ),
+                daemon=True,
+            ).start()
+    except Exception:
+        pass
+
     # Additive evidence/trust fields for "best order right now" (no ranking changes).
     if evidence_flag_enabled():
         for row in scored:
@@ -19298,13 +19324,52 @@ async def admin_stats(authorization: Optional[str] = Header(default=None)):
     except Exception:
         pass
 
-    # Restaurant views (in-memory — will move to Supabase)
+    # Restaurant views (in-memory)
     top_viewed = []
     total_views = 0
     try:
         from restaurant_profiles import get_top_viewed_restaurants, _VIEW_COUNTS
         top_viewed = get_top_viewed_restaurants(limit=10)
         total_views = sum(_VIEW_COUNTS.values())
+    except Exception:
+        pass
+
+    # Healthy Nearby sessions from Supabase (persistent)
+    nearby_sessions = {"total": 0, "today": 0, "top_areas": [], "recent": []}
+    try:
+        if _sb_available():
+            # Total sessions
+            r = requests.get(
+                f"{SUPABASE_URL}/rest/v1/healthy_nearby_sessions",
+                headers=supabase_headers(),
+                params={"select": "id", "order": "created_at.desc", "limit": "1"},
+                timeout=10,
+            )
+            if r.status_code == 200:
+                # Get count via HEAD
+                r2 = requests.get(
+                    f"{SUPABASE_URL}/rest/v1/healthy_nearby_sessions",
+                    headers={**supabase_headers(), "Prefer": "count=exact"},
+                    params={"select": "id", "limit": "0"},
+                    timeout=10,
+                )
+                count_header = r2.headers.get("content-range", "")
+                if "/" in count_header:
+                    nearby_sessions["total"] = int(count_header.split("/")[-1])
+
+            # Top areas
+            r3 = requests.get(
+                f"{SUPABASE_URL}/rest/v1/healthy_nearby_sessions",
+                headers=supabase_headers(),
+                params={"select": "area_key,top_place_name,top_place_chain_key,created_at", "order": "created_at.desc", "limit": "50"},
+                timeout=10,
+            )
+            if r3.status_code == 200:
+                rows = r3.json() or []
+                nearby_sessions["recent"] = rows[:10]
+                from collections import Counter as _Counter
+                area_counts = _Counter(str(r.get("area_key") or "unknown") for r in rows)
+                nearby_sessions["top_areas"] = [{"area": a, "searches": c} for a, c in area_counts.most_common(10)]
     except Exception:
         pass
 
@@ -19322,6 +19387,7 @@ async def admin_stats(authorization: Optional[str] = Header(default=None)):
         "venue_contributions": contributions,
         "top_viewed_restaurants": top_viewed,
         "total_restaurant_views_in_memory": total_views,
+        "healthy_nearby": nearby_sessions,
     }
 
 
