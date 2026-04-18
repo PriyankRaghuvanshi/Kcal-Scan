@@ -19299,8 +19299,14 @@ async def admin_stats(authorization: Optional[str] = Header(default=None)):
         pass
 
     # Restaurant views (in-memory — will move to Supabase)
-    from restaurant_profiles import get_top_viewed_restaurants, _VIEW_COUNTS
-    top_viewed = get_top_viewed_restaurants(limit=10)
+    top_viewed = []
+    total_views = 0
+    try:
+        from restaurant_profiles import get_top_viewed_restaurants, _VIEW_COUNTS
+        top_viewed = get_top_viewed_restaurants(limit=10)
+        total_views = sum(_VIEW_COUNTS.values())
+    except Exception:
+        pass
 
     return {
         "ok": True,
@@ -19315,7 +19321,7 @@ async def admin_stats(authorization: Optional[str] = Header(default=None)):
         "intelligence": intel,
         "venue_contributions": contributions,
         "top_viewed_restaurants": top_viewed,
-        "total_restaurant_views_in_memory": sum(_VIEW_COUNTS.values()),
+        "total_restaurant_views_in_memory": total_views,
     }
 
 
