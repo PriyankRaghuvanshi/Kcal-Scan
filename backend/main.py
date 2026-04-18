@@ -19310,7 +19310,7 @@ async def admin_stats(authorization: Optional[str] = Header(default=None)):
 
     return {
         "ok": True,
-        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_at": _now_utc_naive().isoformat(),
         "chain_data": {
             "total_items": chain_stats["total_items"],
             "real_menu_items": chain_stats["real_menu"],
