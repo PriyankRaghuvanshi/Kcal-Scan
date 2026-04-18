@@ -19199,6 +19199,19 @@ async def internal_job_coach_nudges_health(
     }
 
 
+@app.post("/admin/cron/chain-ingest")
+async def admin_cron_chain_ingest(authorization: Optional[str] = Header(default=None)):
+    """
+    Overnight chain ingestion cron job.
+    Picks thinnest chains, uses Gemini Flash grounded search, validates, commits.
+    Budget-capped at $2/run. Skips chains that failed 3+ times.
+    """
+    _require_admin_auth(authorization)
+    from cron_chain_ingest import run_cron_ingest
+    result = run_cron_ingest()
+    return result
+
+
 @app.get("/admin/jobs/coach-nudges/health")
 async def admin_job_coach_nudges_health(authorization: Optional[str] = Header(default=None)):
     """
