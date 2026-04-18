@@ -19365,41 +19365,22 @@ async def admin_stats(authorization: Optional[str] = Header(default=None)):
     # Healthy Nearby sessions from Supabase (persistent)
     nearby_sessions = {"total": 0, "today": 0, "top_areas": [], "recent": []}
     try:
-        if _sb_available():
-            # Total sessions
+        if SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY:
             r = requests.get(
                 f"{SUPABASE_URL}/rest/v1/healthy_nearby_sessions",
                 headers=supabase_headers(),
-                params={"select": "id", "order": "created_at.desc", "limit": "1"},
+                params={"select": "*", "order": "created_at.desc", "limit": "100"},
                 timeout=10,
             )
             if r.status_code == 200:
-                # Get count via HEAD
-                r2 = requests.get(
-                    f"{SUPABASE_URL}/rest/v1/healthy_nearby_sessions",
-                    headers={**supabase_headers(), "Prefer": "count=exact"},
-                    params={"select": "id", "limit": "0"},
-                    timeout=10,
-                )
-                count_header = r2.headers.get("content-range", "")
-                if "/" in count_header:
-                    nearby_sessions["total"] = int(count_header.split("/")[-1])
-
-            # Top areas
-            r3 = requests.get(
-                f"{SUPABASE_URL}/rest/v1/healthy_nearby_sessions",
-                headers=supabase_headers(),
-                params={"select": "area_key,top_place_name,top_place_chain_key,created_at", "order": "created_at.desc", "limit": "50"},
-                timeout=10,
-            )
-            if r3.status_code == 200:
-                rows = r3.json() or []
+                rows = r.json() or []
+                nearby_sessions["total"] = len(rows)
                 nearby_sessions["recent"] = rows[:10]
                 from collections import Counter as _Counter
-                area_counts = _Counter(str(r.get("area_key") or "unknown") for r in rows)
+                area_counts = _Counter(str(row.get("area_key") or "unknown") for row in rows if row.get("area_key"))
                 nearby_sessions["top_areas"] = [{"area": a, "searches": c} for a, c in area_counts.most_common(10)]
-    except Exception:
-        pass
+    except Exception as e:
+        nearby_sessions["error"] = str(e)[:200]
 
     return {
         "ok": True,
