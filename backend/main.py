@@ -19258,6 +19258,32 @@ async def internal_job_coach_nudges_health(
     }
 
 
+@app.get("/admin/test-tracking")
+async def admin_test_tracking():
+    """Test if healthy_nearby_sessions tracking works."""
+    if not SUPABASE_URL or not SUPABASE_SERVICE_ROLE_KEY:
+        return {"error": "Supabase not configured", "url_set": bool(SUPABASE_URL), "key_set": bool(SUPABASE_SERVICE_ROLE_KEY)}
+    test_row = {
+        "user_id": "test_admin",
+        "lat": -33.8,
+        "lng": 151.2,
+        "area_key": "test_tracking",
+        "places_returned": 1,
+        "top_place_name": "Test Restaurant",
+        "top_place_chain_key": "test",
+    }
+    try:
+        r = requests.post(
+            f"{SUPABASE_URL}/rest/v1/healthy_nearby_sessions",
+            headers={**supabase_headers(), "Prefer": "return=representation"},
+            data=json.dumps(test_row),
+            timeout=10,
+        )
+        return {"status": r.status_code, "response": r.text[:500], "ok": r.status_code in (200, 201)}
+    except Exception as e:
+        return {"error": str(e)}
+
+
 @app.get("/admin/dashboard")
 async def admin_dashboard_page():
     """Serve the admin dashboard HTML page."""
