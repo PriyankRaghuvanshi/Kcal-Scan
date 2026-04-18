@@ -17543,7 +17543,7 @@ async def healthy_places(
 
     # Log to Supabase analytics (persistent across deploys)
     try:
-        if _sb_available():
+        if SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY:
             top_place = scored[0] if scored else {}
             session_row = {
                 "user_id": str(uid or "").strip(),
@@ -17554,18 +17554,20 @@ async def healthy_places(
                 "top_place_name": str(top_place.get("place_name") or top_place.get("name") or "").strip(),
                 "top_place_chain_key": str(top_place.get("chain_key") or "").strip(),
             }
-            import threading
-            threading.Thread(
-                target=lambda: requests.post(
-                    f"{SUPABASE_URL}/rest/v1/healthy_nearby_sessions",
-                    headers={**supabase_headers(), "Prefer": "return=minimal"},
-                    data=json.dumps(session_row),
-                    timeout=10,
-                ),
-                daemon=True,
-            ).start()
-    except Exception:
-        pass
+            import threading as _th
+            def _log_session():
+                try:
+                    requests.post(
+                        f"{SUPABASE_URL}/rest/v1/healthy_nearby_sessions",
+                        headers={**supabase_headers(), "Prefer": "return=minimal"},
+                        data=json.dumps(session_row),
+                        timeout=10,
+                    )
+                except Exception:
+                    pass
+            _th.Thread(target=_log_session, daemon=True).start()
+    except Exception as e:
+        logger.warning("healthy_nearby_sessions log failed: %s", e)
 
     # Additive evidence/trust fields for "best order right now" (no ranking changes).
     if evidence_flag_enabled():
