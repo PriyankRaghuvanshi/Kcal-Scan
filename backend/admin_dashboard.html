@@ -130,14 +130,25 @@ function showDashboard() {
 }
 
 async function loadStats() {
+  document.getElementById('lastUpdated').textContent = 'Loading...';
   try {
     const r = await fetch(`${API}/admin/stats`, {
       headers: { 'Authorization': `Bearer ${token}` }
     });
     if (r.status === 401) { logout(); return; }
+    if (!r.ok) {
+      const errText = await r.text();
+      document.getElementById('lastUpdated').textContent = 'Error: ' + r.status + ' — ' + errText.substring(0, 200);
+      return;
+    }
     const d = await r.json();
+    if (!d.ok) {
+      document.getElementById('lastUpdated').textContent = 'API returned error: ' + JSON.stringify(d).substring(0, 200);
+      return;
+    }
     renderDashboard(d);
   } catch (e) {
+    document.getElementById('lastUpdated').textContent = 'Connection error: ' + e.message;
     console.error('Failed to load stats:', e);
   }
 }
