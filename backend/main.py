@@ -611,7 +611,7 @@ def _startup_chain_ingest_scheduler():
     def _scheduler_loop():
         while True:
             now = datetime.now(timezone.utc)
-            target = now.replace(hour=2, minute=0, second=0, microsecond=0)
+            target = now.replace(hour=14, minute=0, second=0, microsecond=0)
             if target <= now:
                 target += timedelta(days=1)
             wait_secs = (target - now).total_seconds()
