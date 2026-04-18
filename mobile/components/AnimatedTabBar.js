@@ -110,13 +110,14 @@ const s = StyleSheet.create({
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 4,
+    paddingVertical: 10,
+    minHeight: 48,
   },
   iconWrap: {
     position: "relative",
     alignItems: "center",
     justifyContent: "center",
-    minHeight: 22,
+    minHeight: 28,
   },
   icon: {
     fontSize: 22,

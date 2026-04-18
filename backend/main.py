@@ -3222,7 +3222,7 @@ DAILY_VALUE_ALIASES = {
 DAILY_STORAGE_MODERN = {k: k for k in DAILY_VALUE_ALIASES.keys()}
 DAILY_STORAGE_LEGACY = {**DAILY_STORAGE_MODERN, "total_kcal": "kcal"}
 DAILY_VALUE_EPS = 1e-9
-COACH_CACHE_TTL_HOURS = 4  # was 48 — too long, FLI got stuck for days
+COACH_CACHE_TTL_HOURS = 2
 
 
 def _utc_from_iso(raw: Any) -> Optional[dt.datetime]:
@@ -8936,7 +8936,7 @@ def _classify_coach_bottleneck(norm_payload: Dict[str, Any]) -> Dict[str, str]:
         ("protein", pg / max(1.0, _safe_float(goals.get("protein_g"), 1.0))),
         ("fiber", fg / max(1.0, _safe_float(goals.get("fiber_g"), 1.0))),
         ("glycemic", gl / 35.0),
-        ("upf", upf / 10.0),
+        ("upf", upf / 18.0),
         ("timing", late / 100.0),
     ]
     scores.sort(key=lambda x: x[1], reverse=True)

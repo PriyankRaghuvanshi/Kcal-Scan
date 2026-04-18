@@ -7291,8 +7291,7 @@ async function openCamera(mode = "meal") {
           >
             {/* Hero branding */}
             <View style={styles.loginHero}>
-              <Text style={styles.loginLogo}>CalorieClick</Text>
-              <Text style={styles.loginLogoAccent}>.ai</Text>
+              <Text style={styles.loginLogo}>CalorieClick<Text style={styles.loginLogoAccent}>.ai</Text></Text>
               <Text style={styles.loginTagline}>Real menu data. Personalized to you.</Text>
             </View>
 
@@ -11787,11 +11786,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.2,
   },
   loginLogoAccent: {
-    fontSize: 32,
-    fontWeight: "900",
     color: "#22c55e",
-    fontFamily: "Inter_800ExtraBold",
-    marginTop: -8,
   },
   loginTagline: {
     fontSize: 15,
