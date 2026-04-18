@@ -602,6 +602,37 @@ def _startup_analysis_worker():
     _ensure_analysis_worker_started()
 
 
+@app.on_event("startup")
+def _startup_chain_ingest_scheduler():
+    """Run chain ingestion at 2 AM UTC daily. Budget-capped at $2/night."""
+    import threading
+    from datetime import datetime, timezone, timedelta
+
+    def _scheduler_loop():
+        while True:
+            now = datetime.now(timezone.utc)
+            target = now.replace(hour=2, minute=0, second=0, microsecond=0)
+            if target <= now:
+                target += timedelta(days=1)
+            wait_secs = (target - now).total_seconds()
+            logger.info("Chain ingest scheduler: next run at %s (in %.0f seconds)", target.isoformat(), wait_secs)
+            time.sleep(wait_secs)
+            if not GEMINI_API_KEY:
+                logger.warning("Chain ingest skipped: GEMINI_API_KEY not set")
+                continue
+            try:
+                from cron_chain_ingest import run_cron_ingest
+                result = run_cron_ingest()
+                logger.info("Chain ingest completed: %s items added, $%.3f cost",
+                            result.get("items_added", 0), result.get("estimated_cost_usd", 0))
+            except Exception as e:
+                logger.error("Chain ingest failed: %s", e)
+
+    t = threading.Thread(target=_scheduler_loop, daemon=True, name="chain-ingest-scheduler")
+    t.start()
+    logger.info("Chain ingest scheduler started — runs at 2:00 AM UTC daily, $2 budget cap")
+
+
 # -------------------- VALIDATION HELPERS --------------------
 def _require_usda_key():
     if not USDA_API_KEY:
