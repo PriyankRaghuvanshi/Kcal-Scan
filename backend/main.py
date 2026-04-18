@@ -19230,6 +19230,81 @@ async def internal_job_coach_nudges_health(
     }
 
 
+@app.get("/admin/stats")
+async def admin_stats(authorization: Optional[str] = Header(default=None)):
+    """
+    Admin dashboard — all key metrics in one call.
+    Shows: total items, users, scans, healthy nearby usage, chain coverage.
+    """
+    _require_admin_auth(authorization)
+    import json as _json
+    from pathlib import Path as _Path
+
+    # Chain data stats
+    ingested_path = _Path(__file__).resolve().parent / "data" / "chain_menu_ingested.json"
+    chain_stats = {"total_items": 0, "real_menu": 0, "chains": 0, "markets": set()}
+    try:
+        with ingested_path.open("r") as f:
+            cdata = _json.load(f)
+        for ck, items in cdata.get("chains", {}).items():
+            if isinstance(items, list):
+                chain_stats["chains"] += 1
+                chain_stats["total_items"] += len(items)
+                chain_stats["real_menu"] += sum(1 for it in items if isinstance(it, dict) and it.get("menu_item_source") == "real_menu")
+                parts = ck.split("::")
+                if len(parts) == 2:
+                    chain_stats["markets"].add(parts[1])
+    except Exception:
+        pass
+    chain_stats["markets"] = len(chain_stats["markets"])
+
+    # Intelligence stats
+    intel = {"protein_tagged": 0, "diet_tagged": 0, "smart_swaps": 0, "sugar_bombs": 0, "palm_oil_tagged": 0, "best_picks": 0}
+    try:
+        for ck, items in cdata.get("chains", {}).items():
+            if not isinstance(items, list): continue
+            for it in items:
+                if not isinstance(it, dict): continue
+                if it.get("protein_per_100kcal"): intel["protein_tagged"] += 1
+                if it.get("diet_tags"): intel["diet_tagged"] += 1
+                if it.get("smart_swap"): intel["smart_swaps"] += 1
+                if it.get("is_hidden_sugar_bomb"): intel["sugar_bombs"] += 1
+                if it.get("contains_palm_oil") is not None: intel["palm_oil_tagged"] += 1
+                if it.get("best_protein_pick"): intel["best_picks"] += 1
+    except Exception:
+        pass
+
+    # Venue contributions (from Supabase)
+    contributions = {"total": 0, "pending": 0}
+    try:
+        from user_venue_contributions import list_all_contributions, list_pending
+        all_c = list_all_contributions(limit=10000)
+        contributions["total"] = len(all_c)
+        contributions["pending"] = len(list_pending(limit=10000))
+    except Exception:
+        pass
+
+    # Restaurant views (in-memory — will move to Supabase)
+    from restaurant_profiles import get_top_viewed_restaurants, _VIEW_COUNTS
+    top_viewed = get_top_viewed_restaurants(limit=10)
+
+    return {
+        "ok": True,
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "chain_data": {
+            "total_items": chain_stats["total_items"],
+            "real_menu_items": chain_stats["real_menu"],
+            "quality_ratio": round(chain_stats["real_menu"] / max(chain_stats["total_items"], 1) * 100, 1),
+            "total_chains": chain_stats["chains"],
+            "total_markets": chain_stats["markets"],
+        },
+        "intelligence": intel,
+        "venue_contributions": contributions,
+        "top_viewed_restaurants": top_viewed,
+        "total_restaurant_views_in_memory": sum(_VIEW_COUNTS.values()),
+    }
+
+
 @app.post("/admin/cron/chain-ingest")
 async def admin_cron_chain_ingest(authorization: Optional[str] = Header(default=None)):
     """
