@@ -19400,7 +19400,7 @@ async def admin_stats(authorization: Optional[str] = Header(default=None)):
     }
 
 
-@app.post("/admin/cron/chain-ingest")
+@app.api_route("/admin/cron/chain-ingest", methods=["GET", "POST"])
 async def admin_cron_chain_ingest(authorization: Optional[str] = Header(default=None)):
     """
     Overnight chain ingestion cron job.
