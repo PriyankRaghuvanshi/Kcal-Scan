@@ -11666,7 +11666,7 @@ async function openCamera(mode = "meal") {
             clearTimeout(timeout);
             const data = await res.json();
             if (data?.items?.length) {
-              void refreshHistory();
+              void loadHistory();
             }
             return data;
           } catch (e) {
