@@ -603,6 +603,23 @@ def _startup_analysis_worker():
 
 
 @app.on_event("startup")
+def _startup_merge_supabase_cron_items():
+    """Merge cron-ingested items from Supabase into local chain data on startup."""
+    try:
+        from cron_chain_ingest import merge_supabase_items_into_data, _load_ingested, INGESTED_PATH
+        import json as _j
+        data = _load_ingested()
+        added = merge_supabase_items_into_data(data)
+        if added > 0:
+            data["updated_at"] = _now_utc_naive().isoformat()
+            with INGESTED_PATH.open("w") as f:
+                _j.dump(data, f)
+            logger.info("Startup: merged %d cron items from Supabase into chain data", added)
+    except Exception as e:
+        logger.warning("Startup merge failed (non-fatal): %s", e)
+
+
+@app.on_event("startup")
 def _startup_chain_ingest_scheduler():
     """Run chain ingestion at 2 AM UTC daily. Budget-capped at $2/night."""
     import threading
