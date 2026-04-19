@@ -17545,6 +17545,14 @@ async def healthy_places(
         sort_mode=healthy_sort_mode,
     )
 
+    # Piggyback menu extraction — scrape restaurant websites in background ($0 cost)
+    try:
+        from menu_piggyback import piggyback_extract_async
+        area = str(scored[0].get("area_key", "") if scored else "").strip()
+        piggyback_extract_async(scored[:5], area_key=area)
+    except Exception:
+        pass
+
     # Track restaurant views for Restaurant Profile analytics
     try:
         from restaurant_profiles import track_restaurant_view
