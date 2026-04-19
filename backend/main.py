@@ -17597,14 +17597,18 @@ async def healthy_places(
             import threading as _th
             def _log_session():
                 try:
-                    requests.post(
+                    r = requests.post(
                         f"{SUPABASE_URL}/rest/v1/healthy_nearby_sessions",
                         headers={**supabase_headers(), "Prefer": "return=minimal"},
                         data=json.dumps(session_row),
                         timeout=10,
                     )
-                except Exception:
-                    pass
+                    if r.status_code not in (200, 201):
+                        logger.warning("healthy_nearby_sessions insert failed: %s %s", r.status_code, r.text[:200])
+                    else:
+                        logger.info("healthy_nearby_sessions logged: area=%s place=%s", session_row.get("area_key"), session_row.get("top_place_name"))
+                except Exception as e:
+                    logger.warning("healthy_nearby_sessions error: %s", e)
             _th.Thread(target=_log_session, daemon=True).start()
     except Exception as e:
         logger.warning("healthy_nearby_sessions log failed: %s", e)
