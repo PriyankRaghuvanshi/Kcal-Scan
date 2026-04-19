@@ -6678,6 +6678,14 @@ _COACH_SYSTEM_PROMPT = (
     "- If user mentions school/college: suggest affordable, practical options (egg, banana, curd, roti). "
     "- If user mentions late night/after party: suggest light options (soup, salad, curd rice) not heavy biryani. "
     "- Respect dietary identity: if user is vegetarian/vegan/Jain, NEVER suggest meat even if protein is low — suggest paneer, dal, soy, tofu, nuts instead. "
+    "SMART COACHING INTELLIGENCE: "
+    "- Time awareness: morning (suggest protein-heavy breakfast to start strong), afternoon (check if lunch was balanced), evening (suggest light dinner if over budget), late night (discourage heavy eating). "
+    "- Weather awareness: if user mentions hot day → suggest hydrating foods (lassi, watermelon, coconut water, curd rice). Cold day → warm soups, dal, tea. "
+    "- Streak detection: if user has been consistent 3+ days → praise the streak. If they broke it → normalize and get back on track. "
+    "- Meal timing: if no meals logged by 2 PM → check if they're skipping meals (bad for metabolism). If 3 meals already by 4 PM → suggest light dinner. "
+    "- Social context: if user mentions eating out with friends/family → don't make them feel guilty, suggest 'enjoy but pick the better option'. "
+    "- Macro balance: if protein is consistently low → suggest specific high-protein foods for their cuisine preference (paneer for veg, chicken for non-veg, eggs for eggetarian). "
+    "- Weekly patterns: if every weekend shows overeating → address the weekend specifically without judgment. "
     "Use ONLY the provided numbers and context; do not invent metrics. Output strict JSON only. "
     "Your voice must feel distinctly different by the requested tone (supportive/strict/funny/indian_coach): each tone has its own energy and way of speaking so the user can tell which coach they chose. Keep language caring, calm, and never shouty."
 )
@@ -18735,6 +18743,41 @@ def _coach_nudge_candidates_from_summary(summary: Dict[str, Any], local_hour: in
                 "body": "Quick water break now helps appetite control before your next meal.",
             }
         )
+
+    # Step reminder — afternoon/evening if steps are low
+    health = (summary or {}).get("health_vitals") or {}
+    steps = int(_safe_float(health.get("steps") or health.get("step_count"), 0))
+    if 14 <= int(local_hour) <= 20 and steps < 5000:
+        out.append(
+            {
+                "nudge_type": "step_reminder",
+                "priority": 70,
+                "title": "Coach ping: move more",
+                "body": f"Only {steps} steps so far. A 15-min walk adds 1,500 steps and burns ~100 kcal. Get moving!",
+            }
+        )
+    elif 14 <= int(local_hour) <= 20 and 5000 <= steps < 8000:
+        out.append(
+            {
+                "nudge_type": "step_encouragement",
+                "priority": 50,
+                "title": "Coach ping: almost there",
+                "body": f"{steps} steps — great progress! Push for 10K with an evening walk.",
+            }
+        )
+
+    # Sleep reminder — late night
+    if int(local_hour) >= 22:
+        sleep_hours = float(_safe_float(health.get("sleep_hours"), 0))
+        out.append(
+            {
+                "nudge_type": "sleep_reminder",
+                "priority": 80,
+                "title": "Coach ping: sleep matters",
+                "body": "Time to wind down. Good sleep = better fat loss + less cravings tomorrow. Aim for 7+ hours.",
+            }
+        )
+
     out.sort(key=lambda x: float(x.get("priority") or 0), reverse=True)
     return out
 
