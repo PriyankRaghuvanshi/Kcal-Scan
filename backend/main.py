@@ -19422,12 +19422,27 @@ async def admin_stats(authorization: Optional[str] = Header(default=None)):
         pass
 
     # Venue contributions (from Supabase)
-    contributions = {"total": 0, "pending": 0}
+    contributions = {"total": 0, "pending": 0, "recent": []}
     try:
         from user_venue_contributions import list_all_contributions, list_pending
         all_c = list_all_contributions(limit=10000)
+        pending_c = list_pending(limit=10000)
         contributions["total"] = len(all_c)
-        contributions["pending"] = len(list_pending(limit=10000))
+        contributions["pending"] = len(pending_c)
+        # Include recent contributions for admin view
+        recent = sorted(all_c, key=lambda x: str(x.get("created_at") or ""), reverse=True)[:20]
+        contributions["recent"] = [
+            {
+                "contribution_id": str(c.get("contribution_id") or "")[:8],
+                "place_name": str(c.get("place_name") or ""),
+                "area_key": str(c.get("area_key") or ""),
+                "contribution_type": str(c.get("contribution_type") or ""),
+                "status": str(c.get("status") or "pending"),
+                "suggested_text": str((c.get("payload") or {}).get("suggested_item_text") or "")[:100],
+                "created_at": str(c.get("created_at") or ""),
+            }
+            for c in recent
+        ]
     except Exception:
         pass
 

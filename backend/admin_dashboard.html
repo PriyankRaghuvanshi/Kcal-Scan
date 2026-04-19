@@ -254,11 +254,25 @@ function renderDashboard(d) {
   document.getElementById('nearbyTable').innerHTML = nearbyRows;
 
   // Contributions table
-  document.getElementById('contribTable').innerHTML = `
-    <tr><th>Metric</th><th>Count</th></tr>
-    <tr><td>Total User Reports</td><td>${v.total||0}</td></tr>
-    <tr><td>Pending Review</td><td>${v.pending||0}</td></tr>
-  `;
+  const recentContribs = v.recent || [];
+  let contribRows = `<tr><th>Place</th><th>Type</th><th>Feedback</th><th>Status</th><th>Time</th></tr>`;
+  if (recentContribs.length) {
+    recentContribs.forEach(c => {
+      const t = c.created_at ? new Date(c.created_at).toLocaleString() : '—';
+      const statusClass = c.status === 'pending' ? 'badge-amber' : c.status === 'accepted' ? 'badge-green' : 'badge-red';
+      contribRows += `<tr>
+        <td>${c.place_name||'—'}<br><span style="color:#64748b;font-size:11px">${c.area_key||''}</span></td>
+        <td><span class="badge badge-blue">${(c.contribution_type||'').replace(/_/g,' ')}</span></td>
+        <td>${c.suggested_text||'<i style="color:#64748b">no text</i>'}</td>
+        <td><span class="badge ${statusClass}">${c.status||'pending'}</span></td>
+        <td style="font-size:11px">${t}</td>
+      </tr>`;
+    });
+  } else {
+    contribRows += `<tr><td colspan="5" style="color:#64748b">No user feedback yet.</td></tr>`;
+  }
+  contribRows = `<tr><td colspan="5" style="padding-bottom:8px"><strong>Total: ${v.total||0}</strong> · <strong style="color:#f59e0b">Pending: ${v.pending||0}</strong></td></tr>` + contribRows;
+  document.getElementById('contribTable').innerHTML = contribRows;
 }
 
 // Auto-login if token exists

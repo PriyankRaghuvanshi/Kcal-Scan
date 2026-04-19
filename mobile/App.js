@@ -2043,6 +2043,7 @@ export default function App() {
   }, []);
   /** Home hub: split the main feed into focused surfaces (premium IA — avoid one endless scroll). */
   const [homeHubTab, setHomeHubTab] = useState("today");
+  const [homeRefreshing, setHomeRefreshing] = useState(false);
   const [healthyNearbyTab, setHealthyNearbyTab] = useState("decision");
   const [placeDetailPlace, setPlaceDetailPlace] = useState(null);
   const [quickAddVisible, setQuickAddVisible] = useState(false);
@@ -2659,6 +2660,7 @@ export default function App() {
           fastMode: true,
           trigger: "device_health_ready",
         });
+        void updateRecoveryBadge();
       }
     });
   }, [userId]);
@@ -3041,6 +3043,34 @@ export default function App() {
       await AsyncStorage.removeItem(historyKey(userId));
     } catch {}
     setHistory([]);
+  }
+
+  async function deleteHistoryEntry(entry) {
+    if (!userId || !entry) return;
+    const key = historyKey(userId);
+    try {
+      const raw = await AsyncStorage.getItem(key);
+      const arr = safeParseJson(raw, [], "history_delete");
+      const filtered = safeArray(arr).filter((h) => {
+        if (!h || typeof h !== "object") return false;
+        if (entry.analysis_id && h.analysis_id === entry.analysis_id) return false;
+        if (entry.ts && h.ts === entry.ts) return false;
+        return true;
+      });
+      await AsyncStorage.setItem(key, JSON.stringify(filtered));
+      setHistory(sanitizeHistoryEntries(filtered));
+    } catch {}
+  }
+
+  async function refreshHome() {
+    setHomeRefreshing(true);
+    try {
+      await loadHistory();
+      if (userId && canCoaching && aiConsentGiven) {
+        void ensureDailyCoach(true, { trigger: "pull_refresh" });
+      }
+    } catch {}
+    setHomeRefreshing(false);
   }
 
   function reopenHistoryEntry(entry) {
@@ -4133,6 +4163,41 @@ export default function App() {
       coachRefreshTimerRef.current = null;
       void ensureDailyCoach(true, safeOpts);
     }, 600);
+  }
+
+  async function updateRecoveryBadge() {
+    if (!isDeviceHealthAvailable()) return;
+    try {
+      const hc = await getDailyHealthContext(localDayISO());
+      if (!hc || typeof hc !== "object") return;
+      const lines = [];
+      const steps = hc.steps_count;
+      const sleep = hc.sleep_hours;
+      const water = hc.hydration_l;
+      const hrv = hc.signals?.hrv_ms_avg_7d;
+      const rhr = hc.signals?.resting_hr_avg_7d;
+      if (steps != null) lines.push(`Steps today: ${steps.toLocaleString()}`);
+      if (sleep != null) lines.push(`Sleep last night: ${sleep}h`);
+      if (water != null) lines.push(`Water: ${water}L`);
+      if (rhr != null) lines.push(`Resting HR (7d): ${rhr} bpm`);
+      if (hrv != null) lines.push(`HRV (7d): ${hrv} ms`);
+      if (!lines.length) {
+        lines.push("No health data yet — grant Health access in Settings");
+      }
+      let score = 0;
+      let count = 0;
+      if (steps != null) { count++; score += steps >= 7000 ? 1 : steps >= 4500 ? 0.5 : 0; }
+      if (sleep != null) { count++; score += sleep >= 7 ? 1 : sleep >= 6 ? 0.5 : 0; }
+      if (water != null) { count++; score += water >= 2 ? 1 : water >= 1.2 ? 0.5 : 0; }
+      if (hrv != null) { count++; score += hrv >= 40 ? 1 : hrv >= 25 ? 0.5 : 0; }
+      if (rhr != null) { count++; score += rhr <= 65 ? 1 : rhr <= 75 ? 0.5 : 0; }
+      const ratio = count > 0 ? score / count : 0.5;
+      const tone = ratio >= 0.7 ? "green" : ratio >= 0.4 ? "amber" : "red";
+      const label = ratio >= 0.7 ? "Recovery: strong" : ratio >= 0.4 ? "Recovery: balanced" : "Recovery: low";
+      setCoachRecoveryBadge({ label, tone, lines });
+    } catch (e) {
+      console.log("Recovery badge error:", e);
+    }
   }
 
   useEffect(() => {
@@ -7575,6 +7640,13 @@ async function openCamera(mode = "meal") {
               tintColor="#93c5fd"
               colors={["#93c5fd"]}
             />
+          ) : homeMainVisible ? (
+            <RefreshControl
+              refreshing={homeRefreshing}
+              onRefresh={() => void refreshHome()}
+              tintColor="#93c5fd"
+              colors={["#93c5fd"]}
+            />
           ) : undefined
         }
       >
@@ -7958,7 +8030,15 @@ async function openCamera(mode = "meal") {
               >
                 <Text style={[styles.smallBtnText, { color: "#4ade80" }]}>{goalPlanLoading ? "…" : "Let's Go"}</Text>
               </TouchableOpacity>
-            ) : null}
+            ) : (
+              <TouchableOpacity
+                style={[styles.smallBtn, { backgroundColor: "rgba(148,163,184,0.12)", borderColor: "rgba(148,163,184,0.35)" }]}
+                onPress={() => setLetsGoModalVisible(true)}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              >
+                <Text style={[styles.smallBtnText, { color: "#94a3b8" }]}>⚙️ Edit goals</Text>
+              </TouchableOpacity>
+            )}
           </View>
           {!goalPlan ? (
             <Text style={[styles.tiny, { marginTop: 6 }]}>
@@ -10902,19 +10982,33 @@ async function openCamera(mode = "meal") {
               renderItem={({ item }) => {
                 const row = item && typeof item === "object" ? item : {};
                 return (
-                <TouchableOpacity
-                  style={styles.histRow}
-                  activeOpacity={0.75}
-                  onPress={() => reopenHistoryEntry(row)}
-                >
-                  <Text style={styles.histTitle}>
-                    {row.kind === "barcode"
-                      ? `Barcode: ${row.name || row.barcode || "Unknown item"}`
-                      : `Meal: ${round1(row?.total_kcal)} kcal`}
-                  </Text>
-                  <Text style={styles.tiny}>{row?.ts || "Saved scan"}</Text>
-                  <Text style={[styles.tiny, { marginTop: 4, color: "#64748b" }]}>Tap to reopen</Text>
-                </TouchableOpacity>
+                <View style={{ flexDirection: "row", alignItems: "center" }}>
+                  <TouchableOpacity
+                    style={[styles.histRow, { flex: 1 }]}
+                    activeOpacity={0.75}
+                    onPress={() => reopenHistoryEntry(row)}
+                  >
+                    <Text style={styles.histTitle}>
+                      {row.kind === "barcode"
+                        ? `Barcode: ${row.name || row.barcode || "Unknown item"}`
+                        : `Meal: ${round1(row?.total_kcal)} kcal`}
+                    </Text>
+                    <Text style={styles.tiny}>{row?.ts || "Saved scan"}</Text>
+                    <Text style={[styles.tiny, { marginTop: 4, color: "#64748b" }]}>Tap to reopen</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={{ paddingHorizontal: 12, paddingVertical: 10 }}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    onPress={() => {
+                      Alert.alert("Delete entry?", `Remove this ${row.kind === "barcode" ? "barcode" : "meal"} from history?`, [
+                        { text: "Cancel", style: "cancel" },
+                        { text: "Delete", style: "destructive", onPress: () => void deleteHistoryEntry(row) },
+                      ]);
+                    }}
+                  >
+                    <Text style={{ color: "#ef4444", fontSize: 16 }}>✕</Text>
+                  </TouchableOpacity>
+                </View>
               )}}
             />
           ) : (

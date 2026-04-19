@@ -3,7 +3,7 @@
  */
 
 import React, { useState } from "react";
-import { View, Text, TouchableOpacity, TextInput, StyleSheet, Modal } from "react-native";
+import { View, Text, TouchableOpacity, TextInput, StyleSheet, Modal, KeyboardAvoidingView, Platform, ScrollView } from "react-native";
 import { colors, spacing, radius, typography } from "../designTokens";
 
 const CHIP_OPTIONS = [
@@ -41,50 +41,60 @@ export function VenueContributionSheet({
 
   return (
     <Modal visible={visible} animationType="slide" transparent>
-      <View style={styles.backdrop}>
-        <View style={styles.sheet}>
-          <Text style={styles.title}>Improve this recommendation</Text>
-          <Text style={styles.subtitle}>Pick one and optionally tell us what to suggest instead.</Text>
-          <View style={styles.chipRow}>
-            {CHIP_OPTIONS.map((opt) => {
-              const active = selectedType === opt.key;
-              return (
-                <TouchableOpacity
-                  key={opt.key}
-                  style={[styles.chip, active ? styles.chipActive : null]}
-                  onPress={() => setSelectedType(opt.key)}
-                  activeOpacity={0.8}
-                >
-                  <Text style={[styles.chipText, active ? styles.chipTextActive : null]}>
-                    {opt.label}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
+      <KeyboardAvoidingView
+        style={styles.backdrop}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+      >
+        <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={onClose} />
+        <ScrollView
+          bounces={false}
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={{ flexGrow: 0 }}
+        >
+          <View style={styles.sheet}>
+            <Text style={styles.title}>Improve this recommendation</Text>
+            <Text style={styles.subtitle}>Pick one and optionally tell us what to suggest instead.</Text>
+            <View style={styles.chipRow}>
+              {CHIP_OPTIONS.map((opt) => {
+                const active = selectedType === opt.key;
+                return (
+                  <TouchableOpacity
+                    key={opt.key}
+                    style={[styles.chip, active ? styles.chipActive : null]}
+                    onPress={() => setSelectedType(opt.key)}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={[styles.chipText, active ? styles.chipTextActive : null]}>
+                      {opt.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+            <TextInput
+              style={styles.input}
+              placeholder="What should we suggest instead? (optional)"
+              placeholderTextColor={colors.slate.text}
+              value={text}
+              onChangeText={setText}
+              multiline
+            />
+            <View style={styles.actions}>
+              <TouchableOpacity style={styles.secondaryBtn} onPress={onClose} disabled={submitting}>
+                <Text style={styles.secondaryText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.primaryBtn}
+                onPress={handleSubmit}
+                disabled={submitting}
+              >
+                <Text style={styles.primaryText}>{submitting ? "Sending…" : "Send feedback"}</Text>
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.footerText}>Thanks — this helps improve future recommendations.</Text>
           </View>
-          <TextInput
-            style={styles.input}
-            placeholder="What should we suggest instead? (optional)"
-            placeholderTextColor={colors.slate.text}
-            value={text}
-            onChangeText={setText}
-            multiline
-          />
-          <View style={styles.actions}>
-            <TouchableOpacity style={styles.secondaryBtn} onPress={onClose} disabled={submitting}>
-              <Text style={styles.secondaryText}>Cancel</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.primaryBtn}
-              onPress={handleSubmit}
-              disabled={submitting}
-            >
-              <Text style={styles.primaryText}>{submitting ? "Sending…" : "Send feedback"}</Text>
-            </TouchableOpacity>
-          </View>
-          <Text style={styles.footerText}>Thanks — this helps improve future recommendations.</Text>
-        </View>
-      </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
