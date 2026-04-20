@@ -2044,6 +2044,7 @@ export default function App() {
   /** Home hub: split the main feed into focused surfaces (premium IA — avoid one endless scroll). */
   const [homeHubTab, setHomeHubTab] = useState("today");
   const [homeRefreshing, setHomeRefreshing] = useState(false);
+  const [profileCardExpanded, setProfileCardExpanded] = useState(false);
   const [healthyNearbyTab, setHealthyNearbyTab] = useState("decision");
   const [placeDetailPlace, setPlaceDetailPlace] = useState(null);
   const [quickAddVisible, setQuickAddVisible] = useState(false);
@@ -3944,7 +3945,7 @@ export default function App() {
       .toLowerCase();
     const requestedDailyTotalsVersion = normalizeVersionToken(opts?.dailyTotalsVersion);
 
-    if (!payload || num(payload?.consumed?.kcal) <= 0) {
+    if (!payload || (num(payload?.consumed?.kcal) <= 0 && !refreshServer)) {
       setFliSyncing(false);
       setFliPending(false);
       try {
@@ -10838,9 +10839,22 @@ async function openCamera(mode = "meal") {
         {homeMainVisible ? (
         <>
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>My Profile & Targets</Text>
-          <Text style={styles.tiny}>Your daily kcal, macros, diet preferences, and restrictions — all in one place.</Text>
+          <TouchableOpacity
+            style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}
+            onPress={() => setProfileCardExpanded((v) => !v)}
+            activeOpacity={0.8}
+          >
+            <View style={{ flex: 1 }}>
+              <Text style={styles.cardTitle}>My Profile & Targets</Text>
+              <Text style={styles.tiny}>
+                {goals?.kcal ? `${Math.round(goals.kcal)} kcal · P ${round1(goals.protein_g || 0)}g · ${coachProfile?.diet_style || "non-veg"} · ${coachProfile?.goal_type || "fat_loss"}` : "Tap to set your daily targets"}
+              </Text>
+            </View>
+            <Text style={{ color: "#94a3b8", fontSize: 18, fontWeight: "700" }}>{profileCardExpanded ? "▲" : "▼"}</Text>
+          </TouchableOpacity>
 
+          {profileCardExpanded ? (
+          <>
           <Text style={[styles.label, { marginTop: 12 }]}>Daily calories (kcal)</Text>
           <TextInput
             style={styles.input}
@@ -10976,12 +10990,20 @@ async function openCamera(mode = "meal") {
           <TouchableOpacity
             style={[styles.btn, { marginTop: 16 }]}
             onPress={async () => {
-              await upsertGoals(goalsDraft);
-              await applyCoachProfile();
+              try {
+                await upsertGoals(goalsDraft);
+                await applyCoachProfile();
+                Alert.alert("Saved", "Your profile and targets have been updated.");
+                setProfileCardExpanded(false);
+              } catch (e) {
+                Alert.alert("Save failed", String(e?.message || e || "Please try again"));
+              }
             }}
           >
             <Text style={styles.btnText}>Save all</Text>
           </TouchableOpacity>
+          </>
+          ) : null}
         </View>
 
         <View style={styles.card}>
@@ -11849,11 +11871,11 @@ async function openCamera(mode = "meal") {
 
       <AnimatedTabBar
         tabs={[
-          { key: "today", label: "Home", icon: "⌂" },
+          { key: "today", label: "Home", icon: "🏠" },
           { key: "_scan", label: "Scan", icon: "📷" },
           { key: "_nearby", label: "Nearby", icon: "📍" },
-          { key: "coach", label: "Coach", icon: "◎" },
-          { key: "more", label: "More", icon: "···" },
+          { key: "coach", label: "Coach", icon: "🧠" },
+          { key: "more", label: "More", icon: "⋯" },
         ]}
         activeIndex={
           activeScreen === "healthy_nearby" ? 2
