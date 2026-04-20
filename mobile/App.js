@@ -4260,10 +4260,15 @@ export default function App() {
   async function applyCoachProfile() {
     const uid = userId || session?.user?.id;
     const normalized = normalizeCoachProfile(coachProfileDraft);
+    setCoachProfile(normalized);
+    setCoachProfileDraft(normalized);
     await saveCoachProfile(uid, normalized);
     setCoachMemoryFoodInput("");
     setCoachMemoryGoalInput("");
     closeBooleanStateSafely(setCoachProfileModal);
+    // Clear coach cache so stale tone/style doesn't persist
+    const day = localDayISO();
+    try { await AsyncStorage.removeItem(dailyCoachKey(uid, day)); } catch {}
     await ensureDailyCoach(true, { refreshServer: true, fastMode: true, trigger: "profile_update" });
   }
 
