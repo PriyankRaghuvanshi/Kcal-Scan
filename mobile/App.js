@@ -10914,8 +10914,67 @@ async function openCamera(mode = "meal") {
             })}
           </View>
 
+          <Text style={styles.label}>Training days/week</Text>
+          <TextInput style={styles.input} keyboardType="numeric" value={String(coachProfileDraft?.training_days_per_week ?? "")} onChangeText={(v) => setCoachProfileDraft((p) => ({ ...p, training_days_per_week: v }))} placeholder="e.g., 3" placeholderTextColor="#666" />
+
+          <Text style={styles.label}>Training time</Text>
+          <View style={styles.rowWrap}>
+            {["morning", "afternoon", "evening", "night"].map((t) => (
+              <TouchableOpacity key={t} style={[styles.chip, coachProfileDraft?.training_time === t && styles.chipActive]} onPress={() => setCoachProfileDraft((p) => ({ ...p, training_time: t }))}>
+                <Text style={styles.chipText}>{t}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          <Text style={styles.label}>Coach style</Text>
+          <View style={styles.rowWrap}>
+            {[{ key: "supportive", label: "Supportive" }, { key: "strict", label: "Strict" }, { key: "funny", label: "Funny" }, { key: "indian_coach", label: "Desi coach" }].map((t) => (
+              <TouchableOpacity key={t.key} style={[styles.chip, coachProfileDraft?.tone_preference === t.key && styles.chipActive]} onPress={() => setCoachProfileDraft((p) => ({ ...p, tone_preference: t.key }))}>
+                <Text style={styles.chipText}>{t.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          <Text style={[styles.label, { marginTop: 8 }]}>Coach memory — foods</Text>
+          <Text style={styles.tiny}>Tell your coach what you eat often so it remembers (up to 12).</Text>
+          <View style={[styles.rowWrap, { marginTop: 6 }]}>
+            {(coachProfileDraft?.food_preferences || []).map((item, idx) => (
+              <View key={`food-${idx}`} style={[styles.chip, { flexDirection: "row", alignItems: "center", paddingRight: 6 }]}>
+                <Text style={[styles.chipText, { maxWidth: 200 }]} numberOfLines={1}>{item}</Text>
+                <TouchableOpacity onPress={() => removeCoachFoodPreference(idx)} hitSlop={{ top: 10, bottom: 10, left: 8, right: 8 }}>
+                  <Text style={{ color: "#94a3b8", fontSize: 16, fontWeight: "700", marginLeft: 4 }}>×</Text>
+                </TouchableOpacity>
+              </View>
+            ))}
+          </View>
+          <View style={{ flexDirection: "row", gap: 8, alignItems: "center", marginTop: 6 }}>
+            <TextInput style={[styles.input, { flex: 1, marginBottom: 0 }]} value={coachMemoryFoodInput} onChangeText={setCoachMemoryFoodInput} placeholder="e.g., oatmeal, chicken rice" placeholderTextColor="#666" onSubmitEditing={addCoachFoodPreference} returnKeyType="done" />
+            <TouchableOpacity style={styles.smallBtn} onPress={addCoachFoodPreference}>
+              <Text style={styles.smallBtnText}>Add</Text>
+            </TouchableOpacity>
+          </View>
+
+          <Text style={[styles.label, { marginTop: 10 }]}>Coach memory — goals & reminders</Text>
+          <Text style={styles.tiny}>Short notes your coach can reuse (up to 8).</Text>
+          <View style={[styles.rowWrap, { marginTop: 6 }]}>
+            {(coachProfileDraft?.goal_reminders || []).map((item, idx) => (
+              <View key={`goal-${idx}`} style={[styles.chip, { flexDirection: "row", alignItems: "center", paddingRight: 6 }]}>
+                <Text style={[styles.chipText, { maxWidth: 200 }]} numberOfLines={1}>{item}</Text>
+                <TouchableOpacity onPress={() => removeCoachGoalReminder(idx)} hitSlop={{ top: 10, bottom: 10, left: 8, right: 8 }}>
+                  <Text style={{ color: "#94a3b8", fontSize: 16, fontWeight: "700", marginLeft: 4 }}>×</Text>
+                </TouchableOpacity>
+              </View>
+            ))}
+          </View>
+          <View style={{ flexDirection: "row", gap: 8, alignItems: "center", marginTop: 6 }}>
+            <TextInput style={[styles.input, { flex: 1, marginBottom: 0 }]} value={coachMemoryGoalInput} onChangeText={setCoachMemoryGoalInput} placeholder="e.g., prioritize sleep this week" placeholderTextColor="#666" onSubmitEditing={addCoachGoalReminder} returnKeyType="done" />
+            <TouchableOpacity style={styles.smallBtn} onPress={addCoachGoalReminder}>
+              <Text style={styles.smallBtnText}>Add</Text>
+            </TouchableOpacity>
+          </View>
+
           <TouchableOpacity
-            style={[styles.btn, { marginTop: 14 }]}
+            style={[styles.btn, { marginTop: 16 }]}
             onPress={async () => {
               await upsertGoals(goalsDraft);
               await applyCoachProfile();
