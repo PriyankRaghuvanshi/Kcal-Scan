@@ -2200,7 +2200,17 @@ export default function App() {
 
   // ===== Derived gating =====
   const canBarcode = planAtLeast(plan, "elite");
-  const canCoaching = planAtLeast(plan, "pro");
+  const coachTrialDaysLeft = useMemo(() => {
+    const createdAt = session?.user?.created_at;
+    if (!createdAt) return 0;
+    const created = new Date(createdAt);
+    if (!Number.isFinite(created.getTime())) return 0;
+    const now = new Date();
+    const daysSinceSignup = Math.floor((now.getTime() - created.getTime()) / (1000 * 60 * 60 * 24));
+    return Math.max(0, 7 - daysSinceSignup);
+  }, [session?.user?.created_at]);
+  const coachTrialActive = coachTrialDaysLeft > 0;
+  const canCoaching = planAtLeast(plan, "pro") || coachTrialActive;
   const activeDietStyle = normalizeDietStyle(
     coachProfile?.diet_style || coachProfileDraft?.diet_style || "non_veg"
   );
@@ -7654,7 +7664,7 @@ async function openCamera(mode = "meal") {
         <LinearGradient
           colors={["rgba(15,22,36,0.95)", "rgba(10,15,24,0)"]}
           style={styles.headerGradient}
-          pointerEvents="none"
+          pointerEvents="box-none"
         >
           <View style={styles.topRow}>
             <View style={styles.topRowTitle}>
@@ -7667,7 +7677,7 @@ async function openCamera(mode = "meal") {
             </View>
             <TouchableOpacity
               style={styles.editGoalsBtn}
-              onPress={() => { setActiveScreen("home"); setHomeHubTab("more"); }}
+              onPress={() => { setGoalsDraft(goals || DEFAULT_GOALS); setCoachProfileDraft(coachProfile || DEFAULT_COACH_PROFILE); setActiveScreen("home"); setHomeHubTab("more"); }}
               activeOpacity={0.8}
             >
               <Text style={styles.editGoalsBtnText}>⚙️ Goals</Text>
@@ -8065,6 +8075,13 @@ async function openCamera(mode = "meal") {
 
             {canCoaching ? (
               <View style={styles.homeSection}>
+                {coachTrialActive && !planAtLeast(plan, "pro") ? (
+                  <View style={{ backgroundColor: "rgba(245,158,11,0.12)", borderRadius: 10, padding: 10, marginBottom: 8, borderWidth: 1, borderColor: "rgba(245,158,11,0.3)" }}>
+                    <Text style={{ color: "#f59e0b", fontSize: 13, fontWeight: "700", textAlign: "center" }}>
+                      Free trial: {coachTrialDaysLeft} day{coachTrialDaysLeft !== 1 ? "s" : ""} left — upgrade to Pro to keep your coach
+                    </Text>
+                  </View>
+                ) : null}
                 <View style={[premium.cardBase, styles.coachChatCard]}>
                   <View style={styles.coachChatHeaderRow}>
                     <Text style={premium.title}>Live Coach Chat</Text>
@@ -8469,6 +8486,9 @@ async function openCamera(mode = "meal") {
 
           {!canCoaching ? (
             <View style={{ marginTop: 10 }}>
+              <Text style={[styles.p, { fontWeight: "700", marginBottom: 4 }]}>
+                {session?.user?.created_at ? "Your 7-day free trial has ended" : "AI Coach"}
+              </Text>
               <Text style={styles.p}>{coachUpgradeBody(plan)}</Text>
               <View style={styles.lockedPreviewGrid}>
                 {(coachPreviewTiles || []).map((tile) => (
@@ -10817,6 +10837,94 @@ async function openCamera(mode = "meal") {
 
         {homeMainVisible ? (
         <>
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>My Profile & Targets</Text>
+          <Text style={styles.tiny}>Your daily kcal, macros, diet preferences, and restrictions — all in one place.</Text>
+
+          <Text style={[styles.label, { marginTop: 12 }]}>Daily calories (kcal)</Text>
+          <TextInput
+            style={styles.input}
+            keyboardType="numeric"
+            value={String(goalsDraft?.kcal ?? "")}
+            onChangeText={(v) => setGoalsDraft((g) => ({ ...g, kcal: v }))}
+            placeholder="e.g., 2200"
+            placeholderTextColor="#666"
+          />
+
+          <View style={{ flexDirection: "row", gap: 8 }}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.label}>Protein (g)</Text>
+              <TextInput style={styles.input} keyboardType="numeric" value={String(goalsDraft?.protein_g ?? "")} onChangeText={(v) => setGoalsDraft((g) => ({ ...g, protein_g: v }))} placeholder="e.g., 160" placeholderTextColor="#666" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.label}>Carbs (g)</Text>
+              <TextInput style={styles.input} keyboardType="numeric" value={String(goalsDraft?.carbs_g ?? "")} onChangeText={(v) => setGoalsDraft((g) => ({ ...g, carbs_g: v }))} placeholder="e.g., 220" placeholderTextColor="#666" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.label}>Fat (g)</Text>
+              <TextInput style={styles.input} keyboardType="numeric" value={String(goalsDraft?.fat_g ?? "")} onChangeText={(v) => setGoalsDraft((g) => ({ ...g, fat_g: v }))} placeholder="e.g., 70" placeholderTextColor="#666" />
+            </View>
+          </View>
+
+          <Text style={styles.label}>Fiber (g)</Text>
+          <TextInput style={styles.input} keyboardType="numeric" value={String(goalsDraft?.fiber_g ?? "")} onChangeText={(v) => setGoalsDraft((g) => ({ ...g, fiber_g: v }))} placeholder="e.g., 30" placeholderTextColor="#666" />
+
+          <Text style={styles.label}>Weight (kg)</Text>
+          <TextInput style={styles.input} keyboardType="numeric" value={String(coachProfileDraft?.weight_kg ?? "")} onChangeText={(v) => setCoachProfileDraft((p) => ({ ...p, weight_kg: v }))} placeholder="e.g., 75" placeholderTextColor="#666" />
+
+          <Text style={styles.label}>Goal</Text>
+          <View style={styles.rowWrap}>
+            {[{ key: "fat_loss", label: "Fat loss" }, { key: "recomposition", label: "Recomp" }, { key: "lean_gain", label: "Lean gain" }].map((g) => (
+              <TouchableOpacity key={g.key} style={[styles.chip, coachProfileDraft?.goal_type === g.key && styles.chipActive]} onPress={() => setCoachProfileDraft((p) => ({ ...p, goal_type: g.key }))}>
+                <Text style={styles.chipText}>{g.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          <Text style={styles.label}>Diet</Text>
+          <View style={styles.rowWrap}>
+            {[{ key: "veg", label: "Vegetarian" }, { key: "non-veg", label: "Non-veg" }, { key: "vegan", label: "Vegan" }].map((d) => (
+              <TouchableOpacity key={d.key} style={[styles.chip, coachProfileDraft?.diet_style === d.key && styles.chipActive]} onPress={() => setCoachProfileDraft((p) => ({ ...p, diet_style: d.key }))}>
+                <Text style={styles.chipText}>{d.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          <Text style={styles.label}>Dietary restrictions</Text>
+          <View style={styles.rowWrap}>
+            {[...DIETARY_RESTRICTION_OPTIONS, "gluten_free", "keto", "low_carb", "dairy_free"].filter((v, i, a) => a.indexOf(v) === i).map((r) => {
+              const selected = (coachProfileDraft?.dietary_restrictions || []).includes(r);
+              return (
+                <TouchableOpacity key={r} style={[styles.chip, selected && styles.chipActive]} onPress={() => setCoachProfileDraft((p) => { const cur = Array.isArray(p?.dietary_restrictions) ? p.dietary_restrictions : []; return { ...p, dietary_restrictions: selected ? cur.filter((x) => x !== r) : [...cur, r] }; })}>
+                  <Text style={styles.chipText}>{r.replace(/_/g, " ")}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          <Text style={styles.label}>Allergies / exclude</Text>
+          <View style={styles.rowWrap}>
+            {ALLERGEN_EXCLUDE_OPTIONS.map((a) => {
+              const selected = (coachProfileDraft?.allergen_exclude || []).includes(a);
+              return (
+                <TouchableOpacity key={a} style={[styles.chip, selected && styles.chipActive]} onPress={() => setCoachProfileDraft((p) => { const cur = Array.isArray(p?.allergen_exclude) ? p.allergen_exclude : []; return { ...p, allergen_exclude: selected ? cur.filter((x) => x !== a) : [...cur, a] }; })}>
+                  <Text style={styles.chipText}>{a}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          <TouchableOpacity
+            style={[styles.btn, { marginTop: 14 }]}
+            onPress={async () => {
+              await upsertGoals(goalsDraft);
+              await applyCoachProfile();
+            }}
+          >
+            <Text style={styles.btnText}>Save all</Text>
+          </TouchableOpacity>
+        </View>
+
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Barcode</Text>
           <Text style={styles.p}>Elite+ can scan barcodes to fetch macros (OpenFoodFacts).</Text>
