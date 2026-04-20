@@ -38,7 +38,7 @@
       "android": {
         "serviceAccountKeyPath": "./credentials/google-play-service-account.json",
         "track": "internal",
-        "releaseStatus": "draft"
+        "releaseStatus": "completed"
       },
       "ios": {
         "ascAppId": "6757768893"
@@ -48,7 +48,7 @@
       "android": {
         "serviceAccountKeyPath": "./credentials/google-play-service-account.json",
         "track": "internal",
-        "releaseStatus": "draft"
+        "releaseStatus": "completed"
       },
       "ios": {
         "ascAppId": "6757768893"
