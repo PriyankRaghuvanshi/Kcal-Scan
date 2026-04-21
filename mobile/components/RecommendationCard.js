@@ -14,6 +14,7 @@ import { ScoreBadge } from "./ScoreBadge";
 import { RecommendationMetaRow } from "./RecommendationMetaRow";
 import { RecommendationActionRow } from "./RecommendationActionRow";
 import { BestOrderEvidenceBlock } from "./BestOrderEvidence";
+import { MenuItemThumbnailPlaceholder } from "./MenuItemThumbnailPlaceholder";
 
 function extractSwapSuggestions(...sources) {
   const out = [];
@@ -118,6 +119,7 @@ function buildGoalVariantPills(place, bestItemName) {
       kcal: Number.isFinite(Number(variant.estimated_calories)) ? Math.round(Number(variant.estimated_calories)) : null,
       protein: Number.isFinite(Number(variant.estimated_protein_g)) ? Math.round(Number(variant.estimated_protein_g)) : null,
       image: rawImg.startsWith("https://") ? rawImg : null,
+      source: variant,
     });
   };
   // Order: high protein, lowest cal, fat_loss (if distinct from both)
@@ -186,6 +188,12 @@ export function RecommendationCard({
     (topItem && topItem.image_url) || place.best_item_image_url || ""
   ).trim();
   const topItemImage = topItemImageRaw.startsWith("https://") ? topItemImageRaw : null;
+  const topItemThumbnailItem = topItem || {
+    item_name: bestItem,
+    estimated_protein_g: protein,
+    estimated_carbs_g: num(place.best_item_carbs ?? place.estimated_carbs_g),
+    negative_flags: place.negative_flags,
+  };
 
   const resolvedVariant = variant || inferCardVariant(place);
   const needsMenuCheck = shouldShowMenuMayVary(place);
@@ -240,8 +248,15 @@ export function RecommendationCard({
                 accessible
                 accessibilityIgnoresInvertColors
               />
-            ) : null}
-            <View style={{ flex: topItemImage ? 1 : undefined }}>
+            ) : (
+              <MenuItemThumbnailPlaceholder
+                item={topItemThumbnailItem}
+                fallbackName={bestItem || name}
+                style={styles.bestItemThumb}
+                textStyle={styles.bestItemThumbLetter}
+              />
+            )}
+            <View style={{ flex: 1 }}>
               <Text
                 style={[
                   styles.bestItem,
@@ -335,7 +350,12 @@ export function RecommendationCard({
                   accessibilityIgnoresInvertColors
                 />
               ) : (
-                <View style={[styles.variantThumb, styles.variantThumbFallback]} />
+                <MenuItemThumbnailPlaceholder
+                  item={v.source}
+                  fallbackName={v.name}
+                  style={styles.variantThumb}
+                  textStyle={styles.variantThumbLetter}
+                />
               )}
               <View style={styles.variantTextCol}>
                 <Text style={[styles.variantLabel, { color: textMuted }]} numberOfLines={1}>
@@ -520,7 +540,9 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: radius.sm,
-    backgroundColor: "rgba(148, 163, 184, 0.18)",
+  },
+  bestItemThumbLetter: {
+    fontSize: 22,
   },
   usualPill: {
     flexDirection: "row",
@@ -588,10 +610,9 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: radius.sm,
-    backgroundColor: "rgba(148, 163, 184, 0.18)",
   },
-  variantThumbFallback: {
-    backgroundColor: "rgba(148, 163, 184, 0.12)",
+  variantThumbLetter: {
+    fontSize: 18,
   },
   variantTextCol: {
     flex: 1,

@@ -43,6 +43,7 @@ import {
   normalizeHealthyPlacesResponse,
 } from "./healthyNearbyUtils";
 import { buildRemainingLine, buildWeeklyCoachSummaryLine } from "./utils/lunchAndWeeklyCoachUtils";
+import { contributeScanData } from "./utils/scanContributeApi";
 import {
   postMealDecisionEvent,
   postMealFeedback,
@@ -1997,6 +1998,9 @@ export default function App() {
   const [scanProgress, setScanProgress] = useState("");
   const [scanLoadingFactLine, setScanLoadingFactLine] = useState("");
   const [rerunBusy, setRerunBusy] = useState(false);
+  const [scanContributionBusy, setScanContributionBusy] = useState(false);
+  const [scanContributionDone, setScanContributionDone] = useState(false);
+  const [scanContributionAck, setScanContributionAck] = useState("");
   const [clarificationSelections, setClarificationSelections] = useState({});
   const [recipeSuggestPayload, setRecipeSuggestPayload] = useState(null);
   const [recipeSuggestBusy, setRecipeSuggestBusy] = useState(false);
@@ -2051,6 +2055,7 @@ export default function App() {
   const [quickAddBusy, setQuickAddBusy] = useState(false);
   const [splashVisible, setSplashVisible] = useState(true);
   const [splashGone, setSplashGone] = useState(false);
+  const scanContributionAckTimeoutRef = useRef(null);
 
   useEffect(() => {
     if (fontsLoaded && session !== undefined) {
@@ -2058,6 +2063,14 @@ export default function App() {
       return () => clearTimeout(t);
     }
   }, [fontsLoaded, session]);
+  useEffect(() => {
+    return () => {
+      if (scanContributionAckTimeoutRef.current) {
+        clearTimeout(scanContributionAckTimeoutRef.current);
+        scanContributionAckTimeoutRef.current = null;
+      }
+    };
+  }, []);
   const [lunchDecisionBusy, setLunchDecisionBusy] = useState(false);
   const [lunchDecisionError, setLunchDecisionError] = useState("");
   const [lunchDecision, setLunchDecision] = useState(null);
@@ -4316,7 +4329,87 @@ export default function App() {
     setCoachMemoryGoalInput("");
   }
 
+  function resetScanContributionState() {
+    if (scanContributionAckTimeoutRef.current) {
+      clearTimeout(scanContributionAckTimeoutRef.current);
+      scanContributionAckTimeoutRef.current = null;
+    }
+    setScanContributionBusy(false);
+    setScanContributionDone(false);
+    setScanContributionAck("");
+  }
+
+  function showScanContributionAck(message) {
+    const next = String(message || "").trim();
+    if (!next) return;
+    if (scanContributionAckTimeoutRef.current) {
+      clearTimeout(scanContributionAckTimeoutRef.current);
+    }
+    setScanContributionAck(next);
+    scanContributionAckTimeoutRef.current = setTimeout(() => {
+      setScanContributionAck("");
+      scanContributionAckTimeoutRef.current = null;
+    }, 3200);
+  }
+
+  async function submitScanContribution() {
+    if (!userId || !result || scanContributionBusy || scanContributionDone) {
+      return;
+    }
+    const items = (Array.isArray(result?.items) ? result.items : [])
+      .map((it) => {
+        const itemName = String(it?.name || it?.item || it?.item_name || "").trim();
+        if (!itemName) return null;
+        return {
+          item_name: itemName,
+          estimated_calories: round1(it?.estimated_calories ?? it?.kcal),
+          estimated_protein_g: round1(it?.estimated_protein_g ?? it?.protein_g),
+          estimated_carbs_g: round1(it?.estimated_carbs_g ?? it?.carbs_g),
+          estimated_fat_g: round1(it?.estimated_fat_g ?? it?.fat_g),
+        };
+      })
+      .filter(Boolean);
+    if (!items.length) {
+      Alert.alert("Nothing to share", "We need at least one detected item before contributing this scan.");
+      return;
+    }
+
+    setScanContributionBusy(true);
+    try {
+      await contributeScanData({
+        userId,
+        placeName: result?.place_name || result?.restaurant_name || "",
+        placeId: result?.place_id || "",
+        items,
+        totalKcal: result?.total_kcal ?? result?.totals?.kcal ?? result?.totals?.total_kcal,
+        source: result?.source || "meal_photo_scan",
+      });
+      setScanContributionDone(true);
+      showScanContributionAck("Thanks! Contributed.");
+      if (Platform.OS === "android") {
+        ToastAndroid.show("Thanks! Contributed.", ToastAndroid.SHORT);
+      }
+    } catch (e) {
+      Alert.alert("Contribution failed", String((e && e.message) || e || "").slice(0, 220));
+    } finally {
+      setScanContributionBusy(false);
+    }
+  }
+
+  function confirmScanContribution() {
+    if (scanContributionBusy || scanContributionDone) return;
+    Alert.alert(
+      "Help improve CalorieClick",
+      "Share this meal's nutrition data to help others? Your photo is never shared.",
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Share", onPress: () => { void submitScanContribution(); } },
+      ]
+    );
+  }
+
   function clearCurrentScan() {
+    resetScanContributionState();
     setPhotoUri(null);
     setResult(null);
   }
@@ -5335,6 +5428,7 @@ async function openCamera(mode = "meal") {
       (history || []).filter((h) => (h?.kind || "") === "photo").length + 1;
     analyzeCancelRef.current = false;
     setBusy(true);
+    resetScanContributionState();
     setResult(null);
     setScanProgress("Preparing photo…");
 
@@ -6918,6 +7012,7 @@ async function openCamera(mode = "meal") {
 
     const rerunSeq = Number(rerunReqSeqRef.current || 0) + 1;
     rerunReqSeqRef.current = rerunSeq;
+    resetScanContributionState();
     setRerunBusy(true);
     try {
       if (macroOnly) {
@@ -8992,6 +9087,30 @@ async function openCamera(mode = "meal") {
                 Protein {round1(result?.totals?.protein_g)}g • Carbs {round1(result?.totals?.carbs_g)}g • Fat{" "}
                 {round1(result?.totals?.fat_g)}g
               </Text>
+              <View style={styles.scanContributionWrap}>
+                {scanContributionDone ? (
+                  <Text style={styles.scanContributionAck}>Thanks! Contributed.</Text>
+                ) : (
+                  <TouchableOpacity
+                    onPress={confirmScanContribution}
+                    disabled={scanContributionBusy}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    activeOpacity={0.75}
+                  >
+                    <Text
+                      style={[
+                        styles.scanContributionLink,
+                        scanContributionBusy ? styles.scanContributionLinkDisabled : null,
+                      ]}
+                    >
+                      {scanContributionBusy ? "Contributing…" : "Help improve CalorieClick"}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+                {!scanContributionDone && scanContributionAck ? (
+                  <Text style={styles.scanContributionAck}>{scanContributionAck}</Text>
+                ) : null}
+              </View>
               {goalPlan && String(goalCoachDaily?.meal_log_encouragement || "").trim() ? (
                 <View
                   style={{
@@ -12367,6 +12486,28 @@ const styles = StyleSheet.create({
   p: { fontSize: 14, color: dt.text.secondary, lineHeight: 21, fontFamily: "Inter_400Regular" },
   tiny: { fontSize: 12, color: "#92a0b3", lineHeight: 17 },
   muted: { fontSize: 12, color: "#aab4c4", lineHeight: 17 },
+  scanContributionWrap: {
+    marginTop: tSpacing.sm,
+    alignItems: "flex-start",
+  },
+  scanContributionLink: {
+    fontSize: 12,
+    lineHeight: 17,
+    color: dt.accent.primary,
+    textDecorationLine: "underline",
+    fontFamily: "Inter_500Medium",
+  },
+  scanContributionLinkDisabled: {
+    color: dt.text.muted,
+    textDecorationLine: "none",
+  },
+  scanContributionAck: {
+    marginTop: 4,
+    fontSize: 12,
+    lineHeight: 17,
+    color: dt.success.text,
+    fontFamily: "Inter_500Medium",
+  },
   plan: { color: dt.text.primary, fontWeight: "800" },
 
   headerGradient: {

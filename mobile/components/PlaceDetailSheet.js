@@ -20,6 +20,7 @@ import { colors, spacing, radius, typography } from "../designTokens";
 import { ScoreBadge } from "./ScoreBadge";
 import { ConfidenceBadge } from "./ConfidenceBadge";
 import { PressableScale } from "./PressableScale";
+import { MenuItemThumbnailPlaceholder } from "./MenuItemThumbnailPlaceholder";
 
 const { height: SCREEN_H } = Dimensions.get("window");
 const SHEET_H = SCREEN_H * 0.72;
@@ -80,6 +81,12 @@ export function PlaceDetailSheet({ visible, place, onClose, onOpenInMaps }) {
   const topItem = place.top_menu_item && typeof place.top_menu_item === "object" ? place.top_menu_item : null;
   const imageRaw = String((topItem && topItem.image_url) || place.best_item_image_url || "").trim();
   const image = imageRaw.startsWith("https://") ? imageRaw : null;
+  const bestImageItem = topItem || {
+    item_name: bestItem,
+    estimated_protein_g: protein,
+    estimated_carbs_g: carbs,
+    negative_flags: place.negative_flags,
+  };
 
   const gv = place.goal_variants;
   const variants = [];
@@ -143,9 +150,12 @@ export function PlaceDetailSheet({ visible, place, onClose, onOpenInMaps }) {
                 {image ? (
                   <Image source={{ uri: image }} style={s.bestImage} resizeMode="cover" />
                 ) : (
-                  <View style={[s.bestImage, s.bestImagePlaceholder]}>
-                    <Text style={{ fontSize: 28 }}>🍽️</Text>
-                  </View>
+                  <MenuItemThumbnailPlaceholder
+                    item={bestImageItem}
+                    fallbackName={bestItem || name}
+                    style={s.bestImage}
+                    textStyle={s.bestImageLetter}
+                  />
                 )}
                 <View style={{ flex: 1, gap: 4 }}>
                   <Text style={s.bestName} numberOfLines={2}>{bestItem || "Menu item"}</Text>
@@ -284,8 +294,8 @@ const s = StyleSheet.create({
   kicker: { fontSize: 11, fontWeight: "700", color: "#64748b", letterSpacing: 1.2, marginBottom: 10 },
 
   bestRow: { flexDirection: "row", gap: 14, alignItems: "center" },
-  bestImage: { width: 72, height: 72, borderRadius: 14, backgroundColor: "#1e293b" },
-  bestImagePlaceholder: { alignItems: "center", justifyContent: "center" },
+  bestImage: { width: 72, height: 72, borderRadius: 14 },
+  bestImageLetter: { fontSize: 28 },
   bestName: { fontSize: 17, fontWeight: "700", color: "#f8fafc", lineHeight: 22 },
   macroChips: { flexDirection: "row", gap: 8, flexWrap: "wrap", marginTop: 2 },
   chip: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999, backgroundColor: "#1e293b" },

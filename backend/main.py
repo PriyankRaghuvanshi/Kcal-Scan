@@ -355,6 +355,7 @@ TBL_PROGRAM_STATUS = "program_status"
 TBL_CONFIDENCE_AUDIT = "confidence_audit"
 TBL_CONFIDENCE_CALIBRATION_SETTINGS = "confidence_calibration_settings"
 TBL_USER_AI_CONSENT = "user_ai_consent"
+TBL_USER_SCAN_CONTRIBUTIONS = "user_scan_contributions"
 TBL_SUPPLEMENT_SCANS = "supplement_scans"
 TBL_SUPPLEMENT_BRAND_PROFILES = "supplement_brand_profiles"
 TBL_SUPPLEMENT_BATCH_PATTERNS = "supplement_batch_patterns"
@@ -495,6 +496,7 @@ _TABLE_MIGRATION_HINTS = {
     "user_food_priors": "migrate_user_food_priors.sql",
     "user_ingredient_choices": "migrate_user_ingredient_choices.sql",
     "user_ai_consent": "create_user_ai_consent.sql",
+    "user_scan_contributions": "20260421_create_user_scan_contributions.sql",
     "supplement_scans": "create_supplement_scanner.sql",
     "supplement_brand_profiles": "create_supplement_scanner.sql",
     "supplement_batch_patterns": "create_supplement_scanner.sql",
@@ -509,6 +511,7 @@ _EXPECTED_SCHEMA_TABLES = {
     "user_food_priors",
     "user_ingredient_choices",
     "user_ai_consent",
+    "user_scan_contributions",
     "supplement_scans",
     "supplement_brand_profiles",
     "supplement_batch_patterns",
@@ -20183,6 +20186,73 @@ def recommendation_feedback_summary(place_id: str = "", item: str = ""):
     pid = str(place_id or "").strip()
     item_name = " ".join(str(item or "").strip().split())
     return get_feedback_summary(place_id=pid, item=item_name)
+
+
+@app.post("/scan/contribute")
+def scan_contribute(payload: Dict[str, Any] = Body(...)):
+    uid = require_user_id(None, payload.get("user_id"))
+    raw_items = payload.get("items")
+    if not isinstance(raw_items, list):
+        raise HTTPException(status_code=400, detail="items must be an array")
+
+    def _clean_text(value: Any) -> str:
+        return " ".join(str(value or "").strip().split())
+
+    def _round_number(value: Any) -> float:
+        try:
+            num_val = float(value)
+        except Exception:
+            num_val = 0.0
+        if not math.isfinite(num_val):
+            num_val = 0.0
+        return round(num_val, 1)
+
+    items: List[Dict[str, Any]] = []
+    for raw in raw_items[:50]:
+        if not isinstance(raw, dict):
+            continue
+        item_name = _clean_text(raw.get("item_name") or raw.get("name") or raw.get("item"))
+        if not item_name:
+            continue
+        items.append(
+            {
+                "item_name": item_name,
+                "estimated_calories": _round_number(raw.get("estimated_calories") or raw.get("kcal")),
+                "estimated_protein_g": _round_number(raw.get("estimated_protein_g") or raw.get("protein_g")),
+                "estimated_carbs_g": _round_number(raw.get("estimated_carbs_g") or raw.get("carbs_g")),
+                "estimated_fat_g": _round_number(raw.get("estimated_fat_g") or raw.get("fat_g")),
+            }
+        )
+    if not items:
+        raise HTTPException(status_code=400, detail="at least one item is required")
+
+    row = {
+        "user_id": uid,
+        "place_name": _clean_text(payload.get("place_name")) or None,
+        "place_id": _clean_text(payload.get("place_id")) or None,
+        "items": items,
+        "total_kcal": _round_number(payload.get("total_kcal")),
+        "source": _clean_text(payload.get("source")) or "meal_photo_scan",
+        "created_at": _now_utc_naive().isoformat(),
+    }
+
+    if _is_table_disabled(TBL_USER_SCAN_CONTRIBUTIONS):
+        raise HTTPException(
+            status_code=503,
+            detail="scan contribution storage unavailable; run migration 20260421_create_user_scan_contributions.sql",
+        )
+    try:
+        stored = sb_insert(TBL_USER_SCAN_CONTRIBUTIONS, row)
+    except Exception as e:
+        if _mark_table_unavailable(TBL_USER_SCAN_CONTRIBUTIONS, e):
+            raise HTTPException(
+                status_code=503,
+                detail="scan contribution storage unavailable; run migration 20260421_create_user_scan_contributions.sql",
+            )
+        raise
+
+    contribution_id = stored.get("contribution_id") or stored.get("id") or ""
+    return {"ok": True, "contribution_id": str(contribution_id)}
 
 
 # -------------------- VENUE CONTRIBUTIONS (REVIEW) --------------------
