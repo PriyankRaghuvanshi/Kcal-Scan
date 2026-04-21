@@ -17586,7 +17586,7 @@ async def healthy_places(
         if SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY:
             top_place = scored[0] if scored else {}
             session_row = {
-                "user_id": str(uid or "").strip(),
+                "user_id": str(user_id or "").strip(),
                 "lat": float(_safe_float(lat, 0.0) or 0.0),
                 "lng": float(_safe_float(lng, 0.0) or 0.0),
                 "area_key": str(top_place.get("area_key") or top_place.get("normalized_area_key") or "").strip().lower(),
