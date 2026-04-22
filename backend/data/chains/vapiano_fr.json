@@ -1,0 +1,112 @@
+{
+  "brand_name": "Vapiano",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Pasta Aglio e Olio",
+      "estimated_calories": 520,
+      "estimated_protein_g": 14,
+      "estimated_carbs_g": 68,
+      "estimated_fat_g": 20,
+      "menu_item_source": "real_menu",
+      "market": "FR",
+      "chain_key": "vapiano",
+      "category": "Pasta",
+      "protein_per_100kcal": 2.7,
+      "smart_swap": {
+        "swap_to": "Caesar Salad",
+        "swap_calories": 380,
+        "swap_protein_g": 18,
+        "calories_saved": 140,
+        "protein_gained": 4,
+        "reason": "Swap to Caesar Salad — save 140 kcal, gain 4g protein"
+      }
+    },
+    {
+      "item_name": "Pizza Margherita",
+      "estimated_calories": 680,
+      "estimated_protein_g": 24,
+      "estimated_carbs_g": 76,
+      "estimated_fat_g": 28,
+      "menu_item_source": "real_menu",
+      "market": "FR",
+      "chain_key": "vapiano",
+      "category": "Pizza",
+      "protein_per_100kcal": 3.5
+    },
+    {
+      "item_name": "Pasta Carbonara",
+      "estimated_calories": 720,
+      "estimated_protein_g": 26,
+      "estimated_carbs_g": 68,
+      "estimated_fat_g": 36,
+      "menu_item_source": "real_menu",
+      "market": "FR",
+      "chain_key": "vapiano",
+      "category": "Pasta",
+      "protein_per_100kcal": 3.6
+    },
+    {
+      "item_name": "Caesar Salad",
+      "estimated_calories": 380,
+      "estimated_protein_g": 18,
+      "estimated_carbs_g": 18,
+      "estimated_fat_g": 26,
+      "menu_item_source": "real_menu",
+      "market": "FR",
+      "chain_key": "vapiano",
+      "category": "Salads",
+      "protein_per_100kcal": 4.7,
+      "diet_tags": [
+        "low_carb"
+      ],
+      "best_protein_pick": true
+    },
+    {
+      "item_name": "Tiramisu",
+      "estimated_calories": 420,
+      "estimated_protein_g": 8,
+      "estimated_carbs_g": 44,
+      "estimated_fat_g": 24,
+      "menu_item_source": "real_menu",
+      "market": "FR",
+      "chain_key": "vapiano",
+      "category": "Desserts",
+      "protein_per_100kcal": 1.9,
+      "smart_swap": {
+        "swap_to": "Caesar Salad",
+        "swap_calories": 380,
+        "swap_protein_g": 18,
+        "calories_saved": 40,
+        "protein_gained": 10,
+        "reason": "Swap to Caesar Salad — save 40 kcal, gain 10g protein"
+      }
+    },
+    {
+      "item_name": "Bruschetta",
+      "estimated_calories": 280,
+      "estimated_protein_g": 8,
+      "estimated_carbs_g": 30,
+      "estimated_fat_g": 14,
+      "menu_item_source": "real_menu",
+      "market": "FR",
+      "chain_key": "vapiano",
+      "category": "Starters",
+      "protein_per_100kcal": 2.9,
+      "diet_tags": [
+        "low_carb",
+        "light_meal"
+      ],
+      "smart_swap": {
+        "swap_to": "Caesar Salad",
+        "swap_calories": 380,
+        "swap_protein_g": 18,
+        "calories_saved": 0,
+        "protein_gained": 10,
+        "reason": "Swap to Caesar Salad — gain 10g protein"
+      }
+    }
+  ]
+}

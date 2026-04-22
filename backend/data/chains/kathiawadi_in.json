@@ -1,0 +1,68 @@
+{
+  "brand_name": "Kathiawadi",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Sev Tameta nu Shaak",
+      "estimated_calories": 260,
+      "estimated_protein_g": 6,
+      "estimated_carbs_g": 28,
+      "estimated_fat_g": 14,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "kathiawadi",
+      "category": "Gujarati",
+      "protein_per_100kcal": 2.3
+    },
+    {
+      "item_name": "Kathiawadi Thali",
+      "estimated_calories": 720,
+      "estimated_protein_g": 16,
+      "estimated_carbs_g": 96,
+      "estimated_fat_g": 28,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "kathiawadi",
+      "category": "Thali",
+      "protein_per_100kcal": 2.2
+    },
+    {
+      "item_name": "Bajra Rotla with Ringan",
+      "estimated_calories": 320,
+      "estimated_protein_g": 8,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 14,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "kathiawadi",
+      "category": "Gujarati",
+      "protein_per_100kcal": 2.5
+    },
+    {
+      "item_name": "Gujarati Kadhi",
+      "estimated_calories": 180,
+      "estimated_protein_g": 4,
+      "estimated_carbs_g": 16,
+      "estimated_fat_g": 12,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "kathiawadi",
+      "category": "Curries",
+      "protein_per_100kcal": 2.2
+    },
+    {
+      "item_name": "Mohanthal",
+      "estimated_calories": 340,
+      "estimated_protein_g": 6,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 18,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "kathiawadi",
+      "category": "Sweets",
+      "protein_per_100kcal": 1.8
+    }
+  ]
+}

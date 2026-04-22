@@ -1,0 +1,68 @@
+{
+  "brand_name": "Jammu Food",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Rajma Chawal",
+      "estimated_calories": 420,
+      "estimated_protein_g": 14,
+      "estimated_carbs_g": 62,
+      "estimated_fat_g": 12,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "jammu_food",
+      "category": "North Indian",
+      "protein_per_100kcal": 3.3
+    },
+    {
+      "item_name": "Kaladi Kulcha",
+      "estimated_calories": 380,
+      "estimated_protein_g": 14,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 18,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "jammu_food",
+      "category": "Dogri",
+      "protein_per_100kcal": 3.7
+    },
+    {
+      "item_name": "Ambal (Pumpkin Curry)",
+      "estimated_calories": 180,
+      "estimated_protein_g": 3,
+      "estimated_carbs_g": 24,
+      "estimated_fat_g": 8,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "jammu_food",
+      "category": "Dogri",
+      "protein_per_100kcal": 1.7
+    },
+    {
+      "item_name": "Patisa (100g)",
+      "estimated_calories": 460,
+      "estimated_protein_g": 6,
+      "estimated_carbs_g": 56,
+      "estimated_fat_g": 24,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "jammu_food",
+      "category": "Sweets",
+      "protein_per_100kcal": 1.3
+    },
+    {
+      "item_name": "Dogri Maah Dal",
+      "estimated_calories": 280,
+      "estimated_protein_g": 14,
+      "estimated_carbs_g": 32,
+      "estimated_fat_g": 10,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "jammu_food",
+      "category": "Curries",
+      "protein_per_100kcal": 5.0
+    }
+  ]
+}

@@ -1,0 +1,104 @@
+{
+  "brand_name": "Peri Peri Original",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Chicken Burger",
+      "estimated_calories": 520,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 40,
+      "estimated_fat_g": 26,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "peri_peri_original",
+      "category": "Burgers",
+      "protein_per_100kcal": 5.8,
+      "smart_swap": {
+        "swap_to": "1/4 Chicken",
+        "swap_calories": 340,
+        "swap_protein_g": 38,
+        "calories_saved": 180,
+        "protein_gained": 8,
+        "reason": "Swap to 1/4 Chicken — save 180 kcal, gain 8g protein"
+      }
+    },
+    {
+      "item_name": "1/4 Chicken",
+      "estimated_calories": 340,
+      "estimated_protein_g": 38,
+      "estimated_carbs_g": 2,
+      "estimated_fat_g": 20,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "peri_peri_original",
+      "category": "Chicken",
+      "protein_per_100kcal": 11.2,
+      "diet_tags": [
+        "high_protein",
+        "keto_friendly",
+        "low_carb"
+      ],
+      "best_protein_pick": true
+    },
+    {
+      "item_name": "Chicken Wrap",
+      "estimated_calories": 460,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 36,
+      "estimated_fat_g": 22,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "peri_peri_original",
+      "category": "Wraps",
+      "protein_per_100kcal": 6.1,
+      "diet_tags": [
+        "high_protein"
+      ]
+    },
+    {
+      "item_name": "Chips",
+      "estimated_calories": 360,
+      "estimated_protein_g": 5,
+      "estimated_carbs_g": 44,
+      "estimated_fat_g": 18,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "peri_peri_original",
+      "category": "Sides",
+      "protein_per_100kcal": 1.4,
+      "smart_swap": {
+        "swap_to": "1/4 Chicken",
+        "swap_calories": 340,
+        "swap_protein_g": 38,
+        "calories_saved": 20,
+        "protein_gained": 33,
+        "reason": "Swap to 1/4 Chicken — save 20 kcal, gain 33g protein"
+      }
+    },
+    {
+      "item_name": "Portuguese Rice",
+      "estimated_calories": 280,
+      "estimated_protein_g": 5,
+      "estimated_carbs_g": 48,
+      "estimated_fat_g": 8,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "peri_peri_original",
+      "category": "Sides",
+      "protein_per_100kcal": 1.8,
+      "diet_tags": [
+        "light_meal"
+      ],
+      "smart_swap": {
+        "swap_to": "1/4 Chicken",
+        "swap_calories": 340,
+        "swap_protein_g": 38,
+        "calories_saved": 0,
+        "protein_gained": 33,
+        "reason": "Swap to 1/4 Chicken — gain 33g protein"
+      }
+    }
+  ]
+}

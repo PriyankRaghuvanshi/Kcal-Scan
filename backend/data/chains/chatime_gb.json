@@ -1,0 +1,76 @@
+{
+  "brand_name": "Chatime",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Pearl Milk Tea",
+      "estimated_calories": 380,
+      "estimated_protein_g": 4,
+      "estimated_carbs_g": 72,
+      "estimated_fat_g": 8,
+      "menu_item_source": "real_menu",
+      "market": "GB",
+      "chain_key": "chatime",
+      "category": "Bubble Tea",
+      "protein_per_100kcal": 1.1
+    },
+    {
+      "item_name": "Taro Milk Tea",
+      "estimated_calories": 400,
+      "estimated_protein_g": 3,
+      "estimated_carbs_g": 76,
+      "estimated_fat_g": 10,
+      "menu_item_source": "real_menu",
+      "market": "GB",
+      "chain_key": "chatime",
+      "category": "Bubble Tea",
+      "protein_per_100kcal": 0.8,
+      "smart_swap": {
+        "swap_to": "Matcha Latte",
+        "swap_calories": 280,
+        "swap_protein_g": 6,
+        "calories_saved": 120,
+        "protein_gained": 3,
+        "reason": "Swap to Matcha Latte — save 120 kcal, gain 3g protein"
+      }
+    },
+    {
+      "item_name": "Matcha Latte",
+      "estimated_calories": 280,
+      "estimated_protein_g": 6,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 10,
+      "menu_item_source": "real_menu",
+      "market": "GB",
+      "chain_key": "chatime",
+      "category": "Tea",
+      "protein_per_100kcal": 2.1,
+      "diet_tags": [
+        "light_meal"
+      ]
+    },
+    {
+      "item_name": "Mango Smoothie",
+      "estimated_calories": 320,
+      "estimated_protein_g": 2,
+      "estimated_carbs_g": 68,
+      "estimated_fat_g": 4,
+      "menu_item_source": "real_menu",
+      "market": "GB",
+      "chain_key": "chatime",
+      "category": "Smoothies",
+      "protein_per_100kcal": 0.6,
+      "is_hidden_sugar_bomb": true,
+      "smart_swap": {
+        "swap_to": "Matcha Latte",
+        "swap_calories": 280,
+        "swap_protein_g": 6,
+        "calories_saved": 40,
+        "protein_gained": 4,
+        "reason": "Swap to Matcha Latte — save 40 kcal, gain 4g protein"
+      }
+    }
+  ]
+}

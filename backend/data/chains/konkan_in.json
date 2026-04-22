@@ -1,0 +1,80 @@
+{
+  "brand_name": "Konkan",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Solkadhi",
+      "estimated_calories": 60,
+      "estimated_protein_g": 1,
+      "estimated_carbs_g": 8,
+      "estimated_fat_g": 3,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "konkan",
+      "category": "Beverages",
+      "protein_per_100kcal": 1.7
+    },
+    {
+      "item_name": "Kombdi Vade",
+      "estimated_calories": 520,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 26,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "konkan",
+      "category": "Konkani",
+      "protein_per_100kcal": 5.4
+    },
+    {
+      "item_name": "Surmai Fry",
+      "estimated_calories": 320,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 14,
+      "estimated_fat_g": 16,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "konkan",
+      "category": "Seafood",
+      "protein_per_100kcal": 9.4
+    },
+    {
+      "item_name": "Prawn Koliwada",
+      "estimated_calories": 340,
+      "estimated_protein_g": 22,
+      "estimated_carbs_g": 18,
+      "estimated_fat_g": 20,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "konkan",
+      "category": "Seafood",
+      "protein_per_100kcal": 6.5
+    },
+    {
+      "item_name": "Modak (3)",
+      "estimated_calories": 300,
+      "estimated_protein_g": 4,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 12,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "konkan",
+      "category": "Sweets",
+      "protein_per_100kcal": 1.3
+    },
+    {
+      "item_name": "Bhakri with Thecha",
+      "estimated_calories": 280,
+      "estimated_protein_g": 6,
+      "estimated_carbs_g": 40,
+      "estimated_fat_g": 10,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "konkan",
+      "category": "Maharashtrian",
+      "protein_per_100kcal": 2.1
+    }
+  ]
+}

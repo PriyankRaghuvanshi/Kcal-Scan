@@ -1,0 +1,120 @@
+{
+  "brand_name": "Mandarin Oak",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Chicken Fried Rice",
+      "estimated_calories": 480,
+      "estimated_protein_g": 22,
+      "estimated_carbs_g": 62,
+      "estimated_fat_g": 16,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "mandarin_oak",
+      "category": "Rice",
+      "protein_per_100kcal": 4.6
+    },
+    {
+      "item_name": "Hakka Noodles",
+      "estimated_calories": 440,
+      "estimated_protein_g": 14,
+      "estimated_carbs_g": 58,
+      "estimated_fat_g": 16,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "mandarin_oak",
+      "category": "Noodles",
+      "protein_per_100kcal": 3.2,
+      "smart_swap": {
+        "swap_to": "Chilli Chicken",
+        "swap_calories": 360,
+        "swap_protein_g": 26,
+        "calories_saved": 80,
+        "protein_gained": 12,
+        "reason": "Swap to Chilli Chicken — save 80 kcal, gain 12g protein"
+      }
+    },
+    {
+      "item_name": "Chilli Chicken",
+      "estimated_calories": 360,
+      "estimated_protein_g": 26,
+      "estimated_carbs_g": 18,
+      "estimated_fat_g": 20,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "mandarin_oak",
+      "category": "Indo-Chinese",
+      "protein_per_100kcal": 7.2,
+      "diet_tags": [
+        "high_protein",
+        "low_carb"
+      ],
+      "best_protein_pick": true
+    },
+    {
+      "item_name": "Manchurian",
+      "estimated_calories": 340,
+      "estimated_protein_g": 10,
+      "estimated_carbs_g": 26,
+      "estimated_fat_g": 22,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "mandarin_oak",
+      "category": "Indo-Chinese",
+      "protein_per_100kcal": 2.9,
+      "diet_tags": [
+        "low_carb"
+      ],
+      "smart_swap": {
+        "swap_to": "Chilli Chicken",
+        "swap_calories": 360,
+        "swap_protein_g": 26,
+        "calories_saved": 0,
+        "protein_gained": 16,
+        "reason": "Swap to Chilli Chicken — gain 16g protein"
+      }
+    },
+    {
+      "item_name": "Spring Rolls (4)",
+      "estimated_calories": 280,
+      "estimated_protein_g": 6,
+      "estimated_carbs_g": 30,
+      "estimated_fat_g": 14,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "mandarin_oak",
+      "category": "Starters",
+      "protein_per_100kcal": 2.1,
+      "diet_tags": [
+        "low_carb",
+        "light_meal"
+      ],
+      "smart_swap": {
+        "swap_to": "Chilli Chicken",
+        "swap_calories": 360,
+        "swap_protein_g": 26,
+        "calories_saved": 0,
+        "protein_gained": 20,
+        "reason": "Swap to Chilli Chicken — gain 20g protein"
+      }
+    },
+    {
+      "item_name": "Hot & Sour Soup",
+      "estimated_calories": 140,
+      "estimated_protein_g": 6,
+      "estimated_carbs_g": 14,
+      "estimated_fat_g": 6,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "mandarin_oak",
+      "category": "Soups",
+      "protein_per_100kcal": 4.3,
+      "diet_tags": [
+        "low_carb",
+        "light_meal"
+      ]
+    }
+  ]
+}

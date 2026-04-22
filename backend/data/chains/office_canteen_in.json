@@ -1,0 +1,80 @@
+{
+  "brand_name": "Office Canteen",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Rice + Dal + Sabzi",
+      "estimated_calories": 440,
+      "estimated_protein_g": 12,
+      "estimated_carbs_g": 68,
+      "estimated_fat_g": 12,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "office_canteen",
+      "category": "Thali",
+      "protein_per_100kcal": 2.7
+    },
+    {
+      "item_name": "Roti (3) + Chicken Curry",
+      "estimated_calories": 540,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 56,
+      "estimated_fat_g": 22,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "office_canteen",
+      "category": "Combos",
+      "protein_per_100kcal": 5.2
+    },
+    {
+      "item_name": "Sambar Rice",
+      "estimated_calories": 380,
+      "estimated_protein_g": 10,
+      "estimated_carbs_g": 62,
+      "estimated_fat_g": 10,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "office_canteen",
+      "category": "Rice",
+      "protein_per_100kcal": 2.6
+    },
+    {
+      "item_name": "Curd Rice",
+      "estimated_calories": 220,
+      "estimated_protein_g": 6,
+      "estimated_carbs_g": 36,
+      "estimated_fat_g": 6,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "office_canteen",
+      "category": "Rice",
+      "protein_per_100kcal": 2.7
+    },
+    {
+      "item_name": "Poori Bhaji (4)",
+      "estimated_calories": 480,
+      "estimated_protein_g": 10,
+      "estimated_carbs_g": 56,
+      "estimated_fat_g": 24,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "office_canteen",
+      "category": "Breakfast",
+      "protein_per_100kcal": 2.1
+    },
+    {
+      "item_name": "Tea + Biscuit (2)",
+      "estimated_calories": 140,
+      "estimated_protein_g": 3,
+      "estimated_carbs_g": 22,
+      "estimated_fat_g": 4,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "office_canteen",
+      "category": "Snacks",
+      "protein_per_100kcal": 2.1
+    }
+  ]
+}

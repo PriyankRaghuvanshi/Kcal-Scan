@@ -1,0 +1,80 @@
+{
+  "brand_name": "Kopitiam",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Kaya Toast Set",
+      "estimated_calories": 280,
+      "estimated_protein_g": 8,
+      "estimated_carbs_g": 36,
+      "estimated_fat_g": 12,
+      "menu_item_source": "real_menu",
+      "market": "SG",
+      "chain_key": "kopitiam",
+      "category": "Breakfast",
+      "protein_per_100kcal": 2.9
+    },
+    {
+      "item_name": "Nasi Goreng",
+      "estimated_calories": 520,
+      "estimated_protein_g": 18,
+      "estimated_carbs_g": 62,
+      "estimated_fat_g": 22,
+      "menu_item_source": "real_menu",
+      "market": "SG",
+      "chain_key": "kopitiam",
+      "category": "Rice",
+      "protein_per_100kcal": 3.5
+    },
+    {
+      "item_name": "Mee Goreng",
+      "estimated_calories": 480,
+      "estimated_protein_g": 16,
+      "estimated_carbs_g": 58,
+      "estimated_fat_g": 20,
+      "menu_item_source": "real_menu",
+      "market": "SG",
+      "chain_key": "kopitiam",
+      "category": "Noodles",
+      "protein_per_100kcal": 3.3
+    },
+    {
+      "item_name": "Kopi (Traditional Coffee)",
+      "estimated_calories": 90,
+      "estimated_protein_g": 2,
+      "estimated_carbs_g": 14,
+      "estimated_fat_g": 3,
+      "menu_item_source": "real_menu",
+      "market": "SG",
+      "chain_key": "kopitiam",
+      "category": "Coffee",
+      "protein_per_100kcal": 2.2
+    },
+    {
+      "item_name": "Teh Tarik",
+      "estimated_calories": 120,
+      "estimated_protein_g": 3,
+      "estimated_carbs_g": 20,
+      "estimated_fat_g": 4,
+      "menu_item_source": "real_menu",
+      "market": "SG",
+      "chain_key": "kopitiam",
+      "category": "Tea",
+      "protein_per_100kcal": 2.5
+    },
+    {
+      "item_name": "Fried Carrot Cake",
+      "estimated_calories": 380,
+      "estimated_protein_g": 8,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 20,
+      "menu_item_source": "real_menu",
+      "market": "SG",
+      "chain_key": "kopitiam",
+      "category": "Snacks",
+      "protein_per_100kcal": 2.1
+    }
+  ]
+}

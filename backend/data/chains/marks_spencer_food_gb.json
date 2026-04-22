@@ -1,0 +1,104 @@
+{
+  "brand_name": "Marks Spencer Food",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Chicken & Bacon Sandwich",
+      "estimated_calories": 440,
+      "estimated_protein_g": 26,
+      "estimated_carbs_g": 36,
+      "estimated_fat_g": 22,
+      "menu_item_source": "real_menu",
+      "market": "GB",
+      "chain_key": "marks_spencer_food",
+      "category": "Sandwiches",
+      "protein_per_100kcal": 5.9,
+      "diet_tags": [
+        "high_protein"
+      ],
+      "best_protein_pick": true
+    },
+    {
+      "item_name": "Prawn Cocktail Sandwich",
+      "estimated_calories": 380,
+      "estimated_protein_g": 18,
+      "estimated_carbs_g": 34,
+      "estimated_fat_g": 18,
+      "menu_item_source": "real_menu",
+      "market": "GB",
+      "chain_key": "marks_spencer_food",
+      "category": "Sandwiches",
+      "protein_per_100kcal": 4.7
+    },
+    {
+      "item_name": "Caesar Salad Wrap",
+      "estimated_calories": 420,
+      "estimated_protein_g": 22,
+      "estimated_carbs_g": 34,
+      "estimated_fat_g": 22,
+      "menu_item_source": "real_menu",
+      "market": "GB",
+      "chain_key": "marks_spencer_food",
+      "category": "Wraps",
+      "protein_per_100kcal": 5.2
+    },
+    {
+      "item_name": "Victoria Sponge Slice",
+      "estimated_calories": 380,
+      "estimated_protein_g": 4,
+      "estimated_carbs_g": 46,
+      "estimated_fat_g": 20,
+      "menu_item_source": "real_menu",
+      "market": "GB",
+      "chain_key": "marks_spencer_food",
+      "category": "Cakes",
+      "protein_per_100kcal": 1.1,
+      "smart_swap": {
+        "swap_to": "Chicken & Bacon Sandwich",
+        "swap_calories": 440,
+        "swap_protein_g": 26,
+        "calories_saved": 0,
+        "protein_gained": 22,
+        "reason": "Swap to Chicken & Bacon Sandwich — gain 22g protein"
+      }
+    },
+    {
+      "item_name": "Percy Pig Biscuits (pack)",
+      "estimated_calories": 420,
+      "estimated_protein_g": 4,
+      "estimated_carbs_g": 56,
+      "estimated_fat_g": 20,
+      "menu_item_source": "real_menu",
+      "market": "US",
+      "chain_key": "marks_spencer_food",
+      "category": "Snacks",
+      "protein_per_100kcal": 1.0,
+      "smart_swap": {
+        "swap_to": "Chicken & Bacon Sandwich",
+        "swap_calories": 440,
+        "swap_protein_g": 26,
+        "calories_saved": 0,
+        "protein_gained": 22,
+        "reason": "Swap to Chicken & Bacon Sandwich — gain 22g protein"
+      }
+    },
+    {
+      "item_name": "Flat White",
+      "estimated_calories": 110,
+      "estimated_protein_g": 6,
+      "estimated_carbs_g": 10,
+      "estimated_fat_g": 5,
+      "menu_item_source": "real_menu",
+      "market": "GB",
+      "chain_key": "marks_spencer_food",
+      "category": "Coffee",
+      "protein_per_100kcal": 5.5,
+      "diet_tags": [
+        "low_carb",
+        "light_meal"
+      ]
+    }
+  ]
+}

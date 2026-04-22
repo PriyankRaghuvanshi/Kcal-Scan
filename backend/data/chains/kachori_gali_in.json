@@ -1,0 +1,68 @@
+{
+  "brand_name": "Kachori Gali",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Kachori (2 pcs)",
+      "estimated_calories": 340,
+      "estimated_protein_g": 8,
+      "estimated_carbs_g": 36,
+      "estimated_fat_g": 18,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "kachori_gali",
+      "category": "Snacks",
+      "protein_per_100kcal": 2.4
+    },
+    {
+      "item_name": "Tamatar Chaat",
+      "estimated_calories": 220,
+      "estimated_protein_g": 4,
+      "estimated_carbs_g": 28,
+      "estimated_fat_g": 10,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "kachori_gali",
+      "category": "Chaat",
+      "protein_per_100kcal": 1.8
+    },
+    {
+      "item_name": "Banarasi Paan Kulfi",
+      "estimated_calories": 200,
+      "estimated_protein_g": 4,
+      "estimated_carbs_g": 26,
+      "estimated_fat_g": 10,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "kachori_gali",
+      "category": "Desserts",
+      "protein_per_100kcal": 2.0
+    },
+    {
+      "item_name": "Thandai",
+      "estimated_calories": 280,
+      "estimated_protein_g": 6,
+      "estimated_carbs_g": 38,
+      "estimated_fat_g": 12,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "kachori_gali",
+      "category": "Beverages",
+      "protein_per_100kcal": 2.1
+    },
+    {
+      "item_name": "Malaiyo",
+      "estimated_calories": 180,
+      "estimated_protein_g": 4,
+      "estimated_carbs_g": 22,
+      "estimated_fat_g": 8,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "kachori_gali",
+      "category": "Sweets",
+      "protein_per_100kcal": 2.2
+    }
+  ]
+}

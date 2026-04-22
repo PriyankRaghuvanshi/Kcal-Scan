@@ -1,0 +1,105 @@
+{
+  "brand_name": "Belgian Waffle",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Classic Chocolate Waffle",
+      "estimated_calories": 420,
+      "estimated_protein_g": 8,
+      "estimated_carbs_g": 52,
+      "estimated_fat_g": 20,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "belgian_waffle",
+      "category": "Waffles",
+      "protein_per_100kcal": 1.9,
+      "smart_swap": {
+        "swap_to": "Waffle Sandwich (Chicken)",
+        "swap_calories": 520,
+        "swap_protein_g": 24,
+        "calories_saved": 0,
+        "protein_gained": 16,
+        "reason": "Swap to Waffle Sandwich (Chicken) — gain 16g protein"
+      }
+    },
+    {
+      "item_name": "Nutella Waffle",
+      "estimated_calories": 480,
+      "estimated_protein_g": 8,
+      "estimated_carbs_g": 58,
+      "estimated_fat_g": 24,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "belgian_waffle",
+      "category": "Waffles",
+      "protein_per_100kcal": 1.7,
+      "smart_swap": {
+        "swap_to": "Waffle Sandwich (Chicken)",
+        "swap_calories": 520,
+        "swap_protein_g": 24,
+        "calories_saved": 0,
+        "protein_gained": 16,
+        "reason": "Swap to Waffle Sandwich (Chicken) — gain 16g protein"
+      }
+    },
+    {
+      "item_name": "Red Velvet Waffle",
+      "estimated_calories": 440,
+      "estimated_protein_g": 7,
+      "estimated_carbs_g": 54,
+      "estimated_fat_g": 22,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "belgian_waffle",
+      "category": "Waffles",
+      "protein_per_100kcal": 1.6,
+      "smart_swap": {
+        "swap_to": "Waffle Sandwich (Chicken)",
+        "swap_calories": 520,
+        "swap_protein_g": 24,
+        "calories_saved": 0,
+        "protein_gained": 17,
+        "reason": "Swap to Waffle Sandwich (Chicken) — gain 17g protein"
+      }
+    },
+    {
+      "item_name": "Cheese Burst Waffle",
+      "estimated_calories": 460,
+      "estimated_protein_g": 14,
+      "estimated_carbs_g": 48,
+      "estimated_fat_g": 24,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "belgian_waffle",
+      "category": "Waffles",
+      "protein_per_100kcal": 3.0
+    },
+    {
+      "item_name": "Waffle Sandwich (Chicken)",
+      "estimated_calories": 520,
+      "estimated_protein_g": 24,
+      "estimated_carbs_g": 44,
+      "estimated_fat_g": 28,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "belgian_waffle",
+      "category": "Sandwiches",
+      "protein_per_100kcal": 4.6,
+      "best_protein_pick": true
+    },
+    {
+      "item_name": "Thick Shake (Oreo)",
+      "estimated_calories": 460,
+      "estimated_protein_g": 10,
+      "estimated_carbs_g": 62,
+      "estimated_fat_g": 20,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "belgian_waffle",
+      "category": "Shakes",
+      "protein_per_100kcal": 2.2
+    }
+  ]
+}

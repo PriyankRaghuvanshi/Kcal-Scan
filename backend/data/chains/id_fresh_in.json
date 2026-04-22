@@ -1,0 +1,111 @@
+{
+  "brand_name": "Id Fresh",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Idli Batter (per 3 idli)",
+      "estimated_calories": 180,
+      "estimated_protein_g": 5,
+      "estimated_carbs_g": 34,
+      "estimated_fat_g": 2,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "id_fresh",
+      "category": "Ready to Cook",
+      "protein_per_100kcal": 2.8,
+      "diet_tags": [
+        "light_meal"
+      ],
+      "smart_swap": {
+        "swap_to": "Chapati (per pc)",
+        "swap_calories": 80,
+        "swap_protein_g": 3,
+        "calories_saved": 100,
+        "protein_gained": 0,
+        "reason": "Swap to Chapati (per pc) — save 100 kcal, better protein density"
+      }
+    },
+    {
+      "item_name": "Dosa Batter (per dosa)",
+      "estimated_calories": 160,
+      "estimated_protein_g": 4,
+      "estimated_carbs_g": 28,
+      "estimated_fat_g": 4,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "id_fresh",
+      "category": "Ready to Cook",
+      "protein_per_100kcal": 2.5,
+      "diet_tags": [
+        "low_carb",
+        "light_meal"
+      ],
+      "smart_swap": {
+        "swap_to": "Chapati (per pc)",
+        "swap_calories": 80,
+        "swap_protein_g": 3,
+        "calories_saved": 80,
+        "protein_gained": 0,
+        "reason": "Swap to Chapati (per pc) — save 80 kcal, better protein density"
+      }
+    },
+    {
+      "item_name": "Malabar Parotta (per pc)",
+      "estimated_calories": 180,
+      "estimated_protein_g": 3,
+      "estimated_carbs_g": 22,
+      "estimated_fat_g": 9,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "id_fresh",
+      "category": "Ready to Cook",
+      "protein_per_100kcal": 1.7,
+      "diet_tags": [
+        "low_carb",
+        "light_meal"
+      ],
+      "smart_swap": {
+        "swap_to": "Chapati (per pc)",
+        "swap_calories": 80,
+        "swap_protein_g": 3,
+        "calories_saved": 100,
+        "protein_gained": 0,
+        "reason": "Swap to Chapati (per pc) — save 100 kcal, better protein density"
+      }
+    },
+    {
+      "item_name": "Chapati (per pc)",
+      "estimated_calories": 80,
+      "estimated_protein_g": 3,
+      "estimated_carbs_g": 14,
+      "estimated_fat_g": 1,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "id_fresh",
+      "category": "Ready to Cook",
+      "protein_per_100kcal": 3.8,
+      "diet_tags": [
+        "low_carb",
+        "light_meal"
+      ]
+    },
+    {
+      "item_name": "Vada (per 2 pcs)",
+      "estimated_calories": 240,
+      "estimated_protein_g": 8,
+      "estimated_carbs_g": 28,
+      "estimated_fat_g": 12,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "id_fresh",
+      "category": "Ready to Cook",
+      "protein_per_100kcal": 3.3,
+      "diet_tags": [
+        "low_carb",
+        "light_meal"
+      ]
+    }
+  ]
+}

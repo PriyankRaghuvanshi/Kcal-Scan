@@ -1,0 +1,204 @@
+{
+  "brand_name": "Highway Dhaba",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Rajma Chawal",
+      "estimated_calories": 420,
+      "estimated_protein_g": 14,
+      "estimated_carbs_g": 62,
+      "estimated_fat_g": 12,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "highway_dhaba",
+      "category": "North Indian",
+      "protein_per_100kcal": 3.3,
+      "smart_swap": {
+        "swap_to": "Butter Chicken",
+        "swap_calories": 460,
+        "swap_protein_g": 30,
+        "calories_saved": 0,
+        "protein_gained": 16,
+        "reason": "Swap to Butter Chicken — gain 16g protein"
+      }
+    },
+    {
+      "item_name": "Dal Fry",
+      "estimated_calories": 260,
+      "estimated_protein_g": 12,
+      "estimated_carbs_g": 30,
+      "estimated_fat_g": 10,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "highway_dhaba",
+      "category": "Curries",
+      "protein_per_100kcal": 4.6,
+      "diet_tags": [
+        "low_carb",
+        "light_meal"
+      ]
+    },
+    {
+      "item_name": "Aloo Paratha",
+      "estimated_calories": 340,
+      "estimated_protein_g": 8,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 16,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "highway_dhaba",
+      "category": "Breads",
+      "protein_per_100kcal": 2.4,
+      "smart_swap": {
+        "swap_to": "Butter Chicken",
+        "swap_calories": 460,
+        "swap_protein_g": 30,
+        "calories_saved": 0,
+        "protein_gained": 22,
+        "reason": "Swap to Butter Chicken — gain 22g protein"
+      }
+    },
+    {
+      "item_name": "Kadhi Chawal",
+      "estimated_calories": 380,
+      "estimated_protein_g": 10,
+      "estimated_carbs_g": 56,
+      "estimated_fat_g": 12,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "highway_dhaba",
+      "category": "Rice",
+      "protein_per_100kcal": 2.6,
+      "smart_swap": {
+        "swap_to": "Butter Chicken",
+        "swap_calories": 460,
+        "swap_protein_g": 30,
+        "calories_saved": 0,
+        "protein_gained": 20,
+        "reason": "Swap to Butter Chicken — gain 20g protein"
+      }
+    },
+    {
+      "item_name": "Tandoori Roti (2)",
+      "estimated_calories": 220,
+      "estimated_protein_g": 7,
+      "estimated_carbs_g": 40,
+      "estimated_fat_g": 4,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "highway_dhaba",
+      "category": "Breads",
+      "protein_per_100kcal": 3.2,
+      "diet_tags": [
+        "light_meal"
+      ],
+      "smart_swap": {
+        "swap_to": "Butter Chicken",
+        "swap_calories": 460,
+        "swap_protein_g": 30,
+        "calories_saved": 0,
+        "protein_gained": 23,
+        "reason": "Swap to Butter Chicken — gain 23g protein"
+      }
+    },
+    {
+      "item_name": "Egg Curry",
+      "estimated_calories": 320,
+      "estimated_protein_g": 14,
+      "estimated_carbs_g": 12,
+      "estimated_fat_g": 24,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "highway_dhaba",
+      "category": "Curries",
+      "protein_per_100kcal": 4.4,
+      "diet_tags": [
+        "keto_friendly",
+        "low_carb"
+      ]
+    },
+    {
+      "item_name": "Butter Chicken",
+      "estimated_calories": 460,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 12,
+      "estimated_fat_g": 34,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "highway_dhaba",
+      "category": "Curries",
+      "protein_per_100kcal": 6.5,
+      "diet_tags": [
+        "high_protein",
+        "keto_friendly"
+      ],
+      "best_protein_pick": true
+    },
+    {
+      "item_name": "Chai (Cutting)",
+      "estimated_calories": 60,
+      "estimated_protein_g": 2,
+      "estimated_carbs_g": 10,
+      "estimated_fat_g": 2,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "highway_dhaba",
+      "category": "Tea",
+      "protein_per_100kcal": 3.3,
+      "diet_tags": [
+        "low_carb",
+        "light_meal"
+      ]
+    },
+    {
+      "item_name": "Chicken Curry + 3 Roti",
+      "estimated_calories": 620,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 62,
+      "estimated_fat_g": 26,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "highway_dhaba",
+      "category": "Combos",
+      "protein_per_100kcal": 5.2
+    },
+    {
+      "item_name": "Sabzi + 4 Roti",
+      "estimated_calories": 480,
+      "estimated_protein_g": 12,
+      "estimated_carbs_g": 68,
+      "estimated_fat_g": 18,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "highway_dhaba",
+      "category": "Combos",
+      "protein_per_100kcal": 2.5
+    },
+    {
+      "item_name": "Omelette (Double)",
+      "estimated_calories": 280,
+      "estimated_protein_g": 18,
+      "estimated_carbs_g": 4,
+      "estimated_fat_g": 22,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "highway_dhaba",
+      "category": "Breakfast",
+      "protein_per_100kcal": 6.4
+    },
+    {
+      "item_name": "Mutton Curry + Naan",
+      "estimated_calories": 720,
+      "estimated_protein_g": 36,
+      "estimated_carbs_g": 52,
+      "estimated_fat_g": 38,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "highway_dhaba",
+      "category": "Combos",
+      "protein_per_100kcal": 5.0
+    }
+  ]
+}

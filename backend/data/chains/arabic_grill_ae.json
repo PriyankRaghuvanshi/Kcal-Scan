@@ -1,0 +1,68 @@
+{
+  "brand_name": "Arabic Grill",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Lamb Ouzi",
+      "estimated_calories": 680,
+      "estimated_protein_g": 36,
+      "estimated_carbs_g": 58,
+      "estimated_fat_g": 32,
+      "menu_item_source": "real_menu",
+      "market": "AE",
+      "chain_key": "arabic_grill",
+      "category": "Rice",
+      "protein_per_100kcal": 5.3
+    },
+    {
+      "item_name": "Chicken Mandi",
+      "estimated_calories": 560,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 60,
+      "estimated_fat_g": 20,
+      "menu_item_source": "real_menu",
+      "market": "AE",
+      "chain_key": "arabic_grill",
+      "category": "Rice",
+      "protein_per_100kcal": 5.7
+    },
+    {
+      "item_name": "Mixed Grill Platter",
+      "estimated_calories": 620,
+      "estimated_protein_g": 44,
+      "estimated_carbs_g": 18,
+      "estimated_fat_g": 40,
+      "menu_item_source": "real_menu",
+      "market": "AE",
+      "chain_key": "arabic_grill",
+      "category": "Grills",
+      "protein_per_100kcal": 7.1
+    },
+    {
+      "item_name": "Fattoush",
+      "estimated_calories": 160,
+      "estimated_protein_g": 4,
+      "estimated_carbs_g": 18,
+      "estimated_fat_g": 8,
+      "menu_item_source": "real_menu",
+      "market": "AE",
+      "chain_key": "arabic_grill",
+      "category": "Salads",
+      "protein_per_100kcal": 2.5
+    },
+    {
+      "item_name": "Kunafa",
+      "estimated_calories": 380,
+      "estimated_protein_g": 8,
+      "estimated_carbs_g": 46,
+      "estimated_fat_g": 18,
+      "menu_item_source": "real_menu",
+      "market": "AE",
+      "chain_key": "arabic_grill",
+      "category": "Desserts",
+      "protein_per_100kcal": 2.1
+    }
+  ]
+}

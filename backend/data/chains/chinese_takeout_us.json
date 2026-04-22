@@ -1,0 +1,92 @@
+{
+  "brand_name": "Chinese Takeout",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "General Tso Combo",
+      "estimated_calories": 920,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 102,
+      "estimated_fat_g": 40,
+      "menu_item_source": "real_menu",
+      "market": "US",
+      "chain_key": "chinese_takeout",
+      "category": "Combos",
+      "protein_per_100kcal": 3.5
+    },
+    {
+      "item_name": "Beef & Broccoli with Rice",
+      "estimated_calories": 620,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 68,
+      "estimated_fat_g": 24,
+      "menu_item_source": "real_menu",
+      "market": "US",
+      "chain_key": "chinese_takeout",
+      "category": "Combos",
+      "protein_per_100kcal": 4.5
+    },
+    {
+      "item_name": "Fried Rice (Pork)",
+      "estimated_calories": 520,
+      "estimated_protein_g": 18,
+      "estimated_carbs_g": 62,
+      "estimated_fat_g": 22,
+      "menu_item_source": "real_menu",
+      "market": "US",
+      "chain_key": "chinese_takeout",
+      "category": "Rice",
+      "protein_per_100kcal": 3.5
+    },
+    {
+      "item_name": "Wonton Soup",
+      "estimated_calories": 180,
+      "estimated_protein_g": 10,
+      "estimated_carbs_g": 18,
+      "estimated_fat_g": 6,
+      "menu_item_source": "real_menu",
+      "market": "US",
+      "chain_key": "chinese_takeout",
+      "category": "Soups",
+      "protein_per_100kcal": 5.6
+    },
+    {
+      "item_name": "Crab Rangoon (6)",
+      "estimated_calories": 360,
+      "estimated_protein_g": 8,
+      "estimated_carbs_g": 30,
+      "estimated_fat_g": 22,
+      "menu_item_source": "real_menu",
+      "market": "US",
+      "chain_key": "chinese_takeout",
+      "category": "Starters",
+      "protein_per_100kcal": 2.2
+    },
+    {
+      "item_name": "Orange Chicken with Rice",
+      "estimated_calories": 780,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 92,
+      "estimated_fat_g": 30,
+      "menu_item_source": "real_menu",
+      "market": "US",
+      "chain_key": "chinese_takeout",
+      "category": "Combos",
+      "protein_per_100kcal": 3.6
+    },
+    {
+      "item_name": "Shrimp Lo Mein",
+      "estimated_calories": 520,
+      "estimated_protein_g": 22,
+      "estimated_carbs_g": 62,
+      "estimated_fat_g": 18,
+      "menu_item_source": "real_menu",
+      "market": "US",
+      "chain_key": "chinese_takeout",
+      "category": "Noodles",
+      "protein_per_100kcal": 4.2
+    }
+  ]
+}

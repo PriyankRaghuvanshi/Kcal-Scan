@@ -1,0 +1,113 @@
+{
+  "brand_name": "Pieminister",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Moo Pie (Steak)",
+      "estimated_calories": 520,
+      "estimated_protein_g": 22,
+      "estimated_carbs_g": 38,
+      "estimated_fat_g": 30,
+      "menu_item_source": "real_menu",
+      "market": "GB",
+      "chain_key": "pieminister",
+      "category": "Pies",
+      "protein_per_100kcal": 4.2
+    },
+    {
+      "item_name": "Kevin (Mushroom & Veg)",
+      "estimated_calories": 440,
+      "estimated_protein_g": 10,
+      "estimated_carbs_g": 40,
+      "estimated_fat_g": 26,
+      "menu_item_source": "real_menu",
+      "market": "GB",
+      "chain_key": "pieminister",
+      "category": "Pies",
+      "protein_per_100kcal": 2.3,
+      "smart_swap": {
+        "swap_to": "Mushy Peas",
+        "swap_calories": 100,
+        "swap_protein_g": 6,
+        "calories_saved": 340,
+        "protein_gained": 0,
+        "reason": "Swap to Mushy Peas — save 340 kcal, better protein density"
+      }
+    },
+    {
+      "item_name": "Heidi (Goat Cheese & Veg)",
+      "estimated_calories": 460,
+      "estimated_protein_g": 14,
+      "estimated_carbs_g": 38,
+      "estimated_fat_g": 28,
+      "menu_item_source": "real_menu",
+      "market": "GB",
+      "chain_key": "pieminister",
+      "category": "Pies",
+      "protein_per_100kcal": 3.0,
+      "smart_swap": {
+        "swap_to": "Mushy Peas",
+        "swap_calories": 100,
+        "swap_protein_g": 6,
+        "calories_saved": 360,
+        "protein_gained": 0,
+        "reason": "Swap to Mushy Peas — save 360 kcal, better protein density"
+      }
+    },
+    {
+      "item_name": "Motherclucker (Chicken)",
+      "estimated_calories": 480,
+      "estimated_protein_g": 22,
+      "estimated_carbs_g": 38,
+      "estimated_fat_g": 26,
+      "menu_item_source": "real_menu",
+      "market": "GB",
+      "chain_key": "pieminister",
+      "category": "Pies",
+      "protein_per_100kcal": 4.6,
+      "best_protein_pick": true
+    },
+    {
+      "item_name": "Mash & Gravy",
+      "estimated_calories": 240,
+      "estimated_protein_g": 4,
+      "estimated_carbs_g": 28,
+      "estimated_fat_g": 12,
+      "menu_item_source": "real_menu",
+      "market": "GB",
+      "chain_key": "pieminister",
+      "category": "Sides",
+      "protein_per_100kcal": 1.7,
+      "diet_tags": [
+        "low_carb",
+        "light_meal"
+      ],
+      "smart_swap": {
+        "swap_to": "Mushy Peas",
+        "swap_calories": 100,
+        "swap_protein_g": 6,
+        "calories_saved": 140,
+        "protein_gained": 2,
+        "reason": "Swap to Mushy Peas — save 140 kcal, gain 2g protein"
+      }
+    },
+    {
+      "item_name": "Mushy Peas",
+      "estimated_calories": 100,
+      "estimated_protein_g": 6,
+      "estimated_carbs_g": 12,
+      "estimated_fat_g": 2,
+      "menu_item_source": "real_menu",
+      "market": "GB",
+      "chain_key": "pieminister",
+      "category": "Sides",
+      "protein_per_100kcal": 6.0,
+      "diet_tags": [
+        "low_carb",
+        "light_meal"
+      ]
+    }
+  ]
+}

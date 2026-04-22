@@ -1,0 +1,80 @@
+{
+  "brand_name": "Britto",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Fish Curry Rice",
+      "estimated_calories": 480,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 52,
+      "estimated_fat_g": 18,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "britto",
+      "category": "Goan",
+      "protein_per_100kcal": 5.8
+    },
+    {
+      "item_name": "Prawn Vindaloo",
+      "estimated_calories": 380,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 10,
+      "estimated_fat_g": 26,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "britto",
+      "category": "Goan",
+      "protein_per_100kcal": 7.4
+    },
+    {
+      "item_name": "Chicken Xacuti",
+      "estimated_calories": 420,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 12,
+      "estimated_fat_g": 28,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "britto",
+      "category": "Goan",
+      "protein_per_100kcal": 7.6
+    },
+    {
+      "item_name": "Pork Sorpotel",
+      "estimated_calories": 460,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 8,
+      "estimated_fat_g": 36,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "britto",
+      "category": "Goan",
+      "protein_per_100kcal": 6.5
+    },
+    {
+      "item_name": "Bebinca (slice)",
+      "estimated_calories": 340,
+      "estimated_protein_g": 5,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 18,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "britto",
+      "category": "Desserts",
+      "protein_per_100kcal": 1.5
+    },
+    {
+      "item_name": "Kingfish Fry",
+      "estimated_calories": 320,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 14,
+      "estimated_fat_g": 16,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "britto",
+      "category": "Seafood",
+      "protein_per_100kcal": 9.4
+    }
+  ]
+}

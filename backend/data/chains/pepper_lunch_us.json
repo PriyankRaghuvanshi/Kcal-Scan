@@ -1,0 +1,77 @@
+{
+  "brand_name": "Pepper Lunch",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Beef Pepper Rice",
+      "estimated_calories": 580,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 62,
+      "estimated_fat_g": 24,
+      "menu_item_source": "real_menu",
+      "market": "US",
+      "chain_key": "pepper_lunch",
+      "category": "Rice",
+      "protein_per_100kcal": 4.8
+    },
+    {
+      "item_name": "Chicken Pepper Rice",
+      "estimated_calories": 520,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 60,
+      "estimated_fat_g": 18,
+      "menu_item_source": "real_menu",
+      "market": "US",
+      "chain_key": "pepper_lunch",
+      "category": "Rice",
+      "protein_per_100kcal": 5.8,
+      "best_protein_pick": true
+    },
+    {
+      "item_name": "Salmon Pepper Rice",
+      "estimated_calories": 540,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 58,
+      "estimated_fat_g": 22,
+      "menu_item_source": "real_menu",
+      "market": "US",
+      "chain_key": "pepper_lunch",
+      "category": "Rice",
+      "protein_per_100kcal": 5.2
+    },
+    {
+      "item_name": "Combo Steak Set",
+      "estimated_calories": 680,
+      "estimated_protein_g": 38,
+      "estimated_carbs_g": 56,
+      "estimated_fat_g": 32,
+      "menu_item_source": "real_menu",
+      "market": "US",
+      "chain_key": "pepper_lunch",
+      "category": "Steaks",
+      "protein_per_100kcal": 5.6
+    },
+    {
+      "item_name": "Curry Rice",
+      "estimated_calories": 500,
+      "estimated_protein_g": 18,
+      "estimated_carbs_g": 64,
+      "estimated_fat_g": 18,
+      "menu_item_source": "real_menu",
+      "market": "US",
+      "chain_key": "pepper_lunch",
+      "category": "Curry",
+      "protein_per_100kcal": 3.6,
+      "smart_swap": {
+        "swap_to": "Chicken Pepper Rice",
+        "swap_calories": 520,
+        "swap_protein_g": 30,
+        "calories_saved": 0,
+        "protein_gained": 12,
+        "reason": "Swap to Chicken Pepper Rice — gain 12g protein"
+      }
+    }
+  ]
+}

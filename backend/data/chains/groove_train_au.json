@@ -1,0 +1,56 @@
+{
+  "brand_name": "Groove Train",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Big Breakfast",
+      "estimated_calories": 780,
+      "estimated_protein_g": 36,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 50,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "groove_train",
+      "category": "Breakfast",
+      "protein_per_100kcal": 4.6
+    },
+    {
+      "item_name": "Chicken Parmi",
+      "estimated_calories": 820,
+      "estimated_protein_g": 46,
+      "estimated_carbs_g": 52,
+      "estimated_fat_g": 44,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "groove_train",
+      "category": "Mains",
+      "protein_per_100kcal": 5.6
+    },
+    {
+      "item_name": "Pasta Carbonara",
+      "estimated_calories": 680,
+      "estimated_protein_g": 26,
+      "estimated_carbs_g": 66,
+      "estimated_fat_g": 34,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "groove_train",
+      "category": "Pasta",
+      "protein_per_100kcal": 3.8
+    },
+    {
+      "item_name": "Smashed Avo",
+      "estimated_calories": 420,
+      "estimated_protein_g": 12,
+      "estimated_carbs_g": 38,
+      "estimated_fat_g": 24,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "groove_train",
+      "category": "Breakfast",
+      "protein_per_100kcal": 2.9
+    }
+  ]
+}

@@ -1,0 +1,99 @@
+{
+  "brand_name": "Sushi Train",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Salmon Nigiri (2 pcs)",
+      "estimated_calories": 120,
+      "estimated_protein_g": 8,
+      "estimated_carbs_g": 16,
+      "estimated_fat_g": 3,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "sushi_train",
+      "category": "Sushi",
+      "protein_per_100kcal": 6.7,
+      "diet_tags": [
+        "low_carb",
+        "light_meal"
+      ]
+    },
+    {
+      "item_name": "Chicken Katsu Curry",
+      "estimated_calories": 620,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 72,
+      "estimated_fat_g": 24,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "sushi_train",
+      "category": "Curry",
+      "protein_per_100kcal": 4.5,
+      "smart_swap": {
+        "swap_to": "Salmon Nigiri (2 pcs)",
+        "swap_calories": 120,
+        "swap_protein_g": 8,
+        "calories_saved": 500,
+        "protein_gained": 0,
+        "reason": "Swap to Salmon Nigiri (2 pcs) — save 500 kcal, better protein density"
+      }
+    },
+    {
+      "item_name": "California Roll (6 pcs)",
+      "estimated_calories": 260,
+      "estimated_protein_g": 8,
+      "estimated_carbs_g": 40,
+      "estimated_fat_g": 8,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "sushi_train",
+      "category": "Sushi",
+      "protein_per_100kcal": 3.1,
+      "diet_tags": [
+        "light_meal"
+      ],
+      "smart_swap": {
+        "swap_to": "Salmon Nigiri (2 pcs)",
+        "swap_calories": 120,
+        "swap_protein_g": 8,
+        "calories_saved": 140,
+        "protein_gained": 0,
+        "reason": "Swap to Salmon Nigiri (2 pcs) — save 140 kcal, better protein density"
+      }
+    },
+    {
+      "item_name": "Teriyaki Chicken Bowl",
+      "estimated_calories": 480,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 56,
+      "estimated_fat_g": 14,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "sushi_train",
+      "category": "Bowls",
+      "protein_per_100kcal": 5.8,
+      "diet_tags": [
+        "high_protein"
+      ],
+      "best_protein_pick": true
+    },
+    {
+      "item_name": "Miso Soup",
+      "estimated_calories": 50,
+      "estimated_protein_g": 3,
+      "estimated_carbs_g": 5,
+      "estimated_fat_g": 2,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "sushi_train",
+      "category": "Soups",
+      "protein_per_100kcal": 6.0,
+      "diet_tags": [
+        "low_carb",
+        "light_meal"
+      ]
+    }
+  ]
+}

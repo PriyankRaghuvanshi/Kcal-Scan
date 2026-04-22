@@ -1,0 +1,115 @@
+{
+  "brand_name": "Kathi Junction",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Chicken Tikka Roll",
+      "estimated_calories": 380,
+      "estimated_protein_g": 24,
+      "estimated_carbs_g": 32,
+      "estimated_fat_g": 18,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "kathi_junction",
+      "category": "Rolls",
+      "protein_per_100kcal": 6.3
+    },
+    {
+      "item_name": "Paneer Tikka Roll",
+      "estimated_calories": 340,
+      "estimated_protein_g": 14,
+      "estimated_carbs_g": 34,
+      "estimated_fat_g": 16,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "kathi_junction",
+      "category": "Rolls",
+      "protein_per_100kcal": 4.1,
+      "smart_swap": {
+        "swap_to": "Double Chicken Roll",
+        "swap_calories": 480,
+        "swap_protein_g": 32,
+        "calories_saved": 0,
+        "protein_gained": 18,
+        "reason": "Swap to Double Chicken Roll — gain 18g protein"
+      }
+    },
+    {
+      "item_name": "Egg Roll",
+      "estimated_calories": 300,
+      "estimated_protein_g": 14,
+      "estimated_carbs_g": 30,
+      "estimated_fat_g": 14,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "kathi_junction",
+      "category": "Rolls",
+      "protein_per_100kcal": 4.7,
+      "diet_tags": [
+        "low_carb",
+        "light_meal"
+      ],
+      "smart_swap": {
+        "swap_to": "Double Chicken Roll",
+        "swap_calories": 480,
+        "swap_protein_g": 32,
+        "calories_saved": 0,
+        "protein_gained": 18,
+        "reason": "Swap to Double Chicken Roll — gain 18g protein"
+      }
+    },
+    {
+      "item_name": "Mutton Seekh Roll",
+      "estimated_calories": 420,
+      "estimated_protein_g": 26,
+      "estimated_carbs_g": 32,
+      "estimated_fat_g": 22,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "kathi_junction",
+      "category": "Rolls",
+      "protein_per_100kcal": 6.2,
+      "diet_tags": [
+        "high_protein"
+      ]
+    },
+    {
+      "item_name": "Double Chicken Roll",
+      "estimated_calories": 480,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 34,
+      "estimated_fat_g": 24,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "kathi_junction",
+      "category": "Rolls",
+      "protein_per_100kcal": 6.7,
+      "diet_tags": [
+        "high_protein"
+      ],
+      "best_protein_pick": true
+    },
+    {
+      "item_name": "Chicken Biryani",
+      "estimated_calories": 560,
+      "estimated_protein_g": 26,
+      "estimated_carbs_g": 68,
+      "estimated_fat_g": 20,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "kathi_junction",
+      "category": "Biryani",
+      "protein_per_100kcal": 4.6,
+      "smart_swap": {
+        "swap_to": "Double Chicken Roll",
+        "swap_calories": 480,
+        "swap_protein_g": 32,
+        "calories_saved": 80,
+        "protein_gained": 6,
+        "reason": "Swap to Double Chicken Roll — save 80 kcal, gain 6g protein"
+      }
+    }
+  ]
+}

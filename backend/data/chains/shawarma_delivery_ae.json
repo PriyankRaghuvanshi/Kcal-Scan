@@ -1,0 +1,68 @@
+{
+  "brand_name": "Shawarma Delivery",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Chicken Shawarma (Regular)",
+      "estimated_calories": 380,
+      "estimated_protein_g": 24,
+      "estimated_carbs_g": 32,
+      "estimated_fat_g": 16,
+      "menu_item_source": "real_menu",
+      "market": "AE",
+      "chain_key": "shawarma_delivery",
+      "category": "Shawarma",
+      "protein_per_100kcal": 6.3
+    },
+    {
+      "item_name": "Chicken Shawarma Plate + Fries",
+      "estimated_calories": 680,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 62,
+      "estimated_fat_g": 34,
+      "menu_item_source": "real_menu",
+      "market": "AE",
+      "chain_key": "shawarma_delivery",
+      "category": "Plates",
+      "protein_per_100kcal": 4.4
+    },
+    {
+      "item_name": "Meat Shawarma Plate",
+      "estimated_calories": 720,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 58,
+      "estimated_fat_g": 38,
+      "menu_item_source": "real_menu",
+      "market": "AE",
+      "chain_key": "shawarma_delivery",
+      "category": "Plates",
+      "protein_per_100kcal": 4.4
+    },
+    {
+      "item_name": "Falafel Wrap",
+      "estimated_calories": 380,
+      "estimated_protein_g": 12,
+      "estimated_carbs_g": 44,
+      "estimated_fat_g": 18,
+      "menu_item_source": "real_menu",
+      "market": "AE",
+      "chain_key": "shawarma_delivery",
+      "category": "Wraps",
+      "protein_per_100kcal": 3.2
+    },
+    {
+      "item_name": "Hummus + Pita",
+      "estimated_calories": 280,
+      "estimated_protein_g": 8,
+      "estimated_carbs_g": 30,
+      "estimated_fat_g": 14,
+      "menu_item_source": "real_menu",
+      "market": "AE",
+      "chain_key": "shawarma_delivery",
+      "category": "Mezze",
+      "protein_per_100kcal": 2.9
+    }
+  ]
+}

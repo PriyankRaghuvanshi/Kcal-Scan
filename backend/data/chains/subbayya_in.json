@@ -1,0 +1,68 @@
+{
+  "brand_name": "Subbayya",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Andhra Meals (Veg)",
+      "estimated_calories": 620,
+      "estimated_protein_g": 16,
+      "estimated_carbs_g": 86,
+      "estimated_fat_g": 22,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "subbayya",
+      "category": "Thali",
+      "protein_per_100kcal": 2.6
+    },
+    {
+      "item_name": "Andhra Meals (Non-Veg)",
+      "estimated_calories": 740,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 86,
+      "estimated_fat_g": 30,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "subbayya",
+      "category": "Thali",
+      "protein_per_100kcal": 4.1
+    },
+    {
+      "item_name": "Chicken Biryani",
+      "estimated_calories": 620,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 72,
+      "estimated_fat_g": 24,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "subbayya",
+      "category": "Biryani",
+      "protein_per_100kcal": 4.5
+    },
+    {
+      "item_name": "Royyala Iguru (Prawn)",
+      "estimated_calories": 380,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 10,
+      "estimated_fat_g": 26,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "subbayya",
+      "category": "Seafood",
+      "protein_per_100kcal": 7.4
+    },
+    {
+      "item_name": "Gongura Chicken",
+      "estimated_calories": 420,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 10,
+      "estimated_fat_g": 30,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "subbayya",
+      "category": "Curries",
+      "protein_per_100kcal": 7.1
+    }
+  ]
+}

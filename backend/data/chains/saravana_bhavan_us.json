@@ -1,0 +1,99 @@
+{
+  "brand_name": "Saravana Bhavan",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Masala Dosa",
+      "estimated_calories": 340,
+      "estimated_protein_g": 8,
+      "estimated_carbs_g": 48,
+      "estimated_fat_g": 14,
+      "menu_item_source": "real_menu",
+      "market": "US",
+      "chain_key": "saravana_bhavan",
+      "category": "Dosa",
+      "protein_per_100kcal": 2.4,
+      "smart_swap": {
+        "swap_to": "Filter Coffee",
+        "swap_calories": 80,
+        "swap_protein_g": 3,
+        "calories_saved": 260,
+        "protein_gained": 0,
+        "reason": "Swap to Filter Coffee — save 260 kcal, better protein density"
+      }
+    },
+    {
+      "item_name": "Ghee Roast Dosa",
+      "estimated_calories": 420,
+      "estimated_protein_g": 8,
+      "estimated_carbs_g": 48,
+      "estimated_fat_g": 22,
+      "menu_item_source": "real_menu",
+      "market": "US",
+      "chain_key": "saravana_bhavan",
+      "category": "Dosa",
+      "protein_per_100kcal": 1.9,
+      "smart_swap": {
+        "swap_to": "Filter Coffee",
+        "swap_calories": 80,
+        "swap_protein_g": 3,
+        "calories_saved": 340,
+        "protein_gained": 0,
+        "reason": "Swap to Filter Coffee — save 340 kcal, better protein density"
+      }
+    },
+    {
+      "item_name": "Idli (3 pcs) with Sambar",
+      "estimated_calories": 240,
+      "estimated_protein_g": 8,
+      "estimated_carbs_g": 44,
+      "estimated_fat_g": 4,
+      "menu_item_source": "real_menu",
+      "market": "US",
+      "chain_key": "saravana_bhavan",
+      "category": "South Indian",
+      "protein_per_100kcal": 3.3,
+      "diet_tags": [
+        "light_meal"
+      ]
+    },
+    {
+      "item_name": "Mini Tiffin",
+      "estimated_calories": 480,
+      "estimated_protein_g": 12,
+      "estimated_carbs_g": 68,
+      "estimated_fat_g": 18,
+      "menu_item_source": "real_menu",
+      "market": "US",
+      "chain_key": "saravana_bhavan",
+      "category": "Combos",
+      "protein_per_100kcal": 2.5,
+      "smart_swap": {
+        "swap_to": "Filter Coffee",
+        "swap_calories": 80,
+        "swap_protein_g": 3,
+        "calories_saved": 400,
+        "protein_gained": 0,
+        "reason": "Swap to Filter Coffee — save 400 kcal, better protein density"
+      }
+    },
+    {
+      "item_name": "Filter Coffee",
+      "estimated_calories": 80,
+      "estimated_protein_g": 3,
+      "estimated_carbs_g": 10,
+      "estimated_fat_g": 3,
+      "menu_item_source": "real_menu",
+      "market": "US",
+      "chain_key": "saravana_bhavan",
+      "category": "Coffee",
+      "protein_per_100kcal": 3.8,
+      "diet_tags": [
+        "low_carb",
+        "light_meal"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,92 @@
+{
+  "brand_name": "Thai Delivery",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Pad Thai (Chicken)",
+      "estimated_calories": 560,
+      "estimated_protein_g": 26,
+      "estimated_carbs_g": 68,
+      "estimated_fat_g": 18,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "thai_delivery",
+      "category": "Noodles",
+      "protein_per_100kcal": 4.6
+    },
+    {
+      "item_name": "Green Curry (Chicken) with Rice",
+      "estimated_calories": 620,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 58,
+      "estimated_fat_g": 28,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "thai_delivery",
+      "category": "Curry",
+      "protein_per_100kcal": 4.5
+    },
+    {
+      "item_name": "Massaman Curry with Rice",
+      "estimated_calories": 680,
+      "estimated_protein_g": 26,
+      "estimated_carbs_g": 62,
+      "estimated_fat_g": 34,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "thai_delivery",
+      "category": "Curry",
+      "protein_per_100kcal": 3.8
+    },
+    {
+      "item_name": "Basil Chicken Stir Fry with Rice",
+      "estimated_calories": 540,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 56,
+      "estimated_fat_g": 20,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "thai_delivery",
+      "category": "Stir Fry",
+      "protein_per_100kcal": 5.2
+    },
+    {
+      "item_name": "Tom Yum Soup",
+      "estimated_calories": 180,
+      "estimated_protein_g": 14,
+      "estimated_carbs_g": 12,
+      "estimated_fat_g": 8,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "thai_delivery",
+      "category": "Soups",
+      "protein_per_100kcal": 7.8
+    },
+    {
+      "item_name": "Spring Rolls (4)",
+      "estimated_calories": 240,
+      "estimated_protein_g": 6,
+      "estimated_carbs_g": 26,
+      "estimated_fat_g": 12,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "thai_delivery",
+      "category": "Starters",
+      "protein_per_100kcal": 2.5
+    },
+    {
+      "item_name": "Satay Chicken (4 sticks)",
+      "estimated_calories": 280,
+      "estimated_protein_g": 22,
+      "estimated_carbs_g": 10,
+      "estimated_fat_g": 18,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "thai_delivery",
+      "category": "Starters",
+      "protein_per_100kcal": 7.9
+    }
+  ]
+}

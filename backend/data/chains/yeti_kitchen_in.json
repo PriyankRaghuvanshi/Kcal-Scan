@@ -1,0 +1,68 @@
+{
+  "brand_name": "Yeti Kitchen",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Thukpa (Chicken)",
+      "estimated_calories": 380,
+      "estimated_protein_g": 20,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 14,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "yeti_kitchen",
+      "category": "Soups",
+      "protein_per_100kcal": 5.3
+    },
+    {
+      "item_name": "Steamed Momos (8)",
+      "estimated_calories": 320,
+      "estimated_protein_g": 20,
+      "estimated_carbs_g": 34,
+      "estimated_fat_g": 12,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "yeti_kitchen",
+      "category": "Momos",
+      "protein_per_100kcal": 6.2
+    },
+    {
+      "item_name": "Fried Momos (8)",
+      "estimated_calories": 440,
+      "estimated_protein_g": 20,
+      "estimated_carbs_g": 36,
+      "estimated_fat_g": 24,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "yeti_kitchen",
+      "category": "Momos",
+      "protein_per_100kcal": 4.5
+    },
+    {
+      "item_name": "Tingmo with Shapta",
+      "estimated_calories": 420,
+      "estimated_protein_g": 24,
+      "estimated_carbs_g": 38,
+      "estimated_fat_g": 18,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "yeti_kitchen",
+      "category": "Tibetan",
+      "protein_per_100kcal": 5.7
+    },
+    {
+      "item_name": "Butter Tea",
+      "estimated_calories": 120,
+      "estimated_protein_g": 2,
+      "estimated_carbs_g": 4,
+      "estimated_fat_g": 10,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "yeti_kitchen",
+      "category": "Tea",
+      "protein_per_100kcal": 1.7
+    }
+  ]
+}

@@ -1,0 +1,80 @@
+{
+  "brand_name": "Annapoorna",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Ghee Roast Dosa",
+      "estimated_calories": 420,
+      "estimated_protein_g": 8,
+      "estimated_carbs_g": 50,
+      "estimated_fat_g": 22,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "annapoorna",
+      "category": "Dosa",
+      "protein_per_100kcal": 1.9
+    },
+    {
+      "item_name": "Idli (4) with Sambar",
+      "estimated_calories": 300,
+      "estimated_protein_g": 8,
+      "estimated_carbs_g": 56,
+      "estimated_fat_g": 6,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "annapoorna",
+      "category": "South Indian",
+      "protein_per_100kcal": 2.7
+    },
+    {
+      "item_name": "Chicken Biryani",
+      "estimated_calories": 580,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 68,
+      "estimated_fat_g": 22,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "annapoorna",
+      "category": "Biryani",
+      "protein_per_100kcal": 4.8
+    },
+    {
+      "item_name": "Kothu Parotta",
+      "estimated_calories": 480,
+      "estimated_protein_g": 14,
+      "estimated_carbs_g": 52,
+      "estimated_fat_g": 24,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "annapoorna",
+      "category": "Tamil",
+      "protein_per_100kcal": 2.9
+    },
+    {
+      "item_name": "Pongal",
+      "estimated_calories": 280,
+      "estimated_protein_g": 8,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 10,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "annapoorna",
+      "category": "South Indian",
+      "protein_per_100kcal": 2.9
+    },
+    {
+      "item_name": "Filter Coffee",
+      "estimated_calories": 80,
+      "estimated_protein_g": 3,
+      "estimated_carbs_g": 10,
+      "estimated_fat_g": 3,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "annapoorna",
+      "category": "Coffee",
+      "protein_per_100kcal": 3.8
+    }
+  ]
+}

@@ -1,0 +1,80 @@
+{
+  "brand_name": "Tim Ho Wan",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Baked BBQ Pork Buns (3)",
+      "estimated_calories": 420,
+      "estimated_protein_g": 14,
+      "estimated_carbs_g": 48,
+      "estimated_fat_g": 18,
+      "menu_item_source": "real_menu",
+      "market": "SG",
+      "chain_key": "tim_ho_wan",
+      "category": "Dim Sum",
+      "protein_per_100kcal": 3.3
+    },
+    {
+      "item_name": "Har Gow (4)",
+      "estimated_calories": 200,
+      "estimated_protein_g": 12,
+      "estimated_carbs_g": 20,
+      "estimated_fat_g": 8,
+      "menu_item_source": "real_menu",
+      "market": "SG",
+      "chain_key": "tim_ho_wan",
+      "category": "Dim Sum",
+      "protein_per_100kcal": 6.0
+    },
+    {
+      "item_name": "Siu Mai (4)",
+      "estimated_calories": 240,
+      "estimated_protein_g": 14,
+      "estimated_carbs_g": 18,
+      "estimated_fat_g": 12,
+      "menu_item_source": "real_menu",
+      "market": "SG",
+      "chain_key": "tim_ho_wan",
+      "category": "Dim Sum",
+      "protein_per_100kcal": 5.8
+    },
+    {
+      "item_name": "Cheung Fun (Prawn)",
+      "estimated_calories": 180,
+      "estimated_protein_g": 10,
+      "estimated_carbs_g": 22,
+      "estimated_fat_g": 6,
+      "menu_item_source": "real_menu",
+      "market": "SG",
+      "chain_key": "tim_ho_wan",
+      "category": "Dim Sum",
+      "protein_per_100kcal": 5.6
+    },
+    {
+      "item_name": "Congee (Pork)",
+      "estimated_calories": 280,
+      "estimated_protein_g": 14,
+      "estimated_carbs_g": 36,
+      "estimated_fat_g": 8,
+      "menu_item_source": "real_menu",
+      "market": "SG",
+      "chain_key": "tim_ho_wan",
+      "category": "Congee",
+      "protein_per_100kcal": 5.0
+    },
+    {
+      "item_name": "Egg Tart (2)",
+      "estimated_calories": 300,
+      "estimated_protein_g": 6,
+      "estimated_carbs_g": 32,
+      "estimated_fat_g": 16,
+      "menu_item_source": "real_menu",
+      "market": "SG",
+      "chain_key": "tim_ho_wan",
+      "category": "Desserts",
+      "protein_per_100kcal": 2.0
+    }
+  ]
+}

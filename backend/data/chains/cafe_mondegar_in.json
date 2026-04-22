@@ -1,0 +1,56 @@
+{
+  "brand_name": "Cafe Mondegar",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Chicken Sizzler",
+      "estimated_calories": 680,
+      "estimated_protein_g": 38,
+      "estimated_carbs_g": 48,
+      "estimated_fat_g": 34,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "cafe_mondegar",
+      "category": "Sizzlers",
+      "protein_per_100kcal": 5.6
+    },
+    {
+      "item_name": "Fish & Chips",
+      "estimated_calories": 620,
+      "estimated_protein_g": 26,
+      "estimated_carbs_g": 52,
+      "estimated_fat_g": 34,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "cafe_mondegar",
+      "category": "Mains",
+      "protein_per_100kcal": 4.2
+    },
+    {
+      "item_name": "Classic Burger",
+      "estimated_calories": 560,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 40,
+      "estimated_fat_g": 32,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "cafe_mondegar",
+      "category": "Burgers",
+      "protein_per_100kcal": 5.0
+    },
+    {
+      "item_name": "Chicken Wings (8)",
+      "estimated_calories": 480,
+      "estimated_protein_g": 34,
+      "estimated_carbs_g": 12,
+      "estimated_fat_g": 32,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "cafe_mondegar",
+      "category": "Starters",
+      "protein_per_100kcal": 7.1
+    }
+  ]
+}

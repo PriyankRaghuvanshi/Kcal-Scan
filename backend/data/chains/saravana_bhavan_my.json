@@ -1,0 +1,68 @@
+{
+  "brand_name": "Saravana Bhavan",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Masala Dosa",
+      "estimated_calories": 340,
+      "estimated_protein_g": 8,
+      "estimated_carbs_g": 48,
+      "estimated_fat_g": 14,
+      "menu_item_source": "real_menu",
+      "market": "MY",
+      "chain_key": "saravana_bhavan",
+      "category": "Dosa",
+      "protein_per_100kcal": 2.4
+    },
+    {
+      "item_name": "Ghee Roast Dosa",
+      "estimated_calories": 420,
+      "estimated_protein_g": 8,
+      "estimated_carbs_g": 48,
+      "estimated_fat_g": 22,
+      "menu_item_source": "real_menu",
+      "market": "MY",
+      "chain_key": "saravana_bhavan",
+      "category": "Dosa",
+      "protein_per_100kcal": 1.9
+    },
+    {
+      "item_name": "Idli (3) with Sambar",
+      "estimated_calories": 240,
+      "estimated_protein_g": 8,
+      "estimated_carbs_g": 44,
+      "estimated_fat_g": 4,
+      "menu_item_source": "real_menu",
+      "market": "MY",
+      "chain_key": "saravana_bhavan",
+      "category": "South Indian",
+      "protein_per_100kcal": 3.3
+    },
+    {
+      "item_name": "Mini Tiffin",
+      "estimated_calories": 480,
+      "estimated_protein_g": 12,
+      "estimated_carbs_g": 68,
+      "estimated_fat_g": 18,
+      "menu_item_source": "real_menu",
+      "market": "MY",
+      "chain_key": "saravana_bhavan",
+      "category": "Combos",
+      "protein_per_100kcal": 2.5
+    },
+    {
+      "item_name": "Filter Coffee",
+      "estimated_calories": 80,
+      "estimated_protein_g": 3,
+      "estimated_carbs_g": 10,
+      "estimated_fat_g": 3,
+      "menu_item_source": "real_menu",
+      "market": "MY",
+      "chain_key": "saravana_bhavan",
+      "category": "Coffee",
+      "protein_per_100kcal": 3.8
+    }
+  ]
+}

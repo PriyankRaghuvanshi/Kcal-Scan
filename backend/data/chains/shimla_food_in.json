@@ -1,0 +1,68 @@
+{
+  "brand_name": "Shimla Food",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Siddu (2)",
+      "estimated_calories": 320,
+      "estimated_protein_g": 8,
+      "estimated_carbs_g": 44,
+      "estimated_fat_g": 12,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "shimla_food",
+      "category": "Himachali",
+      "protein_per_100kcal": 2.5
+    },
+    {
+      "item_name": "Dham Thali",
+      "estimated_calories": 680,
+      "estimated_protein_g": 16,
+      "estimated_carbs_g": 88,
+      "estimated_fat_g": 28,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "shimla_food",
+      "category": "Thali",
+      "protein_per_100kcal": 2.4
+    },
+    {
+      "item_name": "Babru (2)",
+      "estimated_calories": 280,
+      "estimated_protein_g": 6,
+      "estimated_carbs_g": 32,
+      "estimated_fat_g": 14,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "shimla_food",
+      "category": "Snacks",
+      "protein_per_100kcal": 2.1
+    },
+    {
+      "item_name": "Tudkiya Bhath",
+      "estimated_calories": 380,
+      "estimated_protein_g": 10,
+      "estimated_carbs_g": 56,
+      "estimated_fat_g": 12,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "shimla_food",
+      "category": "Rice",
+      "protein_per_100kcal": 2.6
+    },
+    {
+      "item_name": "Madra",
+      "estimated_calories": 320,
+      "estimated_protein_g": 12,
+      "estimated_carbs_g": 22,
+      "estimated_fat_g": 20,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "shimla_food",
+      "category": "Curries",
+      "protein_per_100kcal": 3.8
+    }
+  ]
+}

@@ -1,0 +1,101 @@
+{
+  "brand_name": "Moes",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Homewrecker Burrito (Chicken)",
+      "estimated_calories": 820,
+      "estimated_protein_g": 44,
+      "estimated_carbs_g": 84,
+      "estimated_fat_g": 30,
+      "menu_item_source": "real_menu",
+      "market": "US",
+      "chain_key": "moes",
+      "category": "Burritos",
+      "protein_per_100kcal": 5.4,
+      "calorie_density_warning": true,
+      "diet_tags": [
+        "heavy_meal"
+      ]
+    },
+    {
+      "item_name": "Close Talker Tacos (3, Chicken)",
+      "estimated_calories": 540,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 24,
+      "menu_item_source": "real_menu",
+      "market": "US",
+      "chain_key": "moes",
+      "category": "Tacos",
+      "protein_per_100kcal": 5.9
+    },
+    {
+      "item_name": "Earmuffs (Quesadilla, Chicken)",
+      "estimated_calories": 680,
+      "estimated_protein_g": 38,
+      "estimated_carbs_g": 48,
+      "estimated_fat_g": 34,
+      "menu_item_source": "real_menu",
+      "market": "US",
+      "chain_key": "moes",
+      "category": "Quesadillas",
+      "protein_per_100kcal": 5.6
+    },
+    {
+      "item_name": "Chicken Bowl",
+      "estimated_calories": 560,
+      "estimated_protein_g": 38,
+      "estimated_carbs_g": 48,
+      "estimated_fat_g": 22,
+      "menu_item_source": "real_menu",
+      "market": "US",
+      "chain_key": "moes",
+      "category": "Bowls",
+      "protein_per_100kcal": 6.8,
+      "best_protein_pick": true
+    },
+    {
+      "item_name": "Queso Dip & Chips",
+      "estimated_calories": 480,
+      "estimated_protein_g": 12,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 30,
+      "menu_item_source": "real_menu",
+      "market": "US",
+      "chain_key": "moes",
+      "category": "Sides",
+      "protein_per_100kcal": 2.5,
+      "smart_swap": {
+        "swap_to": "Chicken Bowl",
+        "swap_calories": 560,
+        "swap_protein_g": 38,
+        "calories_saved": 0,
+        "protein_gained": 26,
+        "reason": "Swap to Chicken Bowl — gain 26g protein"
+      }
+    },
+    {
+      "item_name": "Guacamole & Chips",
+      "estimated_calories": 380,
+      "estimated_protein_g": 4,
+      "estimated_carbs_g": 36,
+      "estimated_fat_g": 24,
+      "menu_item_source": "real_menu",
+      "market": "US",
+      "chain_key": "moes",
+      "category": "Sides",
+      "protein_per_100kcal": 1.1,
+      "smart_swap": {
+        "swap_to": "Chicken Bowl",
+        "swap_calories": 560,
+        "swap_protein_g": 38,
+        "calories_saved": 0,
+        "protein_gained": 34,
+        "reason": "Swap to Chicken Bowl — gain 34g protein"
+      }
+    }
+  ]
+}

@@ -1,0 +1,68 @@
+{
+  "brand_name": "Losteria",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Pizza Margherita (XXL)",
+      "estimated_calories": 860,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 98,
+      "estimated_fat_g": 36,
+      "menu_item_source": "real_menu",
+      "market": "IT",
+      "chain_key": "losteria",
+      "category": "Pizza",
+      "protein_per_100kcal": 3.7
+    },
+    {
+      "item_name": "Pasta Carbonara",
+      "estimated_calories": 720,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 68,
+      "estimated_fat_g": 38,
+      "menu_item_source": "real_menu",
+      "market": "IT",
+      "chain_key": "losteria",
+      "category": "Pasta",
+      "protein_per_100kcal": 3.9
+    },
+    {
+      "item_name": "Insalata Mista",
+      "estimated_calories": 220,
+      "estimated_protein_g": 6,
+      "estimated_carbs_g": 12,
+      "estimated_fat_g": 16,
+      "menu_item_source": "real_menu",
+      "market": "IT",
+      "chain_key": "losteria",
+      "category": "Salads",
+      "protein_per_100kcal": 2.7
+    },
+    {
+      "item_name": "Bruschetta",
+      "estimated_calories": 280,
+      "estimated_protein_g": 8,
+      "estimated_carbs_g": 30,
+      "estimated_fat_g": 14,
+      "menu_item_source": "real_menu",
+      "market": "IT",
+      "chain_key": "losteria",
+      "category": "Starters",
+      "protein_per_100kcal": 2.9
+    },
+    {
+      "item_name": "Tiramisu",
+      "estimated_calories": 420,
+      "estimated_protein_g": 8,
+      "estimated_carbs_g": 44,
+      "estimated_fat_g": 24,
+      "menu_item_source": "real_menu",
+      "market": "IT",
+      "chain_key": "losteria",
+      "category": "Desserts",
+      "protein_per_100kcal": 1.9
+    }
+  ]
+}

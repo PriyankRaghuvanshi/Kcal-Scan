@@ -1,0 +1,105 @@
+{
+  "brand_name": "Momos Stall",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Steamed Chicken Momos (10 pcs)",
+      "estimated_calories": 380,
+      "estimated_protein_g": 22,
+      "estimated_carbs_g": 40,
+      "estimated_fat_g": 14,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "momos_stall",
+      "category": "Momos",
+      "protein_per_100kcal": 5.8,
+      "best_protein_pick": true
+    },
+    {
+      "item_name": "Fried Chicken Momos (10 pcs)",
+      "estimated_calories": 520,
+      "estimated_protein_g": 22,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 28,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "momos_stall",
+      "category": "Momos",
+      "protein_per_100kcal": 4.2
+    },
+    {
+      "item_name": "Steamed Veg Momos (10 pcs)",
+      "estimated_calories": 320,
+      "estimated_protein_g": 10,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 12,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "momos_stall",
+      "category": "Momos",
+      "protein_per_100kcal": 3.1,
+      "smart_swap": {
+        "swap_to": "Steamed Chicken Momos (10 pcs)",
+        "swap_calories": 380,
+        "swap_protein_g": 22,
+        "calories_saved": 0,
+        "protein_gained": 12,
+        "reason": "Swap to Steamed Chicken Momos (10 pcs) — gain 12g protein"
+      }
+    },
+    {
+      "item_name": "Tandoori Momos (8 pcs)",
+      "estimated_calories": 420,
+      "estimated_protein_g": 18,
+      "estimated_carbs_g": 34,
+      "estimated_fat_g": 22,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "momos_stall",
+      "category": "Momos",
+      "protein_per_100kcal": 4.3
+    },
+    {
+      "item_name": "Kurkure Momos (8 pcs)",
+      "estimated_calories": 480,
+      "estimated_protein_g": 16,
+      "estimated_carbs_g": 40,
+      "estimated_fat_g": 28,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "momos_stall",
+      "category": "Momos",
+      "protein_per_100kcal": 3.3,
+      "smart_swap": {
+        "swap_to": "Steamed Chicken Momos (10 pcs)",
+        "swap_calories": 380,
+        "swap_protein_g": 22,
+        "calories_saved": 100,
+        "protein_gained": 6,
+        "reason": "Swap to Steamed Chicken Momos (10 pcs) — save 100 kcal, gain 6g protein"
+      }
+    },
+    {
+      "item_name": "Gravy Momos",
+      "estimated_calories": 440,
+      "estimated_protein_g": 18,
+      "estimated_carbs_g": 38,
+      "estimated_fat_g": 24,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "momos_stall",
+      "category": "Momos",
+      "protein_per_100kcal": 4.1,
+      "smart_swap": {
+        "swap_to": "Steamed Chicken Momos (10 pcs)",
+        "swap_calories": 380,
+        "swap_protein_g": 22,
+        "calories_saved": 60,
+        "protein_gained": 4,
+        "reason": "Swap to Steamed Chicken Momos (10 pcs) — save 60 kcal, gain 4g protein"
+      }
+    }
+  ]
+}

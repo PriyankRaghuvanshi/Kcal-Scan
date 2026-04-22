@@ -1,0 +1,99 @@
+{
+  "brand_name": "Manis Dum Biryani",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Chicken Dum Biryani",
+      "estimated_calories": 600,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 70,
+      "estimated_fat_g": 22,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "manis_dum_biryani",
+      "category": "Biryani",
+      "protein_per_100kcal": 4.7,
+      "smart_swap": {
+        "swap_to": "Chicken Kebab",
+        "swap_calories": 280,
+        "swap_protein_g": 28,
+        "calories_saved": 320,
+        "protein_gained": 0,
+        "reason": "Swap to Chicken Kebab — save 320 kcal, better protein density"
+      }
+    },
+    {
+      "item_name": "Mutton Dum Biryani",
+      "estimated_calories": 700,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 72,
+      "estimated_fat_g": 30,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "manis_dum_biryani",
+      "category": "Biryani",
+      "protein_per_100kcal": 4.6,
+      "smart_swap": {
+        "swap_to": "Chicken Kebab",
+        "swap_calories": 280,
+        "swap_protein_g": 28,
+        "calories_saved": 420,
+        "protein_gained": 0,
+        "reason": "Swap to Chicken Kebab — save 420 kcal, better protein density"
+      }
+    },
+    {
+      "item_name": "Egg Biryani",
+      "estimated_calories": 520,
+      "estimated_protein_g": 18,
+      "estimated_carbs_g": 68,
+      "estimated_fat_g": 20,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "manis_dum_biryani",
+      "category": "Biryani",
+      "protein_per_100kcal": 3.5,
+      "smart_swap": {
+        "swap_to": "Chicken Kebab",
+        "swap_calories": 280,
+        "swap_protein_g": 28,
+        "calories_saved": 240,
+        "protein_gained": 10,
+        "reason": "Swap to Chicken Kebab — save 240 kcal, gain 10g protein"
+      }
+    },
+    {
+      "item_name": "Chicken Kebab",
+      "estimated_calories": 280,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 6,
+      "estimated_fat_g": 16,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "manis_dum_biryani",
+      "category": "Starters",
+      "protein_per_100kcal": 10.0,
+      "diet_tags": [
+        "high_protein",
+        "keto_friendly",
+        "low_carb",
+        "light_meal"
+      ],
+      "best_protein_pick": true
+    },
+    {
+      "item_name": "Haleem",
+      "estimated_calories": 380,
+      "estimated_protein_g": 22,
+      "estimated_carbs_g": 32,
+      "estimated_fat_g": 18,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "manis_dum_biryani",
+      "category": "Specialties",
+      "protein_per_100kcal": 5.8
+    }
+  ]
+}

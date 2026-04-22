@@ -1,0 +1,117 @@
+{
+  "brand_name": "Sharief Bhai",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Hyderabadi Chicken Biryani",
+      "estimated_calories": 640,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 74,
+      "estimated_fat_g": 26,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "sharief_bhai",
+      "category": "Biryani",
+      "protein_per_100kcal": 4.7
+    },
+    {
+      "item_name": "Mutton Biryani",
+      "estimated_calories": 740,
+      "estimated_protein_g": 34,
+      "estimated_carbs_g": 74,
+      "estimated_fat_g": 34,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "sharief_bhai",
+      "category": "Biryani",
+      "protein_per_100kcal": 4.6,
+      "smart_swap": {
+        "swap_to": "Kebab Platter",
+        "swap_calories": 420,
+        "swap_protein_g": 36,
+        "calories_saved": 320,
+        "protein_gained": 2,
+        "reason": "Swap to Kebab Platter — save 320 kcal, gain 2g protein"
+      }
+    },
+    {
+      "item_name": "Chicken 65",
+      "estimated_calories": 340,
+      "estimated_protein_g": 26,
+      "estimated_carbs_g": 18,
+      "estimated_fat_g": 18,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "sharief_bhai",
+      "category": "Starters",
+      "protein_per_100kcal": 7.6,
+      "diet_tags": [
+        "high_protein",
+        "low_carb"
+      ]
+    },
+    {
+      "item_name": "Kebab Platter",
+      "estimated_calories": 420,
+      "estimated_protein_g": 36,
+      "estimated_carbs_g": 8,
+      "estimated_fat_g": 28,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "sharief_bhai",
+      "category": "Kebabs",
+      "protein_per_100kcal": 8.6,
+      "diet_tags": [
+        "high_protein",
+        "keto_friendly"
+      ],
+      "best_protein_pick": true
+    },
+    {
+      "item_name": "Double Ka Meetha",
+      "estimated_calories": 320,
+      "estimated_protein_g": 6,
+      "estimated_carbs_g": 48,
+      "estimated_fat_g": 12,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "sharief_bhai",
+      "category": "Desserts",
+      "protein_per_100kcal": 1.9,
+      "smart_swap": {
+        "swap_to": "Kebab Platter",
+        "swap_calories": 420,
+        "swap_protein_g": 36,
+        "calories_saved": 0,
+        "protein_gained": 30,
+        "reason": "Swap to Kebab Platter — gain 30g protein"
+      }
+    },
+    {
+      "item_name": "Raita",
+      "estimated_calories": 80,
+      "estimated_protein_g": 3,
+      "estimated_carbs_g": 6,
+      "estimated_fat_g": 4,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "sharief_bhai",
+      "category": "Sides",
+      "protein_per_100kcal": 3.8,
+      "diet_tags": [
+        "low_carb",
+        "light_meal"
+      ],
+      "smart_swap": {
+        "swap_to": "Kebab Platter",
+        "swap_calories": 420,
+        "swap_protein_g": 36,
+        "calories_saved": 0,
+        "protein_gained": 33,
+        "reason": "Swap to Kebab Platter — gain 33g protein"
+      }
+    }
+  ]
+}

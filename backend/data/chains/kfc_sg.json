@@ -1,0 +1,211 @@
+{
+  "brand_name": "Kfc",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Original Recipe (2 pcs)",
+      "estimated_calories": 480,
+      "estimated_protein_g": 34,
+      "estimated_carbs_g": 16,
+      "estimated_fat_g": 30,
+      "menu_item_source": "real_menu",
+      "market": "SG",
+      "chain_key": "kfc",
+      "category": "Chicken",
+      "contains_palm_oil": true,
+      "cooking_oil": "palm_oil_blend",
+      "protein_per_100kcal": 7.1,
+      "diet_tags": [
+        "high_protein"
+      ],
+      "best_protein_pick": true
+    },
+    {
+      "item_name": "Zinger Burger",
+      "estimated_calories": 520,
+      "estimated_protein_g": 24,
+      "estimated_carbs_g": 44,
+      "estimated_fat_g": 26,
+      "menu_item_source": "real_menu",
+      "market": "SG",
+      "chain_key": "kfc",
+      "category": "Burgers",
+      "protein_per_100kcal": 4.6
+    },
+    {
+      "item_name": "Popcorn Chicken",
+      "estimated_calories": 320,
+      "estimated_protein_g": 18,
+      "estimated_carbs_g": 22,
+      "estimated_fat_g": 18,
+      "menu_item_source": "real_menu",
+      "market": "SG",
+      "chain_key": "kfc",
+      "category": "Chicken",
+      "contains_palm_oil": true,
+      "cooking_oil": "palm_oil_blend",
+      "protein_per_100kcal": 5.6,
+      "diet_tags": [
+        "low_carb"
+      ]
+    },
+    {
+      "item_name": "Coleslaw",
+      "estimated_calories": 140,
+      "estimated_protein_g": 1,
+      "estimated_carbs_g": 10,
+      "estimated_fat_g": 10,
+      "menu_item_source": "real_menu",
+      "market": "SG",
+      "chain_key": "kfc",
+      "category": "Sides",
+      "protein_per_100kcal": 0.7,
+      "diet_tags": [
+        "low_carb",
+        "light_meal"
+      ],
+      "smart_swap": {
+        "swap_to": "Original Recipe (2 pcs)",
+        "swap_calories": 480,
+        "swap_protein_g": 34,
+        "calories_saved": 0,
+        "protein_gained": 33,
+        "reason": "Swap to Original Recipe (2 pcs) — gain 33g protein"
+      }
+    },
+    {
+      "item_name": "Fries (Regular)",
+      "estimated_calories": 280,
+      "estimated_protein_g": 3,
+      "estimated_carbs_g": 34,
+      "estimated_fat_g": 14,
+      "menu_item_source": "real_menu",
+      "market": "SG",
+      "chain_key": "kfc",
+      "category": "Sides",
+      "protein_per_100kcal": 1.1,
+      "diet_tags": [
+        "light_meal"
+      ],
+      "smart_swap": {
+        "swap_to": "Original Recipe (2 pcs)",
+        "swap_calories": 480,
+        "swap_protein_g": 34,
+        "calories_saved": 0,
+        "protein_gained": 31,
+        "reason": "Swap to Original Recipe (2 pcs) — gain 31g protein"
+      }
+    },
+    {
+      "item_name": "Zinger Stacker",
+      "estimated_calories": 680,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 48,
+      "estimated_fat_g": 38,
+      "menu_item_source": "real_menu",
+      "market": "SG",
+      "chain_key": "kfc",
+      "category": "Burgers",
+      "contains_palm_oil": true,
+      "protein_per_100kcal": 4.7
+    },
+    {
+      "item_name": "Cheese Fries",
+      "estimated_calories": 480,
+      "estimated_protein_g": 8,
+      "estimated_carbs_g": 48,
+      "estimated_fat_g": 28,
+      "menu_item_source": "real_menu",
+      "market": "SG",
+      "chain_key": "kfc",
+      "category": "Sides",
+      "protein_per_100kcal": 1.7,
+      "smart_swap": {
+        "swap_to": "Original Recipe (2 pcs)",
+        "swap_calories": 480,
+        "swap_protein_g": 34,
+        "calories_saved": 0,
+        "protein_gained": 26,
+        "reason": "Swap to Original Recipe (2 pcs) — gain 26g protein"
+      }
+    },
+    {
+      "item_name": "Egg Tart (2 pcs)",
+      "estimated_calories": 340,
+      "estimated_protein_g": 6,
+      "estimated_carbs_g": 36,
+      "estimated_fat_g": 20,
+      "menu_item_source": "real_menu",
+      "market": "SG",
+      "chain_key": "kfc",
+      "category": "Desserts",
+      "protein_per_100kcal": 1.8,
+      "smart_swap": {
+        "swap_to": "Original Recipe (2 pcs)",
+        "swap_calories": 480,
+        "swap_protein_g": 34,
+        "calories_saved": 0,
+        "protein_gained": 28,
+        "reason": "Swap to Original Recipe (2 pcs) — gain 28g protein"
+      }
+    },
+    {
+      "item_name": "Bandito Pockett",
+      "estimated_calories": 420,
+      "estimated_protein_g": 18,
+      "estimated_carbs_g": 36,
+      "estimated_fat_g": 22,
+      "menu_item_source": "real_menu",
+      "market": "SG",
+      "chain_key": "kfc",
+      "category": "Wraps",
+      "protein_per_100kcal": 4.3,
+      "smart_swap": {
+        "swap_to": "Original Recipe (2 pcs)",
+        "swap_calories": 480,
+        "swap_protein_g": 34,
+        "calories_saved": 0,
+        "protein_gained": 16,
+        "reason": "Swap to Original Recipe (2 pcs) — gain 16g protein"
+      }
+    },
+    {
+      "item_name": "Original Recipe (3 pcs)",
+      "estimated_calories": 720,
+      "estimated_protein_g": 50,
+      "estimated_carbs_g": 24,
+      "estimated_fat_g": 46,
+      "menu_item_source": "real_menu",
+      "market": "SG",
+      "chain_key": "kfc",
+      "category": "Chicken",
+      "protein_per_100kcal": 6.9
+    },
+    {
+      "item_name": "Zinger Double Down",
+      "estimated_calories": 640,
+      "estimated_protein_g": 38,
+      "estimated_carbs_g": 18,
+      "estimated_fat_g": 44,
+      "menu_item_source": "real_menu",
+      "market": "SG",
+      "chain_key": "kfc",
+      "category": "Burgers",
+      "protein_per_100kcal": 5.9
+    },
+    {
+      "item_name": "Curry Rice",
+      "estimated_calories": 480,
+      "estimated_protein_g": 18,
+      "estimated_carbs_g": 58,
+      "estimated_fat_g": 18,
+      "menu_item_source": "real_menu",
+      "market": "SG",
+      "chain_key": "kfc",
+      "category": "Rice",
+      "protein_per_100kcal": 3.8
+    }
+  ]
+}

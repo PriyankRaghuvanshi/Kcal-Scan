@@ -1,0 +1,109 @@
+{
+  "brand_name": "Hogs Breath",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Prime Rib Steak (300g)",
+      "estimated_calories": 680,
+      "estimated_protein_g": 56,
+      "estimated_carbs_g": 4,
+      "estimated_fat_g": 48,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "hogs_breath",
+      "category": "Steaks",
+      "protein_per_100kcal": 8.2,
+      "diet_tags": [
+        "keto_friendly"
+      ],
+      "best_protein_pick": true
+    },
+    {
+      "item_name": "Hog's Burger",
+      "estimated_calories": 620,
+      "estimated_protein_g": 34,
+      "estimated_carbs_g": 40,
+      "estimated_fat_g": 36,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "hogs_breath",
+      "category": "Burgers",
+      "protein_per_100kcal": 5.5,
+      "smart_swap": {
+        "swap_to": "Prime Rib Steak (300g)",
+        "swap_calories": 680,
+        "swap_protein_g": 56,
+        "calories_saved": 0,
+        "protein_gained": 22,
+        "reason": "Swap to Prime Rib Steak (300g) — gain 22g protein"
+      }
+    },
+    {
+      "item_name": "Curly Fries",
+      "estimated_calories": 420,
+      "estimated_protein_g": 6,
+      "estimated_carbs_g": 48,
+      "estimated_fat_g": 24,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "hogs_breath",
+      "category": "Sides",
+      "protein_per_100kcal": 1.4,
+      "smart_swap": {
+        "swap_to": "Prime Rib Steak (300g)",
+        "swap_calories": 680,
+        "swap_protein_g": 56,
+        "calories_saved": 0,
+        "protein_gained": 50,
+        "reason": "Swap to Prime Rib Steak (300g) — gain 50g protein"
+      }
+    },
+    {
+      "item_name": "BBQ Ribs (Half)",
+      "estimated_calories": 640,
+      "estimated_protein_g": 42,
+      "estimated_carbs_g": 28,
+      "estimated_fat_g": 38,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "hogs_breath",
+      "category": "Ribs",
+      "protein_per_100kcal": 6.6
+    },
+    {
+      "item_name": "Chicken Parmi",
+      "estimated_calories": 780,
+      "estimated_protein_g": 46,
+      "estimated_carbs_g": 48,
+      "estimated_fat_g": 42,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "hogs_breath",
+      "category": "Mains",
+      "protein_per_100kcal": 5.9
+    },
+    {
+      "item_name": "Mud Cake",
+      "estimated_calories": 520,
+      "estimated_protein_g": 6,
+      "estimated_carbs_g": 62,
+      "estimated_fat_g": 28,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "hogs_breath",
+      "category": "Desserts",
+      "protein_per_100kcal": 1.2,
+      "is_hidden_sugar_bomb": true,
+      "smart_swap": {
+        "swap_to": "Prime Rib Steak (300g)",
+        "swap_calories": 680,
+        "swap_protein_g": 56,
+        "calories_saved": 0,
+        "protein_gained": 50,
+        "reason": "Swap to Prime Rib Steak (300g) — gain 50g protein"
+      }
+    }
+  ]
+}

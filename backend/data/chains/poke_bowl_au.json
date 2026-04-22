@@ -1,0 +1,80 @@
+{
+  "brand_name": "Poke Bowl",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Salmon Poke Bowl",
+      "estimated_calories": 480,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 46,
+      "estimated_fat_g": 18,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "poke_bowl",
+      "category": "Bowls",
+      "protein_per_100kcal": 6.7
+    },
+    {
+      "item_name": "Tuna Poke Bowl",
+      "estimated_calories": 460,
+      "estimated_protein_g": 34,
+      "estimated_carbs_g": 44,
+      "estimated_fat_g": 14,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "poke_bowl",
+      "category": "Bowls",
+      "protein_per_100kcal": 7.4
+    },
+    {
+      "item_name": "Chicken Poke Bowl",
+      "estimated_calories": 440,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 46,
+      "estimated_fat_g": 14,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "poke_bowl",
+      "category": "Bowls",
+      "protein_per_100kcal": 6.8
+    },
+    {
+      "item_name": "Tofu Poke Bowl",
+      "estimated_calories": 380,
+      "estimated_protein_g": 18,
+      "estimated_carbs_g": 48,
+      "estimated_fat_g": 12,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "poke_bowl",
+      "category": "Bowls",
+      "protein_per_100kcal": 4.7
+    },
+    {
+      "item_name": "Prawn Poke Bowl",
+      "estimated_calories": 420,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 46,
+      "estimated_fat_g": 12,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "poke_bowl",
+      "category": "Bowls",
+      "protein_per_100kcal": 6.7
+    },
+    {
+      "item_name": "Edamame Side",
+      "estimated_calories": 120,
+      "estimated_protein_g": 10,
+      "estimated_carbs_g": 8,
+      "estimated_fat_g": 5,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "poke_bowl",
+      "category": "Sides",
+      "protein_per_100kcal": 8.3
+    }
+  ]
+}

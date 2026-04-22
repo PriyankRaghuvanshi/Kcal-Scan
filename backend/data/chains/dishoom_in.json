@@ -1,0 +1,93 @@
+{
+  "brand_name": "Dishoom",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Bacon Naan Roll",
+      "estimated_calories": 480,
+      "estimated_protein_g": 22,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 24,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "dishoom",
+      "category": "Breakfast",
+      "protein_per_100kcal": 4.6,
+      "smart_swap": {
+        "swap_to": "Chicken Ruby",
+        "swap_calories": 520,
+        "swap_protein_g": 34,
+        "calories_saved": 0,
+        "protein_gained": 12,
+        "reason": "Swap to Chicken Ruby — gain 12g protein"
+      }
+    },
+    {
+      "item_name": "Chicken Ruby",
+      "estimated_calories": 520,
+      "estimated_protein_g": 34,
+      "estimated_carbs_g": 16,
+      "estimated_fat_g": 36,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "dishoom",
+      "category": "Curries",
+      "protein_per_100kcal": 6.5,
+      "best_protein_pick": true
+    },
+    {
+      "item_name": "House Black Daal",
+      "estimated_calories": 340,
+      "estimated_protein_g": 14,
+      "estimated_carbs_g": 34,
+      "estimated_fat_g": 16,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "dishoom",
+      "category": "Curries",
+      "protein_per_100kcal": 4.1,
+      "smart_swap": {
+        "swap_to": "Chicken Ruby",
+        "swap_calories": 520,
+        "swap_protein_g": 34,
+        "calories_saved": 0,
+        "protein_gained": 20,
+        "reason": "Swap to Chicken Ruby — gain 20g protein"
+      }
+    },
+    {
+      "item_name": "Lamb Biryani",
+      "estimated_calories": 680,
+      "estimated_protein_g": 34,
+      "estimated_carbs_g": 72,
+      "estimated_fat_g": 28,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "dishoom",
+      "category": "Biryani",
+      "protein_per_100kcal": 5.0
+    },
+    {
+      "item_name": "Pau Bhaji",
+      "estimated_calories": 420,
+      "estimated_protein_g": 10,
+      "estimated_carbs_g": 52,
+      "estimated_fat_g": 20,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "dishoom",
+      "category": "Street Food",
+      "protein_per_100kcal": 2.4,
+      "smart_swap": {
+        "swap_to": "Chicken Ruby",
+        "swap_calories": 520,
+        "swap_protein_g": 34,
+        "calories_saved": 0,
+        "protein_gained": 24,
+        "reason": "Swap to Chicken Ruby — gain 24g protein"
+      }
+    }
+  ]
+}

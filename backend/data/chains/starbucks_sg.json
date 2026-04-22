@@ -1,0 +1,94 @@
+{
+  "brand_name": "Starbucks",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Caffe Latte (Grande)",
+      "estimated_calories": 190,
+      "estimated_protein_g": 13,
+      "estimated_carbs_g": 18,
+      "estimated_fat_g": 7,
+      "menu_item_source": "real_menu",
+      "market": "SG",
+      "chain_key": "starbucks",
+      "category": "Coffee",
+      "protein_per_100kcal": 6.8,
+      "diet_tags": [
+        "low_carb",
+        "light_meal"
+      ]
+    },
+    {
+      "item_name": "Caramel Frappuccino (Grande)",
+      "estimated_calories": 370,
+      "estimated_protein_g": 5,
+      "estimated_carbs_g": 54,
+      "estimated_fat_g": 15,
+      "menu_item_source": "real_menu",
+      "market": "SG",
+      "chain_key": "starbucks",
+      "category": "Frapps",
+      "protein_per_100kcal": 1.4,
+      "is_hidden_sugar_bomb": true,
+      "smart_swap": {
+        "swap_to": "Caffe Latte (Grande)",
+        "swap_calories": 190,
+        "swap_protein_g": 13,
+        "calories_saved": 180,
+        "protein_gained": 8,
+        "reason": "Swap to Caffe Latte (Grande) — save 180 kcal, gain 8g protein"
+      }
+    },
+    {
+      "item_name": "Chicken & Mayo Sandwich",
+      "estimated_calories": 420,
+      "estimated_protein_g": 22,
+      "estimated_carbs_g": 36,
+      "estimated_fat_g": 22,
+      "menu_item_source": "real_menu",
+      "market": "SG",
+      "chain_key": "starbucks",
+      "category": "Sandwiches",
+      "protein_per_100kcal": 5.2,
+      "best_protein_pick": true
+    },
+    {
+      "item_name": "Cold Brew (Grande)",
+      "estimated_calories": 5,
+      "estimated_protein_g": 0,
+      "estimated_carbs_g": 0,
+      "estimated_fat_g": 0,
+      "menu_item_source": "real_menu",
+      "market": "SG",
+      "chain_key": "starbucks",
+      "category": "Coffee",
+      "protein_per_100kcal": 0.0,
+      "diet_tags": [
+        "low_carb",
+        "light_meal"
+      ]
+    },
+    {
+      "item_name": "Chocolate Croissant",
+      "estimated_calories": 340,
+      "estimated_protein_g": 5,
+      "estimated_carbs_g": 37,
+      "estimated_fat_g": 19,
+      "menu_item_source": "real_menu",
+      "market": "SG",
+      "chain_key": "starbucks",
+      "category": "Bakery",
+      "protein_per_100kcal": 1.5,
+      "smart_swap": {
+        "swap_to": "Caffe Latte (Grande)",
+        "swap_calories": 190,
+        "swap_protein_g": 13,
+        "calories_saved": 150,
+        "protein_gained": 8,
+        "reason": "Swap to Caffe Latte (Grande) — save 150 kcal, gain 8g protein"
+      }
+    }
+  ]
+}

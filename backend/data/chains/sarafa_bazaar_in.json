@@ -1,0 +1,80 @@
+{
+  "brand_name": "Sarafa Bazaar",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Poha Jalebi",
+      "estimated_calories": 380,
+      "estimated_protein_g": 6,
+      "estimated_carbs_g": 56,
+      "estimated_fat_g": 16,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "sarafa_bazaar",
+      "category": "Breakfast",
+      "protein_per_100kcal": 1.6
+    },
+    {
+      "item_name": "Garadu (Yam Fry)",
+      "estimated_calories": 260,
+      "estimated_protein_g": 4,
+      "estimated_carbs_g": 34,
+      "estimated_fat_g": 12,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "sarafa_bazaar",
+      "category": "Street Food",
+      "protein_per_100kcal": 1.5
+    },
+    {
+      "item_name": "Bhutte Ka Kees",
+      "estimated_calories": 220,
+      "estimated_protein_g": 6,
+      "estimated_carbs_g": 30,
+      "estimated_fat_g": 10,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "sarafa_bazaar",
+      "category": "Street Food",
+      "protein_per_100kcal": 2.7
+    },
+    {
+      "item_name": "Dahi Bada",
+      "estimated_calories": 240,
+      "estimated_protein_g": 8,
+      "estimated_carbs_g": 30,
+      "estimated_fat_g": 10,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "sarafa_bazaar",
+      "category": "Chaat",
+      "protein_per_100kcal": 3.3
+    },
+    {
+      "item_name": "Malpua",
+      "estimated_calories": 320,
+      "estimated_protein_g": 5,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 16,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "sarafa_bazaar",
+      "category": "Sweets",
+      "protein_per_100kcal": 1.6
+    },
+    {
+      "item_name": "Khopra Patties",
+      "estimated_calories": 280,
+      "estimated_protein_g": 4,
+      "estimated_carbs_g": 30,
+      "estimated_fat_g": 16,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "sarafa_bazaar",
+      "category": "Snacks",
+      "protein_per_100kcal": 1.4
+    }
+  ]
+}

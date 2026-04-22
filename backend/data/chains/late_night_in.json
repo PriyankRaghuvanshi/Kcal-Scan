@@ -1,0 +1,68 @@
+{
+  "brand_name": "Late Night",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Egg Roll (Late Night)",
+      "estimated_calories": 320,
+      "estimated_protein_g": 14,
+      "estimated_carbs_g": 30,
+      "estimated_fat_g": 16,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "late_night",
+      "category": "Rolls",
+      "protein_per_100kcal": 4.4
+    },
+    {
+      "item_name": "Shawarma (Late Night)",
+      "estimated_calories": 420,
+      "estimated_protein_g": 24,
+      "estimated_carbs_g": 34,
+      "estimated_fat_g": 20,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "late_night",
+      "category": "Wraps",
+      "protein_per_100kcal": 5.7
+    },
+    {
+      "item_name": "Maggi (Late Night)",
+      "estimated_calories": 340,
+      "estimated_protein_g": 8,
+      "estimated_carbs_g": 48,
+      "estimated_fat_g": 14,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "late_night",
+      "category": "Noodles",
+      "protein_per_100kcal": 2.4
+    },
+    {
+      "item_name": "Chicken Fried Rice (Late Night)",
+      "estimated_calories": 480,
+      "estimated_protein_g": 20,
+      "estimated_carbs_g": 62,
+      "estimated_fat_g": 16,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "late_night",
+      "category": "Rice",
+      "protein_per_100kcal": 4.2
+    },
+    {
+      "item_name": "Frankie (Chicken)",
+      "estimated_calories": 380,
+      "estimated_protein_g": 22,
+      "estimated_carbs_g": 32,
+      "estimated_fat_g": 18,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "late_night",
+      "category": "Rolls",
+      "protein_per_100kcal": 5.8
+    }
+  ]
+}

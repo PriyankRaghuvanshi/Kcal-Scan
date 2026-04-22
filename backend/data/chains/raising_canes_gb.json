@@ -1,0 +1,103 @@
+{
+  "brand_name": "Raising Canes",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "The Box Combo (4 Fingers)",
+      "estimated_calories": 1250,
+      "estimated_protein_g": 48,
+      "estimated_carbs_g": 112,
+      "estimated_fat_g": 68,
+      "menu_item_source": "real_menu",
+      "market": "GB",
+      "chain_key": "raising_canes",
+      "category": "Combos",
+      "protein_per_100kcal": 3.8,
+      "calorie_density_warning": true,
+      "diet_tags": [
+        "heavy_meal"
+      ]
+    },
+    {
+      "item_name": "Chicken Fingers (3 pcs)",
+      "estimated_calories": 360,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 14,
+      "estimated_fat_g": 20,
+      "menu_item_source": "real_menu",
+      "market": "GB",
+      "chain_key": "raising_canes",
+      "category": "Chicken",
+      "protein_per_100kcal": 8.3,
+      "diet_tags": [
+        "high_protein",
+        "keto_friendly",
+        "low_carb"
+      ],
+      "best_protein_pick": true
+    },
+    {
+      "item_name": "Crinkle-Cut Fries",
+      "estimated_calories": 420,
+      "estimated_protein_g": 5,
+      "estimated_carbs_g": 52,
+      "estimated_fat_g": 22,
+      "menu_item_source": "real_menu",
+      "market": "GB",
+      "chain_key": "raising_canes",
+      "category": "Sides",
+      "protein_per_100kcal": 1.2,
+      "smart_swap": {
+        "swap_to": "Chicken Fingers (3 pcs)",
+        "swap_calories": 360,
+        "swap_protein_g": 30,
+        "calories_saved": 60,
+        "protein_gained": 25,
+        "reason": "Swap to Chicken Fingers (3 pcs) — save 60 kcal, gain 25g protein"
+      }
+    },
+    {
+      "item_name": "Texas Toast",
+      "estimated_calories": 150,
+      "estimated_protein_g": 3,
+      "estimated_carbs_g": 18,
+      "estimated_fat_g": 8,
+      "menu_item_source": "real_menu",
+      "market": "GB",
+      "chain_key": "raising_canes",
+      "category": "Sides",
+      "protein_per_100kcal": 2.0,
+      "diet_tags": [
+        "low_carb",
+        "light_meal"
+      ],
+      "smart_swap": {
+        "swap_to": "Chicken Fingers (3 pcs)",
+        "swap_calories": 360,
+        "swap_protein_g": 30,
+        "calories_saved": 0,
+        "protein_gained": 27,
+        "reason": "Swap to Chicken Fingers (3 pcs) — gain 27g protein"
+      }
+    },
+    {
+      "item_name": "Cane's Sauce",
+      "estimated_calories": 190,
+      "estimated_protein_g": 0,
+      "estimated_carbs_g": 4,
+      "estimated_fat_g": 20,
+      "menu_item_source": "real_menu",
+      "market": "GB",
+      "chain_key": "raising_canes",
+      "category": "Sauces",
+      "protein_per_100kcal": 0.0,
+      "diet_tags": [
+        "keto_friendly",
+        "low_carb",
+        "light_meal"
+      ]
+    }
+  ]
+}

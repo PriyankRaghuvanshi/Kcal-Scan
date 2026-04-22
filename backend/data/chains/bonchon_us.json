@@ -1,0 +1,108 @@
+{
+  "brand_name": "Bonchon",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Wings (8 pcs, Soy Garlic)",
+      "estimated_calories": 560,
+      "estimated_protein_g": 38,
+      "estimated_carbs_g": 24,
+      "estimated_fat_g": 34,
+      "menu_item_source": "real_menu",
+      "market": "US",
+      "chain_key": "bonchon",
+      "category": "Wings",
+      "protein_per_100kcal": 6.8,
+      "best_protein_pick": true
+    },
+    {
+      "item_name": "Drumsticks (4 pcs, Spicy)",
+      "estimated_calories": 480,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 22,
+      "estimated_fat_g": 28,
+      "menu_item_source": "real_menu",
+      "market": "US",
+      "chain_key": "bonchon",
+      "category": "Chicken",
+      "protein_per_100kcal": 6.7,
+      "diet_tags": [
+        "high_protein"
+      ]
+    },
+    {
+      "item_name": "Bibimbap",
+      "estimated_calories": 520,
+      "estimated_protein_g": 24,
+      "estimated_carbs_g": 62,
+      "estimated_fat_g": 18,
+      "menu_item_source": "real_menu",
+      "market": "US",
+      "chain_key": "bonchon",
+      "category": "Bowls",
+      "protein_per_100kcal": 4.6
+    },
+    {
+      "item_name": "Japchae",
+      "estimated_calories": 380,
+      "estimated_protein_g": 12,
+      "estimated_carbs_g": 52,
+      "estimated_fat_g": 14,
+      "menu_item_source": "real_menu",
+      "market": "US",
+      "chain_key": "bonchon",
+      "category": "Noodles",
+      "protein_per_100kcal": 3.2,
+      "smart_swap": {
+        "swap_to": "Wings (8 pcs, Soy Garlic)",
+        "swap_calories": 560,
+        "swap_protein_g": 38,
+        "calories_saved": 0,
+        "protein_gained": 26,
+        "reason": "Swap to Wings (8 pcs, Soy Garlic) — gain 26g protein"
+      }
+    },
+    {
+      "item_name": "Tteokbokki",
+      "estimated_calories": 340,
+      "estimated_protein_g": 8,
+      "estimated_carbs_g": 56,
+      "estimated_fat_g": 8,
+      "menu_item_source": "real_menu",
+      "market": "US",
+      "chain_key": "bonchon",
+      "category": "Sides",
+      "protein_per_100kcal": 2.4,
+      "smart_swap": {
+        "swap_to": "Wings (8 pcs, Soy Garlic)",
+        "swap_calories": 560,
+        "swap_protein_g": 38,
+        "calories_saved": 0,
+        "protein_gained": 30,
+        "reason": "Swap to Wings (8 pcs, Soy Garlic) — gain 30g protein"
+      }
+    },
+    {
+      "item_name": "Fried Rice",
+      "estimated_calories": 460,
+      "estimated_protein_g": 14,
+      "estimated_carbs_g": 62,
+      "estimated_fat_g": 16,
+      "menu_item_source": "real_menu",
+      "market": "US",
+      "chain_key": "bonchon",
+      "category": "Rice",
+      "protein_per_100kcal": 3.0,
+      "smart_swap": {
+        "swap_to": "Wings (8 pcs, Soy Garlic)",
+        "swap_calories": 560,
+        "swap_protein_g": 38,
+        "calories_saved": 0,
+        "protein_gained": 24,
+        "reason": "Swap to Wings (8 pcs, Soy Garlic) — gain 24g protein"
+      }
+    }
+  ]
+}

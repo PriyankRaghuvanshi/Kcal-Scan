@@ -1,0 +1,80 @@
+{
+  "brand_name": "Kesar Da Dhaba",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Dal Makhani",
+      "estimated_calories": 400,
+      "estimated_protein_g": 16,
+      "estimated_carbs_g": 38,
+      "estimated_fat_g": 22,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "kesar_da_dhaba",
+      "category": "Curries",
+      "protein_per_100kcal": 4.0
+    },
+    {
+      "item_name": "Paneer Bhurji",
+      "estimated_calories": 340,
+      "estimated_protein_g": 18,
+      "estimated_carbs_g": 8,
+      "estimated_fat_g": 26,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "kesar_da_dhaba",
+      "category": "Curries",
+      "protein_per_100kcal": 5.3
+    },
+    {
+      "item_name": "Aloo Paratha",
+      "estimated_calories": 340,
+      "estimated_protein_g": 8,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 16,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "kesar_da_dhaba",
+      "category": "Breads",
+      "protein_per_100kcal": 2.4
+    },
+    {
+      "item_name": "Chole (Bowl)",
+      "estimated_calories": 280,
+      "estimated_protein_g": 12,
+      "estimated_carbs_g": 34,
+      "estimated_fat_g": 10,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "kesar_da_dhaba",
+      "category": "Curries",
+      "protein_per_100kcal": 4.3
+    },
+    {
+      "item_name": "Phirni",
+      "estimated_calories": 220,
+      "estimated_protein_g": 5,
+      "estimated_carbs_g": 30,
+      "estimated_fat_g": 10,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "kesar_da_dhaba",
+      "category": "Desserts",
+      "protein_per_100kcal": 2.3
+    },
+    {
+      "item_name": "Lassi (Sweet)",
+      "estimated_calories": 240,
+      "estimated_protein_g": 6,
+      "estimated_carbs_g": 36,
+      "estimated_fat_g": 8,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "kesar_da_dhaba",
+      "category": "Beverages",
+      "protein_per_100kcal": 2.5
+    }
+  ]
+}

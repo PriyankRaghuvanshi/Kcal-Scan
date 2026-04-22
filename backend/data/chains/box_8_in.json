@@ -1,0 +1,68 @@
+{
+  "brand_name": "Box 8",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Rajma Chawal Bowl",
+      "estimated_calories": 440,
+      "estimated_protein_g": 14,
+      "estimated_carbs_g": 62,
+      "estimated_fat_g": 14,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "box_8",
+      "category": "Bowls",
+      "protein_per_100kcal": 3.2
+    },
+    {
+      "item_name": "Butter Chicken Bowl",
+      "estimated_calories": 540,
+      "estimated_protein_g": 26,
+      "estimated_carbs_g": 58,
+      "estimated_fat_g": 22,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "box_8",
+      "category": "Bowls",
+      "protein_per_100kcal": 4.8
+    },
+    {
+      "item_name": "Egg Bhurji Bowl",
+      "estimated_calories": 420,
+      "estimated_protein_g": 18,
+      "estimated_carbs_g": 52,
+      "estimated_fat_g": 16,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "box_8",
+      "category": "Bowls",
+      "protein_per_100kcal": 4.3
+    },
+    {
+      "item_name": "Paneer Wrap",
+      "estimated_calories": 380,
+      "estimated_protein_g": 14,
+      "estimated_carbs_g": 38,
+      "estimated_fat_g": 18,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "box_8",
+      "category": "Wraps",
+      "protein_per_100kcal": 3.7
+    },
+    {
+      "item_name": "Chicken Wrap",
+      "estimated_calories": 420,
+      "estimated_protein_g": 24,
+      "estimated_carbs_g": 36,
+      "estimated_fat_g": 20,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "box_8",
+      "category": "Wraps",
+      "protein_per_100kcal": 5.7
+    }
+  ]
+}

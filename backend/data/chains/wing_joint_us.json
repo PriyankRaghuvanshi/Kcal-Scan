@@ -1,0 +1,80 @@
+{
+  "brand_name": "Wing Joint",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Wings (10, Buffalo)",
+      "estimated_calories": 720,
+      "estimated_protein_g": 60,
+      "estimated_carbs_g": 4,
+      "estimated_fat_g": 52,
+      "menu_item_source": "real_menu",
+      "market": "US",
+      "chain_key": "wing_joint",
+      "category": "Wings",
+      "protein_per_100kcal": 8.3
+    },
+    {
+      "item_name": "Wings (10, BBQ)",
+      "estimated_calories": 780,
+      "estimated_protein_g": 58,
+      "estimated_carbs_g": 16,
+      "estimated_fat_g": 52,
+      "menu_item_source": "real_menu",
+      "market": "US",
+      "chain_key": "wing_joint",
+      "category": "Wings",
+      "protein_per_100kcal": 7.4
+    },
+    {
+      "item_name": "Wings (10, Lemon Pepper)",
+      "estimated_calories": 700,
+      "estimated_protein_g": 60,
+      "estimated_carbs_g": 2,
+      "estimated_fat_g": 50,
+      "menu_item_source": "real_menu",
+      "market": "US",
+      "chain_key": "wing_joint",
+      "category": "Wings",
+      "protein_per_100kcal": 8.6
+    },
+    {
+      "item_name": "Boneless Wings (10)",
+      "estimated_calories": 680,
+      "estimated_protein_g": 38,
+      "estimated_carbs_g": 38,
+      "estimated_fat_g": 38,
+      "menu_item_source": "real_menu",
+      "market": "US",
+      "chain_key": "wing_joint",
+      "category": "Wings",
+      "protein_per_100kcal": 5.6
+    },
+    {
+      "item_name": "Celery & Ranch",
+      "estimated_calories": 180,
+      "estimated_protein_g": 2,
+      "estimated_carbs_g": 4,
+      "estimated_fat_g": 18,
+      "menu_item_source": "real_menu",
+      "market": "US",
+      "chain_key": "wing_joint",
+      "category": "Sides",
+      "protein_per_100kcal": 1.1
+    },
+    {
+      "item_name": "Seasoned Fries",
+      "estimated_calories": 400,
+      "estimated_protein_g": 5,
+      "estimated_carbs_g": 50,
+      "estimated_fat_g": 20,
+      "menu_item_source": "real_menu",
+      "market": "US",
+      "chain_key": "wing_joint",
+      "category": "Sides",
+      "protein_per_100kcal": 1.2
+    }
+  ]
+}

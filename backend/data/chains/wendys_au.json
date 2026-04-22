@@ -1,0 +1,104 @@
+{
+  "brand_name": "Wendys",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Dave's Single",
+      "estimated_calories": 570,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 38,
+      "estimated_fat_g": 34,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "wendys",
+      "category": "Burgers",
+      "protein_per_100kcal": 5.3
+    },
+    {
+      "item_name": "Spicy Chicken Sandwich",
+      "estimated_calories": 500,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 48,
+      "estimated_fat_g": 21,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "wendys",
+      "category": "Sandwiches",
+      "protein_per_100kcal": 6.0,
+      "diet_tags": [
+        "high_protein"
+      ],
+      "best_protein_pick": true
+    },
+    {
+      "item_name": "Baconator",
+      "estimated_calories": 950,
+      "estimated_protein_g": 57,
+      "estimated_carbs_g": 38,
+      "estimated_fat_g": 63,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "wendys",
+      "category": "Burgers",
+      "protein_per_100kcal": 6.0,
+      "calorie_density_warning": true,
+      "diet_tags": [
+        "heavy_meal"
+      ]
+    },
+    {
+      "item_name": "Chicken Nuggets (10)",
+      "estimated_calories": 440,
+      "estimated_protein_g": 22,
+      "estimated_carbs_g": 28,
+      "estimated_fat_g": 27,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "wendys",
+      "category": "Chicken",
+      "protein_per_100kcal": 5.0
+    },
+    {
+      "item_name": "Fries (Medium)",
+      "estimated_calories": 420,
+      "estimated_protein_g": 5,
+      "estimated_carbs_g": 52,
+      "estimated_fat_g": 22,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "wendys",
+      "category": "Sides",
+      "protein_per_100kcal": 1.2,
+      "smart_swap": {
+        "swap_to": "Spicy Chicken Sandwich",
+        "swap_calories": 500,
+        "swap_protein_g": 30,
+        "calories_saved": 0,
+        "protein_gained": 25,
+        "reason": "Swap to Spicy Chicken Sandwich — gain 25g protein"
+      }
+    },
+    {
+      "item_name": "Frosty (Chocolate)",
+      "estimated_calories": 460,
+      "estimated_protein_g": 11,
+      "estimated_carbs_g": 66,
+      "estimated_fat_g": 16,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "wendys",
+      "category": "Desserts",
+      "protein_per_100kcal": 2.4,
+      "smart_swap": {
+        "swap_to": "Spicy Chicken Sandwich",
+        "swap_calories": 500,
+        "swap_protein_g": 30,
+        "calories_saved": 0,
+        "protein_gained": 19,
+        "reason": "Swap to Spicy Chicken Sandwich — gain 19g protein"
+      }
+    }
+  ]
+}

@@ -1,0 +1,112 @@
+{
+  "brand_name": "Jollibee",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Chickenjoy (2 pc)",
+      "estimated_calories": 540,
+      "estimated_protein_g": 38,
+      "estimated_carbs_g": 24,
+      "estimated_fat_g": 32,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "jollibee",
+      "category": "Chicken",
+      "protein_per_100kcal": 7.0,
+      "best_protein_pick": true
+    },
+    {
+      "item_name": "Jolly Spaghetti",
+      "estimated_calories": 580,
+      "estimated_protein_g": 18,
+      "estimated_carbs_g": 72,
+      "estimated_fat_g": 24,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "jollibee",
+      "category": "Pasta",
+      "protein_per_100kcal": 3.1,
+      "smart_swap": {
+        "swap_to": "Chickenjoy (2 pc)",
+        "swap_calories": 540,
+        "swap_protein_g": 38,
+        "calories_saved": 40,
+        "protein_gained": 20,
+        "reason": "Swap to Chickenjoy (2 pc) — save 40 kcal, gain 20g protein"
+      }
+    },
+    {
+      "item_name": "Yumburger",
+      "estimated_calories": 310,
+      "estimated_protein_g": 14,
+      "estimated_carbs_g": 30,
+      "estimated_fat_g": 14,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "jollibee",
+      "category": "Burgers",
+      "protein_per_100kcal": 4.5,
+      "diet_tags": [
+        "low_carb"
+      ]
+    },
+    {
+      "item_name": "Peach Mango Pie",
+      "estimated_calories": 230,
+      "estimated_protein_g": 3,
+      "estimated_carbs_g": 30,
+      "estimated_fat_g": 11,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "jollibee",
+      "category": "Desserts",
+      "protein_per_100kcal": 1.3,
+      "diet_tags": [
+        "low_carb",
+        "light_meal"
+      ],
+      "smart_swap": {
+        "swap_to": "Chickenjoy (2 pc)",
+        "swap_calories": 540,
+        "swap_protein_g": 38,
+        "calories_saved": 0,
+        "protein_gained": 35,
+        "reason": "Swap to Chickenjoy (2 pc) — gain 35g protein"
+      }
+    },
+    {
+      "item_name": "Chicken Sandwich",
+      "estimated_calories": 480,
+      "estimated_protein_g": 22,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 24,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "jollibee",
+      "category": "Sandwiches",
+      "protein_per_100kcal": 4.6
+    },
+    {
+      "item_name": "Jolly Crispy Fries (Regular)",
+      "estimated_calories": 320,
+      "estimated_protein_g": 4,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 16,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "jollibee",
+      "category": "Sides",
+      "protein_per_100kcal": 1.2,
+      "smart_swap": {
+        "swap_to": "Chickenjoy (2 pc)",
+        "swap_calories": 540,
+        "swap_protein_g": 38,
+        "calories_saved": 0,
+        "protein_gained": 34,
+        "reason": "Swap to Chickenjoy (2 pc) — gain 34g protein"
+      }
+    }
+  ]
+}

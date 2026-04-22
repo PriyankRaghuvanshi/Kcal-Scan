@@ -1,0 +1,68 @@
+{
+  "brand_name": "Grilld",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Simply Grill'd",
+      "estimated_calories": 520,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 36,
+      "estimated_fat_g": 28,
+      "menu_item_source": "real_menu",
+      "market": "NZ",
+      "chain_key": "grilld",
+      "category": "Burgers",
+      "protein_per_100kcal": 6.2
+    },
+    {
+      "item_name": "Sweet Chilli Chicken",
+      "estimated_calories": 480,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 38,
+      "estimated_fat_g": 22,
+      "menu_item_source": "real_menu",
+      "market": "NZ",
+      "chain_key": "grilld",
+      "category": "Burgers",
+      "protein_per_100kcal": 6.2
+    },
+    {
+      "item_name": "Beyond Burger",
+      "estimated_calories": 520,
+      "estimated_protein_g": 22,
+      "estimated_carbs_g": 48,
+      "estimated_fat_g": 26,
+      "menu_item_source": "real_menu",
+      "market": "NZ",
+      "chain_key": "grilld",
+      "category": "Burgers",
+      "protein_per_100kcal": 4.2
+    },
+    {
+      "item_name": "Baked Chips",
+      "estimated_calories": 280,
+      "estimated_protein_g": 4,
+      "estimated_carbs_g": 36,
+      "estimated_fat_g": 12,
+      "menu_item_source": "real_menu",
+      "market": "NZ",
+      "chain_key": "grilld",
+      "category": "Sides",
+      "protein_per_100kcal": 1.4
+    },
+    {
+      "item_name": "Garden Salad",
+      "estimated_calories": 120,
+      "estimated_protein_g": 4,
+      "estimated_carbs_g": 10,
+      "estimated_fat_g": 8,
+      "menu_item_source": "real_menu",
+      "market": "NZ",
+      "chain_key": "grilld",
+      "category": "Salads",
+      "protein_per_100kcal": 3.3
+    }
+  ]
+}

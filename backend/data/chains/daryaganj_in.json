@@ -1,0 +1,80 @@
+{
+  "brand_name": "Daryaganj",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Original Butter Chicken",
+      "estimated_calories": 520,
+      "estimated_protein_g": 34,
+      "estimated_carbs_g": 14,
+      "estimated_fat_g": 38,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "daryaganj",
+      "category": "Curries",
+      "protein_per_100kcal": 6.5
+    },
+    {
+      "item_name": "Dal Daryaganj",
+      "estimated_calories": 380,
+      "estimated_protein_g": 16,
+      "estimated_carbs_g": 36,
+      "estimated_fat_g": 20,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "daryaganj",
+      "category": "Curries",
+      "protein_per_100kcal": 4.2
+    },
+    {
+      "item_name": "Tandoori Chicken (Half)",
+      "estimated_calories": 380,
+      "estimated_protein_g": 42,
+      "estimated_carbs_g": 6,
+      "estimated_fat_g": 22,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "daryaganj",
+      "category": "Tandoor",
+      "protein_per_100kcal": 11.1
+    },
+    {
+      "item_name": "Seekh Kebab",
+      "estimated_calories": 320,
+      "estimated_protein_g": 26,
+      "estimated_carbs_g": 6,
+      "estimated_fat_g": 22,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "daryaganj",
+      "category": "Kebabs",
+      "protein_per_100kcal": 8.1
+    },
+    {
+      "item_name": "Butter Naan",
+      "estimated_calories": 260,
+      "estimated_protein_g": 6,
+      "estimated_carbs_g": 38,
+      "estimated_fat_g": 10,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "daryaganj",
+      "category": "Breads",
+      "protein_per_100kcal": 2.3
+    },
+    {
+      "item_name": "Phirni",
+      "estimated_calories": 220,
+      "estimated_protein_g": 5,
+      "estimated_carbs_g": 30,
+      "estimated_fat_g": 10,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "daryaganj",
+      "category": "Desserts",
+      "protein_per_100kcal": 2.3
+    }
+  ]
+}

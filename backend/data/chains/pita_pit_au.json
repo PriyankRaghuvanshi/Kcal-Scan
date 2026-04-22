@@ -1,0 +1,94 @@
+{
+  "brand_name": "Pita Pit",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Chicken Souvlaki Pita",
+      "estimated_calories": 420,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 38,
+      "estimated_fat_g": 16,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "pita_pit",
+      "category": "Pitas",
+      "protein_per_100kcal": 7.1,
+      "diet_tags": [
+        "high_protein"
+      ],
+      "best_protein_pick": true
+    },
+    {
+      "item_name": "Falafel Pita",
+      "estimated_calories": 460,
+      "estimated_protein_g": 14,
+      "estimated_carbs_g": 48,
+      "estimated_fat_g": 24,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "pita_pit",
+      "category": "Pitas",
+      "protein_per_100kcal": 3.0,
+      "smart_swap": {
+        "swap_to": "Chicken Souvlaki Pita",
+        "swap_calories": 420,
+        "swap_protein_g": 30,
+        "calories_saved": 40,
+        "protein_gained": 16,
+        "reason": "Swap to Chicken Souvlaki Pita — save 40 kcal, gain 16g protein"
+      }
+    },
+    {
+      "item_name": "Steak Pita",
+      "estimated_calories": 480,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 38,
+      "estimated_fat_g": 20,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "pita_pit",
+      "category": "Pitas",
+      "protein_per_100kcal": 6.7,
+      "diet_tags": [
+        "high_protein"
+      ]
+    },
+    {
+      "item_name": "Chicken Caesar Pita",
+      "estimated_calories": 440,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 38,
+      "estimated_fat_g": 18,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "pita_pit",
+      "category": "Pitas",
+      "protein_per_100kcal": 6.4,
+      "diet_tags": [
+        "high_protein"
+      ]
+    },
+    {
+      "item_name": "Hummus Pita",
+      "estimated_calories": 380,
+      "estimated_protein_g": 12,
+      "estimated_carbs_g": 44,
+      "estimated_fat_g": 16,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "pita_pit",
+      "category": "Pitas",
+      "protein_per_100kcal": 3.2,
+      "smart_swap": {
+        "swap_to": "Chicken Souvlaki Pita",
+        "swap_calories": 420,
+        "swap_protein_g": 30,
+        "calories_saved": 0,
+        "protein_gained": 18,
+        "reason": "Swap to Chicken Souvlaki Pita — gain 18g protein"
+      }
+    }
+  ]
+}

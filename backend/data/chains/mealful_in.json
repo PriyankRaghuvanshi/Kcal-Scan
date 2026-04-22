@@ -1,0 +1,99 @@
+{
+  "brand_name": "Mealful",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Chicken Rice Bowl",
+      "estimated_calories": 480,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 54,
+      "estimated_fat_g": 16,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "mealful",
+      "category": "Bowls",
+      "protein_per_100kcal": 6.2,
+      "diet_tags": [
+        "high_protein"
+      ],
+      "best_protein_pick": true
+    },
+    {
+      "item_name": "Paneer Rice Bowl",
+      "estimated_calories": 440,
+      "estimated_protein_g": 18,
+      "estimated_carbs_g": 56,
+      "estimated_fat_g": 16,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "mealful",
+      "category": "Bowls",
+      "protein_per_100kcal": 4.1,
+      "smart_swap": {
+        "swap_to": "Chicken Rice Bowl",
+        "swap_calories": 480,
+        "swap_protein_g": 30,
+        "calories_saved": 0,
+        "protein_gained": 12,
+        "reason": "Swap to Chicken Rice Bowl — gain 12g protein"
+      }
+    },
+    {
+      "item_name": "Egg Rice Bowl",
+      "estimated_calories": 420,
+      "estimated_protein_g": 18,
+      "estimated_carbs_g": 54,
+      "estimated_fat_g": 14,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "mealful",
+      "category": "Bowls",
+      "protein_per_100kcal": 4.3,
+      "smart_swap": {
+        "swap_to": "Chicken Rice Bowl",
+        "swap_calories": 480,
+        "swap_protein_g": 30,
+        "calories_saved": 0,
+        "protein_gained": 12,
+        "reason": "Swap to Chicken Rice Bowl — gain 12g protein"
+      }
+    },
+    {
+      "item_name": "Chicken Wrap",
+      "estimated_calories": 400,
+      "estimated_protein_g": 24,
+      "estimated_carbs_g": 36,
+      "estimated_fat_g": 18,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "mealful",
+      "category": "Wraps",
+      "protein_per_100kcal": 6.0
+    },
+    {
+      "item_name": "Salad Bowl",
+      "estimated_calories": 320,
+      "estimated_protein_g": 14,
+      "estimated_carbs_g": 28,
+      "estimated_fat_g": 16,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "mealful",
+      "category": "Salads",
+      "protein_per_100kcal": 4.4,
+      "diet_tags": [
+        "low_carb"
+      ],
+      "smart_swap": {
+        "swap_to": "Chicken Rice Bowl",
+        "swap_calories": 480,
+        "swap_protein_g": 30,
+        "calories_saved": 0,
+        "protein_gained": 16,
+        "reason": "Swap to Chicken Rice Bowl — gain 16g protein"
+      }
+    }
+  ]
+}

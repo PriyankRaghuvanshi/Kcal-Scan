@@ -1,0 +1,68 @@
+{
+  "brand_name": "Pondicherry Cafe",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Crepe (Ham & Cheese)",
+      "estimated_calories": 380,
+      "estimated_protein_g": 18,
+      "estimated_carbs_g": 30,
+      "estimated_fat_g": 20,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "pondicherry_cafe",
+      "category": "French",
+      "protein_per_100kcal": 4.7
+    },
+    {
+      "item_name": "Croissant",
+      "estimated_calories": 280,
+      "estimated_protein_g": 5,
+      "estimated_carbs_g": 26,
+      "estimated_fat_g": 18,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "pondicherry_cafe",
+      "category": "Bakery",
+      "protein_per_100kcal": 1.8
+    },
+    {
+      "item_name": "Chettinad Chicken",
+      "estimated_calories": 420,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 10,
+      "estimated_fat_g": 28,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "pondicherry_cafe",
+      "category": "Tamil",
+      "protein_per_100kcal": 7.6
+    },
+    {
+      "item_name": "Filter Coffee",
+      "estimated_calories": 80,
+      "estimated_protein_g": 3,
+      "estimated_carbs_g": 10,
+      "estimated_fat_g": 3,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "pondicherry_cafe",
+      "category": "Coffee",
+      "protein_per_100kcal": 3.8
+    },
+    {
+      "item_name": "Quiche Lorraine",
+      "estimated_calories": 380,
+      "estimated_protein_g": 14,
+      "estimated_carbs_g": 24,
+      "estimated_fat_g": 26,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "pondicherry_cafe",
+      "category": "French",
+      "protein_per_100kcal": 3.7
+    }
+  ]
+}

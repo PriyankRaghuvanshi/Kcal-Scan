@@ -1,0 +1,44 @@
+{
+  "brand_name": "Shake Shack",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "ShackBurger",
+      "estimated_calories": 530,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 36,
+      "estimated_fat_g": 32,
+      "menu_item_source": "real_menu",
+      "market": "JP",
+      "chain_key": "shake_shack",
+      "category": "Burgers",
+      "protein_per_100kcal": 5.3
+    },
+    {
+      "item_name": "Shack Stack",
+      "estimated_calories": 780,
+      "estimated_protein_g": 34,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 52,
+      "menu_item_source": "real_menu",
+      "market": "JP",
+      "chain_key": "shake_shack",
+      "category": "Burgers",
+      "protein_per_100kcal": 4.4
+    },
+    {
+      "item_name": "Matcha Shake",
+      "estimated_calories": 620,
+      "estimated_protein_g": 12,
+      "estimated_carbs_g": 76,
+      "estimated_fat_g": 30,
+      "menu_item_source": "real_menu",
+      "market": "JP",
+      "chain_key": "shake_shack",
+      "category": "Shakes",
+      "protein_per_100kcal": 1.9
+    }
+  ]
+}

@@ -1,0 +1,80 @@
+{
+  "brand_name": "Comptoir Libanais",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Mixed Grill",
+      "estimated_calories": 620,
+      "estimated_protein_g": 44,
+      "estimated_carbs_g": 22,
+      "estimated_fat_g": 38,
+      "menu_item_source": "real_menu",
+      "market": "AE",
+      "chain_key": "comptoir_libanais",
+      "category": "Grills",
+      "protein_per_100kcal": 7.1
+    },
+    {
+      "item_name": "Chicken Shawarma Wrap",
+      "estimated_calories": 440,
+      "estimated_protein_g": 26,
+      "estimated_carbs_g": 36,
+      "estimated_fat_g": 22,
+      "menu_item_source": "real_menu",
+      "market": "AE",
+      "chain_key": "comptoir_libanais",
+      "category": "Wraps",
+      "protein_per_100kcal": 5.9
+    },
+    {
+      "item_name": "Falafel Plate",
+      "estimated_calories": 420,
+      "estimated_protein_g": 14,
+      "estimated_carbs_g": 46,
+      "estimated_fat_g": 20,
+      "menu_item_source": "real_menu",
+      "market": "AE",
+      "chain_key": "comptoir_libanais",
+      "category": "Plates",
+      "protein_per_100kcal": 3.3
+    },
+    {
+      "item_name": "Mezze Platter",
+      "estimated_calories": 480,
+      "estimated_protein_g": 16,
+      "estimated_carbs_g": 38,
+      "estimated_fat_g": 28,
+      "menu_item_source": "real_menu",
+      "market": "AE",
+      "chain_key": "comptoir_libanais",
+      "category": "Mezze",
+      "protein_per_100kcal": 3.3
+    },
+    {
+      "item_name": "Baklava (2 pcs)",
+      "estimated_calories": 260,
+      "estimated_protein_g": 4,
+      "estimated_carbs_g": 28,
+      "estimated_fat_g": 16,
+      "menu_item_source": "real_menu",
+      "market": "AE",
+      "chain_key": "comptoir_libanais",
+      "category": "Desserts",
+      "protein_per_100kcal": 1.5
+    },
+    {
+      "item_name": "Fresh Lemonade",
+      "estimated_calories": 120,
+      "estimated_protein_g": 0,
+      "estimated_carbs_g": 30,
+      "estimated_fat_g": 0,
+      "menu_item_source": "real_menu",
+      "market": "AE",
+      "chain_key": "comptoir_libanais",
+      "category": "Juices",
+      "protein_per_100kcal": 0.0
+    }
+  ]
+}

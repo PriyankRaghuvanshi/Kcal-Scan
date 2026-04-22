@@ -1,0 +1,93 @@
+{
+  "brand_name": "Paiks Coffee",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Americano (Iced)",
+      "estimated_calories": 10,
+      "estimated_protein_g": 0,
+      "estimated_carbs_g": 2,
+      "estimated_fat_g": 0,
+      "menu_item_source": "real_menu",
+      "market": "KR",
+      "chain_key": "paiks_coffee",
+      "category": "Coffee",
+      "protein_per_100kcal": 0.0,
+      "diet_tags": [
+        "low_carb",
+        "light_meal"
+      ]
+    },
+    {
+      "item_name": "Vanilla Latte",
+      "estimated_calories": 220,
+      "estimated_protein_g": 6,
+      "estimated_carbs_g": 32,
+      "estimated_fat_g": 8,
+      "menu_item_source": "real_menu",
+      "market": "KR",
+      "chain_key": "paiks_coffee",
+      "category": "Coffee",
+      "protein_per_100kcal": 2.7,
+      "diet_tags": [
+        "light_meal"
+      ]
+    },
+    {
+      "item_name": "Caramel Macchiato",
+      "estimated_calories": 240,
+      "estimated_protein_g": 6,
+      "estimated_carbs_g": 34,
+      "estimated_fat_g": 8,
+      "menu_item_source": "real_menu",
+      "market": "KR",
+      "chain_key": "paiks_coffee",
+      "category": "Coffee",
+      "protein_per_100kcal": 2.5,
+      "diet_tags": [
+        "light_meal"
+      ]
+    },
+    {
+      "item_name": "Green Tea Latte",
+      "estimated_calories": 200,
+      "estimated_protein_g": 6,
+      "estimated_carbs_g": 28,
+      "estimated_fat_g": 6,
+      "menu_item_source": "real_menu",
+      "market": "KR",
+      "chain_key": "paiks_coffee",
+      "category": "Tea",
+      "protein_per_100kcal": 3.0,
+      "diet_tags": [
+        "low_carb",
+        "light_meal"
+      ]
+    },
+    {
+      "item_name": "Strawberry Smoothie",
+      "estimated_calories": 280,
+      "estimated_protein_g": 3,
+      "estimated_carbs_g": 52,
+      "estimated_fat_g": 6,
+      "menu_item_source": "real_menu",
+      "market": "KR",
+      "chain_key": "paiks_coffee",
+      "category": "Smoothies",
+      "protein_per_100kcal": 1.1,
+      "diet_tags": [
+        "light_meal"
+      ],
+      "smart_swap": {
+        "swap_to": "Green Tea Latte",
+        "swap_calories": 200,
+        "swap_protein_g": 6,
+        "calories_saved": 80,
+        "protein_gained": 3,
+        "reason": "Swap to Green Tea Latte — save 80 kcal, gain 3g protein"
+      }
+    }
+  ]
+}

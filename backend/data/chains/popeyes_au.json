@@ -1,0 +1,155 @@
+{
+  "brand_name": "Popeyes",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Chicken Sandwich",
+      "estimated_calories": 700,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 50,
+      "estimated_fat_g": 42,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "popeyes",
+      "category": "Sandwiches",
+      "protein_per_100kcal": 4.0
+    },
+    {
+      "item_name": "Mild Chicken (2 pcs)",
+      "estimated_calories": 560,
+      "estimated_protein_g": 36,
+      "estimated_carbs_g": 20,
+      "estimated_fat_g": 38,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "popeyes",
+      "category": "Chicken",
+      "protein_per_100kcal": 6.4,
+      "best_protein_pick": true
+    },
+    {
+      "item_name": "Spicy Chicken (2 pcs)",
+      "estimated_calories": 560,
+      "estimated_protein_g": 36,
+      "estimated_carbs_g": 18,
+      "estimated_fat_g": 38,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "popeyes",
+      "category": "Chicken",
+      "protein_per_100kcal": 6.4
+    },
+    {
+      "item_name": "Chicken Tenders (3 pcs)",
+      "estimated_calories": 410,
+      "estimated_protein_g": 26,
+      "estimated_carbs_g": 20,
+      "estimated_fat_g": 26,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "popeyes",
+      "category": "Chicken",
+      "protein_per_100kcal": 6.3,
+      "diet_tags": [
+        "high_protein"
+      ]
+    },
+    {
+      "item_name": "Cajun Fries (Regular)",
+      "estimated_calories": 260,
+      "estimated_protein_g": 3,
+      "estimated_carbs_g": 34,
+      "estimated_fat_g": 14,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "popeyes",
+      "category": "Sides",
+      "protein_per_100kcal": 1.2,
+      "diet_tags": [
+        "light_meal"
+      ],
+      "smart_swap": {
+        "swap_to": "Mild Chicken (2 pcs)",
+        "swap_calories": 560,
+        "swap_protein_g": 36,
+        "calories_saved": 0,
+        "protein_gained": 33,
+        "reason": "Swap to Mild Chicken (2 pcs) — gain 33g protein"
+      }
+    },
+    {
+      "item_name": "Red Beans & Rice",
+      "estimated_calories": 230,
+      "estimated_protein_g": 9,
+      "estimated_carbs_g": 30,
+      "estimated_fat_g": 8,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "popeyes",
+      "category": "Sides",
+      "protein_per_100kcal": 3.9,
+      "diet_tags": [
+        "low_carb",
+        "light_meal"
+      ],
+      "smart_swap": {
+        "swap_to": "Mild Chicken (2 pcs)",
+        "swap_calories": 560,
+        "swap_protein_g": 36,
+        "calories_saved": 0,
+        "protein_gained": 27,
+        "reason": "Swap to Mild Chicken (2 pcs) — gain 27g protein"
+      }
+    },
+    {
+      "item_name": "Coleslaw",
+      "estimated_calories": 170,
+      "estimated_protein_g": 1,
+      "estimated_carbs_g": 14,
+      "estimated_fat_g": 12,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "popeyes",
+      "category": "Sides",
+      "protein_per_100kcal": 0.6,
+      "diet_tags": [
+        "low_carb",
+        "light_meal"
+      ],
+      "smart_swap": {
+        "swap_to": "Mild Chicken (2 pcs)",
+        "swap_calories": 560,
+        "swap_protein_g": 36,
+        "calories_saved": 0,
+        "protein_gained": 35,
+        "reason": "Swap to Mild Chicken (2 pcs) — gain 35g protein"
+      }
+    },
+    {
+      "item_name": "Biscuit",
+      "estimated_calories": 200,
+      "estimated_protein_g": 3,
+      "estimated_carbs_g": 22,
+      "estimated_fat_g": 11,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "popeyes",
+      "category": "Sides",
+      "protein_per_100kcal": 1.5,
+      "diet_tags": [
+        "low_carb",
+        "light_meal"
+      ],
+      "smart_swap": {
+        "swap_to": "Mild Chicken (2 pcs)",
+        "swap_calories": 560,
+        "swap_protein_g": 36,
+        "calories_saved": 0,
+        "protein_gained": 33,
+        "reason": "Swap to Mild Chicken (2 pcs) — gain 33g protein"
+      }
+    }
+  ]
+}

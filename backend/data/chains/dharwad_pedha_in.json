@@ -1,0 +1,56 @@
+{
+  "brand_name": "Dharwad Pedha",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Dharwad Pedha (100g)",
+      "estimated_calories": 420,
+      "estimated_protein_g": 8,
+      "estimated_carbs_g": 52,
+      "estimated_fat_g": 20,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "dharwad_pedha",
+      "category": "Sweets",
+      "protein_per_100kcal": 1.9
+    },
+    {
+      "item_name": "Mysore Pak (100g)",
+      "estimated_calories": 480,
+      "estimated_protein_g": 6,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 34,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "dharwad_pedha",
+      "category": "Sweets",
+      "protein_per_100kcal": 1.2
+    },
+    {
+      "item_name": "Chiroti (2)",
+      "estimated_calories": 300,
+      "estimated_protein_g": 4,
+      "estimated_carbs_g": 36,
+      "estimated_fat_g": 16,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "dharwad_pedha",
+      "category": "Sweets",
+      "protein_per_100kcal": 1.3
+    },
+    {
+      "item_name": "Holige (2)",
+      "estimated_calories": 340,
+      "estimated_protein_g": 6,
+      "estimated_carbs_g": 50,
+      "estimated_fat_g": 14,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "dharwad_pedha",
+      "category": "Sweets",
+      "protein_per_100kcal": 1.8
+    }
+  ]
+}

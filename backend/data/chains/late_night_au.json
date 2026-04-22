@@ -1,0 +1,56 @@
+{
+  "brand_name": "Late Night",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "HSP (Halal Snack Pack)",
+      "estimated_calories": 840,
+      "estimated_protein_g": 34,
+      "estimated_carbs_g": 60,
+      "estimated_fat_g": 52,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "late_night",
+      "category": "Kebabs",
+      "protein_per_100kcal": 4.0
+    },
+    {
+      "item_name": "Kebab (Chicken)",
+      "estimated_calories": 540,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 28,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "late_night",
+      "category": "Kebabs",
+      "protein_per_100kcal": 5.2
+    },
+    {
+      "item_name": "Loaded Fries",
+      "estimated_calories": 620,
+      "estimated_protein_g": 14,
+      "estimated_carbs_g": 56,
+      "estimated_fat_g": 38,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "late_night",
+      "category": "Sides",
+      "protein_per_100kcal": 2.3
+    },
+    {
+      "item_name": "Maccas Run (Big Mac Meal)",
+      "estimated_calories": 1080,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 118,
+      "estimated_fat_g": 50,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "late_night",
+      "category": "Combos",
+      "protein_per_100kcal": 3.0
+    }
+  ]
+}

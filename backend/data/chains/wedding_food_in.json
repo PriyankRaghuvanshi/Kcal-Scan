@@ -1,0 +1,80 @@
+{
+  "brand_name": "Wedding Food",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Paneer Tikka (Party)",
+      "estimated_calories": 320,
+      "estimated_protein_g": 18,
+      "estimated_carbs_g": 10,
+      "estimated_fat_g": 24,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "wedding_food",
+      "category": "Starters",
+      "protein_per_100kcal": 5.6
+    },
+    {
+      "item_name": "Butter Chicken (Party)",
+      "estimated_calories": 520,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 14,
+      "estimated_fat_g": 38,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "wedding_food",
+      "category": "Curries",
+      "protein_per_100kcal": 6.2
+    },
+    {
+      "item_name": "Dal Makhani (Party)",
+      "estimated_calories": 380,
+      "estimated_protein_g": 16,
+      "estimated_carbs_g": 36,
+      "estimated_fat_g": 20,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "wedding_food",
+      "category": "Curries",
+      "protein_per_100kcal": 4.2
+    },
+    {
+      "item_name": "Biryani (Wedding)",
+      "estimated_calories": 620,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 72,
+      "estimated_fat_g": 24,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "wedding_food",
+      "category": "Biryani",
+      "protein_per_100kcal": 4.5
+    },
+    {
+      "item_name": "Gulab Jamun (Party, 3)",
+      "estimated_calories": 360,
+      "estimated_protein_g": 6,
+      "estimated_carbs_g": 56,
+      "estimated_fat_g": 14,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "wedding_food",
+      "category": "Desserts",
+      "protein_per_100kcal": 1.7
+    },
+    {
+      "item_name": "Naan (Tandoor)",
+      "estimated_calories": 260,
+      "estimated_protein_g": 7,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 8,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "wedding_food",
+      "category": "Breads",
+      "protein_per_100kcal": 2.7
+    }
+  ]
+}

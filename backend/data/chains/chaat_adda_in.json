@@ -1,0 +1,108 @@
+{
+  "brand_name": "Chaat Adda",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Gol Gappe (10 pcs)",
+      "estimated_calories": 220,
+      "estimated_protein_g": 6,
+      "estimated_carbs_g": 36,
+      "estimated_fat_g": 6,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "chaat_adda",
+      "category": "Chaat",
+      "protein_per_100kcal": 2.7,
+      "diet_tags": [
+        "light_meal"
+      ]
+    },
+    {
+      "item_name": "Aloo Tikki Chaat",
+      "estimated_calories": 340,
+      "estimated_protein_g": 8,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 16,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "chaat_adda",
+      "category": "Chaat",
+      "protein_per_100kcal": 2.4,
+      "smart_swap": {
+        "swap_to": "Dahi Bhalla",
+        "swap_calories": 260,
+        "swap_protein_g": 8,
+        "calories_saved": 80,
+        "protein_gained": 0,
+        "reason": "Swap to Dahi Bhalla — save 80 kcal, better protein density"
+      }
+    },
+    {
+      "item_name": "Papdi Chaat",
+      "estimated_calories": 280,
+      "estimated_protein_g": 6,
+      "estimated_carbs_g": 34,
+      "estimated_fat_g": 14,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "chaat_adda",
+      "category": "Chaat",
+      "protein_per_100kcal": 2.1,
+      "diet_tags": [
+        "light_meal"
+      ],
+      "smart_swap": {
+        "swap_to": "Dahi Bhalla",
+        "swap_calories": 260,
+        "swap_protein_g": 8,
+        "calories_saved": 20,
+        "protein_gained": 2,
+        "reason": "Swap to Dahi Bhalla — save 20 kcal, gain 2g protein"
+      }
+    },
+    {
+      "item_name": "Raj Kachori",
+      "estimated_calories": 380,
+      "estimated_protein_g": 10,
+      "estimated_carbs_g": 44,
+      "estimated_fat_g": 18,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "chaat_adda",
+      "category": "Chaat",
+      "protein_per_100kcal": 2.6
+    },
+    {
+      "item_name": "Bhel Puri",
+      "estimated_calories": 200,
+      "estimated_protein_g": 6,
+      "estimated_carbs_g": 32,
+      "estimated_fat_g": 6,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "chaat_adda",
+      "category": "Chaat",
+      "protein_per_100kcal": 3.0,
+      "diet_tags": [
+        "light_meal"
+      ]
+    },
+    {
+      "item_name": "Dahi Bhalla",
+      "estimated_calories": 260,
+      "estimated_protein_g": 8,
+      "estimated_carbs_g": 32,
+      "estimated_fat_g": 12,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "chaat_adda",
+      "category": "Chaat",
+      "protein_per_100kcal": 3.1,
+      "diet_tags": [
+        "light_meal"
+      ]
+    }
+  ]
+}

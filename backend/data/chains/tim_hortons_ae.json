@@ -1,0 +1,89 @@
+{
+  "brand_name": "Tim Hortons",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Double Double Coffee",
+      "estimated_calories": 230,
+      "estimated_protein_g": 4,
+      "estimated_carbs_g": 26,
+      "estimated_fat_g": 12,
+      "menu_item_source": "real_menu",
+      "market": "AE",
+      "chain_key": "tim_hortons",
+      "category": "Coffee",
+      "protein_per_100kcal": 1.7,
+      "diet_tags": [
+        "light_meal"
+      ]
+    },
+    {
+      "item_name": "Iced Capp",
+      "estimated_calories": 360,
+      "estimated_protein_g": 5,
+      "estimated_carbs_g": 50,
+      "estimated_fat_g": 16,
+      "menu_item_source": "real_menu",
+      "market": "AE",
+      "chain_key": "tim_hortons",
+      "category": "Cold Drinks",
+      "protein_per_100kcal": 1.4
+    },
+    {
+      "item_name": "Chicken Shawarma Wrap",
+      "estimated_calories": 480,
+      "estimated_protein_g": 26,
+      "estimated_carbs_g": 40,
+      "estimated_fat_g": 24,
+      "menu_item_source": "real_menu",
+      "market": "AE",
+      "chain_key": "tim_hortons",
+      "category": "Wraps",
+      "protein_per_100kcal": 5.4,
+      "diet_tags": [
+        "high_protein"
+      ]
+    },
+    {
+      "item_name": "Boston Cream Donut",
+      "estimated_calories": 260,
+      "estimated_protein_g": 4,
+      "estimated_carbs_g": 36,
+      "estimated_fat_g": 12,
+      "menu_item_source": "real_menu",
+      "market": "AE",
+      "chain_key": "tim_hortons",
+      "category": "Donuts",
+      "protein_per_100kcal": 1.5,
+      "diet_tags": [
+        "light_meal"
+      ]
+    },
+    {
+      "item_name": "Timbits (5 pcs)",
+      "estimated_calories": 350,
+      "estimated_protein_g": 4,
+      "estimated_carbs_g": 43,
+      "estimated_fat_g": 18,
+      "menu_item_source": "real_menu",
+      "market": "AE",
+      "chain_key": "tim_hortons",
+      "category": "Donuts",
+      "protein_per_100kcal": 1.1
+    },
+    {
+      "item_name": "Egg & Cheese Croissant",
+      "estimated_calories": 380,
+      "estimated_protein_g": 14,
+      "estimated_carbs_g": 28,
+      "estimated_fat_g": 24,
+      "menu_item_source": "real_menu",
+      "market": "AE",
+      "chain_key": "tim_hortons",
+      "category": "Breakfast",
+      "protein_per_100kcal": 3.7
+    }
+  ]
+}

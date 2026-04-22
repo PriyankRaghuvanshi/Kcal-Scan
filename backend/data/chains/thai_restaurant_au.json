@@ -1,0 +1,68 @@
+{
+  "brand_name": "Thai Restaurant",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Red Curry (Chicken) + Rice",
+      "estimated_calories": 640,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 60,
+      "estimated_fat_g": 30,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "thai_restaurant",
+      "category": "Curry",
+      "protein_per_100kcal": 4.4
+    },
+    {
+      "item_name": "Larb Gai",
+      "estimated_calories": 320,
+      "estimated_protein_g": 26,
+      "estimated_carbs_g": 14,
+      "estimated_fat_g": 18,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "thai_restaurant",
+      "category": "Salads",
+      "protein_per_100kcal": 8.1
+    },
+    {
+      "item_name": "Drunken Noodles (Chicken)",
+      "estimated_calories": 520,
+      "estimated_protein_g": 24,
+      "estimated_carbs_g": 58,
+      "estimated_fat_g": 20,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "thai_restaurant",
+      "category": "Noodles",
+      "protein_per_100kcal": 4.6
+    },
+    {
+      "item_name": "Panang Curry (Beef)",
+      "estimated_calories": 680,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 54,
+      "estimated_fat_g": 36,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "thai_restaurant",
+      "category": "Curry",
+      "protein_per_100kcal": 4.4
+    },
+    {
+      "item_name": "Mango Sticky Rice",
+      "estimated_calories": 380,
+      "estimated_protein_g": 4,
+      "estimated_carbs_g": 68,
+      "estimated_fat_g": 12,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "thai_restaurant",
+      "category": "Desserts",
+      "protein_per_100kcal": 1.1
+    }
+  ]
+}

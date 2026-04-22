@@ -1,0 +1,96 @@
+{
+  "brand_name": "Bowl Company",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Chicken Tikka Bowl",
+      "estimated_calories": 480,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 52,
+      "estimated_fat_g": 18,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "bowl_company",
+      "category": "Bowls",
+      "protein_per_100kcal": 5.8,
+      "diet_tags": [
+        "high_protein"
+      ],
+      "best_protein_pick": true
+    },
+    {
+      "item_name": "Paneer Tikka Bowl",
+      "estimated_calories": 440,
+      "estimated_protein_g": 18,
+      "estimated_carbs_g": 52,
+      "estimated_fat_g": 18,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "bowl_company",
+      "category": "Bowls",
+      "protein_per_100kcal": 4.1,
+      "smart_swap": {
+        "swap_to": "Chicken Tikka Bowl",
+        "swap_calories": 480,
+        "swap_protein_g": 28,
+        "calories_saved": 0,
+        "protein_gained": 10,
+        "reason": "Swap to Chicken Tikka Bowl — gain 10g protein"
+      }
+    },
+    {
+      "item_name": "Egg Bhurji Bowl",
+      "estimated_calories": 420,
+      "estimated_protein_g": 18,
+      "estimated_carbs_g": 50,
+      "estimated_fat_g": 16,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "bowl_company",
+      "category": "Bowls",
+      "protein_per_100kcal": 4.3
+    },
+    {
+      "item_name": "Dal Makhani Bowl",
+      "estimated_calories": 460,
+      "estimated_protein_g": 14,
+      "estimated_carbs_g": 58,
+      "estimated_fat_g": 18,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "bowl_company",
+      "category": "Bowls",
+      "protein_per_100kcal": 3.0,
+      "smart_swap": {
+        "swap_to": "Chicken Tikka Bowl",
+        "swap_calories": 480,
+        "swap_protein_g": 28,
+        "calories_saved": 0,
+        "protein_gained": 14,
+        "reason": "Swap to Chicken Tikka Bowl — gain 14g protein"
+      }
+    },
+    {
+      "item_name": "Rajma Chawal Bowl",
+      "estimated_calories": 420,
+      "estimated_protein_g": 14,
+      "estimated_carbs_g": 60,
+      "estimated_fat_g": 12,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "bowl_company",
+      "category": "Bowls",
+      "protein_per_100kcal": 3.3,
+      "smart_swap": {
+        "swap_to": "Chicken Tikka Bowl",
+        "swap_calories": 480,
+        "swap_protein_g": 28,
+        "calories_saved": 0,
+        "protein_gained": 14,
+        "reason": "Swap to Chicken Tikka Bowl — gain 14g protein"
+      }
+    }
+  ]
+}

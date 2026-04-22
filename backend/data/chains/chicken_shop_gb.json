@@ -1,0 +1,68 @@
+{
+  "brand_name": "Chicken Shop",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Fried Chicken (2 pcs) + Chips",
+      "estimated_calories": 780,
+      "estimated_protein_g": 34,
+      "estimated_carbs_g": 58,
+      "estimated_fat_g": 44,
+      "menu_item_source": "real_menu",
+      "market": "GB",
+      "chain_key": "chicken_shop",
+      "category": "Combos",
+      "protein_per_100kcal": 4.4
+    },
+    {
+      "item_name": "Chicken Burger + Chips",
+      "estimated_calories": 720,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 62,
+      "estimated_fat_g": 38,
+      "menu_item_source": "real_menu",
+      "market": "GB",
+      "chain_key": "chicken_shop",
+      "category": "Combos",
+      "protein_per_100kcal": 3.9
+    },
+    {
+      "item_name": "Wings (6) + Chips",
+      "estimated_calories": 680,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 52,
+      "estimated_fat_g": 38,
+      "menu_item_source": "real_menu",
+      "market": "GB",
+      "chain_key": "chicken_shop",
+      "category": "Combos",
+      "protein_per_100kcal": 4.4
+    },
+    {
+      "item_name": "Chicken Strip Wrap",
+      "estimated_calories": 480,
+      "estimated_protein_g": 24,
+      "estimated_carbs_g": 38,
+      "estimated_fat_g": 26,
+      "menu_item_source": "real_menu",
+      "market": "GB",
+      "chain_key": "chicken_shop",
+      "category": "Wraps",
+      "protein_per_100kcal": 5.0
+    },
+    {
+      "item_name": "Chips (Regular)",
+      "estimated_calories": 360,
+      "estimated_protein_g": 5,
+      "estimated_carbs_g": 44,
+      "estimated_fat_g": 18,
+      "menu_item_source": "real_menu",
+      "market": "GB",
+      "chain_key": "chicken_shop",
+      "category": "Sides",
+      "protein_per_100kcal": 1.4
+    }
+  ]
+}

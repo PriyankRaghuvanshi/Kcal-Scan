@@ -1,0 +1,56 @@
+{
+  "brand_name": "Bombay Canteen",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Neer Dosa with Ghee Roast Chicken",
+      "estimated_calories": 480,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 40,
+      "estimated_fat_g": 22,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "bombay_canteen",
+      "category": "Modern Indian",
+      "protein_per_100kcal": 5.8
+    },
+    {
+      "item_name": "Keema Pav",
+      "estimated_calories": 440,
+      "estimated_protein_g": 22,
+      "estimated_carbs_g": 38,
+      "estimated_fat_g": 22,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "bombay_canteen",
+      "category": "Street Food",
+      "protein_per_100kcal": 5.0
+    },
+    {
+      "item_name": "Jackfruit Biryani",
+      "estimated_calories": 420,
+      "estimated_protein_g": 10,
+      "estimated_carbs_g": 62,
+      "estimated_fat_g": 16,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "bombay_canteen",
+      "category": "Biryani",
+      "protein_per_100kcal": 2.4
+    },
+    {
+      "item_name": "Bun Maska Ice Cream",
+      "estimated_calories": 380,
+      "estimated_protein_g": 8,
+      "estimated_carbs_g": 46,
+      "estimated_fat_g": 18,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "bombay_canteen",
+      "category": "Desserts",
+      "protein_per_100kcal": 2.1
+    }
+  ]
+}

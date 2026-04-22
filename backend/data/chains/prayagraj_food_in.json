@@ -1,0 +1,56 @@
+{
+  "brand_name": "Prayagraj Food",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Kachori Sabzi",
+      "estimated_calories": 340,
+      "estimated_protein_g": 8,
+      "estimated_carbs_g": 38,
+      "estimated_fat_g": 18,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "prayagraj_food",
+      "category": "Breakfast",
+      "protein_per_100kcal": 2.4
+    },
+    {
+      "item_name": "Chaat",
+      "estimated_calories": 260,
+      "estimated_protein_g": 6,
+      "estimated_carbs_g": 34,
+      "estimated_fat_g": 12,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "prayagraj_food",
+      "category": "Chaat",
+      "protein_per_100kcal": 2.3
+    },
+    {
+      "item_name": "Loaf Kachori",
+      "estimated_calories": 280,
+      "estimated_protein_g": 6,
+      "estimated_carbs_g": 32,
+      "estimated_fat_g": 14,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "prayagraj_food",
+      "category": "Snacks",
+      "protein_per_100kcal": 2.1
+    },
+    {
+      "item_name": "Peda (100g)",
+      "estimated_calories": 380,
+      "estimated_protein_g": 8,
+      "estimated_carbs_g": 48,
+      "estimated_fat_g": 18,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "prayagraj_food",
+      "category": "Sweets",
+      "protein_per_100kcal": 2.1
+    }
+  ]
+}

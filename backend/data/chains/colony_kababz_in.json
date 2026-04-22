@@ -1,0 +1,44 @@
+{
+  "brand_name": "Colony Kababz",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Seekh Kebab Roll",
+      "estimated_calories": 380,
+      "estimated_protein_g": 24,
+      "estimated_carbs_g": 32,
+      "estimated_fat_g": 18,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "colony_kababz",
+      "category": "Rolls",
+      "protein_per_100kcal": 6.3
+    },
+    {
+      "item_name": "Chicken Tikka Roll",
+      "estimated_calories": 400,
+      "estimated_protein_g": 26,
+      "estimated_carbs_g": 32,
+      "estimated_fat_g": 20,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "colony_kababz",
+      "category": "Rolls",
+      "protein_per_100kcal": 6.5
+    },
+    {
+      "item_name": "Mutton Seekh (4)",
+      "estimated_calories": 340,
+      "estimated_protein_g": 26,
+      "estimated_carbs_g": 6,
+      "estimated_fat_g": 24,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "colony_kababz",
+      "category": "Kebabs",
+      "protein_per_100kcal": 7.6
+    }
+  ]
+}

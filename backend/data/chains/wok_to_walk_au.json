@@ -1,0 +1,92 @@
+{
+  "brand_name": "Wok To Walk",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Chicken Noodles",
+      "estimated_calories": 480,
+      "estimated_protein_g": 26,
+      "estimated_carbs_g": 56,
+      "estimated_fat_g": 16,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "wok_to_walk",
+      "category": "Noodles",
+      "protein_per_100kcal": 5.4,
+      "diet_tags": [
+        "high_protein"
+      ],
+      "best_protein_pick": true
+    },
+    {
+      "item_name": "Tofu Rice",
+      "estimated_calories": 420,
+      "estimated_protein_g": 14,
+      "estimated_carbs_g": 62,
+      "estimated_fat_g": 12,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "wok_to_walk",
+      "category": "Rice",
+      "protein_per_100kcal": 3.3,
+      "smart_swap": {
+        "swap_to": "Chicken Noodles",
+        "swap_calories": 480,
+        "swap_protein_g": 26,
+        "calories_saved": 0,
+        "protein_gained": 12,
+        "reason": "Swap to Chicken Noodles — gain 12g protein"
+      }
+    },
+    {
+      "item_name": "Shrimp Noodles",
+      "estimated_calories": 460,
+      "estimated_protein_g": 24,
+      "estimated_carbs_g": 56,
+      "estimated_fat_g": 14,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "wok_to_walk",
+      "category": "Noodles",
+      "protein_per_100kcal": 5.2
+    },
+    {
+      "item_name": "Beef Rice",
+      "estimated_calories": 520,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 58,
+      "estimated_fat_g": 18,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "wok_to_walk",
+      "category": "Rice",
+      "protein_per_100kcal": 5.4
+    },
+    {
+      "item_name": "Spring Rolls (3 pcs)",
+      "estimated_calories": 240,
+      "estimated_protein_g": 6,
+      "estimated_carbs_g": 26,
+      "estimated_fat_g": 12,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "wok_to_walk",
+      "category": "Starters",
+      "protein_per_100kcal": 2.5,
+      "diet_tags": [
+        "low_carb",
+        "light_meal"
+      ],
+      "smart_swap": {
+        "swap_to": "Chicken Noodles",
+        "swap_calories": 480,
+        "swap_protein_g": 26,
+        "calories_saved": 0,
+        "protein_gained": 20,
+        "reason": "Swap to Chicken Noodles — gain 20g protein"
+      }
+    }
+  ]
+}

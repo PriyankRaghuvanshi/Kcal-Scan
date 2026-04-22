@@ -1,0 +1,56 @@
+{
+  "brand_name": "Tarri Poha",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Tarri Poha",
+      "estimated_calories": 280,
+      "estimated_protein_g": 6,
+      "estimated_carbs_g": 40,
+      "estimated_fat_g": 10,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "tarri_poha",
+      "category": "Breakfast",
+      "protein_per_100kcal": 2.1
+    },
+    {
+      "item_name": "Saoji Chicken",
+      "estimated_calories": 440,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 10,
+      "estimated_fat_g": 30,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "tarri_poha",
+      "category": "Curries",
+      "protein_per_100kcal": 7.3
+    },
+    {
+      "item_name": "Patodi",
+      "estimated_calories": 260,
+      "estimated_protein_g": 10,
+      "estimated_carbs_g": 26,
+      "estimated_fat_g": 12,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "tarri_poha",
+      "category": "Snacks",
+      "protein_per_100kcal": 3.8
+    },
+    {
+      "item_name": "Santra Barfi (Orange)",
+      "estimated_calories": 220,
+      "estimated_protein_g": 4,
+      "estimated_carbs_g": 34,
+      "estimated_fat_g": 8,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "tarri_poha",
+      "category": "Sweets",
+      "protein_per_100kcal": 1.8
+    }
+  ]
+}

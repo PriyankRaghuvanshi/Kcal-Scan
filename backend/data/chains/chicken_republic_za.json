@@ -1,0 +1,101 @@
+{
+  "brand_name": "Chicken Republic",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Grilled Chicken (1/4)",
+      "estimated_calories": 340,
+      "estimated_protein_g": 38,
+      "estimated_carbs_g": 2,
+      "estimated_fat_g": 20,
+      "menu_item_source": "real_menu",
+      "market": "ZA",
+      "chain_key": "chicken_republic",
+      "category": "Chicken",
+      "protein_per_100kcal": 11.2,
+      "diet_tags": [
+        "high_protein",
+        "keto_friendly",
+        "low_carb"
+      ],
+      "best_protein_pick": true
+    },
+    {
+      "item_name": "Chicken Burger",
+      "estimated_calories": 480,
+      "estimated_protein_g": 26,
+      "estimated_carbs_g": 40,
+      "estimated_fat_g": 24,
+      "menu_item_source": "real_menu",
+      "market": "ZA",
+      "chain_key": "chicken_republic",
+      "category": "Burgers",
+      "protein_per_100kcal": 5.4,
+      "diet_tags": [
+        "high_protein"
+      ],
+      "smart_swap": {
+        "swap_to": "Grilled Chicken (1/4)",
+        "swap_calories": 340,
+        "swap_protein_g": 38,
+        "calories_saved": 140,
+        "protein_gained": 12,
+        "reason": "Swap to Grilled Chicken (1/4) — save 140 kcal, gain 12g protein"
+      }
+    },
+    {
+      "item_name": "Chicken Wrap",
+      "estimated_calories": 440,
+      "estimated_protein_g": 24,
+      "estimated_carbs_g": 36,
+      "estimated_fat_g": 22,
+      "menu_item_source": "real_menu",
+      "market": "ZA",
+      "chain_key": "chicken_republic",
+      "category": "Wraps",
+      "protein_per_100kcal": 5.5
+    },
+    {
+      "item_name": "Jollof Rice & Chicken",
+      "estimated_calories": 580,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 62,
+      "estimated_fat_g": 24,
+      "menu_item_source": "real_menu",
+      "market": "ZA",
+      "chain_key": "chicken_republic",
+      "category": "Combos",
+      "protein_per_100kcal": 4.8,
+      "smart_swap": {
+        "swap_to": "Grilled Chicken (1/4)",
+        "swap_calories": 340,
+        "swap_protein_g": 38,
+        "calories_saved": 240,
+        "protein_gained": 10,
+        "reason": "Swap to Grilled Chicken (1/4) — save 240 kcal, gain 10g protein"
+      }
+    },
+    {
+      "item_name": "Chips",
+      "estimated_calories": 360,
+      "estimated_protein_g": 5,
+      "estimated_carbs_g": 44,
+      "estimated_fat_g": 18,
+      "menu_item_source": "real_menu",
+      "market": "ZA",
+      "chain_key": "chicken_republic",
+      "category": "Sides",
+      "protein_per_100kcal": 1.4,
+      "smart_swap": {
+        "swap_to": "Grilled Chicken (1/4)",
+        "swap_calories": 340,
+        "swap_protein_g": 38,
+        "calories_saved": 20,
+        "protein_gained": 33,
+        "reason": "Swap to Grilled Chicken (1/4) — save 20 kcal, gain 33g protein"
+      }
+    }
+  ]
+}

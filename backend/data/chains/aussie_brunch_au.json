@@ -1,0 +1,104 @@
+{
+  "brand_name": "Aussie Brunch",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Big Breakfast",
+      "estimated_calories": 780,
+      "estimated_protein_g": 36,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 50,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "aussie_brunch",
+      "category": "Breakfast",
+      "protein_per_100kcal": 4.6
+    },
+    {
+      "item_name": "Smashed Avo on Toast",
+      "estimated_calories": 420,
+      "estimated_protein_g": 12,
+      "estimated_carbs_g": 38,
+      "estimated_fat_g": 24,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "aussie_brunch",
+      "category": "Breakfast",
+      "protein_per_100kcal": 2.9
+    },
+    {
+      "item_name": "Eggs Benedict",
+      "estimated_calories": 560,
+      "estimated_protein_g": 24,
+      "estimated_carbs_g": 28,
+      "estimated_fat_g": 38,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "aussie_brunch",
+      "category": "Breakfast",
+      "protein_per_100kcal": 4.3
+    },
+    {
+      "item_name": "Acai Bowl",
+      "estimated_calories": 380,
+      "estimated_protein_g": 8,
+      "estimated_carbs_g": 58,
+      "estimated_fat_g": 12,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "aussie_brunch",
+      "category": "Bowls",
+      "protein_per_100kcal": 2.1
+    },
+    {
+      "item_name": "Flat White",
+      "estimated_calories": 120,
+      "estimated_protein_g": 6,
+      "estimated_carbs_g": 10,
+      "estimated_fat_g": 6,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "aussie_brunch",
+      "category": "Coffee",
+      "protein_per_100kcal": 5.0
+    },
+    {
+      "item_name": "Banana Bread",
+      "estimated_calories": 340,
+      "estimated_protein_g": 6,
+      "estimated_carbs_g": 48,
+      "estimated_fat_g": 14,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "aussie_brunch",
+      "category": "Bakery",
+      "protein_per_100kcal": 1.8
+    },
+    {
+      "item_name": "Chicken Caesar Salad",
+      "estimated_calories": 440,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 18,
+      "estimated_fat_g": 28,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "aussie_brunch",
+      "category": "Salads",
+      "protein_per_100kcal": 7.3
+    },
+    {
+      "item_name": "Pulled Pork Benedict",
+      "estimated_calories": 620,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 30,
+      "estimated_fat_g": 42,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "aussie_brunch",
+      "category": "Breakfast",
+      "protein_per_100kcal": 4.8
+    }
+  ]
+}

@@ -1,0 +1,92 @@
+{
+  "brand_name": "Wazwan",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Rogan Josh",
+      "estimated_calories": 480,
+      "estimated_protein_g": 36,
+      "estimated_carbs_g": 8,
+      "estimated_fat_g": 36,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "wazwan",
+      "category": "Kashmiri",
+      "protein_per_100kcal": 7.5
+    },
+    {
+      "item_name": "Gushtaba",
+      "estimated_calories": 420,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 10,
+      "estimated_fat_g": 30,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "wazwan",
+      "category": "Kashmiri",
+      "protein_per_100kcal": 6.7
+    },
+    {
+      "item_name": "Dum Aloo",
+      "estimated_calories": 320,
+      "estimated_protein_g": 8,
+      "estimated_carbs_g": 32,
+      "estimated_fat_g": 18,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "wazwan",
+      "category": "Kashmiri",
+      "protein_per_100kcal": 2.5
+    },
+    {
+      "item_name": "Kashmiri Pulao",
+      "estimated_calories": 380,
+      "estimated_protein_g": 8,
+      "estimated_carbs_g": 56,
+      "estimated_fat_g": 14,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "wazwan",
+      "category": "Rice",
+      "protein_per_100kcal": 2.1
+    },
+    {
+      "item_name": "Sheermal",
+      "estimated_calories": 240,
+      "estimated_protein_g": 6,
+      "estimated_carbs_g": 32,
+      "estimated_fat_g": 10,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "wazwan",
+      "category": "Breads",
+      "protein_per_100kcal": 2.5
+    },
+    {
+      "item_name": "Kahwa",
+      "estimated_calories": 40,
+      "estimated_protein_g": 0,
+      "estimated_carbs_g": 8,
+      "estimated_fat_g": 1,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "wazwan",
+      "category": "Tea",
+      "protein_per_100kcal": 0.0
+    },
+    {
+      "item_name": "Seekh Kebab (Tabak Maaz)",
+      "estimated_calories": 380,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 4,
+      "estimated_fat_g": 28,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "wazwan",
+      "category": "Kebabs",
+      "protein_per_100kcal": 7.9
+    }
+  ]
+}

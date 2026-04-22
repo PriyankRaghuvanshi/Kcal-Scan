@@ -1,0 +1,92 @@
+{
+  "brand_name": "Railway Food",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Veg Thali (IRCTC)",
+      "estimated_calories": 520,
+      "estimated_protein_g": 14,
+      "estimated_carbs_g": 72,
+      "estimated_fat_g": 18,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "railway_food",
+      "category": "Thali",
+      "protein_per_100kcal": 2.7
+    },
+    {
+      "item_name": "Veg Biryani (IRCTC)",
+      "estimated_calories": 420,
+      "estimated_protein_g": 10,
+      "estimated_carbs_g": 62,
+      "estimated_fat_g": 14,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "railway_food",
+      "category": "Biryani",
+      "protein_per_100kcal": 2.4
+    },
+    {
+      "item_name": "Samosa (Platform, 2)",
+      "estimated_calories": 260,
+      "estimated_protein_g": 6,
+      "estimated_carbs_g": 28,
+      "estimated_fat_g": 14,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "railway_food",
+      "category": "Snacks",
+      "protein_per_100kcal": 2.3
+    },
+    {
+      "item_name": "Chai (Platform)",
+      "estimated_calories": 60,
+      "estimated_protein_g": 2,
+      "estimated_carbs_g": 10,
+      "estimated_fat_g": 2,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "railway_food",
+      "category": "Tea",
+      "protein_per_100kcal": 3.3
+    },
+    {
+      "item_name": "Aloo Puri (Platform)",
+      "estimated_calories": 380,
+      "estimated_protein_g": 8,
+      "estimated_carbs_g": 48,
+      "estimated_fat_g": 18,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "railway_food",
+      "category": "Breakfast",
+      "protein_per_100kcal": 2.1
+    },
+    {
+      "item_name": "Cutlet (Veg)",
+      "estimated_calories": 180,
+      "estimated_protein_g": 4,
+      "estimated_carbs_g": 20,
+      "estimated_fat_g": 10,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "railway_food",
+      "category": "Snacks",
+      "protein_per_100kcal": 2.2
+    },
+    {
+      "item_name": "Bread Pakora (2)",
+      "estimated_calories": 280,
+      "estimated_protein_g": 6,
+      "estimated_carbs_g": 28,
+      "estimated_fat_g": 16,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "railway_food",
+      "category": "Snacks",
+      "protein_per_100kcal": 2.1
+    }
+  ]
+}

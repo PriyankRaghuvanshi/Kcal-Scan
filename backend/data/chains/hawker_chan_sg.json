@@ -1,0 +1,119 @@
+{
+  "brand_name": "Hawker Chan",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Soya Sauce Chicken Rice",
+      "estimated_calories": 480,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 56,
+      "estimated_fat_g": 16,
+      "menu_item_source": "real_menu",
+      "market": "SG",
+      "chain_key": "hawker_chan",
+      "category": "Rice",
+      "protein_per_100kcal": 5.8,
+      "diet_tags": [
+        "high_protein"
+      ],
+      "best_protein_pick": true
+    },
+    {
+      "item_name": "Soya Sauce Chicken Noodle",
+      "estimated_calories": 460,
+      "estimated_protein_g": 26,
+      "estimated_carbs_g": 52,
+      "estimated_fat_g": 16,
+      "menu_item_source": "real_menu",
+      "market": "SG",
+      "chain_key": "hawker_chan",
+      "category": "Noodles",
+      "protein_per_100kcal": 5.7,
+      "diet_tags": [
+        "high_protein"
+      ]
+    },
+    {
+      "item_name": "Char Siew Rice",
+      "estimated_calories": 520,
+      "estimated_protein_g": 24,
+      "estimated_carbs_g": 58,
+      "estimated_fat_g": 20,
+      "menu_item_source": "real_menu",
+      "market": "SG",
+      "chain_key": "hawker_chan",
+      "category": "Rice",
+      "protein_per_100kcal": 4.6,
+      "smart_swap": {
+        "swap_to": "Wonton Soup",
+        "swap_calories": 180,
+        "swap_protein_g": 12,
+        "calories_saved": 340,
+        "protein_gained": 0,
+        "reason": "Swap to Wonton Soup — save 340 kcal, better protein density"
+      }
+    },
+    {
+      "item_name": "Roasted Pork Rice",
+      "estimated_calories": 540,
+      "estimated_protein_g": 26,
+      "estimated_carbs_g": 56,
+      "estimated_fat_g": 22,
+      "menu_item_source": "real_menu",
+      "market": "SG",
+      "chain_key": "hawker_chan",
+      "category": "Rice",
+      "protein_per_100kcal": 4.8,
+      "smart_swap": {
+        "swap_to": "Wonton Soup",
+        "swap_calories": 180,
+        "swap_protein_g": 12,
+        "calories_saved": 360,
+        "protein_gained": 0,
+        "reason": "Swap to Wonton Soup — save 360 kcal, better protein density"
+      }
+    },
+    {
+      "item_name": "Wonton Soup",
+      "estimated_calories": 180,
+      "estimated_protein_g": 12,
+      "estimated_carbs_g": 16,
+      "estimated_fat_g": 8,
+      "menu_item_source": "real_menu",
+      "market": "SG",
+      "chain_key": "hawker_chan",
+      "category": "Soups",
+      "protein_per_100kcal": 6.7,
+      "diet_tags": [
+        "low_carb",
+        "light_meal"
+      ]
+    },
+    {
+      "item_name": "Char Siew Noodle (Dry)",
+      "estimated_calories": 480,
+      "estimated_protein_g": 22,
+      "estimated_carbs_g": 54,
+      "estimated_fat_g": 18,
+      "menu_item_source": "real_menu",
+      "market": "SG",
+      "chain_key": "hawker_chan",
+      "category": "Noodles",
+      "protein_per_100kcal": 4.6
+    },
+    {
+      "item_name": "Combo Rice (Chicken + Char Siew)",
+      "estimated_calories": 580,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 60,
+      "estimated_fat_g": 24,
+      "menu_item_source": "real_menu",
+      "market": "SG",
+      "chain_key": "hawker_chan",
+      "category": "Rice",
+      "protein_per_100kcal": 4.8
+    }
+  ]
+}

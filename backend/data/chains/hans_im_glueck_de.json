@@ -1,0 +1,108 @@
+{
+  "brand_name": "Hans Im Glueck",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Klassiker Burger",
+      "estimated_calories": 560,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 38,
+      "estimated_fat_g": 32,
+      "menu_item_source": "real_menu",
+      "market": "DE",
+      "chain_key": "hans_im_glueck",
+      "category": "Burgers",
+      "protein_per_100kcal": 5.4
+    },
+    {
+      "item_name": "Naturbursche (Veggie)",
+      "estimated_calories": 480,
+      "estimated_protein_g": 18,
+      "estimated_carbs_g": 48,
+      "estimated_fat_g": 24,
+      "menu_item_source": "real_menu",
+      "market": "DE",
+      "chain_key": "hans_im_glueck",
+      "category": "Burgers",
+      "protein_per_100kcal": 3.8,
+      "smart_swap": {
+        "swap_to": "Chicken Burger",
+        "swap_calories": 520,
+        "swap_protein_g": 32,
+        "calories_saved": 0,
+        "protein_gained": 14,
+        "reason": "Swap to Chicken Burger — gain 14g protein"
+      }
+    },
+    {
+      "item_name": "Chicken Burger",
+      "estimated_calories": 520,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 40,
+      "estimated_fat_g": 26,
+      "menu_item_source": "real_menu",
+      "market": "DE",
+      "chain_key": "hans_im_glueck",
+      "category": "Burgers",
+      "protein_per_100kcal": 6.2,
+      "best_protein_pick": true
+    },
+    {
+      "item_name": "Sweet Potato Fries",
+      "estimated_calories": 380,
+      "estimated_protein_g": 4,
+      "estimated_carbs_g": 50,
+      "estimated_fat_g": 18,
+      "menu_item_source": "real_menu",
+      "market": "DE",
+      "chain_key": "hans_im_glueck",
+      "category": "Sides",
+      "protein_per_100kcal": 1.1,
+      "smart_swap": {
+        "swap_to": "Chicken Burger",
+        "swap_calories": 520,
+        "swap_protein_g": 32,
+        "calories_saved": 0,
+        "protein_gained": 28,
+        "reason": "Swap to Chicken Burger — gain 28g protein"
+      }
+    },
+    {
+      "item_name": "Caesar Salad",
+      "estimated_calories": 340,
+      "estimated_protein_g": 16,
+      "estimated_carbs_g": 16,
+      "estimated_fat_g": 24,
+      "menu_item_source": "real_menu",
+      "market": "DE",
+      "chain_key": "hans_im_glueck",
+      "category": "Salads",
+      "protein_per_100kcal": 4.7,
+      "diet_tags": [
+        "low_carb"
+      ]
+    },
+    {
+      "item_name": "Onion Rings",
+      "estimated_calories": 360,
+      "estimated_protein_g": 6,
+      "estimated_carbs_g": 40,
+      "estimated_fat_g": 20,
+      "menu_item_source": "real_menu",
+      "market": "DE",
+      "chain_key": "hans_im_glueck",
+      "category": "Sides",
+      "protein_per_100kcal": 1.7,
+      "smart_swap": {
+        "swap_to": "Chicken Burger",
+        "swap_calories": 520,
+        "swap_protein_g": 32,
+        "calories_saved": 0,
+        "protein_gained": 26,
+        "reason": "Swap to Chicken Burger — gain 26g protein"
+      }
+    }
+  ]
+}

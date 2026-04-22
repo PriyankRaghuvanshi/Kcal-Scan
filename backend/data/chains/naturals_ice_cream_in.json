@@ -1,0 +1,56 @@
+{
+  "brand_name": "Naturals Ice Cream",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Tender Coconut",
+      "estimated_calories": 180,
+      "estimated_protein_g": 3,
+      "estimated_carbs_g": 24,
+      "estimated_fat_g": 8,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "naturals_ice_cream",
+      "category": "Ice Cream",
+      "protein_per_100kcal": 1.7
+    },
+    {
+      "item_name": "Sitaphal",
+      "estimated_calories": 200,
+      "estimated_protein_g": 3,
+      "estimated_carbs_g": 28,
+      "estimated_fat_g": 8,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "naturals_ice_cream",
+      "category": "Ice Cream",
+      "protein_per_100kcal": 1.5
+    },
+    {
+      "item_name": "Alphonso Mango",
+      "estimated_calories": 190,
+      "estimated_protein_g": 3,
+      "estimated_carbs_g": 26,
+      "estimated_fat_g": 8,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "naturals_ice_cream",
+      "category": "Ice Cream",
+      "protein_per_100kcal": 1.6
+    },
+    {
+      "item_name": "Chikoo",
+      "estimated_calories": 190,
+      "estimated_protein_g": 3,
+      "estimated_carbs_g": 26,
+      "estimated_fat_g": 8,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "naturals_ice_cream",
+      "category": "Ice Cream",
+      "protein_per_100kcal": 1.6
+    }
+  ]
+}

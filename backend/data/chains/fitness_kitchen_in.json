@@ -1,0 +1,80 @@
+{
+  "brand_name": "Fitness Kitchen",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Grilled Chicken Breast (200g)",
+      "estimated_calories": 330,
+      "estimated_protein_g": 62,
+      "estimated_carbs_g": 0,
+      "estimated_fat_g": 8,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "fitness_kitchen",
+      "category": "High Protein",
+      "protein_per_100kcal": 18.8
+    },
+    {
+      "item_name": "Egg White Omelette (6 whites)",
+      "estimated_calories": 140,
+      "estimated_protein_g": 24,
+      "estimated_carbs_g": 2,
+      "estimated_fat_g": 4,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "fitness_kitchen",
+      "category": "High Protein",
+      "protein_per_100kcal": 17.1
+    },
+    {
+      "item_name": "Chicken Salad Bowl",
+      "estimated_calories": 320,
+      "estimated_protein_g": 34,
+      "estimated_carbs_g": 14,
+      "estimated_fat_g": 14,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "fitness_kitchen",
+      "category": "Salads",
+      "protein_per_100kcal": 10.6
+    },
+    {
+      "item_name": "Brown Rice + Grilled Chicken",
+      "estimated_calories": 440,
+      "estimated_protein_g": 38,
+      "estimated_carbs_g": 48,
+      "estimated_fat_g": 10,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "fitness_kitchen",
+      "category": "Bowls",
+      "protein_per_100kcal": 8.6
+    },
+    {
+      "item_name": "Protein Shake (Whey)",
+      "estimated_calories": 220,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 12,
+      "estimated_fat_g": 6,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "fitness_kitchen",
+      "category": "Shakes",
+      "protein_per_100kcal": 13.6
+    },
+    {
+      "item_name": "Paneer Tikka Salad",
+      "estimated_calories": 280,
+      "estimated_protein_g": 22,
+      "estimated_carbs_g": 10,
+      "estimated_fat_g": 18,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "fitness_kitchen",
+      "category": "Salads",
+      "protein_per_100kcal": 7.9
+    }
+  ]
+}

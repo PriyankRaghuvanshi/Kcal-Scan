@@ -1,0 +1,80 @@
+{
+  "brand_name": "Manek Chowk",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Khaman Dhokla (6 pcs)",
+      "estimated_calories": 240,
+      "estimated_protein_g": 8,
+      "estimated_carbs_g": 34,
+      "estimated_fat_g": 8,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "manek_chowk",
+      "category": "Snacks",
+      "protein_per_100kcal": 3.3
+    },
+    {
+      "item_name": "Fafda Jalebi",
+      "estimated_calories": 420,
+      "estimated_protein_g": 6,
+      "estimated_carbs_g": 56,
+      "estimated_fat_g": 20,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "manek_chowk",
+      "category": "Breakfast",
+      "protein_per_100kcal": 1.4
+    },
+    {
+      "item_name": "Dabeli",
+      "estimated_calories": 260,
+      "estimated_protein_g": 6,
+      "estimated_carbs_g": 38,
+      "estimated_fat_g": 10,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "manek_chowk",
+      "category": "Street Food",
+      "protein_per_100kcal": 2.3
+    },
+    {
+      "item_name": "Pav Bhaji",
+      "estimated_calories": 420,
+      "estimated_protein_g": 10,
+      "estimated_carbs_g": 52,
+      "estimated_fat_g": 20,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "manek_chowk",
+      "category": "Street Food",
+      "protein_per_100kcal": 2.4
+    },
+    {
+      "item_name": "Handvo",
+      "estimated_calories": 220,
+      "estimated_protein_g": 6,
+      "estimated_carbs_g": 32,
+      "estimated_fat_g": 8,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "manek_chowk",
+      "category": "Snacks",
+      "protein_per_100kcal": 2.7
+    },
+    {
+      "item_name": "Undhiyu",
+      "estimated_calories": 340,
+      "estimated_protein_g": 8,
+      "estimated_carbs_g": 38,
+      "estimated_fat_g": 18,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "manek_chowk",
+      "category": "Gujarati",
+      "protein_per_100kcal": 2.4
+    }
+  ]
+}

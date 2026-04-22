@@ -1,0 +1,110 @@
+{
+  "brand_name": "Dairy Queen",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Flamethrower Burger",
+      "estimated_calories": 730,
+      "estimated_protein_g": 34,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 46,
+      "menu_item_source": "real_menu",
+      "market": "CA",
+      "chain_key": "dairy_queen",
+      "category": "Burgers",
+      "protein_per_100kcal": 4.7
+    },
+    {
+      "item_name": "Blizzard (Oreo, Medium)",
+      "estimated_calories": 620,
+      "estimated_protein_g": 14,
+      "estimated_carbs_g": 82,
+      "estimated_fat_g": 26,
+      "menu_item_source": "real_menu",
+      "market": "CA",
+      "chain_key": "dairy_queen",
+      "category": "Blizzards",
+      "protein_per_100kcal": 2.3,
+      "smart_swap": {
+        "swap_to": "Cheeseburger",
+        "swap_calories": 400,
+        "swap_protein_g": 20,
+        "calories_saved": 220,
+        "protein_gained": 6,
+        "reason": "Swap to Cheeseburger — save 220 kcal, gain 6g protein"
+      }
+    },
+    {
+      "item_name": "Chicken Strip Basket (4 pc)",
+      "estimated_calories": 940,
+      "estimated_protein_g": 38,
+      "estimated_carbs_g": 86,
+      "estimated_fat_g": 48,
+      "menu_item_source": "real_menu",
+      "market": "CA",
+      "chain_key": "dairy_queen",
+      "category": "Chicken",
+      "protein_per_100kcal": 4.0,
+      "calorie_density_warning": true,
+      "diet_tags": [
+        "heavy_meal"
+      ]
+    },
+    {
+      "item_name": "Poutine",
+      "estimated_calories": 640,
+      "estimated_protein_g": 16,
+      "estimated_carbs_g": 56,
+      "estimated_fat_g": 38,
+      "menu_item_source": "real_menu",
+      "market": "CA",
+      "chain_key": "dairy_queen",
+      "category": "Sides",
+      "protein_per_100kcal": 2.5,
+      "smart_swap": {
+        "swap_to": "Cheeseburger",
+        "swap_calories": 400,
+        "swap_protein_g": 20,
+        "calories_saved": 240,
+        "protein_gained": 4,
+        "reason": "Swap to Cheeseburger — save 240 kcal, gain 4g protein"
+      }
+    },
+    {
+      "item_name": "Dipped Cone (Medium)",
+      "estimated_calories": 460,
+      "estimated_protein_g": 8,
+      "estimated_carbs_g": 52,
+      "estimated_fat_g": 24,
+      "menu_item_source": "real_menu",
+      "market": "CA",
+      "chain_key": "dairy_queen",
+      "category": "Ice Cream",
+      "protein_per_100kcal": 1.7,
+      "is_hidden_sugar_bomb": true,
+      "smart_swap": {
+        "swap_to": "Cheeseburger",
+        "swap_calories": 400,
+        "swap_protein_g": 20,
+        "calories_saved": 60,
+        "protein_gained": 12,
+        "reason": "Swap to Cheeseburger — save 60 kcal, gain 12g protein"
+      }
+    },
+    {
+      "item_name": "Cheeseburger",
+      "estimated_calories": 400,
+      "estimated_protein_g": 20,
+      "estimated_carbs_g": 34,
+      "estimated_fat_g": 20,
+      "menu_item_source": "real_menu",
+      "market": "CA",
+      "chain_key": "dairy_queen",
+      "category": "Burgers",
+      "protein_per_100kcal": 5.0,
+      "best_protein_pick": true
+    }
+  ]
+}

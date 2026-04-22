@@ -1,0 +1,68 @@
+{
+  "brand_name": "Hospital Canteen",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Plain Rice + Dal",
+      "estimated_calories": 340,
+      "estimated_protein_g": 10,
+      "estimated_carbs_g": 56,
+      "estimated_fat_g": 8,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "hospital_canteen",
+      "category": "Meals",
+      "protein_per_100kcal": 2.9
+    },
+    {
+      "item_name": "Khichdi",
+      "estimated_calories": 280,
+      "estimated_protein_g": 10,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 8,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "hospital_canteen",
+      "category": "Comfort",
+      "protein_per_100kcal": 3.6
+    },
+    {
+      "item_name": "Idli (2) + Sambar",
+      "estimated_calories": 180,
+      "estimated_protein_g": 5,
+      "estimated_carbs_g": 34,
+      "estimated_fat_g": 2,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "hospital_canteen",
+      "category": "South Indian",
+      "protein_per_100kcal": 2.8
+    },
+    {
+      "item_name": "Toast + Tea",
+      "estimated_calories": 160,
+      "estimated_protein_g": 4,
+      "estimated_carbs_g": 26,
+      "estimated_fat_g": 4,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "hospital_canteen",
+      "category": "Breakfast",
+      "protein_per_100kcal": 2.5
+    },
+    {
+      "item_name": "Upma",
+      "estimated_calories": 220,
+      "estimated_protein_g": 5,
+      "estimated_carbs_g": 34,
+      "estimated_fat_g": 8,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "hospital_canteen",
+      "category": "Breakfast",
+      "protein_per_100kcal": 2.3
+    }
+  ]
+}

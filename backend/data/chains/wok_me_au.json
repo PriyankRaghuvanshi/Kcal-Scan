@@ -1,0 +1,89 @@
+{
+  "brand_name": "Wok Me",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Chicken Pad Thai",
+      "estimated_calories": 520,
+      "estimated_protein_g": 26,
+      "estimated_carbs_g": 62,
+      "estimated_fat_g": 18,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "wok_me",
+      "category": "Noodles",
+      "protein_per_100kcal": 5.0
+    },
+    {
+      "item_name": "Beef Teriyaki Bowl",
+      "estimated_calories": 540,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 58,
+      "estimated_fat_g": 20,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "wok_me",
+      "category": "Bowls",
+      "protein_per_100kcal": 5.2,
+      "best_protein_pick": true
+    },
+    {
+      "item_name": "Sweet Chilli Chicken",
+      "estimated_calories": 480,
+      "estimated_protein_g": 24,
+      "estimated_carbs_g": 56,
+      "estimated_fat_g": 18,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "wok_me",
+      "category": "Mains",
+      "protein_per_100kcal": 5.0
+    },
+    {
+      "item_name": "Vegetable Fried Rice",
+      "estimated_calories": 400,
+      "estimated_protein_g": 10,
+      "estimated_carbs_g": 58,
+      "estimated_fat_g": 14,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "wok_me",
+      "category": "Rice",
+      "protein_per_100kcal": 2.5,
+      "smart_swap": {
+        "swap_to": "Beef Teriyaki Bowl",
+        "swap_calories": 540,
+        "swap_protein_g": 28,
+        "calories_saved": 0,
+        "protein_gained": 18,
+        "reason": "Swap to Beef Teriyaki Bowl — gain 18g protein"
+      }
+    },
+    {
+      "item_name": "Spring Rolls (3)",
+      "estimated_calories": 220,
+      "estimated_protein_g": 6,
+      "estimated_carbs_g": 24,
+      "estimated_fat_g": 12,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "wok_me",
+      "category": "Starters",
+      "protein_per_100kcal": 2.7,
+      "diet_tags": [
+        "low_carb",
+        "light_meal"
+      ],
+      "smart_swap": {
+        "swap_to": "Beef Teriyaki Bowl",
+        "swap_calories": 540,
+        "swap_protein_g": 28,
+        "calories_saved": 0,
+        "protein_gained": 22,
+        "reason": "Swap to Beef Teriyaki Bowl — gain 22g protein"
+      }
+    }
+  ]
+}

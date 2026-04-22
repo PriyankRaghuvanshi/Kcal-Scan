@@ -1,0 +1,80 @@
+{
+  "brand_name": "Indian Coffee House",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Filter Coffee",
+      "estimated_calories": 80,
+      "estimated_protein_g": 3,
+      "estimated_carbs_g": 10,
+      "estimated_fat_g": 3,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "indian_coffee_house",
+      "category": "Coffee",
+      "protein_per_100kcal": 3.8
+    },
+    {
+      "item_name": "Masala Dosa",
+      "estimated_calories": 320,
+      "estimated_protein_g": 7,
+      "estimated_carbs_g": 46,
+      "estimated_fat_g": 12,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "indian_coffee_house",
+      "category": "Dosa",
+      "protein_per_100kcal": 2.2
+    },
+    {
+      "item_name": "Cutlet (Veg)",
+      "estimated_calories": 180,
+      "estimated_protein_g": 4,
+      "estimated_carbs_g": 20,
+      "estimated_fat_g": 10,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "indian_coffee_house",
+      "category": "Snacks",
+      "protein_per_100kcal": 2.2
+    },
+    {
+      "item_name": "Idli (3) with Sambar",
+      "estimated_calories": 220,
+      "estimated_protein_g": 6,
+      "estimated_carbs_g": 40,
+      "estimated_fat_g": 4,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "indian_coffee_house",
+      "category": "South Indian",
+      "protein_per_100kcal": 2.7
+    },
+    {
+      "item_name": "Omelette",
+      "estimated_calories": 180,
+      "estimated_protein_g": 12,
+      "estimated_carbs_g": 4,
+      "estimated_fat_g": 14,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "indian_coffee_house",
+      "category": "Breakfast",
+      "protein_per_100kcal": 6.7
+    },
+    {
+      "item_name": "Toast with Butter",
+      "estimated_calories": 200,
+      "estimated_protein_g": 4,
+      "estimated_carbs_g": 26,
+      "estimated_fat_g": 10,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "indian_coffee_house",
+      "category": "Breakfast",
+      "protein_per_100kcal": 2.0
+    }
+  ]
+}

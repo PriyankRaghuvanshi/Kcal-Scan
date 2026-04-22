@@ -1,0 +1,73 @@
+{
+  "brand_name": "Nandos",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Butterfly Chicken Breast",
+      "estimated_calories": 320,
+      "estimated_protein_g": 53,
+      "estimated_carbs_g": 1,
+      "estimated_fat_g": 12,
+      "menu_item_source": "real_menu",
+      "market": "AE",
+      "chain_key": "nandos",
+      "category": "Chicken",
+      "contains_palm_oil": false,
+      "protein_per_100kcal": 16.6
+    },
+    {
+      "item_name": "1/4 Chicken",
+      "estimated_calories": 332,
+      "estimated_protein_g": 40,
+      "estimated_carbs_g": 1,
+      "estimated_fat_g": 19,
+      "menu_item_source": "real_menu",
+      "market": "AE",
+      "chain_key": "nandos",
+      "category": "Chicken",
+      "contains_palm_oil": false,
+      "protein_per_100kcal": 12.0
+    },
+    {
+      "item_name": "Classic Wrap",
+      "estimated_calories": 480,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 38,
+      "estimated_fat_g": 22,
+      "menu_item_source": "real_menu",
+      "market": "AE",
+      "chain_key": "nandos",
+      "category": "Wraps",
+      "contains_palm_oil": false,
+      "protein_per_100kcal": 6.7
+    },
+    {
+      "item_name": "Chicken Burger",
+      "estimated_calories": 520,
+      "estimated_protein_g": 38,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 22,
+      "menu_item_source": "real_menu",
+      "market": "AE",
+      "chain_key": "nandos",
+      "category": "Burgers",
+      "contains_palm_oil": false,
+      "protein_per_100kcal": 7.3
+    },
+    {
+      "item_name": "PERi-PERi Chips",
+      "estimated_calories": 385,
+      "estimated_protein_g": 5,
+      "estimated_carbs_g": 46,
+      "estimated_fat_g": 20,
+      "menu_item_source": "real_menu",
+      "market": "AE",
+      "chain_key": "nandos",
+      "category": "Sides",
+      "contains_palm_oil": false,
+      "protein_per_100kcal": 1.3
+    }
+  ]
+}

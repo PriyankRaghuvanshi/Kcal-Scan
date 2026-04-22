@@ -1,0 +1,80 @@
+{
+  "brand_name": "Trivandrum Food",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Puttu & Kadala Curry",
+      "estimated_calories": 340,
+      "estimated_protein_g": 12,
+      "estimated_carbs_g": 52,
+      "estimated_fat_g": 10,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "trivandrum_food",
+      "category": "Kerala",
+      "protein_per_100kcal": 3.5
+    },
+    {
+      "item_name": "Dosa Ghee Roast",
+      "estimated_calories": 420,
+      "estimated_protein_g": 8,
+      "estimated_carbs_g": 48,
+      "estimated_fat_g": 22,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "trivandrum_food",
+      "category": "Dosa",
+      "protein_per_100kcal": 1.9
+    },
+    {
+      "item_name": "Fish Molee",
+      "estimated_calories": 380,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 8,
+      "estimated_fat_g": 26,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "trivandrum_food",
+      "category": "Seafood",
+      "protein_per_100kcal": 7.4
+    },
+    {
+      "item_name": "Avial",
+      "estimated_calories": 220,
+      "estimated_protein_g": 4,
+      "estimated_carbs_g": 18,
+      "estimated_fat_g": 14,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "trivandrum_food",
+      "category": "Kerala",
+      "protein_per_100kcal": 1.8
+    },
+    {
+      "item_name": "Payasam",
+      "estimated_calories": 280,
+      "estimated_protein_g": 6,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 10,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "trivandrum_food",
+      "category": "Desserts",
+      "protein_per_100kcal": 2.1
+    },
+    {
+      "item_name": "Banana Chips (100g)",
+      "estimated_calories": 520,
+      "estimated_protein_g": 2,
+      "estimated_carbs_g": 58,
+      "estimated_fat_g": 32,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "trivandrum_food",
+      "category": "Snacks",
+      "protein_per_100kcal": 0.4
+    }
+  ]
+}

@@ -1,0 +1,92 @@
+{
+  "brand_name": "Jolly Good",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Veg Thali",
+      "estimated_calories": 580,
+      "estimated_protein_g": 14,
+      "estimated_carbs_g": 82,
+      "estimated_fat_g": 22,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "jolly_good",
+      "category": "Thali",
+      "protein_per_100kcal": 2.4,
+      "smart_swap": {
+        "swap_to": "Chicken Biryani",
+        "swap_calories": 580,
+        "swap_protein_g": 28,
+        "calories_saved": 0,
+        "protein_gained": 14,
+        "reason": "Swap to Chicken Biryani — gain 14g protein"
+      }
+    },
+    {
+      "item_name": "Non-Veg Thali",
+      "estimated_calories": 720,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 82,
+      "estimated_fat_g": 30,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "jolly_good",
+      "category": "Thali",
+      "protein_per_100kcal": 4.2
+    },
+    {
+      "item_name": "Paneer Butter Masala",
+      "estimated_calories": 380,
+      "estimated_protein_g": 16,
+      "estimated_carbs_g": 14,
+      "estimated_fat_g": 28,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "jolly_good",
+      "category": "Curries",
+      "protein_per_100kcal": 4.2,
+      "diet_tags": [
+        "keto_friendly",
+        "low_carb"
+      ]
+    },
+    {
+      "item_name": "Chicken Biryani",
+      "estimated_calories": 580,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 68,
+      "estimated_fat_g": 22,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "jolly_good",
+      "category": "Biryani",
+      "protein_per_100kcal": 4.8,
+      "best_protein_pick": true
+    },
+    {
+      "item_name": "Gulab Jamun (2 pcs)",
+      "estimated_calories": 280,
+      "estimated_protein_g": 4,
+      "estimated_carbs_g": 44,
+      "estimated_fat_g": 10,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "jolly_good",
+      "category": "Sweets",
+      "protein_per_100kcal": 1.4,
+      "diet_tags": [
+        "light_meal"
+      ],
+      "smart_swap": {
+        "swap_to": "Chicken Biryani",
+        "swap_calories": 580,
+        "swap_protein_g": 28,
+        "calories_saved": 0,
+        "protein_gained": 24,
+        "reason": "Swap to Chicken Biryani — gain 24g protein"
+      }
+    }
+  ]
+}

@@ -1,0 +1,131 @@
+{
+  "brand_name": "Four Fingers",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Wings (6 pcs, Soy Garlic)",
+      "estimated_calories": 480,
+      "estimated_protein_g": 34,
+      "estimated_carbs_g": 22,
+      "estimated_fat_g": 28,
+      "menu_item_source": "real_menu",
+      "market": "SG",
+      "chain_key": "four_fingers",
+      "category": "Wings",
+      "protein_per_100kcal": 7.1,
+      "diet_tags": [
+        "high_protein"
+      ],
+      "best_protein_pick": true
+    },
+    {
+      "item_name": "Tenders (4 pcs)",
+      "estimated_calories": 380,
+      "estimated_protein_g": 26,
+      "estimated_carbs_g": 18,
+      "estimated_fat_g": 22,
+      "menu_item_source": "real_menu",
+      "market": "SG",
+      "chain_key": "four_fingers",
+      "category": "Chicken",
+      "protein_per_100kcal": 6.8,
+      "diet_tags": [
+        "high_protein",
+        "low_carb"
+      ]
+    },
+    {
+      "item_name": "Kimchi Coleslaw",
+      "estimated_calories": 120,
+      "estimated_protein_g": 2,
+      "estimated_carbs_g": 10,
+      "estimated_fat_g": 8,
+      "menu_item_source": "real_menu",
+      "market": "SG",
+      "chain_key": "four_fingers",
+      "category": "Sides",
+      "protein_per_100kcal": 1.7,
+      "diet_tags": [
+        "low_carb",
+        "light_meal"
+      ],
+      "smart_swap": {
+        "swap_to": "Wings (6 pcs, Soy Garlic)",
+        "swap_calories": 480,
+        "swap_protein_g": 34,
+        "calories_saved": 0,
+        "protein_gained": 32,
+        "reason": "Swap to Wings (6 pcs, Soy Garlic) — gain 32g protein"
+      }
+    },
+    {
+      "item_name": "Chicken Rice Bowl",
+      "estimated_calories": 520,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 56,
+      "estimated_fat_g": 18,
+      "menu_item_source": "real_menu",
+      "market": "SG",
+      "chain_key": "four_fingers",
+      "category": "Bowls",
+      "protein_per_100kcal": 5.4,
+      "smart_swap": {
+        "swap_to": "Wings (6 pcs, Soy Garlic)",
+        "swap_calories": 480,
+        "swap_protein_g": 34,
+        "calories_saved": 40,
+        "protein_gained": 6,
+        "reason": "Swap to Wings (6 pcs, Soy Garlic) — save 40 kcal, gain 6g protein"
+      }
+    },
+    {
+      "item_name": "Drumlets (6 pcs)",
+      "estimated_calories": 440,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 18,
+      "estimated_fat_g": 26,
+      "menu_item_source": "real_menu",
+      "market": "SG",
+      "chain_key": "four_fingers",
+      "category": "Chicken",
+      "protein_per_100kcal": 6.8,
+      "diet_tags": [
+        "high_protein"
+      ]
+    },
+    {
+      "item_name": "Fries",
+      "estimated_calories": 360,
+      "estimated_protein_g": 5,
+      "estimated_carbs_g": 44,
+      "estimated_fat_g": 18,
+      "menu_item_source": "real_menu",
+      "market": "SG",
+      "chain_key": "four_fingers",
+      "category": "Sides",
+      "protein_per_100kcal": 1.4,
+      "smart_swap": {
+        "swap_to": "Wings (6 pcs, Soy Garlic)",
+        "swap_calories": 480,
+        "swap_protein_g": 34,
+        "calories_saved": 0,
+        "protein_gained": 29,
+        "reason": "Swap to Wings (6 pcs, Soy Garlic) — gain 29g protein"
+      }
+    },
+    {
+      "item_name": "Lunchbox (Wings + Rice)",
+      "estimated_calories": 620,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 56,
+      "estimated_fat_g": 28,
+      "menu_item_source": "real_menu",
+      "market": "SG",
+      "chain_key": "four_fingers",
+      "category": "Combos",
+      "protein_per_100kcal": 5.2
+    }
+  ]
+}

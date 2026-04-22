@@ -1,0 +1,68 @@
+{
+  "brand_name": "Crumbl",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Chocolate Chip Cookie",
+      "estimated_calories": 480,
+      "estimated_protein_g": 5,
+      "estimated_carbs_g": 58,
+      "estimated_fat_g": 26,
+      "menu_item_source": "real_menu",
+      "market": "US",
+      "chain_key": "crumbl",
+      "category": "Cookies",
+      "protein_per_100kcal": 1.0
+    },
+    {
+      "item_name": "Pink Sugar Cookie",
+      "estimated_calories": 440,
+      "estimated_protein_g": 4,
+      "estimated_carbs_g": 56,
+      "estimated_fat_g": 22,
+      "menu_item_source": "real_menu",
+      "market": "US",
+      "chain_key": "crumbl",
+      "category": "Cookies",
+      "protein_per_100kcal": 0.9
+    },
+    {
+      "item_name": "Classic Pink Sugar (Half)",
+      "estimated_calories": 220,
+      "estimated_protein_g": 2,
+      "estimated_carbs_g": 28,
+      "estimated_fat_g": 11,
+      "menu_item_source": "real_menu",
+      "market": "US",
+      "chain_key": "crumbl",
+      "category": "Cookies",
+      "protein_per_100kcal": 0.9
+    },
+    {
+      "item_name": "Churro Cookie",
+      "estimated_calories": 460,
+      "estimated_protein_g": 5,
+      "estimated_carbs_g": 54,
+      "estimated_fat_g": 24,
+      "menu_item_source": "real_menu",
+      "market": "US",
+      "chain_key": "crumbl",
+      "category": "Cookies",
+      "protein_per_100kcal": 1.1
+    },
+    {
+      "item_name": "Peanut Butter Cup Cookie",
+      "estimated_calories": 520,
+      "estimated_protein_g": 10,
+      "estimated_carbs_g": 52,
+      "estimated_fat_g": 30,
+      "menu_item_source": "real_menu",
+      "market": "US",
+      "chain_key": "crumbl",
+      "category": "Cookies",
+      "protein_per_100kcal": 1.9
+    }
+  ]
+}

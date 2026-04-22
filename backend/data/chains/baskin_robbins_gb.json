@@ -1,0 +1,77 @@
+{
+  "brand_name": "Baskin Robbins",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Vanilla Scoop (Regular)",
+      "estimated_calories": 260,
+      "estimated_protein_g": 4,
+      "estimated_carbs_g": 28,
+      "estimated_fat_g": 16,
+      "menu_item_source": "real_menu",
+      "market": "GB",
+      "chain_key": "baskin_robbins",
+      "category": "Scoops",
+      "protein_per_100kcal": 1.5,
+      "diet_tags": [
+        "low_carb",
+        "light_meal"
+      ],
+      "smart_swap": {
+        "swap_to": "Milkshake (Chocolate)",
+        "swap_calories": 520,
+        "swap_protein_g": 12,
+        "calories_saved": 0,
+        "protein_gained": 8,
+        "reason": "Swap to Milkshake (Chocolate) — gain 8g protein"
+      }
+    },
+    {
+      "item_name": "Chocolate Fudge Sundae",
+      "estimated_calories": 480,
+      "estimated_protein_g": 8,
+      "estimated_carbs_g": 62,
+      "estimated_fat_g": 24,
+      "menu_item_source": "real_menu",
+      "market": "GB",
+      "chain_key": "baskin_robbins",
+      "category": "Sundaes",
+      "protein_per_100kcal": 1.7,
+      "is_hidden_sugar_bomb": true
+    },
+    {
+      "item_name": "Milkshake (Chocolate)",
+      "estimated_calories": 520,
+      "estimated_protein_g": 12,
+      "estimated_carbs_g": 68,
+      "estimated_fat_g": 22,
+      "menu_item_source": "real_menu",
+      "market": "GB",
+      "chain_key": "baskin_robbins",
+      "category": "Shakes",
+      "protein_per_100kcal": 2.3
+    },
+    {
+      "item_name": "Waffle Cone (Single)",
+      "estimated_calories": 310,
+      "estimated_protein_g": 5,
+      "estimated_carbs_g": 38,
+      "estimated_fat_g": 16,
+      "menu_item_source": "real_menu",
+      "market": "GB",
+      "chain_key": "baskin_robbins",
+      "category": "Cones",
+      "protein_per_100kcal": 1.6,
+      "smart_swap": {
+        "swap_to": "Milkshake (Chocolate)",
+        "swap_calories": 520,
+        "swap_protein_g": 12,
+        "calories_saved": 0,
+        "protein_gained": 7,
+        "reason": "Swap to Milkshake (Chocolate) — gain 7g protein"
+      }
+    }
+  ]
+}

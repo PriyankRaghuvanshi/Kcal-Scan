@@ -1,0 +1,92 @@
+{
+  "brand_name": "Aussie Pub",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Chicken Parmi + Chips + Salad",
+      "estimated_calories": 1020,
+      "estimated_protein_g": 52,
+      "estimated_carbs_g": 62,
+      "estimated_fat_g": 58,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "aussie_pub",
+      "category": "Pub Classics",
+      "protein_per_100kcal": 5.1
+    },
+    {
+      "item_name": "Steak + Chips + Salad",
+      "estimated_calories": 880,
+      "estimated_protein_g": 52,
+      "estimated_carbs_g": 46,
+      "estimated_fat_g": 50,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "aussie_pub",
+      "category": "Pub Classics",
+      "protein_per_100kcal": 5.9
+    },
+    {
+      "item_name": "Fish & Chips",
+      "estimated_calories": 820,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 72,
+      "estimated_fat_g": 44,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "aussie_pub",
+      "category": "Pub Classics",
+      "protein_per_100kcal": 3.7
+    },
+    {
+      "item_name": "Burger + Chips",
+      "estimated_calories": 920,
+      "estimated_protein_g": 38,
+      "estimated_carbs_g": 62,
+      "estimated_fat_g": 54,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "aussie_pub",
+      "category": "Pub Classics",
+      "protein_per_100kcal": 4.1
+    },
+    {
+      "item_name": "Chicken Caesar Salad",
+      "estimated_calories": 480,
+      "estimated_protein_g": 34,
+      "estimated_carbs_g": 18,
+      "estimated_fat_g": 30,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "aussie_pub",
+      "category": "Salads",
+      "protein_per_100kcal": 7.1
+    },
+    {
+      "item_name": "Wedges + Sour Cream",
+      "estimated_calories": 520,
+      "estimated_protein_g": 8,
+      "estimated_carbs_g": 56,
+      "estimated_fat_g": 30,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "aussie_pub",
+      "category": "Sides",
+      "protein_per_100kcal": 1.5
+    },
+    {
+      "item_name": "Sticky Date Pudding",
+      "estimated_calories": 480,
+      "estimated_protein_g": 5,
+      "estimated_carbs_g": 62,
+      "estimated_fat_g": 24,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "aussie_pub",
+      "category": "Desserts",
+      "protein_per_100kcal": 1.0
+    }
+  ]
+}

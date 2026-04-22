@@ -1,0 +1,179 @@
+{
+  "brand_name": "Pieface",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Classic Meat Pie",
+      "estimated_calories": 460,
+      "estimated_protein_g": 18,
+      "estimated_carbs_g": 36,
+      "estimated_fat_g": 26,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "pieface",
+      "category": "Pies",
+      "protein_per_100kcal": 3.9
+    },
+    {
+      "item_name": "Chunky Steak Pie",
+      "estimated_calories": 480,
+      "estimated_protein_g": 22,
+      "estimated_carbs_g": 34,
+      "estimated_fat_g": 28,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "pieface",
+      "category": "Pies",
+      "protein_per_100kcal": 4.6,
+      "best_protein_pick": true
+    },
+    {
+      "item_name": "Chicken & Mushroom Pie",
+      "estimated_calories": 440,
+      "estimated_protein_g": 20,
+      "estimated_carbs_g": 34,
+      "estimated_fat_g": 24,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "pieface",
+      "category": "Pies",
+      "protein_per_100kcal": 4.5
+    },
+    {
+      "item_name": "Sausage Roll",
+      "estimated_calories": 380,
+      "estimated_protein_g": 12,
+      "estimated_carbs_g": 28,
+      "estimated_fat_g": 24,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "pieface",
+      "category": "Pastries",
+      "protein_per_100kcal": 3.2,
+      "diet_tags": [
+        "low_carb"
+      ],
+      "smart_swap": {
+        "swap_to": "Flat White",
+        "swap_calories": 120,
+        "swap_protein_g": 6,
+        "calories_saved": 260,
+        "protein_gained": 0,
+        "reason": "Swap to Flat White — save 260 kcal, better protein density"
+      }
+    },
+    {
+      "item_name": "Flat White",
+      "estimated_calories": 120,
+      "estimated_protein_g": 6,
+      "estimated_carbs_g": 10,
+      "estimated_fat_g": 6,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "pieface",
+      "category": "Coffee",
+      "protein_per_100kcal": 5.0,
+      "diet_tags": [
+        "low_carb",
+        "light_meal"
+      ]
+    },
+    {
+      "item_name": "Curry Puff",
+      "estimated_calories": 320,
+      "estimated_protein_g": 8,
+      "estimated_carbs_g": 28,
+      "estimated_fat_g": 20,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "pieface",
+      "category": "Pastries",
+      "protein_per_100kcal": 2.5,
+      "diet_tags": [
+        "low_carb"
+      ],
+      "smart_swap": {
+        "swap_to": "Flat White",
+        "swap_calories": 120,
+        "swap_protein_g": 6,
+        "calories_saved": 200,
+        "protein_gained": 0,
+        "reason": "Swap to Flat White — save 200 kcal, better protein density"
+      }
+    },
+    {
+      "item_name": "Beef & Cheese Pie",
+      "estimated_calories": 500,
+      "estimated_protein_g": 20,
+      "estimated_carbs_g": 36,
+      "estimated_fat_g": 30,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "pieface",
+      "category": "Pies",
+      "protein_per_100kcal": 4.0
+    },
+    {
+      "item_name": "Pepper Steak Pie",
+      "estimated_calories": 520,
+      "estimated_protein_g": 24,
+      "estimated_carbs_g": 36,
+      "estimated_fat_g": 30,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "pieface",
+      "category": "Pies",
+      "protein_per_100kcal": 4.6
+    },
+    {
+      "item_name": "Spinach Ricotta Roll",
+      "estimated_calories": 360,
+      "estimated_protein_g": 12,
+      "estimated_carbs_g": 28,
+      "estimated_fat_g": 22,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "pieface",
+      "category": "Pastries",
+      "protein_per_100kcal": 3.3
+    },
+    {
+      "item_name": "Tandoori Chicken Pie",
+      "estimated_calories": 460,
+      "estimated_protein_g": 20,
+      "estimated_carbs_g": 34,
+      "estimated_fat_g": 26,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "pieface",
+      "category": "Pies",
+      "protein_per_100kcal": 4.3
+    },
+    {
+      "item_name": "Vegetable Curry Pie",
+      "estimated_calories": 420,
+      "estimated_protein_g": 10,
+      "estimated_carbs_g": 38,
+      "estimated_fat_g": 24,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "pieface",
+      "category": "Pies",
+      "protein_per_100kcal": 2.4
+    },
+    {
+      "item_name": "Cappuccino",
+      "estimated_calories": 120,
+      "estimated_protein_g": 6,
+      "estimated_carbs_g": 10,
+      "estimated_fat_g": 6,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "pieface",
+      "category": "Coffee",
+      "protein_per_100kcal": 5.0
+    }
+  ]
+}

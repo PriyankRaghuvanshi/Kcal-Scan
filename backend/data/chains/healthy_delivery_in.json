@@ -1,0 +1,68 @@
+{
+  "brand_name": "Healthy Delivery",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Grilled Chicken + Quinoa Bowl",
+      "estimated_calories": 380,
+      "estimated_protein_g": 34,
+      "estimated_carbs_g": 32,
+      "estimated_fat_g": 12,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "healthy_delivery",
+      "category": "Bowls",
+      "protein_per_100kcal": 8.9
+    },
+    {
+      "item_name": "Ragi Dosa + Chutney",
+      "estimated_calories": 220,
+      "estimated_protein_g": 6,
+      "estimated_carbs_g": 34,
+      "estimated_fat_g": 6,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "healthy_delivery",
+      "category": "South Indian",
+      "protein_per_100kcal": 2.7
+    },
+    {
+      "item_name": "Protein Bowl (Paneer)",
+      "estimated_calories": 340,
+      "estimated_protein_g": 22,
+      "estimated_carbs_g": 28,
+      "estimated_fat_g": 16,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "healthy_delivery",
+      "category": "Bowls",
+      "protein_per_100kcal": 6.5
+    },
+    {
+      "item_name": "Overnight Oats",
+      "estimated_calories": 280,
+      "estimated_protein_g": 10,
+      "estimated_carbs_g": 40,
+      "estimated_fat_g": 8,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "healthy_delivery",
+      "category": "Breakfast",
+      "protein_per_100kcal": 3.6
+    },
+    {
+      "item_name": "Chicken Tikka Wrap (Whole Wheat)",
+      "estimated_calories": 360,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 32,
+      "estimated_fat_g": 14,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "healthy_delivery",
+      "category": "Wraps",
+      "protein_per_100kcal": 7.8
+    }
+  ]
+}

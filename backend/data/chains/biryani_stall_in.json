@@ -1,0 +1,136 @@
+{
+  "brand_name": "Biryani Stall",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Chicken Biryani",
+      "estimated_calories": 560,
+      "estimated_protein_g": 26,
+      "estimated_carbs_g": 66,
+      "estimated_fat_g": 20,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "biryani_stall",
+      "category": "Biryani",
+      "protein_per_100kcal": 4.6
+    },
+    {
+      "item_name": "Mutton Biryani",
+      "estimated_calories": 680,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 68,
+      "estimated_fat_g": 30,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "biryani_stall",
+      "category": "Biryani",
+      "protein_per_100kcal": 4.4
+    },
+    {
+      "item_name": "Egg Biryani",
+      "estimated_calories": 480,
+      "estimated_protein_g": 16,
+      "estimated_carbs_g": 64,
+      "estimated_fat_g": 18,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "biryani_stall",
+      "category": "Biryani",
+      "protein_per_100kcal": 3.3,
+      "smart_swap": {
+        "swap_to": "Chicken 65",
+        "swap_calories": 340,
+        "swap_protein_g": 24,
+        "calories_saved": 140,
+        "protein_gained": 8,
+        "reason": "Swap to Chicken 65 — save 140 kcal, gain 8g protein"
+      }
+    },
+    {
+      "item_name": "Veg Biryani",
+      "estimated_calories": 420,
+      "estimated_protein_g": 10,
+      "estimated_carbs_g": 64,
+      "estimated_fat_g": 14,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "biryani_stall",
+      "category": "Biryani",
+      "protein_per_100kcal": 2.4,
+      "smart_swap": {
+        "swap_to": "Chicken 65",
+        "swap_calories": 340,
+        "swap_protein_g": 24,
+        "calories_saved": 80,
+        "protein_gained": 14,
+        "reason": "Swap to Chicken 65 — save 80 kcal, gain 14g protein"
+      }
+    },
+    {
+      "item_name": "Raita",
+      "estimated_calories": 80,
+      "estimated_protein_g": 3,
+      "estimated_carbs_g": 6,
+      "estimated_fat_g": 4,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "biryani_stall",
+      "category": "Sides",
+      "protein_per_100kcal": 3.8,
+      "diet_tags": [
+        "low_carb",
+        "light_meal"
+      ],
+      "smart_swap": {
+        "swap_to": "Chicken 65",
+        "swap_calories": 340,
+        "swap_protein_g": 24,
+        "calories_saved": 0,
+        "protein_gained": 21,
+        "reason": "Swap to Chicken 65 — gain 21g protein"
+      }
+    },
+    {
+      "item_name": "Mirchi Ka Salan",
+      "estimated_calories": 180,
+      "estimated_protein_g": 4,
+      "estimated_carbs_g": 14,
+      "estimated_fat_g": 12,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "biryani_stall",
+      "category": "Sides",
+      "protein_per_100kcal": 2.2,
+      "diet_tags": [
+        "low_carb",
+        "light_meal"
+      ],
+      "smart_swap": {
+        "swap_to": "Chicken 65",
+        "swap_calories": 340,
+        "swap_protein_g": 24,
+        "calories_saved": 0,
+        "protein_gained": 20,
+        "reason": "Swap to Chicken 65 — gain 20g protein"
+      }
+    },
+    {
+      "item_name": "Chicken 65",
+      "estimated_calories": 340,
+      "estimated_protein_g": 24,
+      "estimated_carbs_g": 18,
+      "estimated_fat_g": 18,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "biryani_stall",
+      "category": "Starters",
+      "protein_per_100kcal": 7.1,
+      "diet_tags": [
+        "low_carb"
+      ],
+      "best_protein_pick": true
+    }
+  ]
+}

@@ -1,0 +1,68 @@
+{
+  "brand_name": "Jyothi Vihar",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Poha Jalebi",
+      "estimated_calories": 380,
+      "estimated_protein_g": 6,
+      "estimated_carbs_g": 56,
+      "estimated_fat_g": 16,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "jyothi_vihar",
+      "category": "Breakfast",
+      "protein_per_100kcal": 1.6
+    },
+    {
+      "item_name": "Bhutte Ki Kees",
+      "estimated_calories": 220,
+      "estimated_protein_g": 6,
+      "estimated_carbs_g": 30,
+      "estimated_fat_g": 10,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "jyothi_vihar",
+      "category": "Street Food",
+      "protein_per_100kcal": 2.7
+    },
+    {
+      "item_name": "Biryani (Bhopali)",
+      "estimated_calories": 620,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 72,
+      "estimated_fat_g": 24,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "jyothi_vihar",
+      "category": "Biryani",
+      "protein_per_100kcal": 4.5
+    },
+    {
+      "item_name": "Rogan Josh",
+      "estimated_calories": 460,
+      "estimated_protein_g": 34,
+      "estimated_carbs_g": 8,
+      "estimated_fat_g": 34,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "jyothi_vihar",
+      "category": "Curries",
+      "protein_per_100kcal": 7.4
+    },
+    {
+      "item_name": "Shahi Tukda",
+      "estimated_calories": 380,
+      "estimated_protein_g": 6,
+      "estimated_carbs_g": 48,
+      "estimated_fat_g": 18,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "jyothi_vihar",
+      "category": "Desserts",
+      "protein_per_100kcal": 1.6
+    }
+  ]
+}

@@ -1,0 +1,80 @@
+{
+  "brand_name": "Food Court",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Teriyaki Chicken Bowl",
+      "estimated_calories": 520,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 58,
+      "estimated_fat_g": 18,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "food_court",
+      "category": "Bowls",
+      "protein_per_100kcal": 5.4
+    },
+    {
+      "item_name": "Butter Chicken + Rice",
+      "estimated_calories": 680,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 64,
+      "estimated_fat_g": 32,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "food_court",
+      "category": "Indian",
+      "protein_per_100kcal": 4.4
+    },
+    {
+      "item_name": "Kebab Plate",
+      "estimated_calories": 620,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 48,
+      "estimated_fat_g": 32,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "food_court",
+      "category": "Kebabs",
+      "protein_per_100kcal": 5.2
+    },
+    {
+      "item_name": "Pad Thai",
+      "estimated_calories": 540,
+      "estimated_protein_g": 24,
+      "estimated_carbs_g": 66,
+      "estimated_fat_g": 18,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "food_court",
+      "category": "Thai",
+      "protein_per_100kcal": 4.4
+    },
+    {
+      "item_name": "Sushi Roll (8 pcs)",
+      "estimated_calories": 320,
+      "estimated_protein_g": 12,
+      "estimated_carbs_g": 48,
+      "estimated_fat_g": 8,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "food_court",
+      "category": "Sushi",
+      "protein_per_100kcal": 3.8
+    },
+    {
+      "item_name": "HSP (Halal Snack Pack)",
+      "estimated_calories": 820,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 58,
+      "estimated_fat_g": 50,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "food_court",
+      "category": "Kebabs",
+      "protein_per_100kcal": 3.9
+    }
+  ]
+}

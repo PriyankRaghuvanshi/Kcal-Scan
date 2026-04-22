@@ -1,0 +1,80 @@
+{
+  "brand_name": "Chettinad",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Chettinad Chicken Curry",
+      "estimated_calories": 440,
+      "estimated_protein_g": 34,
+      "estimated_carbs_g": 10,
+      "estimated_fat_g": 30,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "chettinad",
+      "category": "Curries",
+      "protein_per_100kcal": 7.7
+    },
+    {
+      "item_name": "Kuzhi Paniyaram (6)",
+      "estimated_calories": 240,
+      "estimated_protein_g": 6,
+      "estimated_carbs_g": 34,
+      "estimated_fat_g": 10,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "chettinad",
+      "category": "South Indian",
+      "protein_per_100kcal": 2.5
+    },
+    {
+      "item_name": "Chicken Sukka",
+      "estimated_calories": 380,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 8,
+      "estimated_fat_g": 26,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "chettinad",
+      "category": "Curries",
+      "protein_per_100kcal": 7.9
+    },
+    {
+      "item_name": "Mutton Kola Urundai",
+      "estimated_calories": 340,
+      "estimated_protein_g": 24,
+      "estimated_carbs_g": 12,
+      "estimated_fat_g": 22,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "chettinad",
+      "category": "Starters",
+      "protein_per_100kcal": 7.1
+    },
+    {
+      "item_name": "Athirasam",
+      "estimated_calories": 260,
+      "estimated_protein_g": 3,
+      "estimated_carbs_g": 38,
+      "estimated_fat_g": 10,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "chettinad",
+      "category": "Sweets",
+      "protein_per_100kcal": 1.2
+    },
+    {
+      "item_name": "Parotta (2) with Salna",
+      "estimated_calories": 460,
+      "estimated_protein_g": 10,
+      "estimated_carbs_g": 50,
+      "estimated_fat_g": 24,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "chettinad",
+      "category": "Breads",
+      "protein_per_100kcal": 2.2
+    }
+  ]
+}

@@ -1,0 +1,68 @@
+{
+  "brand_name": "Olivers",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Grilled Chicken Wrap",
+      "estimated_calories": 420,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 36,
+      "estimated_fat_g": 18,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "olivers",
+      "category": "Wraps",
+      "protein_per_100kcal": 6.7
+    },
+    {
+      "item_name": "Protein Bowl",
+      "estimated_calories": 440,
+      "estimated_protein_g": 34,
+      "estimated_carbs_g": 32,
+      "estimated_fat_g": 18,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "olivers",
+      "category": "Bowls",
+      "protein_per_100kcal": 7.7
+    },
+    {
+      "item_name": "Acai Bowl",
+      "estimated_calories": 360,
+      "estimated_protein_g": 8,
+      "estimated_carbs_g": 56,
+      "estimated_fat_g": 12,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "olivers",
+      "category": "Bowls",
+      "protein_per_100kcal": 2.2
+    },
+    {
+      "item_name": "Green Smoothie",
+      "estimated_calories": 180,
+      "estimated_protein_g": 4,
+      "estimated_carbs_g": 36,
+      "estimated_fat_g": 2,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "olivers",
+      "category": "Smoothies",
+      "protein_per_100kcal": 2.2
+    },
+    {
+      "item_name": "Chicken Salad",
+      "estimated_calories": 380,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 16,
+      "estimated_fat_g": 20,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "olivers",
+      "category": "Salads",
+      "protein_per_100kcal": 8.4
+    }
+  ]
+}

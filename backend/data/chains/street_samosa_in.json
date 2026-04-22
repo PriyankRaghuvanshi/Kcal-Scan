@@ -1,0 +1,77 @@
+{
+  "brand_name": "Street Samosa",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Samosa (1 pc)",
+      "estimated_calories": 150,
+      "estimated_protein_g": 3,
+      "estimated_carbs_g": 16,
+      "estimated_fat_g": 8,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "street_samosa",
+      "category": "Snacks",
+      "contains_palm_oil": true,
+      "cooking_oil": "palm_oil",
+      "protein_per_100kcal": 2.0
+    },
+    {
+      "item_name": "Samosa (Baked, 1 pc)",
+      "estimated_calories": 110,
+      "estimated_protein_g": 3,
+      "estimated_carbs_g": 16,
+      "estimated_fat_g": 4,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "street_samosa",
+      "category": "Snacks",
+      "contains_palm_oil": false,
+      "cooking_oil": "oven_baked",
+      "diet_tags": [
+        "light_meal"
+      ],
+      "protein_per_100kcal": 2.7
+    },
+    {
+      "item_name": "Kachori (1 pc)",
+      "estimated_calories": 180,
+      "estimated_protein_g": 4,
+      "estimated_carbs_g": 18,
+      "estimated_fat_g": 10,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "street_samosa",
+      "category": "Snacks",
+      "contains_palm_oil": true,
+      "protein_per_100kcal": 2.2
+    },
+    {
+      "item_name": "Aloo Tikki",
+      "estimated_calories": 160,
+      "estimated_protein_g": 3,
+      "estimated_carbs_g": 20,
+      "estimated_fat_g": 8,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "street_samosa",
+      "category": "Chaat",
+      "protein_per_100kcal": 1.9
+    },
+    {
+      "item_name": "Bread Pakora",
+      "estimated_calories": 220,
+      "estimated_protein_g": 5,
+      "estimated_carbs_g": 22,
+      "estimated_fat_g": 14,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "street_samosa",
+      "category": "Snacks",
+      "contains_palm_oil": true,
+      "protein_per_100kcal": 2.3
+    }
+  ]
+}

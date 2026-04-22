@@ -1,0 +1,68 @@
+{
+  "brand_name": "Late Night",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Pizza Slice (2 AM)",
+      "estimated_calories": 300,
+      "estimated_protein_g": 12,
+      "estimated_carbs_g": 34,
+      "estimated_fat_g": 12,
+      "menu_item_source": "real_menu",
+      "market": "US",
+      "chain_key": "late_night",
+      "category": "Pizza",
+      "protein_per_100kcal": 4.0
+    },
+    {
+      "item_name": "Chicken Over Rice (Halal Cart)",
+      "estimated_calories": 780,
+      "estimated_protein_g": 38,
+      "estimated_carbs_g": 68,
+      "estimated_fat_g": 38,
+      "menu_item_source": "real_menu",
+      "market": "US",
+      "chain_key": "late_night",
+      "category": "Bowls",
+      "protein_per_100kcal": 4.9
+    },
+    {
+      "item_name": "Bacon Egg Cheese (Bodega)",
+      "estimated_calories": 480,
+      "estimated_protein_g": 22,
+      "estimated_carbs_g": 34,
+      "estimated_fat_g": 28,
+      "menu_item_source": "real_menu",
+      "market": "US",
+      "chain_key": "late_night",
+      "category": "Sandwiches",
+      "protein_per_100kcal": 4.6
+    },
+    {
+      "item_name": "Taco Bell Crunchwrap (Drive Thru)",
+      "estimated_calories": 530,
+      "estimated_protein_g": 16,
+      "estimated_carbs_g": 71,
+      "estimated_fat_g": 21,
+      "menu_item_source": "real_menu",
+      "market": "US",
+      "chain_key": "late_night",
+      "category": "Fast Food",
+      "protein_per_100kcal": 3.0
+    },
+    {
+      "item_name": "Waffle House All-Star (3 AM)",
+      "estimated_calories": 780,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 62,
+      "estimated_fat_g": 44,
+      "menu_item_source": "real_menu",
+      "market": "US",
+      "chain_key": "late_night",
+      "category": "Breakfast",
+      "protein_per_100kcal": 4.1
+    }
+  ]
+}

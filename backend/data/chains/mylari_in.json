@@ -1,0 +1,56 @@
+{
+  "brand_name": "Mylari",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Mylari Dosa (Butter)",
+      "estimated_calories": 380,
+      "estimated_protein_g": 6,
+      "estimated_carbs_g": 44,
+      "estimated_fat_g": 20,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "mylari",
+      "category": "Dosa",
+      "protein_per_100kcal": 1.6
+    },
+    {
+      "item_name": "Idli (4)",
+      "estimated_calories": 260,
+      "estimated_protein_g": 6,
+      "estimated_carbs_g": 48,
+      "estimated_fat_g": 4,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "mylari",
+      "category": "South Indian",
+      "protein_per_100kcal": 2.3
+    },
+    {
+      "item_name": "Vada (2)",
+      "estimated_calories": 240,
+      "estimated_protein_g": 8,
+      "estimated_carbs_g": 26,
+      "estimated_fat_g": 12,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "mylari",
+      "category": "South Indian",
+      "protein_per_100kcal": 3.3
+    },
+    {
+      "item_name": "Coffee",
+      "estimated_calories": 80,
+      "estimated_protein_g": 3,
+      "estimated_carbs_g": 10,
+      "estimated_fat_g": 3,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "mylari",
+      "category": "Coffee",
+      "protein_per_100kcal": 3.8
+    }
+  ]
+}

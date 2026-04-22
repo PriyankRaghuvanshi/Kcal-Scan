@@ -1,0 +1,68 @@
+{
+  "brand_name": "Darjeeling Food",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Darjeeling Tea",
+      "estimated_calories": 30,
+      "estimated_protein_g": 0,
+      "estimated_carbs_g": 6,
+      "estimated_fat_g": 0,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "darjeeling_food",
+      "category": "Tea",
+      "protein_per_100kcal": 0.0
+    },
+    {
+      "item_name": "Steamed Momos (10)",
+      "estimated_calories": 380,
+      "estimated_protein_g": 22,
+      "estimated_carbs_g": 40,
+      "estimated_fat_g": 14,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "darjeeling_food",
+      "category": "Momos",
+      "protein_per_100kcal": 5.8
+    },
+    {
+      "item_name": "Thukpa",
+      "estimated_calories": 360,
+      "estimated_protein_g": 18,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 12,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "darjeeling_food",
+      "category": "Soups",
+      "protein_per_100kcal": 5.0
+    },
+    {
+      "item_name": "Churpi (Yak Cheese)",
+      "estimated_calories": 180,
+      "estimated_protein_g": 12,
+      "estimated_carbs_g": 8,
+      "estimated_fat_g": 12,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "darjeeling_food",
+      "category": "Snacks",
+      "protein_per_100kcal": 6.7
+    },
+    {
+      "item_name": "Sel Roti (2)",
+      "estimated_calories": 280,
+      "estimated_protein_g": 4,
+      "estimated_carbs_g": 38,
+      "estimated_fat_g": 12,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "darjeeling_food",
+      "category": "Breads",
+      "protein_per_100kcal": 1.4
+    }
+  ]
+}

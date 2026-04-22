@@ -1,0 +1,68 @@
+{
+  "brand_name": "Jabal Al Noor",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Chicken Mandi",
+      "estimated_calories": 580,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 62,
+      "estimated_fat_g": 22,
+      "menu_item_source": "real_menu",
+      "market": "AE",
+      "chain_key": "jabal_al_noor",
+      "category": "Rice",
+      "protein_per_100kcal": 5.5
+    },
+    {
+      "item_name": "Lamb Mandi",
+      "estimated_calories": 680,
+      "estimated_protein_g": 34,
+      "estimated_carbs_g": 62,
+      "estimated_fat_g": 32,
+      "menu_item_source": "real_menu",
+      "market": "AE",
+      "chain_key": "jabal_al_noor",
+      "category": "Rice",
+      "protein_per_100kcal": 5.0
+    },
+    {
+      "item_name": "Chicken Biryani",
+      "estimated_calories": 620,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 72,
+      "estimated_fat_g": 24,
+      "menu_item_source": "real_menu",
+      "market": "AE",
+      "chain_key": "jabal_al_noor",
+      "category": "Biryani",
+      "protein_per_100kcal": 4.5
+    },
+    {
+      "item_name": "Mixed Grill",
+      "estimated_calories": 520,
+      "estimated_protein_g": 42,
+      "estimated_carbs_g": 8,
+      "estimated_fat_g": 36,
+      "menu_item_source": "real_menu",
+      "market": "AE",
+      "chain_key": "jabal_al_noor",
+      "category": "Grills",
+      "protein_per_100kcal": 8.1
+    },
+    {
+      "item_name": "Hummus",
+      "estimated_calories": 180,
+      "estimated_protein_g": 6,
+      "estimated_carbs_g": 16,
+      "estimated_fat_g": 10,
+      "menu_item_source": "real_menu",
+      "market": "AE",
+      "chain_key": "jabal_al_noor",
+      "category": "Mezze",
+      "protein_per_100kcal": 3.3
+    }
+  ]
+}

@@ -1,0 +1,68 @@
+{
+  "brand_name": "Machali",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Fish Thali",
+      "estimated_calories": 580,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 62,
+      "estimated_fat_g": 22,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "machali",
+      "category": "Thali",
+      "protein_per_100kcal": 5.5
+    },
+    {
+      "item_name": "Neer Dosa with Chicken Curry",
+      "estimated_calories": 380,
+      "estimated_protein_g": 22,
+      "estimated_carbs_g": 40,
+      "estimated_fat_g": 14,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "machali",
+      "category": "Mangalorean",
+      "protein_per_100kcal": 5.8
+    },
+    {
+      "item_name": "Kane Fry (Ladyfish)",
+      "estimated_calories": 280,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 12,
+      "estimated_fat_g": 14,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "machali",
+      "category": "Seafood",
+      "protein_per_100kcal": 10.0
+    },
+    {
+      "item_name": "Chicken Ghee Roast",
+      "estimated_calories": 420,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 10,
+      "estimated_fat_g": 28,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "machali",
+      "category": "Mangalorean",
+      "protein_per_100kcal": 7.6
+    },
+    {
+      "item_name": "Prawn Gassi",
+      "estimated_calories": 360,
+      "estimated_protein_g": 26,
+      "estimated_carbs_g": 12,
+      "estimated_fat_g": 24,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "machali",
+      "category": "Seafood",
+      "protein_per_100kcal": 7.2
+    }
+  ]
+}

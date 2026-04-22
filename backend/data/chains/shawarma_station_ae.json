@@ -1,0 +1,44 @@
+{
+  "brand_name": "Shawarma Station",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Chicken Shawarma",
+      "estimated_calories": 420,
+      "estimated_protein_g": 26,
+      "estimated_carbs_g": 34,
+      "estimated_fat_g": 20,
+      "menu_item_source": "real_menu",
+      "market": "AE",
+      "chain_key": "shawarma_station",
+      "category": "Shawarma",
+      "protein_per_100kcal": 6.2
+    },
+    {
+      "item_name": "Shawarma Plate",
+      "estimated_calories": 620,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 52,
+      "estimated_fat_g": 30,
+      "menu_item_source": "real_menu",
+      "market": "AE",
+      "chain_key": "shawarma_station",
+      "category": "Plates",
+      "protein_per_100kcal": 5.2
+    },
+    {
+      "item_name": "Falafel Wrap",
+      "estimated_calories": 380,
+      "estimated_protein_g": 12,
+      "estimated_carbs_g": 44,
+      "estimated_fat_g": 18,
+      "menu_item_source": "real_menu",
+      "market": "AE",
+      "chain_key": "shawarma_station",
+      "category": "Wraps",
+      "protein_per_100kcal": 3.2
+    }
+  ]
+}

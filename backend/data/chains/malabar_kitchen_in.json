@@ -1,0 +1,68 @@
+{
+  "brand_name": "Malabar Kitchen",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Thalassery Biryani",
+      "estimated_calories": 620,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 72,
+      "estimated_fat_g": 24,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "malabar_kitchen",
+      "category": "Biryani",
+      "protein_per_100kcal": 4.5
+    },
+    {
+      "item_name": "Malabar Fish Curry",
+      "estimated_calories": 360,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 8,
+      "estimated_fat_g": 24,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "malabar_kitchen",
+      "category": "Seafood",
+      "protein_per_100kcal": 7.8
+    },
+    {
+      "item_name": "Kozhi Porichathu",
+      "estimated_calories": 380,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 14,
+      "estimated_fat_g": 22,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "malabar_kitchen",
+      "category": "Kerala",
+      "protein_per_100kcal": 7.9
+    },
+    {
+      "item_name": "Unnakaya (2)",
+      "estimated_calories": 280,
+      "estimated_protein_g": 4,
+      "estimated_carbs_g": 38,
+      "estimated_fat_g": 12,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "malabar_kitchen",
+      "category": "Snacks",
+      "protein_per_100kcal": 1.4
+    },
+    {
+      "item_name": "Sulaimani Tea",
+      "estimated_calories": 30,
+      "estimated_protein_g": 0,
+      "estimated_carbs_g": 6,
+      "estimated_fat_g": 0,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "malabar_kitchen",
+      "category": "Tea",
+      "protein_per_100kcal": 0.0
+    }
+  ]
+}

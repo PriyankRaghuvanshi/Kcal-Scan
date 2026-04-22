@@ -1,0 +1,104 @@
+{
+  "brand_name": "American Diner",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Classic Burger & Fries",
+      "estimated_calories": 820,
+      "estimated_protein_g": 34,
+      "estimated_carbs_g": 62,
+      "estimated_fat_g": 46,
+      "menu_item_source": "real_menu",
+      "market": "US",
+      "chain_key": "american_diner",
+      "category": "Combos",
+      "protein_per_100kcal": 4.1
+    },
+    {
+      "item_name": "Club Sandwich & Fries",
+      "estimated_calories": 780,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 58,
+      "estimated_fat_g": 44,
+      "menu_item_source": "real_menu",
+      "market": "US",
+      "chain_key": "american_diner",
+      "category": "Combos",
+      "protein_per_100kcal": 4.1
+    },
+    {
+      "item_name": "Pancakes (3 stack) with Bacon",
+      "estimated_calories": 680,
+      "estimated_protein_g": 18,
+      "estimated_carbs_g": 82,
+      "estimated_fat_g": 30,
+      "menu_item_source": "real_menu",
+      "market": "US",
+      "chain_key": "american_diner",
+      "category": "Breakfast",
+      "protein_per_100kcal": 2.6
+    },
+    {
+      "item_name": "Eggs Over Easy with Toast",
+      "estimated_calories": 380,
+      "estimated_protein_g": 18,
+      "estimated_carbs_g": 28,
+      "estimated_fat_g": 22,
+      "menu_item_source": "real_menu",
+      "market": "US",
+      "chain_key": "american_diner",
+      "category": "Breakfast",
+      "protein_per_100kcal": 4.7
+    },
+    {
+      "item_name": "Grilled Cheese & Tomato Soup",
+      "estimated_calories": 580,
+      "estimated_protein_g": 18,
+      "estimated_carbs_g": 52,
+      "estimated_fat_g": 32,
+      "menu_item_source": "real_menu",
+      "market": "US",
+      "chain_key": "american_diner",
+      "category": "Combos",
+      "protein_per_100kcal": 3.1
+    },
+    {
+      "item_name": "Milkshake (Chocolate)",
+      "estimated_calories": 580,
+      "estimated_protein_g": 12,
+      "estimated_carbs_g": 74,
+      "estimated_fat_g": 28,
+      "menu_item_source": "real_menu",
+      "market": "US",
+      "chain_key": "american_diner",
+      "category": "Shakes",
+      "protein_per_100kcal": 2.1
+    },
+    {
+      "item_name": "Meatloaf with Mashed Potato",
+      "estimated_calories": 620,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 36,
+      "menu_item_source": "real_menu",
+      "market": "US",
+      "chain_key": "american_diner",
+      "category": "Mains",
+      "protein_per_100kcal": 4.5
+    },
+    {
+      "item_name": "Apple Pie a la Mode",
+      "estimated_calories": 480,
+      "estimated_protein_g": 5,
+      "estimated_carbs_g": 62,
+      "estimated_fat_g": 24,
+      "menu_item_source": "real_menu",
+      "market": "US",
+      "chain_key": "american_diner",
+      "category": "Desserts",
+      "protein_per_100kcal": 1.0
+    }
+  ]
+}

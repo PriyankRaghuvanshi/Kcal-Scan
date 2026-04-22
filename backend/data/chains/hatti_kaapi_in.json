@@ -1,0 +1,118 @@
+{
+  "brand_name": "Hatti Kaapi",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Filter Coffee",
+      "estimated_calories": 80,
+      "estimated_protein_g": 3,
+      "estimated_carbs_g": 10,
+      "estimated_fat_g": 3,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "hatti_kaapi",
+      "category": "Coffee",
+      "protein_per_100kcal": 3.8,
+      "diet_tags": [
+        "low_carb",
+        "light_meal"
+      ]
+    },
+    {
+      "item_name": "Masala Dosa",
+      "estimated_calories": 340,
+      "estimated_protein_g": 8,
+      "estimated_carbs_g": 48,
+      "estimated_fat_g": 14,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "hatti_kaapi",
+      "category": "Dosa",
+      "protein_per_100kcal": 2.4,
+      "smart_swap": {
+        "swap_to": "Filter Coffee",
+        "swap_calories": 80,
+        "swap_protein_g": 3,
+        "calories_saved": 260,
+        "protein_gained": 0,
+        "reason": "Swap to Filter Coffee — save 260 kcal, better protein density"
+      }
+    },
+    {
+      "item_name": "Idli (3 pcs)",
+      "estimated_calories": 210,
+      "estimated_protein_g": 6,
+      "estimated_carbs_g": 38,
+      "estimated_fat_g": 4,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "hatti_kaapi",
+      "category": "South Indian",
+      "protein_per_100kcal": 2.9,
+      "diet_tags": [
+        "light_meal"
+      ]
+    },
+    {
+      "item_name": "Vada (2 pcs)",
+      "estimated_calories": 280,
+      "estimated_protein_g": 8,
+      "estimated_carbs_g": 30,
+      "estimated_fat_g": 14,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "hatti_kaapi",
+      "category": "South Indian",
+      "protein_per_100kcal": 2.9,
+      "diet_tags": [
+        "low_carb",
+        "light_meal"
+      ]
+    },
+    {
+      "item_name": "Bisi Bele Bath",
+      "estimated_calories": 380,
+      "estimated_protein_g": 10,
+      "estimated_carbs_g": 56,
+      "estimated_fat_g": 12,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "hatti_kaapi",
+      "category": "Rice",
+      "protein_per_100kcal": 2.6,
+      "smart_swap": {
+        "swap_to": "Filter Coffee",
+        "swap_calories": 80,
+        "swap_protein_g": 3,
+        "calories_saved": 300,
+        "protein_gained": 0,
+        "reason": "Swap to Filter Coffee — save 300 kcal, better protein density"
+      }
+    },
+    {
+      "item_name": "Kesari Bath",
+      "estimated_calories": 260,
+      "estimated_protein_g": 4,
+      "estimated_carbs_g": 38,
+      "estimated_fat_g": 10,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "hatti_kaapi",
+      "category": "Sweets",
+      "protein_per_100kcal": 1.5,
+      "diet_tags": [
+        "light_meal"
+      ],
+      "smart_swap": {
+        "swap_to": "Filter Coffee",
+        "swap_calories": 80,
+        "swap_protein_g": 3,
+        "calories_saved": 180,
+        "protein_gained": 0,
+        "reason": "Swap to Filter Coffee — save 180 kcal, better protein density"
+      }
+    }
+  ]
+}

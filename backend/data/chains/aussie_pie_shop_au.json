@@ -1,0 +1,80 @@
+{
+  "brand_name": "Aussie Pie Shop",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Classic Meat Pie",
+      "estimated_calories": 460,
+      "estimated_protein_g": 18,
+      "estimated_carbs_g": 36,
+      "estimated_fat_g": 26,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "aussie_pie_shop",
+      "category": "Pies",
+      "protein_per_100kcal": 3.9
+    },
+    {
+      "item_name": "Sausage Roll",
+      "estimated_calories": 380,
+      "estimated_protein_g": 12,
+      "estimated_carbs_g": 28,
+      "estimated_fat_g": 24,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "aussie_pie_shop",
+      "category": "Pastries",
+      "protein_per_100kcal": 3.2
+    },
+    {
+      "item_name": "Chicken & Veg Pie",
+      "estimated_calories": 440,
+      "estimated_protein_g": 20,
+      "estimated_carbs_g": 34,
+      "estimated_fat_g": 24,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "aussie_pie_shop",
+      "category": "Pies",
+      "protein_per_100kcal": 4.5
+    },
+    {
+      "item_name": "Pepper Steak Pie",
+      "estimated_calories": 480,
+      "estimated_protein_g": 22,
+      "estimated_carbs_g": 34,
+      "estimated_fat_g": 28,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "aussie_pie_shop",
+      "category": "Pies",
+      "protein_per_100kcal": 4.6
+    },
+    {
+      "item_name": "Curry Pie",
+      "estimated_calories": 460,
+      "estimated_protein_g": 16,
+      "estimated_carbs_g": 36,
+      "estimated_fat_g": 26,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "aussie_pie_shop",
+      "category": "Pies",
+      "protein_per_100kcal": 3.5
+    },
+    {
+      "item_name": "Tomato Sauce Pie",
+      "estimated_calories": 480,
+      "estimated_protein_g": 18,
+      "estimated_carbs_g": 38,
+      "estimated_fat_g": 28,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "aussie_pie_shop",
+      "category": "Pies",
+      "protein_per_100kcal": 3.8
+    }
+  ]
+}

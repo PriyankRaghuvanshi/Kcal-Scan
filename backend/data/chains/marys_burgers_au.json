@@ -1,0 +1,68 @@
+{
+  "brand_name": "Marys Burgers",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Mary's Burger",
+      "estimated_calories": 580,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 38,
+      "estimated_fat_g": 34,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "marys_burgers",
+      "category": "Burgers",
+      "protein_per_100kcal": 5.2
+    },
+    {
+      "item_name": "Fried Chicken Burger",
+      "estimated_calories": 620,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 44,
+      "estimated_fat_g": 36,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "marys_burgers",
+      "category": "Burgers",
+      "protein_per_100kcal": 4.5
+    },
+    {
+      "item_name": "Fried Chicken (3 pcs)",
+      "estimated_calories": 480,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 22,
+      "estimated_fat_g": 30,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "marys_burgers",
+      "category": "Chicken",
+      "protein_per_100kcal": 6.2
+    },
+    {
+      "item_name": "Fries",
+      "estimated_calories": 380,
+      "estimated_protein_g": 5,
+      "estimated_carbs_g": 46,
+      "estimated_fat_g": 20,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "marys_burgers",
+      "category": "Sides",
+      "protein_per_100kcal": 1.3
+    },
+    {
+      "item_name": "Onion Rings",
+      "estimated_calories": 360,
+      "estimated_protein_g": 6,
+      "estimated_carbs_g": 40,
+      "estimated_fat_g": 20,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "marys_burgers",
+      "category": "Sides",
+      "protein_per_100kcal": 1.7
+    }
+  ]
+}

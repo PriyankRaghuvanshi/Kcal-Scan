@@ -1,0 +1,160 @@
+{
+  "brand_name": "El Jannah",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Charcoal Chicken (1/4)",
+      "estimated_calories": 340,
+      "estimated_protein_g": 40,
+      "estimated_carbs_g": 2,
+      "estimated_fat_g": 20,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "el_jannah",
+      "category": "Chicken",
+      "protein_per_100kcal": 11.8,
+      "diet_tags": [
+        "high_protein",
+        "keto_friendly",
+        "low_carb"
+      ],
+      "best_protein_pick": true
+    },
+    {
+      "item_name": "Charcoal Chicken (1/2)",
+      "estimated_calories": 680,
+      "estimated_protein_g": 80,
+      "estimated_carbs_g": 4,
+      "estimated_fat_g": 40,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "el_jannah",
+      "category": "Chicken",
+      "protein_per_100kcal": 11.8,
+      "diet_tags": [
+        "keto_friendly"
+      ]
+    },
+    {
+      "item_name": "Mixed Plate",
+      "estimated_calories": 780,
+      "estimated_protein_g": 42,
+      "estimated_carbs_g": 56,
+      "estimated_fat_g": 40,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "el_jannah",
+      "category": "Plates",
+      "protein_per_100kcal": 5.4
+    },
+    {
+      "item_name": "Garlic Sauce (tub)",
+      "estimated_calories": 320,
+      "estimated_protein_g": 1,
+      "estimated_carbs_g": 4,
+      "estimated_fat_g": 34,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "el_jannah",
+      "category": "Sauces",
+      "protein_per_100kcal": 0.3,
+      "diet_tags": [
+        "keto_friendly",
+        "low_carb"
+      ],
+      "smart_swap": {
+        "swap_to": "Charcoal Chicken (1/4)",
+        "swap_calories": 340,
+        "swap_protein_g": 40,
+        "calories_saved": 0,
+        "protein_gained": 39,
+        "reason": "Swap to Charcoal Chicken (1/4) — gain 39g protein"
+      }
+    },
+    {
+      "item_name": "Chicken Wrap",
+      "estimated_calories": 480,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 36,
+      "estimated_fat_g": 24,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "el_jannah",
+      "category": "Wraps",
+      "protein_per_100kcal": 6.2,
+      "diet_tags": [
+        "high_protein"
+      ]
+    },
+    {
+      "item_name": "Hummus",
+      "estimated_calories": 180,
+      "estimated_protein_g": 6,
+      "estimated_carbs_g": 16,
+      "estimated_fat_g": 10,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "el_jannah",
+      "category": "Sides",
+      "protein_per_100kcal": 3.3,
+      "diet_tags": [
+        "low_carb",
+        "light_meal"
+      ],
+      "smart_swap": {
+        "swap_to": "Charcoal Chicken (1/4)",
+        "swap_calories": 340,
+        "swap_protein_g": 40,
+        "calories_saved": 0,
+        "protein_gained": 34,
+        "reason": "Swap to Charcoal Chicken (1/4) — gain 34g protein"
+      }
+    },
+    {
+      "item_name": "Tabouleh",
+      "estimated_calories": 120,
+      "estimated_protein_g": 3,
+      "estimated_carbs_g": 14,
+      "estimated_fat_g": 6,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "el_jannah",
+      "category": "Salads",
+      "protein_per_100kcal": 2.5,
+      "diet_tags": [
+        "low_carb",
+        "light_meal"
+      ],
+      "smart_swap": {
+        "swap_to": "Charcoal Chicken (1/4)",
+        "swap_calories": 340,
+        "swap_protein_g": 40,
+        "calories_saved": 0,
+        "protein_gained": 37,
+        "reason": "Swap to Charcoal Chicken (1/4) — gain 37g protein"
+      }
+    },
+    {
+      "item_name": "Chips",
+      "estimated_calories": 360,
+      "estimated_protein_g": 5,
+      "estimated_carbs_g": 44,
+      "estimated_fat_g": 18,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "el_jannah",
+      "category": "Sides",
+      "protein_per_100kcal": 1.4,
+      "smart_swap": {
+        "swap_to": "Charcoal Chicken (1/4)",
+        "swap_calories": 340,
+        "swap_protein_g": 40,
+        "calories_saved": 20,
+        "protein_gained": 35,
+        "reason": "Swap to Charcoal Chicken (1/4) — save 20 kcal, gain 35g protein"
+      }
+    }
+  ]
+}

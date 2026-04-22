@@ -1,0 +1,68 @@
+{
+  "brand_name": "Kayees",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Kayees Biryani",
+      "estimated_calories": 620,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 72,
+      "estimated_fat_g": 24,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "kayees",
+      "category": "Biryani",
+      "protein_per_100kcal": 4.5
+    },
+    {
+      "item_name": "Appam with Stew",
+      "estimated_calories": 340,
+      "estimated_protein_g": 12,
+      "estimated_carbs_g": 44,
+      "estimated_fat_g": 14,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "kayees",
+      "category": "Kerala",
+      "protein_per_100kcal": 3.5
+    },
+    {
+      "item_name": "Pathiri (3)",
+      "estimated_calories": 260,
+      "estimated_protein_g": 6,
+      "estimated_carbs_g": 38,
+      "estimated_fat_g": 8,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "kayees",
+      "category": "Kerala",
+      "protein_per_100kcal": 2.3
+    },
+    {
+      "item_name": "Chicken Roast",
+      "estimated_calories": 380,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 8,
+      "estimated_fat_g": 24,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "kayees",
+      "category": "Kerala",
+      "protein_per_100kcal": 8.4
+    },
+    {
+      "item_name": "Puttu & Kadala",
+      "estimated_calories": 320,
+      "estimated_protein_g": 12,
+      "estimated_carbs_g": 50,
+      "estimated_fat_g": 8,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "kayees",
+      "category": "Kerala",
+      "protein_per_100kcal": 3.8
+    }
+  ]
+}

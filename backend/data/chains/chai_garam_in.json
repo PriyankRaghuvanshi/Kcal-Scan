@@ -1,0 +1,56 @@
+{
+  "brand_name": "Chai Garam",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Masala Chai",
+      "estimated_calories": 80,
+      "estimated_protein_g": 3,
+      "estimated_carbs_g": 12,
+      "estimated_fat_g": 2,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "chai_garam",
+      "category": "Tea",
+      "protein_per_100kcal": 3.8
+    },
+    {
+      "item_name": "Cheese Toast",
+      "estimated_calories": 280,
+      "estimated_protein_g": 10,
+      "estimated_carbs_g": 28,
+      "estimated_fat_g": 14,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "chai_garam",
+      "category": "Snacks",
+      "protein_per_100kcal": 3.6
+    },
+    {
+      "item_name": "Paneer Tikka Sandwich",
+      "estimated_calories": 360,
+      "estimated_protein_g": 14,
+      "estimated_carbs_g": 34,
+      "estimated_fat_g": 18,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "chai_garam",
+      "category": "Sandwiches",
+      "protein_per_100kcal": 3.9
+    },
+    {
+      "item_name": "Cold Coffee",
+      "estimated_calories": 240,
+      "estimated_protein_g": 5,
+      "estimated_carbs_g": 36,
+      "estimated_fat_g": 8,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "chai_garam",
+      "category": "Beverages",
+      "protein_per_100kcal": 2.1
+    }
+  ]
+}

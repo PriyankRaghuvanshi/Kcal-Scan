@@ -1,0 +1,80 @@
+{
+  "brand_name": "Juice Stall",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Sugarcane Juice",
+      "estimated_calories": 180,
+      "estimated_protein_g": 0,
+      "estimated_carbs_g": 44,
+      "estimated_fat_g": 0,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "juice_stall",
+      "category": "Juices",
+      "protein_per_100kcal": 0.0
+    },
+    {
+      "item_name": "Mixed Fruit Juice",
+      "estimated_calories": 140,
+      "estimated_protein_g": 2,
+      "estimated_carbs_g": 32,
+      "estimated_fat_g": 0,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "juice_stall",
+      "category": "Juices",
+      "protein_per_100kcal": 1.4
+    },
+    {
+      "item_name": "Watermelon Juice",
+      "estimated_calories": 80,
+      "estimated_protein_g": 1,
+      "estimated_carbs_g": 18,
+      "estimated_fat_g": 0,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "juice_stall",
+      "category": "Juices",
+      "protein_per_100kcal": 1.2
+    },
+    {
+      "item_name": "Pomegranate Juice",
+      "estimated_calories": 120,
+      "estimated_protein_g": 2,
+      "estimated_carbs_g": 28,
+      "estimated_fat_g": 0,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "juice_stall",
+      "category": "Juices",
+      "protein_per_100kcal": 1.7
+    },
+    {
+      "item_name": "Mango Shake",
+      "estimated_calories": 280,
+      "estimated_protein_g": 6,
+      "estimated_carbs_g": 48,
+      "estimated_fat_g": 8,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "juice_stall",
+      "category": "Shakes",
+      "protein_per_100kcal": 2.1
+    },
+    {
+      "item_name": "Banana Shake",
+      "estimated_calories": 260,
+      "estimated_protein_g": 6,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 8,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "juice_stall",
+      "category": "Shakes",
+      "protein_per_100kcal": 2.3
+    }
+  ]
+}

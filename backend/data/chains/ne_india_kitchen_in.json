@@ -1,0 +1,80 @@
+{
+  "brand_name": "Ne India Kitchen",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Thukpa",
+      "estimated_calories": 360,
+      "estimated_protein_g": 18,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 12,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "ne_india_kitchen",
+      "category": "NE Indian",
+      "protein_per_100kcal": 5.0
+    },
+    {
+      "item_name": "Momos (Steamed, 8)",
+      "estimated_calories": 320,
+      "estimated_protein_g": 18,
+      "estimated_carbs_g": 34,
+      "estimated_fat_g": 12,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "ne_india_kitchen",
+      "category": "Momos",
+      "protein_per_100kcal": 5.6
+    },
+    {
+      "item_name": "Bamboo Shoot Curry",
+      "estimated_calories": 220,
+      "estimated_protein_g": 8,
+      "estimated_carbs_g": 18,
+      "estimated_fat_g": 14,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "ne_india_kitchen",
+      "category": "NE Indian",
+      "protein_per_100kcal": 3.6
+    },
+    {
+      "item_name": "Smoked Pork",
+      "estimated_calories": 380,
+      "estimated_protein_g": 30,
+      "estimated_carbs_g": 4,
+      "estimated_fat_g": 28,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "ne_india_kitchen",
+      "category": "NE Indian",
+      "protein_per_100kcal": 7.9
+    },
+    {
+      "item_name": "Axone (Fermented Soybean)",
+      "estimated_calories": 200,
+      "estimated_protein_g": 14,
+      "estimated_carbs_g": 12,
+      "estimated_fat_g": 10,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "ne_india_kitchen",
+      "category": "NE Indian",
+      "protein_per_100kcal": 7.0
+    },
+    {
+      "item_name": "Jadoh (Meghalaya Rice)",
+      "estimated_calories": 440,
+      "estimated_protein_g": 18,
+      "estimated_carbs_g": 56,
+      "estimated_fat_g": 16,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "ne_india_kitchen",
+      "category": "NE Indian",
+      "protein_per_100kcal": 4.1
+    }
+  ]
+}

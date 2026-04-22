@@ -1,0 +1,144 @@
+{
+  "brand_name": "Pho",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Pho Bo (Beef Pho)",
+      "estimated_calories": 420,
+      "estimated_protein_g": 24,
+      "estimated_carbs_g": 52,
+      "estimated_fat_g": 12,
+      "menu_item_source": "real_menu",
+      "market": "GB",
+      "chain_key": "pho",
+      "category": "Pho",
+      "protein_per_100kcal": 5.7
+    },
+    {
+      "item_name": "Pho Ga (Chicken Pho)",
+      "estimated_calories": 380,
+      "estimated_protein_g": 22,
+      "estimated_carbs_g": 50,
+      "estimated_fat_g": 8,
+      "menu_item_source": "real_menu",
+      "market": "GB",
+      "chain_key": "pho",
+      "category": "Pho",
+      "protein_per_100kcal": 5.8,
+      "best_protein_pick": true
+    },
+    {
+      "item_name": "Summer Rolls (3 pcs)",
+      "estimated_calories": 180,
+      "estimated_protein_g": 8,
+      "estimated_carbs_g": 26,
+      "estimated_fat_g": 4,
+      "menu_item_source": "real_menu",
+      "market": "GB",
+      "chain_key": "pho",
+      "category": "Starters",
+      "protein_per_100kcal": 4.4,
+      "diet_tags": [
+        "low_carb",
+        "light_meal"
+      ],
+      "smart_swap": {
+        "swap_to": "Pho Ga (Chicken Pho)",
+        "swap_calories": 380,
+        "swap_protein_g": 22,
+        "calories_saved": 0,
+        "protein_gained": 14,
+        "reason": "Swap to Pho Ga (Chicken Pho) — gain 14g protein"
+      }
+    },
+    {
+      "item_name": "Bun (Vermicelli Bowl)",
+      "estimated_calories": 480,
+      "estimated_protein_g": 26,
+      "estimated_carbs_g": 56,
+      "estimated_fat_g": 16,
+      "menu_item_source": "real_menu",
+      "market": "GB",
+      "chain_key": "pho",
+      "category": "Bowls",
+      "protein_per_100kcal": 5.4,
+      "diet_tags": [
+        "high_protein"
+      ]
+    },
+    {
+      "item_name": "Broken Rice (Com Tam)",
+      "estimated_calories": 520,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 58,
+      "estimated_fat_g": 18,
+      "menu_item_source": "real_menu",
+      "market": "GB",
+      "chain_key": "pho",
+      "category": "Rice",
+      "protein_per_100kcal": 5.4
+    },
+    {
+      "item_name": "Banh Mi",
+      "estimated_calories": 440,
+      "estimated_protein_g": 22,
+      "estimated_carbs_g": 44,
+      "estimated_fat_g": 18,
+      "menu_item_source": "real_menu",
+      "market": "GB",
+      "chain_key": "pho",
+      "category": "Banh Mi",
+      "protein_per_100kcal": 5.0
+    },
+    {
+      "item_name": "Vietnamese Coffee",
+      "estimated_calories": 180,
+      "estimated_protein_g": 3,
+      "estimated_carbs_g": 28,
+      "estimated_fat_g": 6,
+      "menu_item_source": "real_menu",
+      "market": "GB",
+      "chain_key": "pho",
+      "category": "Coffee",
+      "protein_per_100kcal": 1.7,
+      "diet_tags": [
+        "low_carb",
+        "light_meal"
+      ],
+      "smart_swap": {
+        "swap_to": "Pho Ga (Chicken Pho)",
+        "swap_calories": 380,
+        "swap_protein_g": 22,
+        "calories_saved": 0,
+        "protein_gained": 19,
+        "reason": "Swap to Pho Ga (Chicken Pho) — gain 19g protein"
+      }
+    },
+    {
+      "item_name": "Pho Chay (Vegan)",
+      "estimated_calories": 340,
+      "estimated_protein_g": 10,
+      "estimated_carbs_g": 52,
+      "estimated_fat_g": 8,
+      "menu_item_source": "real_menu",
+      "market": "GB",
+      "chain_key": "pho",
+      "category": "Pho",
+      "protein_per_100kcal": 2.9
+    },
+    {
+      "item_name": "Lemongrass Chicken",
+      "estimated_calories": 480,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 48,
+      "estimated_fat_g": 18,
+      "menu_item_source": "real_menu",
+      "market": "GB",
+      "chain_key": "pho",
+      "category": "Mains",
+      "protein_per_100kcal": 5.8
+    }
+  ]
+}

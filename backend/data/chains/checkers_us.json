@@ -1,0 +1,68 @@
+{
+  "brand_name": "Checkers",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Big Buford",
+      "estimated_calories": 760,
+      "estimated_protein_g": 40,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 48,
+      "menu_item_source": "real_menu",
+      "market": "US",
+      "chain_key": "checkers",
+      "category": "Burgers",
+      "protein_per_100kcal": 5.3
+    },
+    {
+      "item_name": "Spicy Chicken Sandwich",
+      "estimated_calories": 540,
+      "estimated_protein_g": 24,
+      "estimated_carbs_g": 46,
+      "estimated_fat_g": 28,
+      "menu_item_source": "real_menu",
+      "market": "US",
+      "chain_key": "checkers",
+      "category": "Sandwiches",
+      "protein_per_100kcal": 4.4
+    },
+    {
+      "item_name": "Seasoned Fries (Medium)",
+      "estimated_calories": 400,
+      "estimated_protein_g": 5,
+      "estimated_carbs_g": 50,
+      "estimated_fat_g": 20,
+      "menu_item_source": "real_menu",
+      "market": "US",
+      "chain_key": "checkers",
+      "category": "Sides",
+      "protein_per_100kcal": 1.2
+    },
+    {
+      "item_name": "Banana Shake",
+      "estimated_calories": 520,
+      "estimated_protein_g": 10,
+      "estimated_carbs_g": 68,
+      "estimated_fat_g": 24,
+      "menu_item_source": "real_menu",
+      "market": "US",
+      "chain_key": "checkers",
+      "category": "Shakes",
+      "protein_per_100kcal": 1.9
+    },
+    {
+      "item_name": "Mother Cruncher",
+      "estimated_calories": 620,
+      "estimated_protein_g": 28,
+      "estimated_carbs_g": 48,
+      "estimated_fat_g": 34,
+      "menu_item_source": "real_menu",
+      "market": "US",
+      "chain_key": "checkers",
+      "category": "Sandwiches",
+      "protein_per_100kcal": 4.5
+    }
+  ]
+}

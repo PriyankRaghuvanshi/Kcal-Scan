@@ -1,0 +1,113 @@
+{
+  "brand_name": "Chipotle",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Chicken Burrito",
+      "estimated_calories": 1005,
+      "estimated_protein_g": 55,
+      "estimated_carbs_g": 105,
+      "estimated_fat_g": 37,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "chipotle",
+      "category": "Burritos",
+      "protein_per_100kcal": 5.5,
+      "calorie_density_warning": true,
+      "diet_tags": [
+        "heavy_meal"
+      ]
+    },
+    {
+      "item_name": "Chicken Bowl",
+      "estimated_calories": 665,
+      "estimated_protein_g": 52,
+      "estimated_carbs_g": 52,
+      "estimated_fat_g": 24,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "chipotle",
+      "category": "Bowls",
+      "protein_per_100kcal": 7.8,
+      "best_protein_pick": true
+    },
+    {
+      "item_name": "Steak Burrito",
+      "estimated_calories": 1030,
+      "estimated_protein_g": 52,
+      "estimated_carbs_g": 107,
+      "estimated_fat_g": 40,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "chipotle",
+      "category": "Burritos",
+      "protein_per_100kcal": 5.0,
+      "calorie_density_warning": true,
+      "diet_tags": [
+        "heavy_meal"
+      ],
+      "smart_swap": {
+        "swap_to": "Chicken Bowl",
+        "swap_calories": 665,
+        "swap_protein_g": 52,
+        "calories_saved": 365,
+        "protein_gained": 0,
+        "reason": "Swap to Chicken Bowl — save 365 kcal, better protein density"
+      }
+    },
+    {
+      "item_name": "Veggie Bowl",
+      "estimated_calories": 555,
+      "estimated_protein_g": 19,
+      "estimated_carbs_g": 65,
+      "estimated_fat_g": 25,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "chipotle",
+      "category": "Bowls",
+      "protein_per_100kcal": 3.4,
+      "smart_swap": {
+        "swap_to": "Chicken Bowl",
+        "swap_calories": 665,
+        "swap_protein_g": 52,
+        "calories_saved": 0,
+        "protein_gained": 33,
+        "reason": "Swap to Chicken Bowl — gain 33g protein"
+      }
+    },
+    {
+      "item_name": "Chicken Tacos (3)",
+      "estimated_calories": 615,
+      "estimated_protein_g": 42,
+      "estimated_carbs_g": 42,
+      "estimated_fat_g": 28,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "chipotle",
+      "category": "Tacos",
+      "protein_per_100kcal": 6.8
+    },
+    {
+      "item_name": "Chips & Guac",
+      "estimated_calories": 770,
+      "estimated_protein_g": 9,
+      "estimated_carbs_g": 65,
+      "estimated_fat_g": 52,
+      "menu_item_source": "real_menu",
+      "market": "AU",
+      "chain_key": "chipotle",
+      "category": "Sides",
+      "protein_per_100kcal": 1.2,
+      "smart_swap": {
+        "swap_to": "Chicken Bowl",
+        "swap_calories": 665,
+        "swap_protein_g": 52,
+        "calories_saved": 105,
+        "protein_gained": 43,
+        "reason": "Swap to Chicken Bowl — save 105 kcal, gain 43g protein"
+      }
+    }
+  ]
+}

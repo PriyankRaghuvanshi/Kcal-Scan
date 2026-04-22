@@ -1,0 +1,56 @@
+{
+  "brand_name": "Pizza Delivery",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Medium Pizza + Garlic Bread + Coke",
+      "estimated_calories": 1120,
+      "estimated_protein_g": 32,
+      "estimated_carbs_g": 142,
+      "estimated_fat_g": 48,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "pizza_delivery",
+      "category": "Combos",
+      "protein_per_100kcal": 2.9
+    },
+    {
+      "item_name": "Personal Pizza (Veg)",
+      "estimated_calories": 420,
+      "estimated_protein_g": 14,
+      "estimated_carbs_g": 52,
+      "estimated_fat_g": 16,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "pizza_delivery",
+      "category": "Pizza",
+      "protein_per_100kcal": 3.3
+    },
+    {
+      "item_name": "Personal Pizza (Chicken)",
+      "estimated_calories": 480,
+      "estimated_protein_g": 20,
+      "estimated_carbs_g": 52,
+      "estimated_fat_g": 20,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "pizza_delivery",
+      "category": "Pizza",
+      "protein_per_100kcal": 4.2
+    },
+    {
+      "item_name": "Pasta (Red Sauce) + Garlic Bread",
+      "estimated_calories": 680,
+      "estimated_protein_g": 18,
+      "estimated_carbs_g": 84,
+      "estimated_fat_g": 30,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "pizza_delivery",
+      "category": "Combos",
+      "protein_per_100kcal": 2.6
+    }
+  ]
+}

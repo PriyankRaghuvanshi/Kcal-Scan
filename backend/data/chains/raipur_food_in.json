@@ -1,0 +1,56 @@
+{
+  "brand_name": "Raipur Food",
+  "source_type": "official_website_menu",
+  "source_url": "",
+  "store_name_variants": [],
+  "items": [
+    {
+      "item_name": "Chila (3)",
+      "estimated_calories": 240,
+      "estimated_protein_g": 8,
+      "estimated_carbs_g": 34,
+      "estimated_fat_g": 8,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "raipur_food",
+      "category": "Breakfast",
+      "protein_per_100kcal": 3.3
+    },
+    {
+      "item_name": "Fara (4)",
+      "estimated_calories": 280,
+      "estimated_protein_g": 6,
+      "estimated_carbs_g": 38,
+      "estimated_fat_g": 12,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "raipur_food",
+      "category": "Snacks",
+      "protein_per_100kcal": 2.1
+    },
+    {
+      "item_name": "Bore Baasi",
+      "estimated_calories": 320,
+      "estimated_protein_g": 6,
+      "estimated_carbs_g": 56,
+      "estimated_fat_g": 8,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "raipur_food",
+      "category": "Rice",
+      "protein_per_100kcal": 1.9
+    },
+    {
+      "item_name": "Muthia",
+      "estimated_calories": 200,
+      "estimated_protein_g": 6,
+      "estimated_carbs_g": 28,
+      "estimated_fat_g": 8,
+      "menu_item_source": "real_menu",
+      "market": "IN",
+      "chain_key": "raipur_food",
+      "category": "Snacks",
+      "protein_per_100kcal": 3.0
+    }
+  ]
+}
