@@ -22479,16 +22479,21 @@ async def analyze_text(
     today_local = _today_date(tz=body.tz, tz_offset_min=body.tz_offset_min)
     day_iso = today_local.isoformat()
 
-    # 1. Try chain DB match — fast indexed lookup instead of full scan
-    from chain_menu_ingestion import get_chain_items, list_ingested_chain_keys
+    # 1. Try chain DB match — single in-memory scan across the cached store.
+    # The earlier loop called get_chain_items() per chain::market which triggered
+    # a 22MB JSON reload on every cache miss → >30s response time in prod.
     chain_match = None
     text_lc = text.lower().strip()
     try:
-        _all_keys = list_ingested_chain_keys()
-        for ck_market in _all_keys[:200]:
-            parts = ck_market.split("::")
-            items = get_chain_items(parts[0], parts[-1] if len(parts) > 1 else "")
-            for it in (items or [])[:80]:
+        from chain_menu_ingestion import _load_store as _load_ingested_store
+        _store = _load_ingested_store()
+        _chains = _store.get("chains") or {}
+        for _ck_market, _items in _chains.items():
+            if not isinstance(_items, list):
+                continue
+            for it in _items:
+                if not isinstance(it, dict):
+                    continue
                 iname = str(it.get("item_name") or "").strip().lower()
                 if iname and (text_lc == iname or (len(text_lc) >= 4 and text_lc in iname)):
                     chain_match = it

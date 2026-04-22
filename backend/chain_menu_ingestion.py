@@ -30,8 +30,13 @@ def _ingested_store_path() -> Path:
     return Path(__file__).resolve().parent / "data" / "chain_menu_ingested.json"
 
 
-def _load_store() -> Dict[str, Any]:
-    path = _ingested_store_path()
+@lru_cache(maxsize=1)
+def _load_store_cached(path_str: str, mtime: float) -> Dict[str, Any]:
+    """Cached store loader keyed on (path, mtime). When the file changes, the
+    cache key changes and the cache auto-refreshes. The 22MB JSON was being
+    reparsed inside every get_chain_items cache miss, which caused /analyze/text
+    to time out at >30s in production (P0 — shipped in App Store)."""
+    path = Path(path_str)
     if not path.exists():
         return {"version": INGESTION_STORE_VERSION, "chains": {}, "updated_at": ""}
     try:
@@ -51,6 +56,15 @@ def _load_store() -> Dict[str, Any]:
     }
 
 
+def _load_store() -> Dict[str, Any]:
+    path = _ingested_store_path()
+    try:
+        mtime = path.stat().st_mtime if path.exists() else 0.0
+    except Exception:
+        mtime = 0.0
+    return _load_store_cached(str(path), mtime)
+
+
 def _save_store(data: Dict[str, Any]) -> None:
     path = _ingested_store_path()
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -60,8 +74,9 @@ def _save_store(data: Dict[str, Any]) -> None:
 
 
 def clear_ingested_store_cache() -> None:
-    """Clear LRU cache for store reads (call after ingestion)."""
+    """Clear LRU caches for store reads (call after ingestion)."""
     get_chain_items.cache_clear()
+    _load_store_cached.cache_clear()
 
 
 @lru_cache(maxsize=128)
