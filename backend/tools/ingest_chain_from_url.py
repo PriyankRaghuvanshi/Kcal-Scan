@@ -388,6 +388,16 @@ def main() -> int:
         print(f"\n[4/4] Wrote {len(passing)} validated items to staging: {path}")
         return 0
 
+    if not passing:
+        with open(INGESTED_PATH) as _fh:
+            _store = json.load(_fh)
+        _existing = _store.get("chains", {}).get(chain_market, [])
+        if isinstance(_existing, list) and _existing:
+            staging_path = write_staging(chain_key, market, passing, failures)
+            print(f"\n[4/4] ⚠️  EMPTY EXTRACTION — refusing to overwrite {len(_existing)} existing items in {chain_market}")
+            print(f"      Empty payload staged at: {staging_path}")
+            return 3
+
     backup_path = write_with_backup(chain_key, market, passing)
     print(f"\n[4/4] ✅ WROTE {len(passing)} items to {chain_market}")
     print(f"      backup: {backup_path}")
