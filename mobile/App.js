@@ -12079,7 +12079,31 @@ async function openCamera(mode = "meal") {
             clearTimeout(timeout);
             const data = await res.json();
             if (data?.items?.length) {
-              void loadHistory();
+              // Write the meal to local history so it shows up in the feed
+              // and contributes to daily totals — the photo-scan path does
+              // this via pushHistory too. Without this, /analyze/text writes
+              // the analysis to Supabase but the UI sees no change.
+              await pushHistory({
+                ts: nowISO(),
+                kind: "text",
+                analysis_id: data?.analysis_id || null,
+                total_kcal: data?.total_kcal,
+                totals: {
+                  total_kcal: data?.total_kcal,
+                  protein_g: data?.total_protein_g,
+                  carbs_g: data?.total_carbs_g,
+                  fat_g: data?.total_fat_g,
+                },
+                items: data?.items,
+              });
+              recordMealToMemory(uid, data?.items).catch(() => {});
+              scheduleDailyCoachRefresh({
+                analysisId: String(data?.analysis_id || "").trim(),
+                mealId: String(data?.analysis_id || "").trim(),
+                refreshServer: true,
+                fastMode: true,
+                trigger: "quick_add",
+              });
             }
             return data;
           } catch (e) {
