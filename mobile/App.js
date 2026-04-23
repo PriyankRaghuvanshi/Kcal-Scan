@@ -7673,7 +7673,13 @@ async function openCamera(mode = "meal") {
 
   const subscriptionPriceText = (key) => priceByEntitlement?.[key] || (rcReady ? "Loading…" : Platform.OS === "android" ? "See Google Play" : "See App Store");
   const homeCoachLine = (() => {
-    const greet = localGreeting();
+    // Prefer the backend's tz-aware greeting (same source FLI card uses) so
+    // both cards stay consistent. Fall back to device-local only when the
+    // backend response isn't loaded yet. Without this the home card's
+    // localGreeting() could say "Good afternoon" while FLI is still on a
+    // cached "Good morning" response from earlier in the day.
+    const backendGreet = String(coachDaily?.opening_greeting || "").trim();
+    const greet = backendGreet || localGreeting();
     const daySummaryHeadline = String(lunchDayCoach?.day_summary?.headline || "").trim();
     if (daySummaryHeadline) return `${greet} ${daySummaryHeadline}`;
 
