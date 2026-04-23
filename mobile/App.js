@@ -502,6 +502,35 @@ async function recordMealToMemory(uid, items) {
     await AsyncStorage.setItem(mealMemoryKey(uid), JSON.stringify(Object.fromEntries(sorted)));
   } catch {}
 }
+// User confirmed or rejected the "is this your usual X?" prompt.
+// Confirms bump `confirmed_count` so repeated confirmations weight the
+// memory more strongly; rejections zero out the pattern so we stop
+// suggesting it. Returns the updated memory blob so callers can update
+// component state without re-reading from AsyncStorage.
+async function applyUsualMealResponse(uid, items, response) {
+  if (!uid || !items || !items.length) return null;
+  const fp = mealFingerprint(items);
+  if (!fp) return null;
+  const mem = await loadMealMemory(uid);
+  const existing = mem[fp];
+  if (!existing) return mem;
+  if (response === "confirmed") {
+    existing.confirmed_count = (existing.confirmed_count || 0) + 1;
+    existing.last_confirmed_at = new Date().toISOString();
+  } else if (response === "rejected") {
+    // Reject: zero confirmations and drop count so future scans don't
+    // re-trigger the prompt. Keep the fingerprint in memory briefly so
+    // we know not to re-suggest it immediately.
+    existing.confirmed_count = 0;
+    existing.count = 0;
+    existing.rejected_at = new Date().toISOString();
+  }
+  mem[fp] = existing;
+  try {
+    await AsyncStorage.setItem(mealMemoryKey(uid), JSON.stringify(mem));
+  } catch {}
+  return mem;
+}
 function findMealInMemory(mem, items) {
   if (!mem || typeof mem !== "object") return null;
   const fp = mealFingerprint(items);
@@ -2092,6 +2121,10 @@ export default function App() {
   // ===== History (isolated by user id) =====
   const [history, setHistory] = useState([]);
   const [mealMemory, setMealMemory] = useState({});
+  // Tracks per-analysis user response to the "your usual meal?" prompt.
+  // { [analysis_id]: 'confirmed' | 'rejected' } — keeps the buttons from
+  // showing again for the same scan once the user has responded.
+  const [usualMealResponse, setUsualMealResponse] = useState({});
   const [coachDaily, setCoachDaily] = useState(null);
   const [coachVoice, setCoachVoice] = useState(null);
   const [coachVoiceBusy, setCoachVoiceBusy] = useState(false);
@@ -9134,21 +9167,81 @@ async function openCamera(mode = "meal") {
                   </Text>
                 </View>
               ) : null}
-              {result?.usual_meal_hint?.line ? (
-                <View
-                  style={{
-                    marginTop: 10,
-                    padding: 10,
-                    borderRadius: 10,
-                    backgroundColor: "#ecfdf5",
-                    borderWidth: 1,
-                    borderColor: "#6ee7b7",
-                  }}
-                >
-                  <Text style={[styles.tiny, { color: "#065f46", fontWeight: "600" }]}>Your usual meal</Text>
-                  <Text style={[styles.p, { marginTop: 4, color: "#064e3b" }]}>{String(result.usual_meal_hint.line)}</Text>
-                </View>
-              ) : null}
+              {result?.usual_meal_hint?.line ? (() => {
+                const aid = String(result?.analysis_id || "");
+                const responded = usualMealResponse?.[aid] || null;
+                return (
+                  <View
+                    style={{
+                      marginTop: 10,
+                      padding: 10,
+                      borderRadius: 10,
+                      backgroundColor: "#ecfdf5",
+                      borderWidth: 1,
+                      borderColor: "#6ee7b7",
+                    }}
+                  >
+                    <Text style={[styles.tiny, { color: "#065f46", fontWeight: "600" }]}>Your usual meal</Text>
+                    <Text style={[styles.p, { marginTop: 4, color: "#064e3b" }]}>{String(result.usual_meal_hint.line)}</Text>
+                    {responded === "confirmed" ? (
+                      <Text style={[styles.tiny, { marginTop: 8, color: "#065f46" }]}>
+                        ✓ Thanks — I'll keep remembering this one.
+                      </Text>
+                    ) : responded === "rejected" ? (
+                      <Text style={[styles.tiny, { marginTop: 8, color: "#065f46" }]}>
+                        Got it — I'll stop suggesting this. Adjust macros above if the scan looks off.
+                      </Text>
+                    ) : (
+                      <View style={{ flexDirection: "row", gap: 8, marginTop: 10 }}>
+                        <TouchableOpacity
+                          onPress={async () => {
+                            const uid = userId || session?.user?.id;
+                            if (!uid || !aid) return;
+                            setUsualMealResponse((s) => ({ ...s, [aid]: "confirmed" }));
+                            const updated = await applyUsualMealResponse(uid, result?.items, "confirmed");
+                            if (updated) setMealMemory(updated);
+                          }}
+                          style={{
+                            flex: 1,
+                            paddingVertical: 8,
+                            borderRadius: 8,
+                            backgroundColor: "#10b981",
+                            alignItems: "center",
+                          }}
+                          activeOpacity={0.85}
+                        >
+                          <Text style={{ color: "#fff", fontWeight: "700", fontSize: 13 }}>
+                            Yes, same as usual
+                          </Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          onPress={async () => {
+                            const uid = userId || session?.user?.id;
+                            if (!uid || !aid) return;
+                            setUsualMealResponse((s) => ({ ...s, [aid]: "rejected" }));
+                            const updated = await applyUsualMealResponse(uid, result?.items, "rejected");
+                            if (updated) setMealMemory(updated);
+                          }}
+                          style={{
+                            flex: 1,
+                            paddingVertical: 8,
+                            borderRadius: 8,
+                            backgroundColor: "#fff",
+                            borderWidth: 1,
+                            borderColor: "#10b981",
+                            alignItems: "center",
+                          }}
+                          activeOpacity={0.85}
+                        >
+                          <Text style={{ color: "#065f46", fontWeight: "700", fontSize: 13 }}>
+                            No, different today
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+                    )}
+                  </View>
+                );
+              })() : null}
               {rerunBusy ? <Text style={[styles.tiny, { marginTop: 6 }]}>Applying edit and rerunning analysis…</Text> : null}
 
               {result?.vision_confidence != null ? (
