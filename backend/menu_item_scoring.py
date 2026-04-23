@@ -1743,6 +1743,7 @@ def recommend_menu_items_for_place(
         preferred = list(real_or_scan_items) + [r for r in chain_items_scored if r not in real_or_scan_items]
         scored_items = preferred + [row for row in scored_items if row not in preferred]
     top_items = scored_items[:3]
+    full_menu_items = scored_items[:25]
     top_item = top_items[0] if top_items else None
 
     # ── HARD GATE: Covered chains must ONLY show exact chain menu items ──
@@ -1762,6 +1763,7 @@ def recommend_menu_items_for_place(
         ]
         if chain_only:
             top_items = chain_only[:3]
+            full_menu_items = chain_only[:25]
             top_item = top_items[0]
             item_provenance = "exact_chain_menu"
         else:
@@ -1976,6 +1978,7 @@ def recommend_menu_items_for_place(
                         if str(x.get("item_name") or "").strip().lower() != best_name.lower()
                     ]
                     top_items = scored_items[:3]
+                    full_menu_items = scored_items[:25]
                     top_item = top_items[0] if top_items else top_item
         except Exception as _llm_exc:
             pass
@@ -2037,6 +2040,7 @@ def recommend_menu_items_for_place(
                             if str(x.get("item_name") or "").strip().lower() != best_name.lower()
                         ]
                         top_items = scored_items[:3]
+                        full_menu_items = scored_items[:25]
                         top_item = top_items[0] if top_items else top_item
         except Exception:
             pass
@@ -2118,7 +2122,7 @@ def recommend_menu_items_for_place(
         ),
         "menu_intelligence_place_id": place_id,
         "menu_intelligence_available": bool(place_id),
-        "top_menu_items": top_items,
+        "top_menu_items": full_menu_items,
         "best_menu_items": top_items,
         "goal_variants": goal_variants,
         "top_menu_item": top_item,
