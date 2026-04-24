@@ -2737,6 +2737,10 @@ export default function App() {
     })();
   }, []);
 
+  // Tracks the local day we last successfully fetched daily totals for. Used
+  // to detect midnight rollovers — when the user unlocks the phone the next
+  // morning, dailySummary still holds yesterday's totals until we re-fetch.
+  const lastDailySummaryDayRef = useRef(localDayISO());
   useEffect(() => {
     const sub = AppState.addEventListener("change", (next) => {
       if (next === "active") {
@@ -2752,6 +2756,18 @@ export default function App() {
         // tz-aware greeting from backend.
         if (userId) {
           void ensureDailyCoach(true, { trigger: "app_resume", refreshServer: true });
+          // Daily totals (kcal/protein/carbs/fat) also go stale across the
+          // midnight boundary. Yesterday's last fetch sticks until we refetch
+          // — user opens the app the next morning and sees yesterday's count.
+          // Always refresh on resume; if the day flipped, also reload history
+          // so the feed shows today's items.
+          const currentDay = localDayISO();
+          const lastDay = lastDailySummaryDayRef.current;
+          lastDailySummaryDayRef.current = currentDay;
+          void fetchDailySummary(userId);
+          if (currentDay !== lastDay) {
+            void loadHistory();
+          }
         }
       }
     });
