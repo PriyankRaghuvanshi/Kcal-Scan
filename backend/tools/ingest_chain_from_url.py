@@ -146,14 +146,27 @@ def call_llm(prompt: str, page_text: str = "") -> str:
     if page_text:
         content += f"\n\n--- DIRECT PAGE CONTENT (may be JS-shell / incomplete) ---\n{page_text}"
 
-    response = client.models.generate_content(
-        model=MODEL,
-        contents=content,
-        config=types.GenerateContentConfig(
-            temperature=0.1,
-            tools=[types.Tool(google_search=types.GoogleSearch())],
-        ),
-    )
+    # Hard wall-clock timeout — the Gemini SDK has no default timeout and we've
+    # seen calls hang indefinitely on specific prompts (wagamama::GB on
+    # 2026-04-24). A hang blocks the whole batch. 120s is generous enough for
+    # real calls (we've seen up to 70s) and short enough to keep batches moving.
+    import concurrent.futures as _cf
+    def _call():
+        return client.models.generate_content(
+            model=MODEL,
+            contents=content,
+            config=types.GenerateContentConfig(
+                temperature=0.1,
+                tools=[types.Tool(google_search=types.GoogleSearch())],
+            ),
+        )
+    with _cf.ThreadPoolExecutor(max_workers=1) as _ex:
+        _fut = _ex.submit(_call)
+        try:
+            response = _fut.result(timeout=120)
+        except _cf.TimeoutError:
+            print("      gemini call timed out after 120s — treating as empty extraction")
+            return ""
     text = str(getattr(response, "text", "") or "").strip()
     try:
         u = response.usage_metadata
