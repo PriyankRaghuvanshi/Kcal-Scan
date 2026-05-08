@@ -1,27 +1,23 @@
-"""Hand-curation pipeline — extract chain menu items from a nutrition PDF.
+"""Deterministic PDF ingestion — thin CLI around pdfplumber-based table extract.
 
-Sister tool to ingest_chain_from_url.py for chains that don't publish
-nutrition data on the web (regional Indian chains, vegan boutique chains,
-small UK/AU brands). Workflow:
-
-  1. Download the chain's official nutrition PDF (search "{chain} nutrition pdf"
-     or check the brand's allergen / footer links).
-  2. Save to /tmp or ~/Downloads with a clear name.
-  3. Run this tool — Gemini 2.5 Pro reads the PDF natively (text + tables).
-  4. Validator gates the output exactly like the URL pipeline.
-  5. Stage by default; --commit promotes to live.
+Sister to ingest_chain_from_url.py for chains where you already have the
+official nutrition PDF (or PDF URL) in hand. Extraction is fully deterministic
+via pdfplumber.extract_tables() with multi-page header stitching. No LLM in
+the path.
 
 Usage:
-    export GEMINI_API_KEY=AIza...
     python3 tools/ingest_chain_from_pdf.py \\
-        --chain sangeetha --market IN \\
-        --pdf-path ~/Downloads/sangeetha_nutrition_2025.pdf \\
-        --source-url https://www.sangeethaveg.com/nutrition.pdf
+        --chain pizza_hut --market TH \\
+        --pdf-path ~/Downloads/pizzahut_th_nutrition.pdf \\
+        --source-url https://www.pizzahut.co.th/nutrition.pdf
 
-    # Remote PDF (downloaded then uploaded to Gemini)
+    # Remote PDF (downloaded to data/chain_pdfs/ then parsed)
     python3 tools/ingest_chain_from_pdf.py \\
-        --chain wendys --market AU \\
-        --pdf-url https://www.wendys.com.au/nutrition.pdf
+        --chain mcdonalds --market US \\
+        --pdf-url https://www.mcdonalds.com/.../Nutrition.pdf
+
+Image-only PDFs (no extractable text/tables) are staged with zero items and
+exit code 4 — no OCR in v1. The shared helpers come from ingest_chain_from_url.
 """
 
 from __future__ import annotations
@@ -39,77 +35,25 @@ REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, REPO_ROOT)
 sys.path.insert(0, os.path.join(REPO_ROOT, "tools"))
 
-# Reuse helpers from the URL-based pipeline so behavior stays consistent.
 from ingest_chain_from_url import (  # noqa: E402
-    EXTRACTION_PROMPT,
-    MAX_RETRIES,
-    REPAIR_PROMPT_PREFIX,
+    INGESTED_PATH,
+    download_pdf_to_cache,
+    extract_items_from_pdf_path,
     normalize_item,
-    parse_json_array,
     validate_items,
     write_staging,
     write_with_backup,
 )
 
-EXTRACTOR_VERSION = "gemini_pdf_v1"
-MODEL = "gemini-2.5-flash"  # switched from pro to flash — 10x cheaper
-PDF_DIR = os.path.join(REPO_ROOT, "data", "chain_pdfs")
-
-
-def _download_pdf(url: str) -> str:
-    """Fetch a remote PDF to data/chain_pdfs/ and return the local path."""
-    import requests
-    os.makedirs(PDF_DIR, exist_ok=True)
-    headers = {
-        "User-Agent": "Mozilla/5.0 (compatible; KcalApp-PdfIngest/1.0)",
-        "Accept": "application/pdf,*/*",
-    }
-    resp = requests.get(url, headers=headers, timeout=60, stream=True)
-    resp.raise_for_status()
-    fname = hashlib.sha256(url.encode()).hexdigest()[:16] + ".pdf"
-    path = os.path.join(PDF_DIR, fname)
-    with open(path, "wb") as fh:
-        for chunk in resp.iter_content(chunk_size=8192):
-            if chunk:
-                fh.write(chunk)
-    return path
-
-
-def call_gemini_with_pdf(prompt: str, pdf_path: str) -> str:
-    """Send a PDF inline to Gemini 2.5 Pro and return the text response."""
-    from google import genai
-    from google.genai import types
-    api_key = os.getenv("GEMINI_API_KEY", "").strip()
-    if not api_key:
-        raise RuntimeError("GEMINI_API_KEY not set")
-    client = genai.Client(api_key=api_key)
-
-    pdf_bytes = Path(pdf_path).read_bytes()
-    if not pdf_bytes:
-        raise RuntimeError(f"PDF is empty: {pdf_path}")
-
-    pdf_part = types.Part.from_bytes(data=pdf_bytes, mime_type="application/pdf")
-    response = client.models.generate_content(
-        model=MODEL,
-        contents=[pdf_part, prompt],
-        config=types.GenerateContentConfig(temperature=0.1),
-    )
-    text = str(getattr(response, "text", "") or "").strip()
-    try:
-        u = response.usage_metadata
-        print(f"      usage: prompt={u.prompt_token_count} "
-              f"candidates={u.candidates_token_count} total={u.total_token_count}")
-    except Exception:
-        pass
-    return text
+EXTRACTOR_VERSION = "deterministic_pdf_v1"
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--chain", required=True, help="chain_key e.g. sangeetha")
-    parser.add_argument("--market", required=True, help="market_tag e.g. IN")
+    parser.add_argument("--chain", required=True, help="chain_key e.g. pizza_hut")
+    parser.add_argument("--market", required=True, help="market_tag e.g. TH")
     parser.add_argument("--pdf-path", help="Local PDF path")
-    parser.add_argument("--pdf-url", help="Remote PDF URL (downloaded then uploaded)")
+    parser.add_argument("--pdf-url", help="Remote PDF URL (downloaded then parsed)")
     parser.add_argument("--source-url",
                         help="Persisted as each item's source_url. Defaults to "
                              "--pdf-url, else 'pdf://{filename}' if local-only.")
@@ -129,13 +73,17 @@ def main() -> int:
     chain_market = f"{chain_key}::{market}"
     ingest_run_id = uuid.uuid4().hex[:12]
 
-    print(f"\n=== INGEST {chain_market} (PDF) ===")
+    print(f"\n=== INGEST {chain_market} (PDF, deterministic) ===")
     print(f"run_id: {ingest_run_id}")
 
-    # Resolve PDF path (download if needed)
+    # Resolve PDF path
     if args.pdf_url:
         print(f"\n[1/4] Downloading PDF from {args.pdf_url}")
-        pdf_path = _download_pdf(args.pdf_url)
+        try:
+            pdf_path = download_pdf_to_cache(args.pdf_url)
+        except Exception as e:
+            print(f"ERROR: PDF download failed: {e}", file=sys.stderr)
+            return 1
         print(f"      saved to {pdf_path}")
     else:
         pdf_path = os.path.expanduser(args.pdf_path)
@@ -147,65 +95,44 @@ def main() -> int:
     pdf_hash = hashlib.sha256(Path(pdf_path).read_bytes()).hexdigest()[:16]
     print(f"      size={pdf_size:,} bytes  sha256={pdf_hash}")
 
-    # source_url that gets persisted on each item
-    source_url = (args.source_url or args.pdf_url or
-                  f"pdf://{os.path.basename(pdf_path)}").strip()
+    source_url = (args.source_url or args.pdf_url
+                  or f"pdf://{os.path.basename(pdf_path)}").strip()
 
-    # Build the extraction prompt (same as URL-based, but with a PDF-specific hint)
-    prompt = EXTRACTION_PROMPT.format(
-        chain_key=chain_key, market=market, url=source_url
-    ) + "\n\nNOTE: You have been given DIRECT ACCESS to the chain's official " \
-        "nutrition PDF as your source. Extract menu items with macros directly " \
-        "from the PDF — do NOT use Google Search; the PDF IS the source of truth."
-
-    print(f"\n[2/4] Calling {MODEL} with PDF input...")
+    print(f"\n[2/4] Parsing PDF tables (pdfplumber)...")
     t0 = time.time()
-    raw_text = call_gemini_with_pdf(prompt, pdf_path)
-    print(f"      response_chars={len(raw_text)}  elapsed={time.time()-t0:.1f}s")
+    rows = extract_items_from_pdf_path(pdf_path, source_url)
+    print(f"      rows={len(rows)}  elapsed={time.time()-t0:.1f}s")
 
-    raw_items = parse_json_array(raw_text)
-    print(f"      extracted={len(raw_items)} candidate items")
+    if not rows:
+        # Likely image-only PDF or layout we can't parse
+        staging_path = write_staging(chain_key, market, [], [{
+            "reason": "no_rows_extracted",
+            "detail": ("Probable image-only PDF or unparseable layout — "
+                       "no tables matched the header schema. "
+                       "Check pdfplumber.extract_tables() output manually."),
+        }])
+        print(f"\n[4/4] No rows extracted; staged at: {staging_path}")
+        return 4
 
-    items = [normalize_item(r, chain_key, market, source_url, ingest_run_id, pdf_hash)
-             for r in raw_items]
-    # Override extractor_version + extraction_method for traceability
-    for it in items:
-        it["extractor_version"] = EXTRACTOR_VERSION
-        it["extraction_method"] = "pdf_upload"
-        it["parse_method"] = "llm_pdf"
+    items = [
+        normalize_item(
+            row.__dict__, chain_key, market, source_url, ingest_run_id, pdf_hash,
+            confidence=0.97,
+            extraction_method="pdf_table_extract",
+            parse_method=row.parse_method or "pdf_table",
+            extractor_version=EXTRACTOR_VERSION,
+        )
+        for row in rows
+    ]
 
     print(f"\n[3/4] Validating with audit rules...")
     passing, failures = validate_items(items, chain_market)
     print(f"      passing={len(passing)}  blocking_failures={len(failures)}")
 
-    retries = 0
-    while failures and retries < MAX_RETRIES:
-        retries += 1
-        print(f"\n[3.{retries}/4] Repair pass {retries}/{MAX_RETRIES}...")
-        import json as _json
-        repair_prompt = REPAIR_PROMPT_PREFIX.format(
-            failures=_json.dumps(failures, indent=2)
-        ) + "\n\nOriginal extraction:\n" + raw_text
-        try:
-            repair_text = call_gemini_with_pdf(repair_prompt, pdf_path)
-            raw_items = parse_json_array(repair_text)
-            items = [normalize_item(r, chain_key, market, source_url, ingest_run_id, pdf_hash)
-                     for r in raw_items]
-            for it in items:
-                it["extractor_version"] = EXTRACTOR_VERSION
-                it["extraction_method"] = "pdf_upload"
-                it["parse_method"] = "llm_pdf"
-            passing, failures = validate_items(items, chain_market)
-            print(f"        after repair: passing={len(passing)}  blocking_failures={len(failures)}")
-            raw_text = repair_text
-        except Exception as e:
-            print(f"        repair pass failed: {e}")
-            break
-
     if failures:
         staging_path = write_staging(chain_key, market, items, failures)
-        print(f"\n[4/4] STILL FAILING after {retries} retries.")
-        print(f"      Wrote {len(failures)} failures to: {staging_path}")
+        print(f"\n[4/4] Validation failures — staged at: {staging_path}")
+        print(f"      {len(passing)} passed, {len(failures)} blocked.")
         return 2
 
     if args.dry_run:
@@ -216,12 +143,22 @@ def main() -> int:
         return 0
 
     if args.commit:
+        if not passing:
+            with open(INGESTED_PATH) as _fh:
+                import json
+                _store = json.load(_fh)
+            _existing = _store.get("chains", {}).get(chain_market, [])
+            if isinstance(_existing, list) and _existing:
+                staging_path = write_staging(chain_key, market, [], failures)
+                print(f"\n[4/4] EMPTY — refusing to overwrite {len(_existing)} existing items")
+                print(f"      Empty payload staged at: {staging_path}")
+                return 3
         backup_path = write_with_backup(chain_key, market, passing)
-        print(f"\n[4/4] ✅ COMMITTED {len(passing)} items to {chain_market}")
+        print(f"\n[4/4] COMMITTED {len(passing)} items to {chain_market}")
         print(f"      backup: {backup_path}")
         return 0
 
-    # Default = stage-only
+    # Default: stage-only
     path = write_staging(chain_key, market, passing, [])
     print(f"\n[4/4] Wrote {len(passing)} validated items to staging: {path}")
     print(f"      Review then commit with: --commit")

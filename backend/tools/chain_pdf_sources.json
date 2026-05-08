@@ -1,26 +1,43 @@
 {
-  "description": "Known chain nutrition PDF URLs for bulk ingestion. Add entries as you find them.",
-  "sources": [
-    {"chain": "mcdonalds", "market": "US", "pdf_url": "https://www.mcdonalds.com/content/dam/sites/usa/nfl/nutrition/Nutrition-and-Allergens-Table.pdf", "notes": "Official US nutrition guide"},
-    {"chain": "mcdonalds", "market": "AU", "pdf_url": "https://mcdonalds.com.au/sites/mcdonalds.com.au/files/Nutrition_Information.pdf", "notes": "AU official"},
-    {"chain": "mcdonalds", "market": "GB", "pdf_url": "https://www.mcdonalds.com/content/dam/sites/uk/nfl/nutrition/McMC-Nutrition-Guide.pdf", "notes": "UK official"},
-    {"chain": "subway", "market": "US", "pdf_url": "https://www.subway.com/-/media/usa/pdf/nutrition/us-nutrition-values.pdf", "notes": "US nutrition values"},
-    {"chain": "subway", "market": "AU", "pdf_url": "https://www.subway.com/-/media/aus/pdf/nutrition-information.pdf", "notes": "AU nutrition"},
-    {"chain": "starbucks", "market": "US", "pdf_url": "https://www.starbucks.com/menu/nutrition-info", "notes": "Web page — need HTML scraper not PDF"},
-    {"chain": "kfc", "market": "US", "pdf_url": "https://www.kfc.com/nutrition/full-nutrition-guide", "notes": "Web page with structured data"},
-    {"chain": "kfc", "market": "AU", "pdf_url": "https://www.kfc.com.au/menu/nutrition", "notes": "AU nutrition page"},
-    {"chain": "burger_king", "market": "US", "pdf_url": "https://www.bk.com/nutrition", "notes": "Web nutrition page"},
-    {"chain": "wendys", "market": "US", "pdf_url": "https://www.wendys.com/nutrition-info", "notes": "Web nutrition page"},
-    {"chain": "taco_bell", "market": "US", "pdf_url": "https://www.tacobell.com/nutrition/info", "notes": "Web page"},
-    {"chain": "chipotle", "market": "US", "pdf_url": "https://www.chipotle.com/nutrition-calculator", "notes": "Interactive calculator"},
-    {"chain": "chick_fil_a", "market": "US", "pdf_url": "https://www.chick-fil-a.com/nutrition-allergens", "notes": "Downloadable PDF available"},
-    {"chain": "dominos", "market": "US", "pdf_url": "https://www.dominos.com/en/pages/content/nutritional/cal-o-meter.jsp", "notes": "Cal-O-Meter interactive"},
-    {"chain": "pizza_hut", "market": "US", "pdf_url": "https://www.pizzahut.com/assets/w/nutrition/Nutrition_Guide.pdf", "notes": "Full nutrition PDF"},
-    {"chain": "panera_bread", "market": "US", "pdf_url": "https://www.panerabread.com/content/dam/panerabread/documents/nutrition/Panera-Nutrition.pdf", "notes": "Official nutrition PDF"},
-    {"chain": "dunkin", "market": "US", "pdf_url": "https://www.dunkindonuts.com/content/dam/dd/pdf/nutrition.pdf", "notes": "Official nutrition"},
-    {"chain": "nandos", "market": "AU", "pdf_url": "https://www.nandos.com.au/eat/nutrition", "notes": "AU nutrition page"},
-    {"chain": "nandos", "market": "GB", "pdf_url": "https://www.nandos.co.uk/food/nutrition", "notes": "UK nutrition"},
-    {"chain": "hungry_jacks", "market": "AU", "pdf_url": "https://www.hungryjacks.com.au/nutrition-guide", "notes": "AU nutrition"}
+  "description": "Official nutrition source seeds for deterministic ingestion. Exactly one of pdf_url or page_url per entry; source_type is 'pdf' or 'page'.",
+  "schema_notes": [
+    "exactly one of page_url or pdf_url must be present",
+    "source_type must be 'pdf' or 'page'",
+    "page_url is a crawl seed for ingest_chain_from_url.py",
+    "pdf_url is a direct PDF for ingest_chain_from_pdf.py / batch_pdf_ingest.py",
+    "domain_hint is a fallback when no canonical URL exists yet — discovery needed"
   ],
-  "scraping_notes": "Many of these are web pages not PDFs. For web pages, use ingest_chain_from_url.py. For actual downloadable PDFs, use ingest_chain_from_pdf.py. Always check robots.txt first."
+  "sources": [
+    {"chain": "mcdonalds", "market": "US", "source_type": "pdf", "pdf_url": "https://www.mcdonalds.com/content/dam/sites/usa/nfl/nutrition/Nutrition-and-Allergens-Table.pdf", "notes": "official US nutrition guide"},
+    {"chain": "mcdonalds", "market": "AU", "source_type": "pdf", "pdf_url": "https://mcdonalds.com.au/sites/mcdonalds.com.au/files/Nutrition_Information.pdf", "notes": "AU official"},
+    {"chain": "mcdonalds", "market": "GB", "source_type": "pdf", "pdf_url": "https://www.mcdonalds.com/content/dam/sites/uk/nfl/nutrition/McMC-Nutrition-Guide.pdf", "notes": "UK official"},
+    {"chain": "subway", "market": "US", "source_type": "pdf", "pdf_url": "https://www.subway.com/-/media/usa/pdf/nutrition/us-nutrition-values.pdf", "notes": "US nutrition values"},
+    {"chain": "subway", "market": "AU", "source_type": "pdf", "pdf_url": "https://www.subway.com/-/media/aus/pdf/nutrition-information.pdf", "notes": "AU nutrition"},
+    {"chain": "pizza_hut", "market": "US", "source_type": "pdf", "pdf_url": "https://www.pizzahut.com/assets/w/nutrition/Nutrition_Guide.pdf", "notes": "Full nutrition PDF"},
+    {"chain": "panera_bread", "market": "US", "source_type": "pdf", "pdf_url": "https://www.panerabread.com/content/dam/panerabread/documents/nutrition/Panera-Nutrition.pdf", "notes": "Official nutrition PDF"},
+    {"chain": "dunkin", "market": "US", "source_type": "pdf", "pdf_url": "https://www.dunkindonuts.com/content/dam/dd/pdf/nutrition.pdf", "notes": "Official nutrition"},
+
+    {"chain": "starbucks", "market": "US", "source_type": "page", "page_url": "https://www.starbucks.com/menu/nutrition-info", "notes": "official nutrition page"},
+    {"chain": "kfc", "market": "US", "source_type": "page", "page_url": "https://www.kfc.com/nutrition/full-nutrition-guide", "notes": "structured nutrition data"},
+    {"chain": "kfc", "market": "AU", "source_type": "page", "page_url": "https://www.kfc.com.au/menu/nutrition", "notes": "AU nutrition page"},
+    {"chain": "burger_king", "market": "US", "source_type": "page", "page_url": "https://www.bk.com/nutrition", "notes": "Web nutrition page"},
+    {"chain": "wendys", "market": "US", "source_type": "page", "page_url": "https://www.wendys.com/nutrition-info", "notes": "Web nutrition page"},
+    {"chain": "taco_bell", "market": "US", "source_type": "page", "page_url": "https://www.tacobell.com/nutrition/info", "notes": "Web page"},
+    {"chain": "chipotle", "market": "US", "source_type": "page", "page_url": "https://www.chipotle.com/nutrition-calculator", "notes": "Interactive calculator"},
+    {"chain": "chick_fil_a", "market": "US", "source_type": "page", "page_url": "https://www.chick-fil-a.com/nutrition-allergens", "notes": "Has downloadable PDF"},
+    {"chain": "dominos", "market": "US", "source_type": "page", "page_url": "https://www.dominos.com/en/pages/content/nutritional/cal-o-meter.jsp", "notes": "Cal-O-Meter interactive"},
+    {"chain": "nandos", "market": "AU", "source_type": "page", "page_url": "https://www.nandos.com.au/eat/nutrition", "notes": "AU nutrition page"},
+    {"chain": "nandos", "market": "GB", "source_type": "page", "page_url": "https://www.nandos.co.uk/food/nutrition", "notes": "UK nutrition"},
+    {"chain": "hungry_jacks", "market": "AU", "source_type": "page", "page_url": "https://www.hungryjacks.com.au/nutrition-guide", "notes": "AU nutrition"},
+
+    {"chain": "pizza_hut", "market": "TH", "source_type": "page", "page_url": "https://www.pizzahut.co.th/menu", "notes": "P0 target — Thailand"},
+    {"chain": "pizza_hut", "market": "BD", "source_type": "page", "page_url": "https://www.pizzahut.com.bd/menu", "notes": "P0 target — Bangladesh"},
+    {"chain": "pizza_hut", "market": "PH", "source_type": "page", "page_url": "https://www.pizzahut.com.ph/menu", "notes": "P0 target — Philippines"},
+    {"chain": "pizza_hut", "market": "PL", "source_type": "page", "page_url": "https://pizzahut.pl/menu", "notes": "P0 target — Poland"},
+    {"chain": "pizza_hut", "market": "LK", "source_type": "page", "page_url": "https://www.pizzahut.lk/menu", "notes": "P0 target — Sri Lanka"},
+    {"chain": "pizza_hut", "market": "MA", "source_type": "page", "page_url": "https://pizzahut.ma/menu", "notes": "P0 target — Morocco"},
+    {"chain": "mcdonalds", "market": "ID", "source_type": "page", "page_url": "https://www.mcdonalds.co.id/menu", "notes": "P0 target — Indonesia"},
+    {"chain": "mcdonalds", "market": "MA", "source_type": "page", "page_url": "https://mcdonalds.ma/menu", "notes": "P0 target — Morocco"},
+    {"chain": "mcdonalds", "market": "KR", "source_type": "page", "page_url": "https://www.mcdonalds.co.kr/", "domain_hint": "mcdonalds.co.kr", "notes": "P0 target — Korea (discover menu/nutrition path)"}
+  ]
 }
