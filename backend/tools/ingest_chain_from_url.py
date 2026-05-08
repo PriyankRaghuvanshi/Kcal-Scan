@@ -383,6 +383,16 @@ MEAT_TOKENS = (
 )
 SOY_TOKENS = ("soy", "tofu", "teriyaki", "edamame", "miso", "tempeh")
 SESAME_TOKENS = ("sesame", "tahini")
+# Baked goods almost always contain eggs and butter/milk. Source PDFs that
+# omit an allergens column would otherwise leave these mis-flagged as vegan.
+# Treat as a soft heuristic: bump the inferred diet up a tier and set the
+# allergen flags conservatively. Audit rules don't fire on these tokens, so
+# this can't disagree with the validator.
+BAKERY_DEFAULT_TOKENS = (
+    "cake", "cookie", "pastry", "brownie", "muffin", "donut", "doughnut",
+    "croissant", "cheesecake", "pie", "tart", "eclair", "macaron", "scone",
+    "tiramisu", "baklava", "churro", "danish", "bun", "roll", "loaf",
+)
 
 
 def _has_any(text: str, tokens: Tuple[str, ...]) -> bool:
@@ -440,6 +450,14 @@ def infer_diet_flags(item_name: str, allergens_text: str = "") -> Dict[str, Any]
 
     if "wheat" in allergens or "gluten" in allergens:
         has_gluten = True
+
+    # Bakery default: cakes/cookies/pastries are almost certainly egg + dairy
+    # unless we have explicit allergen data saying otherwise. Without this,
+    # a "Blueberry Chiffon Cake" with no allergen column gets mis-flagged vegan.
+    is_bakery = _has_any(name, BAKERY_DEFAULT_TOKENS)
+    if is_bakery and not has_meat and not allergens:
+        has_egg = True
+        has_dairy = True
 
     if has_meat:
         diet_type = "non_veg"
@@ -909,11 +927,21 @@ def download_pdf_to_cache(pdf_url: str, *, cache_dir: str = PDF_CACHE_DIR) -> st
 
 
 def extract_items_from_pdf_path(pdf_path: str, source_url: str) -> List[ParsedMenuRow]:
-    """Extract rows from a local PDF using pdfplumber. Stitches multi-page tables."""
+    """Extract rows from a local PDF using pdfplumber.
+
+    Each table is parsed independently — no cross-table colmap inheritance
+    (caused false positives with allergen-booklet PDFs that share column counts
+    but not column meaning). For multi-page nutrition tables that only put the
+    header on page 1, stitching is allowed only when:
+      - the next table is on the immediately following page
+      - the table has the same column count as the previous one
+      - and no other valid-header table appeared in between
+    """
     import pdfplumber
     rows: List[ParsedMenuRow] = []
     last_colmap: Optional[Dict[str, int]] = None
-    last_header_fingerprint: Optional[Tuple[str, ...]] = None
+    last_colmap_page: int = -2
+    last_colmap_cols: int = 0
 
     try:
         pdf = pdfplumber.open(pdf_path)
@@ -946,10 +974,11 @@ def extract_items_from_pdf_path(pdf_path: str, source_url: str) -> List[ParsedMe
                 if not tbl or len(tbl) < 2:
                     continue
                 cleaned = [[(cell or "").strip() for cell in r] for r in tbl]
-                # Try to map header from first non-empty row
+                # Header can be buried under title rows + sub-headers — scan the
+                # first 8 rows looking for one that maps cleanly.
                 header_idx = -1
                 colmap: Optional[Dict[str, int]] = None
-                for i, r in enumerate(cleaned[:3]):
+                for i, r in enumerate(cleaned[:8]):
                     if sum(1 for c in r if c) >= 3:
                         cm = map_table_headers(r)
                         if cm:
@@ -957,19 +986,25 @@ def extract_items_from_pdf_path(pdf_path: str, source_url: str) -> List[ParsedMe
                             header_idx = i
                             break
 
+                ncols = len(cleaned[0]) if cleaned else 0
+
                 if not colmap:
-                    if last_colmap and cleaned and len(cleaned[0]) == max(
-                        (max(last_colmap.values()) if last_colmap else 0) + 1, 1
-                    ):
+                    # Stitch a continuation only if the *previous* table was on
+                    # the immediately preceding page and had the same column
+                    # count. This rules out the allergen-booklet false-stitch
+                    # case where a non-nutrition table on page N inherits a
+                    # nutrition colmap from page M < N-1.
+                    if (last_colmap is not None
+                            and page_idx == last_colmap_page + 1
+                            and ncols == last_colmap_cols):
                         colmap = last_colmap
                         header_idx = -1
                     else:
                         continue
 
-                fingerprint = tuple(sorted(colmap.keys()))
-                if fingerprint != last_header_fingerprint:
-                    last_header_fingerprint = fingerprint
                 last_colmap = colmap
+                last_colmap_page = page_idx
+                last_colmap_cols = ncols
 
                 body_start = header_idx + 1 if header_idx >= 0 else 0
                 for r in cleaned[body_start:]:
@@ -985,6 +1020,15 @@ def extract_items_from_pdf_path(pdf_path: str, source_url: str) -> List[ParsedMe
 
         if total_text_len < 200 and not rows:
             print(f"      [pdf] image-only PDF detected (text<200, tables=0)")
+
+    # Sanity cap: a single chain PDF with > 500 rows is almost always a parser
+    # false positive (e.g. mis-stitched allergen booklet, repeated header
+    # rows, OR data being read across multi-column page layouts). Reject and
+    # let the operator review the staging file.
+    if len(rows) > 500:
+        print(f"      [pdf] WARN: extracted {len(rows)} rows — exceeds 500 sanity cap; "
+              f"returning empty (probable parser false positive)")
+        return []
 
     # De-dupe by (name, serving)
     out: List[ParsedMenuRow] = []
