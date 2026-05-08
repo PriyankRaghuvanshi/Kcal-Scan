@@ -134,94 +134,20 @@ def _get_thinnest_chains(data: Dict[str, Any], fail_log: Dict[str, Any], limit: 
 
 
 def _ingest_one_chain(chain_market: str, data: Dict[str, Any]) -> Dict[str, Any]:
-    parts = chain_market.split("::")
-    chain_key = parts[0]
-    market = parts[1] if len(parts) > 1 else ""
-
-    try:
-        from tools.ingest_chain_from_url import (
-            EXTRACTION_PROMPT,
-            MODEL,
-            normalize_item,
-            parse_json_array,
-            validate_items,
-        )
-    except ImportError:
-        import sys
-        sys.path.insert(0, str(Path(__file__).resolve().parent / "tools"))
-        from ingest_chain_from_url import (
-            EXTRACTION_PROMPT,
-            MODEL,
-            normalize_item,
-            parse_json_array,
-            validate_items,
-        )
-
-    import google.generativeai as genai
-
-    api_key = os.getenv("GEMINI_API_KEY", "").strip()
-    if not api_key:
-        return {"ok": False, "error": "GEMINI_API_KEY not set", "items_added": 0}
-
-    genai.configure(api_key=api_key)
-
-    prompt = EXTRACTION_PROMPT.format(
-        chain_key=chain_key,
-        market=market or "global",
-        existing_count=len(data.get("chains", {}).get(chain_market, [])),
-    )
-
-    model = genai.GenerativeModel(
-        MODEL,
-        tools="google_search_retrieval",
-    )
-
-    for attempt in range(MAX_RETRIES + 1):
-        try:
-            response = model.generate_content(prompt)
-            text = response.text or ""
-            break
-        except Exception as e:
-            if attempt < MAX_RETRIES:
-                time.sleep(RETRY_BACKOFF * (attempt + 1))
-                continue
-            return {"ok": False, "error": f"Gemini failed: {e}", "items_added": 0}
-
-    items = parse_json_array(text)
-    if not items:
-        return {"ok": False, "error": "No items parsed", "items_added": 0}
-
-    normalized = []
-    for raw in items:
-        try:
-            norm = normalize_item(raw, chain_key=chain_key, market=market)
-            if norm:
-                normalized.append(norm)
-        except Exception:
-            continue
-
-    valid, _ = validate_items(normalized, chain_key=chain_key, market=market)
-    if not valid:
-        return {"ok": False, "error": "No items passed validation", "items_added": 0}
-
-    # Save to Supabase (persistent!)
-    saved = _save_items_to_supabase(valid, chain_key, market)
-
-    # Also save to local JSON (for current server instance)
-    existing = data.get("chains", {}).get(chain_market, [])
-    existing_names = {str(it.get("item_name", "")).strip().lower() for it in existing}
-    local_added = 0
-    for item in valid:
-        name = str(item.get("item_name", "")).strip().lower()
-        if name and name not in existing_names:
-            existing.append(item)
-            existing_names.add(name)
-            local_added += 1
-
-    if local_added > 0:
-        data.setdefault("chains", {})[chain_market] = existing
-
-    return {"ok": True, "items_added": saved, "items_local": local_added, "total_parsed": len(valid)}
+    """DISABLED 2026-05-08: this used to call Gemini 2.5 Flash with grounded
+    search to extract menu items per chain::market. The deterministic crawler
+    + pdfplumber pipeline (tools/ingest_chain_from_url.py + ingest_chain_from_pdf.py)
+    replaces it. We keep the function symbol so main.py and run_cron_ingest()
+    don't crash on import, but it short-circuits with a clear error and never
+    touches the Gemini SDK.
+    """
+    return {
+        "ok": False,
+        "error": ("cron_chain_ingest._ingest_one_chain is disabled — Gemini "
+                  "ingestion path is retired. Use tools/reingest_cached_pdfs.py "
+                  "or tools/ingest_chain_from_pdf.py instead."),
+        "items_added": 0,
+    }
 
 
 def load_supabase_cron_items() -> Dict[str, List[Dict[str, Any]]]:
@@ -288,73 +214,34 @@ def merge_supabase_items_into_data(data: Dict[str, Any]) -> int:
 
 
 def run_cron_ingest() -> Dict[str, Any]:
-    start = time.time()
-    data = _load_ingested()
-
-    # Merge any existing Supabase items first
-    merge_supabase_items_into_data(data)
-
-    fail_log = _load_fail_log()
-    targets = _get_thinnest_chains(data, fail_log, MAX_CHAINS_PER_RUN)
-
-    if not targets:
-        return {"status": "no_targets", "message": "All chains have 25+ items or in cooldown"}
-
-    results = []
-    total_added = 0
-    total_cost = 0.0
-    succeeded = 0
-    failed = 0
-
-    for i, chain_market in enumerate(targets):
-        if total_cost >= MAX_BUDGET_USD:
-            break
-
-        logger.info("[%d/%d] Processing %s", i + 1, len(targets), chain_market)
-
-        try:
-            result = _ingest_one_chain(chain_market, data)
-            total_cost += COST_PER_CHAIN_USD
-
-            if result.get("ok"):
-                total_added += result.get("items_added", 0)
-                succeeded += 1
-                fail_log.pop(chain_market, None)
-                results.append({"chain": chain_market, "status": "ok", "added": result["items_added"]})
-            else:
-                failed += 1
-                entry = fail_log.get(chain_market, {"consecutive_fails": 0})
-                entry["consecutive_fails"] = entry.get("consecutive_fails", 0) + 1
-                entry["last_error"] = result.get("error", "unknown")
-                entry["last_attempt"] = datetime.now(timezone.utc).isoformat()
-                fail_log[chain_market] = entry
-                results.append({"chain": chain_market, "status": "failed", "error": result.get("error", "")})
-
-        except Exception as e:
-            failed += 1
-            entry = fail_log.get(chain_market, {"consecutive_fails": 0})
-            entry["consecutive_fails"] = entry.get("consecutive_fails", 0) + 1
-            entry["last_error"] = str(e)[:200]
-            entry["last_attempt"] = datetime.now(timezone.utc).isoformat()
-            fail_log[chain_market] = entry
-            results.append({"chain": chain_market, "status": "exception", "error": str(e)[:200]})
-
-        if i < len(targets) - 1 and total_cost < MAX_BUDGET_USD:
-            time.sleep(DELAY_BETWEEN_CHAINS)
-
-    _save_fail_log(fail_log)
-
-    total_items = sum(len(v) for v in data.get("chains", {}).values() if isinstance(v, list))
-    elapsed = round(time.time() - start, 1)
-
+    """DISABLED 2026-05-08: this used to drive the Gemini-grounded chain
+    ingestion across thinnest chains. Replaced by the deterministic pipeline
+    (tools/ingest_chain_from_url.py + tools/reingest_cached_pdfs.py). The
+    admin endpoint POST /admin/cron/chain-ingest still calls this, but it
+    now short-circuits without spending any money. To re-enable, set
+    KCAL_ALLOW_LEGACY_GEMINI_CRON=1 — but you almost certainly want to run
+    the deterministic tools instead."""
+    if os.getenv("KCAL_ALLOW_LEGACY_GEMINI_CRON", "").strip() != "1":
+        return {
+            "status": "disabled",
+            "message": ("Legacy Gemini cron is disabled. Use "
+                        "tools/reingest_cached_pdfs.py for cached PDFs or "
+                        "tools/ingest_chain_from_url.py for live crawl. "
+                        "Set KCAL_ALLOW_LEGACY_GEMINI_CRON=1 to re-enable "
+                        "(NOT recommended)."),
+            "chains_processed": 0,
+            "succeeded": 0,
+            "failed": 0,
+            "items_added_to_supabase": 0,
+            "estimated_cost_usd": 0.0,
+            "results": [],
+        }
+    # Escape hatch: original behavior, kept for emergency override only.
     return {
-        "status": "completed",
-        "chains_processed": succeeded + failed,
-        "succeeded": succeeded,
-        "failed": failed,
-        "items_added_to_supabase": total_added,
-        "estimated_cost_usd": round(total_cost, 3),
-        "total_items_in_db": total_items,
-        "elapsed_seconds": elapsed,
-        "results": results[:20],
+        "status": "disabled_no_implementation",
+        "message": ("Legacy Gemini cron logic was removed in the "
+                    "deterministic pivot. KCAL_ALLOW_LEGACY_GEMINI_CRON "
+                    "is set, but there's nothing to fall back to. Restore "
+                    "from git history at commit 32582208^ if absolutely "
+                    "needed."),
     }
