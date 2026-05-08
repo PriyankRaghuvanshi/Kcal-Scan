@@ -264,19 +264,90 @@ def coerce_energy_to_kcal(
     return int(round(kcal))
 
 
+def _is_subseq(needle: str, haystack: str) -> bool:
+    """True if every char of needle appears in haystack in order."""
+    it = iter(haystack)
+    return all(c in it for c in needle)
+
+
+def _maybe_unrotate_header_cell(raw: str) -> str:
+    """Recover rotated-90° CCW header cells. pdfplumber emits rotated text in
+    two shapes:
+      - newline-separated reversed glyph clusters (subway::IN style):
+          `)la\\nc\\nk(\\nse\\niro\\nla\\nC` -> `Calories (kcal)`
+      - single-line reversed strings (nandos::GB style):
+          `seirolaC` -> `Calories`
+
+    Returns the canonical synonym name when the reversed form matches a
+    synonym (alpha-only substring, or subsequence for cases like
+    `Carbohydrates (g)` where pdfplumber interleaves the parens with the
+    leading "C", producing `( Cg) arbohydrates`). Otherwise returns `raw`
+    unchanged so normal forward-text headers like `Energy\\n(kcal)` or
+    `Calories` are not disturbed.
+
+    Single-line cells must contain no spaces — a real word like "Calories"
+    has no space, so its reverse `seirolaC` also has no space; this
+    distinguishes rotated single-words from normal forward English.
+    """
+    if not raw:
+        return raw
+    if "\n" not in raw and " " in raw:
+        # Normal forward English text with spaces — never reverse.
+        return raw
+    if "\n" not in raw:
+        # Single-line rotated word: only attempt reversal if the forward form
+        # would NOT match any synonym (e.g. "Category" stays unchanged, but
+        # "seirolaC" gets reversed to "calories").
+        forward_alpha = re.sub(r"[^a-z]", "", raw.lower())
+        for synonyms in HEADER_SYNONYMS.values():
+            for syn in synonyms:
+                syn_alpha = re.sub(r"[^a-z]", "", syn.lower())
+                if len(syn_alpha) >= 4 and syn_alpha in forward_alpha:
+                    return raw  # forward-matches a synonym already
+    reversed_str = raw.replace("\n", "")[::-1]
+    alpha = re.sub(r"[^a-z]", "", reversed_str.lower())
+    if not alpha:
+        return raw
+    # Direct alpha-stripped substring match — handles clean cases like
+    # "ServingSize", "Calories(kcal)", "Protein(g)".
+    for synonyms in HEADER_SYNONYMS.values():
+        for syn in synonyms:
+            syn_alpha = re.sub(r"[^a-z]", "", syn.lower())
+            if len(syn_alpha) >= 4 and syn_alpha in alpha:
+                return syn
+    # Subsequence fallback for cells where pdfplumber interleaved punctuation.
+    for synonyms in HEADER_SYNONYMS.values():
+        for syn in synonyms:
+            syn_alpha = re.sub(r"[^a-z]", "", syn.lower())
+            if len(syn_alpha) >= 6 and _is_subseq(syn_alpha, alpha):
+                return syn
+    return raw
+
+
 def map_table_headers(headers: List[str]) -> Optional[Dict[str, int]]:
     """Map a header row to {logical_col: index}.
 
     Returns None unless the table has at least: name + (kcal or kj or energy)
     + protein + fat + carbs.
+
+    Auto-recovers rotated-90° header cells (subway::IN, nandos::*, kfc::IN
+    etc. are formatted with vertical-text headers — pdfplumber reads them
+    as reversed-with-newlines strings).
     """
     norm_headers = [
-        re.sub(r"\s+", " ", str(h or "")).strip().lower() for h in headers
+        re.sub(r"\s+", " ", _maybe_unrotate_header_cell(str(h or ""))).strip().lower()
+        for h in headers
     ]
+    # Alpha-only fallback for headers split across multiple lines (e.g.
+    # "Total\nEnerg\ny" -> normalized "total energ y", which won't substring-
+    # match "energy" because of the embedded space). Stripping non-alpha
+    # gets us "totalenergy", which substring-matches "energy".
+    alpha_headers = [re.sub(r"[^a-z]", "", h) for h in norm_headers]
     colmap: Dict[str, int] = {}
     for idx, header in enumerate(norm_headers):
         if not header:
             continue
+        alpha = alpha_headers[idx]
         for logical, synonyms in HEADER_SYNONYMS.items():
             if logical in colmap:
                 continue
@@ -291,14 +362,26 @@ def map_table_headers(headers: List[str]) -> Optional[Dict[str, int]]:
                 if any(syn in header for syn in synonyms if len(syn) > 3):
                     colmap[logical] = idx
                     break
+                # Try alpha-only against alpha-only synonym (catches "total energ y" -> "totalenergy")
+                if any(re.sub(r"[^a-z]", "", syn) in alpha
+                       for syn in synonyms if len(re.sub(r"[^a-z]", "", syn)) >= 5):
+                    colmap[logical] = idx
+                    break
 
-    if "name" not in colmap:
-        return None
     has_energy = "kcal" in colmap or "kj" in colmap or "energy" in colmap
-    if not has_energy:
+    has_macros = all(c in colmap for c in ("protein", "fat", "carbs"))
+    if not has_energy or not has_macros:
         return None
-    if not all(c in colmap for c in ("protein", "fat", "carbs")):
-        return None
+    # Many chain nutrition PDFs label the macro columns but leave the item-name
+    # column unlabelled (the chain has data rows like ['Aloo Patty', '219',
+    # '337', ...] — col 0 has no header in the header row). If col 0 is
+    # unmapped and every macro mapped to a higher index, assume col 0 is the
+    # name column.
+    if "name" not in colmap:
+        if 0 not in colmap.values():
+            colmap["name"] = 0
+        else:
+            return None
     return colmap
 
 
