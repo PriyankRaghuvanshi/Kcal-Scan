@@ -197,6 +197,10 @@ export function RecommendationCard({
 
   const resolvedVariant = variant || inferCardVariant(place);
   const needsMenuCheck = shouldShowMenuMayVary(place);
+  // Null contract: no real menu evidence backs this venue's macros. Show an
+  // explicit unknown affordance instead of a fabricated best item / macro chips.
+  const isNutritionUnknown =
+    place.nutrition_status === "unknown" || place.nutrition_evidence_backed === false;
 
   const isWeak = resolvedVariant === "weak";
   const textPrimary = dark ? colors.text.primary : colors.textLight.primary;
@@ -237,7 +241,24 @@ export function RecommendationCard({
       </View>
 
       {/* C. Best item + heuristic suggestion disclaimer for covered chains */}
-      {bestItem ? (
+      {isNutritionUnknown ? (
+        <View style={styles.unknownBlock}>
+          <Text style={[styles.unknownTitle, { color: textPrimary }]} numberOfLines={1}>
+            Menu not verified
+          </Text>
+          <Text style={[styles.unknownSub, { color: textMuted }]} numberOfLines={2}>
+            We don't have this venue's menu on file yet.
+          </Text>
+          {!isScreenshot && (resolvedActions.onSecondary || resolvedActions.onPrimary) ? (
+            <TouchableOpacity
+              onPress={() => (resolvedActions.onSecondary || resolvedActions.onPrimary)?.()}
+              style={styles.unknownScanBtn}
+            >
+              <Text style={styles.unknownScanText}>Scan menu to check</Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
+      ) : bestItem ? (
         <View>
           <View style={styles.bestItemRow}>
             {topItemImage ? (
@@ -394,7 +415,7 @@ export function RecommendationCard({
       )}
 
       {/* E. Macros */}
-      {(calories != null || protein != null) && (
+      {!isNutritionUnknown && (calories != null || protein != null) && (
         <RecommendationMetaRow
           calories={calories}
           protein={protein}
@@ -633,6 +654,37 @@ const styles = StyleSheet.create({
   variantMacros: {
     fontSize: 11,
     marginTop: 2,
+  },
+  unknownBlock: {
+    marginTop: spacing.md,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: "rgba(148, 163, 184, 0.30)",
+    backgroundColor: "rgba(15, 23, 42, 0.35)",
+  },
+  unknownTitle: {
+    fontSize: typography.md,
+    fontWeight: typography.weight.bold,
+  },
+  unknownSub: {
+    fontSize: typography.sm,
+    marginTop: 3,
+  },
+  unknownScanBtn: {
+    marginTop: 10,
+    alignSelf: "flex-start",
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.accent.primary,
+  },
+  unknownScanText: {
+    fontSize: typography.sm,
+    fontWeight: typography.weight.bold,
+    color: colors.accent.primary,
   },
   heuristicBanner: {
     marginTop: 8,

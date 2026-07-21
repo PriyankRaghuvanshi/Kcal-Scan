@@ -45,6 +45,22 @@ def _safe_int(value: Any, default: int = 0) -> int:
         return int(default)
 
 
+def _opt_int(*values: Any) -> Optional[int]:
+    """First coercible value as int; None when every candidate is missing.
+
+    Preserves the null contract: absent macros stay None (never coerced to 0),
+    so the frontend renders the unknown affordance instead of "0 kcal".
+    """
+    for v in values:
+        if v is None:
+            continue
+        try:
+            return int(round(float(v)))
+        except Exception:
+            continue
+    return None
+
+
 def _clamp(value: float, lo: float, hi: float) -> float:
     return max(lo, min(hi, float(value)))
 
@@ -551,20 +567,30 @@ def _build_top_menu_item(payload: Dict[str, Any], fallback_reason: str) -> Dict[
                 top = row
                 break
 
+    nutrition_unknown = str(payload.get("nutrition_status") or "").strip().lower() == "unknown"
+
     item_name = str(
         (top or {}).get("item_name")
         or payload.get("best_order")
-        or "Lighter menu option"
+        or ("" if nutrition_unknown else "Lighter menu option")
     ).strip()
 
-    estimated_calories = _safe_int(
-        (top or {}).get("estimated_calories"),
-        _safe_int(payload.get("estimated_calories"), 0),
-    )
-    estimated_protein_g = _safe_int(
-        (top or {}).get("estimated_protein_g"),
-        _safe_int(payload.get("estimated_protein_g"), 0),
-    )
+    # Preserve None: absent macros must stay None (never coerced to 0), and an
+    # unknown-nutrition venue always nulls them regardless of stray defaults.
+    estimated_calories = _opt_int((top or {}).get("estimated_calories"), payload.get("estimated_calories"))
+    estimated_protein_g = _opt_int((top or {}).get("estimated_protein_g"), payload.get("estimated_protein_g"))
+    # Defense-in-depth: this layer re-gates on macro presence instead of trusting
+    # upstream nutrition_status. Macros are an evidence pair — if either is missing
+    # or non-positive, both null so no 0-kcal / half-macro row can reach the UI even
+    # if an upstream layer mislabels a macroless item verified.
+    if nutrition_unknown or not (
+        isinstance(estimated_calories, int)
+        and estimated_calories > 0
+        and isinstance(estimated_protein_g, int)
+        and estimated_protein_g > 0
+    ):
+        estimated_calories = None
+        estimated_protein_g = None
 
     reason = str(
         (top or {}).get("short_reason")
@@ -664,8 +690,8 @@ def _build_top_menu_item(payload: Dict[str, Any], fallback_reason: str) -> Dict[
 
     return {
         "item_name": item_name,
-        "estimated_calories": max(0, estimated_calories),
-        "estimated_protein_g": max(0, estimated_protein_g),
+        "estimated_calories": None if estimated_calories is None else max(0, estimated_calories),
+        "estimated_protein_g": None if estimated_protein_g is None else max(0, estimated_protein_g),
         "short_reason": reason,
         "display_label": display_label,
         "menu_item_source": source,
@@ -797,11 +823,29 @@ def _sort_score_100(payload: Dict[str, Any]) -> float:
     return _display_score_100(payload)
 
 
+def _is_unverified_nutrition(payload: Dict[str, Any]) -> bool:
+    """True when no real menu evidence backs this venue's macros."""
+    status = str(payload.get("nutrition_status") or "").strip().lower()
+    if status == "unknown":
+        return True
+    if payload.get("nutrition_evidence_backed") is False:
+        return True
+    if str(payload.get("section") or "").strip().lower() == "needs menu check":
+        return True
+    return False
+
+
 def _flat_sort_key(payload: Dict[str, Any]) -> tuple:
-    """Visible order = display_sort_score_100 desc (or display_rank_score_100), distance asc."""
+    """Visible order: evidence-backed first, then display_sort_score_100 desc, distance asc.
+
+    An unverified (no-menu-evidence) venue must never outrank an evidence-backed
+    pick into the Best-pick slot, even with a high metadata prior — same demotion
+    the sectioned mode gets via _section_rank.
+    """
+    unverified = 1 if _is_unverified_nutrition(payload) else 0
     score = _sort_score_100(payload)
     distance = _safe_float(payload.get("distance_meters"), 10_000_000.0)
-    return (-score, distance)
+    return (unverified, -score, distance)
 
 
 def _sectioned_sort_key(payload: Dict[str, Any]) -> tuple:
@@ -883,21 +927,36 @@ def enrich_places_for_healthy_map(
         if not cta_label:
             cta_label = "Navigate" if fit is not False else "View alternatives"
 
+        nutrition_unknown = str(row.get("nutrition_status") or "").strip().lower() == "unknown"
+
         top_menu_item = _build_top_menu_item(row, why)
-        today_fit = _build_today_fit(row, fit, why)
-        reality_check = _build_reality_check(row, top_menu_item)
-        coach_message = build_place_coach_message(
-            place=row,
-            top_menu_item=top_menu_item,
-            today_fit=today_fit,
-            reality_check=reality_check,
-            context={
-                "goal": str(goal or row.get("personalization_goal") or "").strip(),
-                "cut_mode": bool(cut_mode or row.get("cut_mode_active")),
-                "remaining_calories": remaining_calories,
-                "remaining_protein_g": remaining_protein_g,
-            },
-        )
+        if nutrition_unknown:
+            # Abstain: no real menu evidence — skip the fit / savings / coach
+            # narration that would otherwise run off fabricated macros.
+            today_fit = {
+                "decision": None,
+                "decision_reason": "Menu not verified",
+                "fits_remaining_calories": None,
+                "fits_remaining_protein": None,
+                "decision_confidence": None,
+            }
+            reality_check = {}
+            coach_message = None
+        else:
+            today_fit = _build_today_fit(row, fit, why)
+            reality_check = _build_reality_check(row, top_menu_item)
+            coach_message = build_place_coach_message(
+                place=row,
+                top_menu_item=top_menu_item,
+                today_fit=today_fit,
+                reality_check=reality_check,
+                context={
+                    "goal": str(goal or row.get("personalization_goal") or "").strip(),
+                    "cut_mode": bool(cut_mode or row.get("cut_mode_active")),
+                    "remaining_calories": remaining_calories,
+                    "remaining_protein_g": remaining_protein_g,
+                },
+            )
 
         ranking = _local_ranking_components(
             row,
@@ -923,8 +982,10 @@ def enrich_places_for_healthy_map(
                 "map_rank": int(_safe_int(row.get("map_rank"), 0)),
                 "map_priority": int(_safe_int(row.get("map_priority"), 1)),
                 "map_label": f"{place_name} • {int(score_100)}",
-                "fit_for_today": fit,
+                "fit_for_today": None if nutrition_unknown else fit,
                 "decision_today": today_fit["decision"],
+                "nutrition_status": str(row.get("nutrition_status") or "").strip().lower() or ("unknown" if nutrition_unknown else ""),
+                "nutrition_evidence_backed": False if nutrition_unknown else bool(row.get("nutrition_evidence_backed")),
                 "badges": _build_badges(row, fit),
                 "why_this_works": why,
                 "cta_label": cta_label,
