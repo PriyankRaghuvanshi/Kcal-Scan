@@ -77,6 +77,9 @@ export function PlaceDetailSheet({ visible, place, onClose, onOpenInMaps }) {
   const carbs = num(place.best_item_carbs ?? place.estimated_carbs_g);
   const fat = num(place.best_item_fat ?? place.estimated_fat_g);
   const reason = String(place.rank_reason_short ?? place.why_this_ranked_here ?? "").trim();
+  // Null contract: no real menu evidence backs the macros.
+  const isNutritionUnknown =
+    place.nutrition_status === "unknown" || place.nutrition_evidence_backed === false;
 
   const topItem = place.top_menu_item && typeof place.top_menu_item === "object" ? place.top_menu_item : null;
   const imageRaw = String((topItem && topItem.image_url) || place.best_item_image_url || "").trim();
@@ -158,16 +161,20 @@ export function PlaceDetailSheet({ visible, place, onClose, onOpenInMaps }) {
                   />
                 )}
                 <View style={{ flex: 1, gap: 4 }}>
-                  <Text style={s.bestName} numberOfLines={2}>{bestItem || "Menu item"}</Text>
-                  <View style={s.macroChips}>
-                    {calories != null && (
-                      <View style={s.chip}><Text style={s.chipText}>🔥 {Math.round(calories)} kcal</Text></View>
-                    )}
-                    {protein != null && (
-                      <View style={s.chip}><Text style={s.chipText}>💪 {Math.round(protein)}g protein</Text></View>
-                    )}
-                  </View>
-                  {num(place.protein_fill_pct) != null ? (
+                  <Text style={s.bestName} numberOfLines={2}>
+                    {isNutritionUnknown ? "Menu not verified — tap to scan" : (bestItem || "Menu item")}
+                  </Text>
+                  {!isNutritionUnknown && (calories != null || protein != null) ? (
+                    <View style={s.macroChips}>
+                      {calories != null && (
+                        <View style={s.chip}><Text style={s.chipText}>🔥 {Math.round(calories)} kcal</Text></View>
+                      )}
+                      {protein != null && (
+                        <View style={s.chip}><Text style={s.chipText}>💪 {Math.round(protein)}g protein</Text></View>
+                      )}
+                    </View>
+                  ) : null}
+                  {!isNutritionUnknown && num(place.protein_fill_pct) != null ? (
                     <View style={s.fitBadge}>
                       <Text style={s.fitBadgeText}>
                         Fills {place.protein_fill_pct}% of your protein gap

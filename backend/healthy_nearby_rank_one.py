@@ -20,9 +20,10 @@ from menu_item_scoring import recommend_menu_items_for_place
 from nutrition_mode import NutritionMode
 from personal_response_summary import get_personal_meal_memory
 from personalization_profiles import PersonalizationGoal, get_personalized_reason
-from place_today_decision import evaluate_place_for_today
+from place_today_decision import evaluate_place_for_today, _skipped_decision
 from ranked_place_builder import build_ranked_place_profile
 from recommendation_safety import (
+    compute_nutrition_status,
     has_strong_menu_evidence,
     honest_no_menu_order_copy,
     sanitize_recommended_item,
@@ -41,6 +42,20 @@ def _safe_float(x: Any, default: Optional[float] = None) -> Optional[float]:
         return float(x)
     except Exception:
         return default
+
+
+def _macro_is_real(value: Any) -> bool:
+    """True only when a real, positive numeric macro is present.
+
+    Null contract: a macro that is absent, non-numeric, or <= 0 would fall back
+    to the fabricated 520/32 placeholder — never treat that as real evidence.
+    """
+    if value is None:
+        return False
+    try:
+        return float(value) > 0.0
+    except Exception:
+        return False
 
 
 _ALLERGEN_FIELDS = (
@@ -420,6 +435,11 @@ def rank_one_healthy_nearby_place(p: Dict[str, Any], ctx: HealthyNearbyRankConte
             "review_text",
             "ocr_menu",
             "user_scan",
+            # Ingested chain-registry menu items are real menu evidence. Without
+            # them the null contract would wrongly null true chain macros whose
+            # provenance was not stamped exact_chain_menu.
+            "chain_registry",
+            "ingested_chain_item",
         }
         and top_menu_conf >= 0.45
     )
@@ -565,6 +585,7 @@ def rank_one_healthy_nearby_place(p: Dict[str, Any], ctx: HealthyNearbyRankConte
             personalized_best_order = best_order
             personalized_reason = str(get_personalized_reason(personalization_goal) or "")
 
+    honest_copy_applied = False
     if (not use_menu_order) and should_use_honest_no_menu_order_copy(
         strong_menu_evidence=top_menu_evidence,
         menu_item_source=top_menu_source,
@@ -572,17 +593,56 @@ def rank_one_healthy_nearby_place(p: Dict[str, Any], ctx: HealthyNearbyRankConte
     ):
         ho, _honest_lbl = honest_no_menu_order_copy(menu_context_text)
         best_order = ho
+        honest_copy_applied = True
         if str(personalized_best_order or "").strip():
             personalized_best_order = ho
 
-    decision_today = evaluate_place_for_today(
-        estimated_calories=decision_estimated_calories,
-        estimated_protein_g=decision_estimated_protein_g,
-        remaining_calories=remaining_calories,
-        remaining_protein_g=remaining_protein_g,
-        health_score=score,
+    # Null contract: abstain, don't fabricate. When no real menu item backs the
+    # numbers (use_menu_order False), null the macros so no downstream compute
+    # runs on the 520/32 placeholder.
+    nutrition_status = compute_nutrition_status(
+        use_menu_order=use_menu_order,
+        menu_item_source=top_menu_source,
+        menu_item_confidence=top_menu_conf,
+        item_provenance=top_item_provenance,
     )
-    fit_for_today = (str(decision_today.get("decision_today") or "").strip().upper() != "NO")
+    # Macro PRESENCE gate: a real menu item can pass use_menu_order (name +
+    # whitelisted source + confidence) yet carry NO numeric macros — the numbers
+    # would then be the 520/32 defaults, not the menu. Never stamp that
+    # verified/estimated: degrade to unknown + null, same as the heuristic path.
+    menu_item_macros_real = bool(
+        use_menu_order
+        and _macro_is_real(top_menu_item.get("estimated_calories"))
+        and _macro_is_real(top_menu_item.get("estimated_protein_g"))
+    )
+    if nutrition_status != "unknown" and not menu_item_macros_real:
+        nutrition_status = "unknown"
+    nutrition_evidence_backed = nutrition_status != "unknown"
+    if nutrition_status == "unknown":
+        estimated_calories = None
+        estimated_protein_g = None
+        decision_estimated_calories = None
+        decision_estimated_protein_g = None
+        # Keep an explicitly-labeled honest-copy string; otherwise drop the bare
+        # "Lighter menu option" and let the UI show the unknown affordance.
+        if not honest_copy_applied:
+            best_order = None
+
+    if nutrition_status == "unknown":
+        decision_today = _skipped_decision("Menu not verified")
+    else:
+        decision_today = evaluate_place_for_today(
+            estimated_calories=decision_estimated_calories,
+            estimated_protein_g=decision_estimated_protein_g,
+            remaining_calories=remaining_calories,
+            remaining_protein_g=remaining_protein_g,
+            health_score=score,
+        )
+    fit_for_today = (
+        None
+        if nutrition_status == "unknown"
+        else (str(decision_today.get("decision_today") or "").strip().upper() != "NO")
+    )
     place_name = str(p.get("name") or "Unknown place").strip()
     cuisine_hint = ", ".join(
         str(t or "").replace("_", " ") for t in (p.get("types") or [])[:3]
@@ -600,6 +660,8 @@ def rank_one_healthy_nearby_place(p: Dict[str, Any], ctx: HealthyNearbyRankConte
         "fit_for_today": fit_for_today,
         "estimated_calories": estimated_calories,
         "estimated_protein_g": estimated_protein_g,
+        "nutrition_status": nutrition_status,
+        "nutrition_evidence_backed": nutrition_evidence_backed,
         "menu_item_confidence": final_order_confidence,
         "order_confidence": final_order_confidence,
         "distance_meters": _dist_m,
@@ -646,7 +708,7 @@ def rank_one_healthy_nearby_place(p: Dict[str, Any], ctx: HealthyNearbyRankConte
                 user_id=user_id,
                 place_id=str(p.get("place_id") or p.get("id") or ""),
                 place_name=place_name,
-                item_name=best_order,
+                item_name=str(best_order or ""),
                 goal=goal,
                 time_of_day="",
                 _feedback_events=ctx.feedback_events_prefetch,
@@ -669,7 +731,12 @@ def rank_one_healthy_nearby_place(p: Dict[str, Any], ctx: HealthyNearbyRankConte
 
     ranking_fields = build_ranked_place_profile(place_for_ranking, user_context_meal)
 
-    reality_check = build_restaurant_reality_check(
+    # Abstain from the reality-check / savings line when there is no real menu
+    # evidence — it would run off the fabricated placeholder macros.
+    if nutrition_status == "unknown":
+        reality_check = {}
+    else:
+        reality_check = build_restaurant_reality_check(
         p,
         recommended_order={
             "item_name": str(top_menu_item.get("item_name") or order_suggestion.get("best_order") or best_order),
@@ -751,8 +818,18 @@ def rank_one_healthy_nearby_place(p: Dict[str, Any], ctx: HealthyNearbyRankConte
         "avoid_if_cutting": order_suggestion.get("avoid_if_cutting", "Large fried combo meals"),
         "estimated_calories": estimated_calories,
         "estimated_protein_g": estimated_protein_g,
-        "estimated_carbs_g": int(_safe_float(order_suggestion.get("estimated_carbs_g"), 45) or 45),
-        "estimated_fat_g": int(_safe_float(order_suggestion.get("estimated_fat_g"), 18) or 18),
+        "nutrition_status": nutrition_status,
+        "nutrition_evidence_backed": nutrition_evidence_backed,
+        "estimated_carbs_g": (
+            None
+            if nutrition_status == "unknown"
+            else int(_safe_float(order_suggestion.get("estimated_carbs_g"), 45) or 45)
+        ),
+        "estimated_fat_g": (
+            None
+            if nutrition_status == "unknown"
+            else int(_safe_float(order_suggestion.get("estimated_fat_g"), 18) or 18)
+        ),
         "estimated_satiety": str(order_suggestion.get("estimated_satiety") or "medium"),
         "macro_confidence": round(float(_safe_float(order_suggestion.get("macro_confidence"), 0.52) or 0.52), 2),
         "macro_estimation_version": str(order_suggestion.get("macro_estimation_version") or "v1"),
@@ -827,20 +904,24 @@ def rank_one_healthy_nearby_place(p: Dict[str, Any], ctx: HealthyNearbyRankConte
         "reality_check_share_card": (
             reality_check.get("share_card") if isinstance(reality_check.get("share_card"), dict) else None
         ),
-        "share_card": build_best_order_share_card(
-            place_name=p.get("name"),
-            health_score=score,
-            best_order=best_order,
-            estimated_calories=estimated_calories,
-            estimated_protein_g=estimated_protein_g,
-            subtitle=short_reason,
-            recommended_badges=recommended_badges,
-            order_strategy_tags=order_strategy_tags,
-            cut_friendly=bool(order_suggestion.get("cut_friendly", False)),
-            fat_loss_friendly=bool(scoring.get("fat_loss_friendly", False)),
-            calories_saved=(
-                reality_check.get("calories_saved") if isinstance(reality_check, dict) else None
-            ),
+        "share_card": (
+            None
+            if nutrition_status == "unknown"
+            else build_best_order_share_card(
+                place_name=p.get("name"),
+                health_score=score,
+                best_order=best_order,
+                estimated_calories=estimated_calories,
+                estimated_protein_g=estimated_protein_g,
+                subtitle=short_reason,
+                recommended_badges=recommended_badges,
+                order_strategy_tags=order_strategy_tags,
+                cut_friendly=bool(order_suggestion.get("cut_friendly", False)),
+                fat_loss_friendly=bool(scoring.get("fat_loss_friendly", False)),
+                calories_saved=(
+                    reality_check.get("calories_saved") if isinstance(reality_check, dict) else None
+                ),
+            )
         ),
         **ranking_fields,
         "candidate_source_label": top_menu_source.replace("_", " ").title(),

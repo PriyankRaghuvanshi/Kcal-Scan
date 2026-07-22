@@ -54,6 +54,12 @@ def evaluate_place_for_today(
     Decide whether this venue fits today's remaining macro budget.
     Returns YES / MAYBE / NO with short UI-ready reasoning.
     """
+    # Belt-and-suspenders: null macros mean there is no real menu evidence
+    # backing this venue. Never run the fit decision on the fabricated 520/32
+    # placeholder — abstain with the skipped shape.
+    if estimated_calories is None or estimated_protein_g is None:
+        return _skipped_decision("Menu not verified")
+
     remaining_cal = _safe_optional_float(remaining_calories)
     remaining_protein = _safe_optional_float(remaining_protein_g)
 

@@ -126,7 +126,7 @@ from ranked_place_builder import build_ranked_place_profile
 from nearby_snapshot import build_nearby_snapshot
 from best_order_evidence import evidence_flag_enabled, place_best_order_evidence_fields
 from context_modes import infer_context_mode
-from place_today_decision import evaluate_place_for_today
+from place_today_decision import evaluate_place_for_today, _skipped_decision
 from smart_food_alerts import build_smart_food_alert_candidates, build_alert_audit_one_liner
 from healthy_places_audit import (
     build_audit_one_liner,
@@ -192,7 +192,7 @@ from local_profile_supabase_sync import (
 )
 from venue_intelligence_cache import get as venue_cache_get, cache_to_menu_payload, has as venue_cache_has
 from background_enrichment_queue import enqueue as enrichment_enqueue, should_enqueue_for_low_specificity
-from recommendation_safety import has_strong_menu_evidence, sanitize_recommended_item
+from recommendation_safety import compute_nutrition_status, has_strong_menu_evidence, sanitize_recommended_item
 from restaurant_reality_check import build_restaurant_reality_check
 from share_card_formatter import build_best_order_share_card
 from swap_intelligence import build_swap_suggestions
@@ -17316,20 +17316,79 @@ def _healthy_places_from_snapshot_ranked(
         top_menu_item = prof.get("top_menu_item") if isinstance(prof.get("top_menu_item"), dict) else {}
         menu_source = str((top_menu_item or {}).get("menu_item_source") or "heuristic").strip().lower()
         order_conf = float(_safe_float(prof.get("order_confidence"), 0.46) or 0.46)
-        est_cal = int(_safe_float(prof.get("estimated_calories"), 520) or 520)
-        est_prot = int(_safe_float(prof.get("estimated_protein_g"), 32) or 32)
-        decision_today = evaluate_place_for_today(
-            estimated_calories=est_cal,
-            estimated_protein_g=est_prot,
-            remaining_calories=remaining_calories,
-            remaining_protein_g=remaining_protein_g,
-            health_score=float(_safe_float(prof.get("health_score"), 5.0) or 5.0),
+        item_prov = str((top_menu_item or {}).get("item_provenance") or prof.get("item_provenance") or "").strip().lower()
+
+        # Null contract: prefer nutrition_status already stamped on the snapshot
+        # prof; else re-derive the same use_menu_order gate. Never inject 520/32.
+        prof_status = str(prof.get("nutrition_status") or "").strip().lower()
+        if prof_status in {"verified", "estimated", "unknown"}:
+            nutrition_status = prof_status
+        elif prof.get("estimated_calories") is None or prof.get("estimated_protein_g") is None:
+            nutrition_status = "unknown"
+        else:
+            best_order_name = str(prof.get("best_order") or "").strip()
+            _real_sources = {
+                "real_menu", "user_scan", "menu_intelligence_store", "structured_menu",
+                "scraped_menu", "website_menu", "website_text", "review_text", "ocr_menu",
+                "chain_registry", "ingested_chain_item", "exact_menu_cache",
+            }
+            use_menu_order_proxy = bool(
+                best_order_name
+                and item_prov not in {"heuristic_suggestion", "heuristic", "generic_fallback"}
+                and (
+                    item_prov in {"exact_chain_menu", "exact_menu"}
+                    or (menu_source in _real_sources and order_conf >= 0.45)
+                    or (menu_source == "llm_inferred" and order_conf >= 0.76)
+                )
+            )
+            nutrition_status = compute_nutrition_status(
+                use_menu_order=use_menu_order_proxy,
+                menu_item_source=menu_source,
+                menu_item_confidence=order_conf,
+                item_provenance=item_prov,
+            )
+        # Macro PRESENCE gate: never keep verified/estimated when the prof carries
+        # no real numeric macros — those would be the fabricated 520/32 defaults.
+        _prof_cal = _safe_float(prof.get("estimated_calories"), None)
+        _prof_prot = _safe_float(prof.get("estimated_protein_g"), None)
+        if nutrition_status != "unknown" and not (
+            _prof_cal is not None and _prof_cal > 0.0 and _prof_prot is not None and _prof_prot > 0.0
+        ):
+            nutrition_status = "unknown"
+        nutrition_evidence_backed = nutrition_status != "unknown"
+
+        if nutrition_status == "unknown":
+            est_cal = None
+            est_prot = None
+        else:
+            est_cal = int(_safe_float(prof.get("estimated_calories"), 520) or 520)
+            est_prot = int(_safe_float(prof.get("estimated_protein_g"), 32) or 32)
+
+        if nutrition_status == "unknown":
+            decision_today = _skipped_decision("Menu not verified")
+        else:
+            decision_today = evaluate_place_for_today(
+                estimated_calories=est_cal,
+                estimated_protein_g=est_prot,
+                remaining_calories=remaining_calories,
+                remaining_protein_g=remaining_protein_g,
+                health_score=float(_safe_float(prof.get("health_score"), 5.0) or 5.0),
+            )
+        fit_for_today = (
+            None
+            if nutrition_status == "unknown"
+            else (str(decision_today.get("decision_today") or "").strip().upper() != "NO")
         )
-        fit_for_today = (str(decision_today.get("decision_today") or "").strip().upper() != "NO")
         cuisine_hint = ", ".join(
             str(t or "").replace("_", " ") for t in (prof.get("types") or [])[:3]
             if t and str(t) not in {"restaurant", "food", "point_of_interest", "establishment", "meal_takeaway"}
         )
+        # best_order: keep an explicitly-labeled honest-copy string when unknown;
+        # otherwise drop the bare "Lighter menu option" so the UI shows the
+        # unknown affordance instead of a fabricated pick.
+        _snapshot_best_order = str(prof.get("best_order") or "").strip()
+        if nutrition_status == "unknown" and "no menu on file" not in _snapshot_best_order.lower():
+            _snapshot_best_order = None
         place_for_ranking = {
             "name": name,
             "place_id": place_id,
@@ -17339,9 +17398,11 @@ def _healthy_places_from_snapshot_ranked(
             "vicinity": prof.get("address"),
             "rating": prof.get("rating"),
             "types": prof.get("types") if isinstance(prof.get("types"), list) else [],
-            "best_order": str(prof.get("best_order") or "Lighter menu option").strip(),
+            "best_order": _snapshot_best_order,
             "estimated_calories": est_cal,
             "estimated_protein_g": est_prot,
+            "nutrition_status": nutrition_status,
+            "nutrition_evidence_backed": nutrition_evidence_backed,
             "order_confidence": order_conf,
             "menu_item_confidence": order_conf,
             "menu_item_source": menu_source,
@@ -17363,7 +17424,7 @@ def _healthy_places_from_snapshot_ranked(
                     user_id=user_id,
                     place_id=place_id,
                     place_name=name,
-                    item_name=place_for_ranking["best_order"],
+                    item_name=str(place_for_ranking["best_order"] or ""),
                     goal=goal,
                     time_of_day="",
                     _feedback_events=feedback_events_prefetch,

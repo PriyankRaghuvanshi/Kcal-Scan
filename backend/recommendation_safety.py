@@ -10,6 +10,24 @@ _CHAIN_BACKED_MENU_SOURCES = frozenset(
 )
 
 
+# Sources whose macros are trustworthy enough to label "verified" (real menu
+# item, high confidence). Anything else that still passes the use_menu_order
+# gate is "estimated"; a False gate is always "unknown".
+_VERIFIED_NUTRITION_SOURCES = frozenset(
+    {
+        "real_menu",
+        "user_scan",
+        "menu_intelligence_store",
+        "structured_menu",
+        "chain_registry",
+        "ingested_chain_item",
+        "exact_menu_cache",
+    }
+)
+
+_VERIFIED_NUTRITION_PROVENANCE = frozenset({"exact_chain_menu", "exact_menu"})
+
+
 _GENERIC_BANNED_ITEM_TOKENS = (
     "greek yogurt protein bowl",
     "grilled protein bowl",
@@ -206,6 +224,37 @@ def should_use_honest_no_menu_order_copy(
     if src in _CHAIN_BACKED_MENU_SOURCES and conf >= 0.55:
         return False
     return True
+
+
+def compute_nutrition_status(
+    *,
+    use_menu_order: bool,
+    menu_item_source: Any,
+    menu_item_confidence: Any,
+    item_provenance: Any = "",
+) -> str:
+    """
+    Three-value evidence gate for whether a venue's macros are real.
+
+    - "verified": a real, high-confidence menu item backs the numbers.
+    - "estimated": use_menu_order passed but below the verified bar (inference)
+      — numbers still come from a real named menu item, labeled estimate.
+    - "unknown": no real menu item backs the numbers (cuisine tables, 520/32,
+      generic "Lighter menu option", honest-copy path) — macros MUST be nulled.
+
+    Hangs off the ALREADY-COMPUTED use_menu_order gate; a False gate is always
+    "unknown". A per-cuisine bucket lookup is "unknown", never "estimated".
+    """
+    if not use_menu_order:
+        return "unknown"
+    prov = _norm_text(item_provenance)
+    if prov in _VERIFIED_NUTRITION_PROVENANCE:
+        return "verified"
+    src = _norm_text(menu_item_source)
+    conf = _safe_float(menu_item_confidence, 0.0)
+    if src in _VERIFIED_NUTRITION_SOURCES and conf >= 0.72:
+        return "verified"
+    return "estimated"
 
 
 def honest_no_menu_order_copy(context_text: Any) -> Tuple[str, str]:

@@ -138,7 +138,28 @@ def build_ranked_place_profile(
     covered_chain_key = str(place.get("covered_chain_key") or "").strip() or None
     can_show_verified = bool(place.get("can_show_verified_badge"))
 
-    best_order = str(place.get("recommended_order") or place.get("best_order") or "").strip() or "Lighter menu option"
+    # Null contract: when no real menu item backs the macros (nutrition_status
+    # "unknown" or macros already nulled upstream) do NOT re-fabricate 520/32 —
+    # rank from the venue prior + distance only and force the honest affordance.
+    nutrition_status = str(place.get("nutrition_status") or "").strip().lower()
+
+    def _macro_real(v: Any) -> bool:
+        # Real evidence only: absent / non-numeric / <= 0 would be the 520/32
+        # placeholder, never a genuine menu macro.
+        if v is None:
+            return False
+        try:
+            return float(v) > 0.0
+        except Exception:
+            return False
+
+    macros_unknown = (
+        nutrition_status == "unknown"
+        or not _macro_real(place.get("estimated_calories"))
+        or not _macro_real(place.get("estimated_protein_g"))
+    )
+
+    best_order = str(place.get("recommended_order") or place.get("best_order") or "").strip() or None
     place_profile = {
         "name": str(place.get("name") or "").strip(),
         "cuisine_hint": str(place.get("cuisine_hint") or ""),
@@ -146,8 +167,8 @@ def build_ranked_place_profile(
         "best_order": best_order,
         "decision_today": place.get("decision_today"),
         "fit_for_today": place.get("fit_for_today"),
-        "estimated_calories": _safe_float(place.get("estimated_calories"), 520.0),
-        "estimated_protein_g": _safe_float(place.get("estimated_protein_g"), 32.0),
+        "estimated_calories": 0.0 if macros_unknown else _safe_float(place.get("estimated_calories"), 520.0),
+        "estimated_protein_g": 0.0 if macros_unknown else _safe_float(place.get("estimated_protein_g"), 32.0),
         "menu_item_confidence": _safe_float(place.get("menu_item_confidence") or place.get("order_confidence"), 0.5),
         "order_confidence": _safe_float(place.get("order_confidence") or place.get("menu_item_confidence"), 0.5),
         "distance_meters": _safe_float(place.get("distance_meters"), 2000.0),
@@ -163,55 +184,74 @@ def build_ranked_place_profile(
         "goal": user_context.get("goal"),
     }
 
-    meal_result = compute_meal_fitness_score(place_profile, ctx)
-    eligibility_band = compute_eligibility_band(place_profile, ctx)
-    is_generic = _is_generic_fallback(best_order)
+    is_generic = _is_generic_fallback(best_order or "")
     chain_match_key = str(place.get("chain_key") or place.get("chain_id") or place.get("chain_name") or "").strip()
     tier = infer_specificity_tier(
         place_profile["menu_item_source"],
-        best_order,
+        best_order or "",
         chain_match_key or None,
     )
     specificity_bonus_100 = get_specificity_bonus_100(tier)
-    rec_label, section = recommendation_label_and_section(
-        eligibility_band,
-        place_profile["menu_item_source"],
-        place_profile["menu_item_confidence"],
-        is_generic,
-    )
-    # Generic fallbacks must never be Best pick or Strong option
-    if is_generic and rec_label == LABEL_BEST_PICK:
-        rec_label = LABEL_SUGGESTED_HEALTHIER
-    if is_generic and rec_label == LABEL_STRONG_OPTION:
-        rec_label = LABEL_NEEDS_MENU_CHECK
-    # Covered chain with heuristic suggestion: downgrade from Best pick
-    if item_provenance == "heuristic_suggestion" and rec_label == LABEL_BEST_PICK:
-        rec_label = LABEL_SUGGESTED_HEALTHIER
-
-    display_rank_score_100 = round(meal_result["meal_fitness_score_100"], 1)
     venue_prior_score_100 = int(round(_safe_float(place.get("health_score"), 5.0) * 10.0))
+    diet_pref = str(user_context.get("diet_preference") or "").strip() or ""
+
+    if macros_unknown:
+        # Metadata-only: score from the venue prior; no protein-density / macro
+        # term. Force the "Needs menu check" affordance across all three labels.
+        meal_result = {
+            "meal_fitness_score_100": float(venue_prior_score_100),
+            "meal_fitness_score": venue_prior_score_100 / 10.0,
+            "score_breakdown": {},
+        }
+        eligibility_band = 1
+        rec_label = LABEL_NEEDS_MENU_CHECK
+        section = "Needs menu check"
+        confidence_lbl = "Needs menu check"
+        display_rank_score_100 = float(venue_prior_score_100)
+    else:
+        meal_result = compute_meal_fitness_score(place_profile, ctx)
+        eligibility_band = compute_eligibility_band(place_profile, ctx)
+        rec_label, section = recommendation_label_and_section(
+            eligibility_band,
+            place_profile["menu_item_source"],
+            place_profile["menu_item_confidence"],
+            is_generic,
+        )
+        # Generic fallbacks must never be Best pick or Strong option
+        if is_generic and rec_label == LABEL_BEST_PICK:
+            rec_label = LABEL_SUGGESTED_HEALTHIER
+        if is_generic and rec_label == LABEL_STRONG_OPTION:
+            rec_label = LABEL_NEEDS_MENU_CHECK
+        # Covered chain with heuristic suggestion: downgrade from Best pick
+        if item_provenance == "heuristic_suggestion" and rec_label == LABEL_BEST_PICK:
+            rec_label = LABEL_SUGGESTED_HEALTHIER
+        display_rank_score_100 = round(meal_result["meal_fitness_score_100"], 1)
+        confidence_lbl = _confidence_label(place_profile["menu_item_source"], place_profile["menu_item_confidence"], diet_preference=diet_pref, item_provenance=item_provenance)
+        if item_provenance == "heuristic_suggestion":
+            confidence_lbl = "Estimated"
+
     if venue_prior_score_100 <= 0:
         venue_prior_score_100 = int(round(display_rank_score_100))
 
-    diet_pref = str(user_context.get("diet_preference") or "").strip() or ""
-    confidence_lbl = _confidence_label(place_profile["menu_item_source"], place_profile["menu_item_confidence"], diet_preference=diet_pref, item_provenance=item_provenance)
-    if item_provenance == "heuristic_suggestion":
-        confidence_lbl = "Estimated"
+    # Macro-derived reason lines abstain when macros are unknown (pass 0 so no
+    # fabricated protein/calorie figure is surfaced; label already gates it).
+    reason_protein = 0 if macros_unknown else place_profile["estimated_protein_g"]
+    reason_calories = 0 if macros_unknown else int(place_profile["estimated_calories"])
     fit_today_100 = _safe_float(place.get("fit_today_score_100") or ctx.get("fit_today_score_100"), 50.0)
     rank_reason = _rank_reason_short(
         display_rank_score_100,
-        place_profile["estimated_protein_g"],
-        int(place_profile["estimated_calories"]),
+        reason_protein,
+        reason_calories,
         rec_label,
         is_generic,
         fit_today_100,
-        top_item_name=best_order,
+        top_item_name=best_order or "",
         remaining_calories=user_context.get("remaining_calories") if isinstance(user_context, dict) else None,
         remaining_protein_g=user_context.get("remaining_protein_g") if isinstance(user_context, dict) else None,
     )
     why_ranked = why_this_ranked_here_short(
         display_rank_score_100, eligibility_band, rec_label,
-        place_profile["estimated_protein_g"], int(place_profile["estimated_calories"]),
+        reason_protein, reason_calories,
     )
 
     breakdown = meal_result.get("score_breakdown") or {}
@@ -286,11 +326,13 @@ def build_ranked_place_profile(
         "protein_fit_score_100": round(_safe_float(place.get("protein_fit_score_100") or ctx.get("protein_fit_score_100"), 50.0), 1),
         "overshoot_penalty_100": round(_safe_float(place.get("overshoot_penalty_100") or ctx.get("overshoot_penalty_100"), 0.0), 1),
         "best_item_name": best_order,
-        "best_item_calories": int(max(0, place_profile["estimated_calories"])),
-        "best_item_protein": int(max(0, place_profile["estimated_protein_g"])),
+        "best_item_calories": None if macros_unknown else int(max(0, place_profile["estimated_calories"])),
+        "best_item_protein": None if macros_unknown else int(max(0, place_profile["estimated_protein_g"])),
         "best_item_source": place_profile["menu_item_source"],
         "best_item_is_generic_fallback": is_generic,
-        "best_item_needs_menu_check": confidence_lbl == "Needs menu check" or rec_label == LABEL_NEEDS_MENU_CHECK,
+        "best_item_needs_menu_check": macros_unknown or confidence_lbl == "Needs menu check" or rec_label == LABEL_NEEDS_MENU_CHECK,
+        "nutrition_status": nutrition_status or ("unknown" if macros_unknown else ""),
+        "nutrition_evidence_backed": not macros_unknown,
         "item_provenance": item_provenance,
         "can_show_verified_badge": can_show_verified,
         "covered_chain_key": covered_chain_key,
