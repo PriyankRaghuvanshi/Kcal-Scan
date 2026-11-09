@@ -653,6 +653,16 @@ def _startup_chain_ingest_scheduler():
     logger.info("Chain ingest scheduler started — runs at 2:00 AM UTC daily, $2 budget cap")
 
 
+@app.on_event("startup")
+def _startup_supabase_keepalive():
+    """Keep the free-plan Supabase project from hibernating (see supabase_keepalive.py)."""
+    try:
+        from supabase_keepalive import start_keepalive_thread
+        start_keepalive_thread(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+    except Exception as e:
+        logger.warning("Supabase keep-alive failed to start (non-fatal): %s", e)
+
+
 # -------------------- VALIDATION HELPERS --------------------
 def _require_usda_key():
     if not USDA_API_KEY:
